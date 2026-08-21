@@ -113,7 +113,7 @@
         <!-- 本体: 左にフォルダ階層、右にファイル一覧 -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240" MinWidth="140" />
+                <ColumnDefinition x:Name="TreeColumn" Width="240" MinWidth="140" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" MinWidth="260" />
             </Grid.ColumnDefinitions>

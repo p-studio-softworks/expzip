@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Expzip.Archives;
+using Expzip.Configuration;
 using Expzip.Ui;
 using Microsoft.Win32;
 
@@ -38,10 +39,16 @@ public partial class MainWindow : Window
     /// <summary>処理中にウィンドウを閉じられた。処理が終わり次第閉じる (#37)。</summary>
     private bool _closeWhenIdle;
 
+    /// <summary>exe と同じフォルダに保存する設定 (#2)。</summary>
+    private readonly AppSettings _settings;
+
     public MainWindow()
     {
         InitializeComponent();
         UpdateTitle(null);
+
+        _settings = SettingsStore.Load();
+        ApplySettings();
 
         // 引数で書庫を渡された場合はそれを開く。
         // ウィンドウが出来上がってからでないとエラー表示の親にできないため Loaded で行う。
@@ -633,6 +640,10 @@ public partial class MainWindow : Window
     {
         if (_cancellation is null)
         {
+            // 保存できなくてもアプリを止めない。書き込めない場所に置かれている
+            // 場合は設定が残らないだけで、動作そのものには影響しない (#2)
+            CaptureSettings();
+            SettingsStore.TrySave(_settings);
             return;
         }
 
@@ -978,6 +989,96 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    // ------------------------------------------------------------------ 設定の反映と保存
+
+    /// <summary>保存されている設定をウィンドウに反映する。</summary>
+    private void ApplySettings()
+    {
+        if (_settings.WindowLeft is { } left
+            && _settings.WindowTop is { } top
+            && _settings.WindowWidth is { } width && width > 0
+            && _settings.WindowHeight is { } height && height > 0
+            && IsReachableOnScreen(left, top, width, height))
+        {
+            // 画面構成が変わって前回の位置が画面外になっている場合は既定に任せる
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = left;
+            Top = top;
+            Width = width;
+            Height = height;
+        }
+
+        if (_settings.WindowMaximized)
+        {
+            WindowState = WindowState.Maximized;
+        }
+
+        if (_settings.TreePaneWidth is { } paneWidth && paneWidth > 0)
+        {
+            TreeColumn.Width = new GridLength(paneWidth);
+        }
+
+        // 列を増減した場合に古い設定が残っていることがあるので、数が合うときだけ使う
+        if (_settings.ColumnWidths is { } columnWidths
+            && EntryList.View is GridView gridView
+            && columnWidths.Length == gridView.Columns.Count)
+        {
+            for (var i = 0; i < columnWidths.Length; i++)
+            {
+                if (columnWidths[i] > 0)
+                {
+                    gridView.Columns[i].Width = columnWidths[i];
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// その位置にウィンドウを出しても操作できるか。
+    /// 前回終了時から画面構成が変わり、保存された位置が画面外になっていることがある。
+    /// タイトルバーをつかめる程度に画面と重なっていることを条件にする。
+    /// </summary>
+    private static bool IsReachableOnScreen(double left, double top, double width, double height)
+    {
+        const double margin = 80;
+
+        var screenLeft = SystemParameters.VirtualScreenLeft;
+        var screenTop = SystemParameters.VirtualScreenTop;
+        var screenRight = screenLeft + SystemParameters.VirtualScreenWidth;
+        var screenBottom = screenTop + SystemParameters.VirtualScreenHeight;
+
+        return left + width > screenLeft + margin
+               && left < screenRight - margin
+               && top + margin < screenBottom
+               && top + height > screenTop;
+    }
+
+    /// <summary>いまのウィンドウの状態を設定に取り込む。</summary>
+    private void CaptureSettings()
+    {
+        // 最大化中の Left/Top/Width/Height は最大化後の値なので、
+        // 次回に元の大きさで開けるよう復元用の値を使う
+        var bounds = WindowState == WindowState.Normal
+            ? new Rect(Left, Top, Width, Height)
+            : RestoreBounds;
+
+        if (bounds.Width > 0 && bounds.Height > 0)
+        {
+            _settings.WindowLeft = bounds.Left;
+            _settings.WindowTop = bounds.Top;
+            _settings.WindowWidth = bounds.Width;
+            _settings.WindowHeight = bounds.Height;
+        }
+
+        _settings.WindowMaximized = WindowState == WindowState.Maximized;
+        _settings.TreePaneWidth = TreeColumn.ActualWidth > 0 ? TreeColumn.ActualWidth : null;
+
+        if (EntryList.View is GridView gridView)
+        {
+            _settings.ColumnWidths = gridView.Columns.Select(static c => c.ActualWidth).ToArray();
+        }
     }
 
     // ------------------------------------------------------------------ 見た目の調整

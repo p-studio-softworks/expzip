@@ -47,7 +47,7 @@ coverage*.xml
 *.pfx
 secrets.json
 appsettings.Local.json
-expzip.settings.json
+Expzip.settings.json
 .redmine-api-key
 
 # === OS / エディタ ===
