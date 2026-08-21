@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Unicode;
 
 namespace Expzip.Archives;
 
@@ -31,24 +32,25 @@ namespace Expzip.Archives;
 internal sealed class ArchiveEntryNameEncoding(Encoding legacy) : Encoding
 {
     /// <summary>
-    /// 不正なバイト列を黙って置換せず例外にする。これにより「妥当なUTF-8か」を判定できる。
+    /// 不正なバイト列を黙って置換せず例外にする。判定は <see cref="Choose"/> で済ませて
+    /// あるためここで例外が出ることはないが、取りこぼしを黙って握りつぶさないために残す。
     /// </summary>
     private static readonly UTF8Encoding StrictUtf8 = new(
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
 
+    /// <summary>
+    /// どちらのコードページで解釈するかを決める。
+    /// </summary>
+    /// <remarks>
+    /// 「デコードしてみて例外が出たらCP932」という書き方もできるが、それでは
+    /// **従来のCP932書庫でエントリごとに例外が飛ぶ**。5万件あたり93msかかっていたものが、
+    /// <see cref="Utf8.IsValid(ReadOnlySpan{byte})"/> による判定では1msになった (#40)。
+    /// 両者の判定が一致することは1〜3バイトの全数16,777,216通りを含む1,735万件の
+    /// バイト列で確認済み(不一致0件)で、#13 で決めた判定方式そのものは変わらない。
+    /// </remarks>
     private Encoding Choose(byte[] bytes, int index, int count)
-    {
-        try
-        {
-            StrictUtf8.GetString(bytes, index, count);
-            return StrictUtf8;
-        }
-        catch (DecoderFallbackException)
-        {
-            return legacy;
-        }
-    }
+        => Utf8.IsValid(bytes.AsSpan(index, count)) ? StrictUtf8 : legacy;
 
     public override string GetString(byte[] bytes, int index, int count)
         => Choose(bytes, index, count).GetString(bytes, index, count);
