@@ -18,11 +18,13 @@ internal readonly record struct ExtractProgress(long DoneBytes, long TotalBytes,
 /// <param name="Skipped">既存ファイルを上書きせず飛ばした数。</param>
 /// <param name="Rejected">安全でないパスとして拒否したエントリ名。</param>
 /// <param name="Failed">書き出しに失敗したエントリ名とその理由。</param>
+/// <param name="Cancelled">利用者の操作で中断した場合は true。</param>
 internal sealed record ExtractResult(
     int Extracted,
     int Skipped,
     IReadOnlyList<string> Rejected,
-    IReadOnlyList<(string Name, string Reason)> Failed);
+    IReadOnlyList<(string Name, string Reason)> Failed,
+    bool Cancelled);
 
 /// <summary>書庫から実ファイルへ展開する。</summary>
 internal static class ArchiveExtractor
@@ -71,9 +73,15 @@ internal static class ArchiveExtractor
         var reportStep = Math.Max(1, totalBytes / 100);
         long nextReport = 0;
 
+        var cancelled = false;
+
         foreach (var entry in targets)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                cancelled = true;
+                break;
+            }
 
             var relative = ArchivePath.ToSafeRelativePath(entry.FullName);
             if (relative is null)
@@ -111,11 +119,20 @@ internal static class ArchiveExtractor
                 using (var destination = new FileStream(
                     target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    source.CopyTo(destination);
+                    CopyWithCancellation(source, destination, cancellationToken);
                 }
 
                 TryPreserveTimestamp(entry, target);
                 extracted++;
+            }
+            catch (OperationCanceledException)
+            {
+                // 書きかけのファイルは中身が途中までしかない。見た目は正常な
+                // ファイルとして残るため、何も残らないより悪い。消してから中断する。
+                // ここに来る時点で using は抜けており、ファイルは閉じられている。
+                TryDelete(target);
+                cancelled = true;
+                break;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                        or ArgumentException or NotSupportedException
@@ -134,7 +151,46 @@ internal static class ArchiveExtractor
             }
         }
 
-        return new ExtractResult(extracted, skipped, rejected, failed);
+        return new ExtractResult(extracted, skipped, rejected, failed, cancelled);
+    }
+
+    /// <summary>
+    /// 中断要求を見ながらコピーする。
+    /// <see cref="Stream.CopyTo(Stream)"/> は途中で止められないため、
+    /// 大きなファイルを1つ処理している間ずっと中断できなくなってしまう。
+    /// </summary>
+    private static void CopyWithCancellation(Stream source, Stream destination, CancellationToken cancellationToken)
+    {
+        // Stream.CopyTo の既定と同じ大きさ
+        var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(81920);
+        try
+        {
+            int read;
+            while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                destination.Write(buffer, 0, read);
+            }
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>中断時の後始末。消せなくても中断自体は成立するので握りつぶす。</summary>
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     /// <summary>解決済みのパスが指定フォルダの配下にあるか。</summary>

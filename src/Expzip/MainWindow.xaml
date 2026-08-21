@@ -8,7 +8,8 @@
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
-        AllowDrop="True">
+        AllowDrop="True"
+        Closing="Window_Closing">
 
     <Window.Resources>
         <!-- フォルダの黄色。エクスプローラーの配色に寄せる -->
@@ -66,11 +67,21 @@
 
         <!-- ステータスバー: 選択数 / 合計サイズ / 進捗 -->
         <StatusBar DockPanel.Dock="Bottom">
-            <!-- 進捗は右端に寄せるため、あえて先頭に記述している -->
+            <!-- 進捗と中断は右端に寄せるため、あえて先頭に記述している -->
             <StatusBarItem DockPanel.Dock="Right">
-                <ProgressBar x:Name="ProgressIndicator"
-                             Width="150" Height="14"
-                             Visibility="Collapsed" />
+                <StackPanel Orientation="Horizontal">
+                    <ProgressBar x:Name="ProgressIndicator"
+                                 Width="150" Height="14"
+                                 VerticalAlignment="Center"
+                                 Visibility="Collapsed" />
+                    <!-- 処理中だけ現れる (#37) -->
+                    <Button x:Name="CancelButton"
+                            Content="中断"
+                            Click="CancelButton_Click"
+                            Margin="8,0,0,0"
+                            Padding="10,1"
+                            Visibility="Collapsed" />
+                </StackPanel>
             </StatusBarItem>
             <StatusBarItem>
                 <TextBlock x:Name="StatusMessage" Text="書庫が開かれていません" />

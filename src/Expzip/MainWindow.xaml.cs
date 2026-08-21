@@ -32,6 +32,12 @@ public partial class MainWindow : Window
     /// </summary>
     private bool _suppressTreeSelection;
 
+    /// <summary>実行中の処理の中断要求。処理中でなければ null (#37)。</summary>
+    private CancellationTokenSource? _cancellation;
+
+    /// <summary>処理中にウィンドウを閉じられた。処理が終わり次第閉じる (#37)。</summary>
+    private bool _closeWhenIdle;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -221,6 +227,8 @@ public partial class MainWindow : Window
     private async Task RunExtractionAsync(
         string archivePath, IReadOnlySet<string>? selection, string destination, bool overwrite)
     {
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
         SetBusy(true);
 
         var progress = new Progress<ExtractProgress>(p =>
@@ -232,7 +240,7 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() => ArchiveExtractor.Extract(
-                archivePath, selection, destination, overwrite, progress, CancellationToken.None));
+                archivePath, selection, destination, overwrite, progress, cancellation.Token));
 
             ShowExtractResult(result, destination);
         }
@@ -245,15 +253,68 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _cancellation = null;
             SetBusy(false);
+
+            // 処理中に閉じられていた場合は、後始末が済んだこの時点で閉じる
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+    }
+
+    private void CancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_cancellation is null)
+        {
+            return;
+        }
+
+        // 二度押しを防ぎ、要求が伝わったことを見せる。
+        // 実際に止まるのは処理側が次に中断を確認した時点。
+        CancelButton.IsEnabled = false;
+        StatusMessage.Text = "中断しています…";
+        _cancellation.Cancel();
+    }
+
+    private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_cancellation is null)
+        {
+            return;
+        }
+
+        // 処理中に閉じると書きかけのファイルが残りうる。
+        // いったん閉じるのを止め、中断を要求して後始末を待つ (#37)。
+        e.Cancel = true;
+        _closeWhenIdle = true;
+
+        if (!_cancellation.IsCancellationRequested)
+        {
+            CancelButton.IsEnabled = false;
+            StatusMessage.Text = "中断しています…";
+            _cancellation.Cancel();
         }
     }
 
     private void ShowExtractResult(ExtractResult result, string destination)
     {
-        StatusMessage.Text = $"{result.Extracted:N0} 個のファイルを展開しました";
+        StatusMessage.Text = result.Cancelled
+            ? $"展開を中断しました({result.Extracted:N0} 個展開済み)"
+            : $"{result.Extracted:N0} 個のファイルを展開しました";
 
         var message = new System.Text.StringBuilder();
+
+        if (result.Cancelled)
+        {
+            // 中断は失敗ではないので、警告ではなく事実だけを伝える
+            message.AppendLine("展開を中断しました。");
+            message.AppendLine("中断までに展開したファイルはそのまま残してあります。");
+            message.AppendLine("書きかけだったファイルは削除しました。");
+            message.AppendLine();
+        }
+
         message.AppendLine($"展開先: {destination}");
         message.AppendLine();
         message.AppendLine($"展開したファイル: {result.Extracted:N0} 個");
@@ -349,6 +410,10 @@ public partial class MainWindow : Window
 
         ProgressIndicator.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         ProgressIndicator.Value = 0;
+
+        CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        CancelButton.IsEnabled = busy;
+
         Mouse.OverrideCursor = busy ? Cursors.AppStarting : null;
     }
 
