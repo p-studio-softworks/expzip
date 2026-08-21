@@ -119,7 +119,7 @@ internal static class ArchiveExtractor
                 using (var destination = new FileStream(
                     target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    CopyWithCancellation(source, destination, cancellationToken);
+                    CancellableCopy.Copy(source, destination, cancellationToken);
                 }
 
                 TryPreserveTimestamp(entry, target);
@@ -152,30 +152,6 @@ internal static class ArchiveExtractor
         }
 
         return new ExtractResult(extracted, skipped, rejected, failed, cancelled);
-    }
-
-    /// <summary>
-    /// 中断要求を見ながらコピーする。
-    /// <see cref="Stream.CopyTo(Stream)"/> は途中で止められないため、
-    /// 大きなファイルを1つ処理している間ずっと中断できなくなってしまう。
-    /// </summary>
-    private static void CopyWithCancellation(Stream source, Stream destination, CancellationToken cancellationToken)
-    {
-        // Stream.CopyTo の既定と同じ大きさ
-        var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(81920);
-        try
-        {
-            int read;
-            while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                destination.Write(buffer, 0, read);
-            }
-        }
-        finally
-        {
-            System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
-        }
     }
 
     /// <summary>中断時の後始末。消せなくても中断自体は成立するので握りつぶす。</summary>

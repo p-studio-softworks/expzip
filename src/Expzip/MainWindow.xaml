@@ -41,7 +41,7 @@
                 <Button x:Name="NewButton"     Content="新規作成" Click="NewButton_Click"     ToolTip="空の書庫を新しく作って開く" />
                 <Separator />
                 <Button x:Name="ExtractButton" Content="展開"     Click="ExtractButton_Click" IsEnabled="False" ToolTip="選択した項目を展開する。選択していなければ書庫全体を展開する" />
-                <Button x:Name="AddButton"     Content="追加"     IsEnabled="False"           ToolTip="ファイルを書庫に追加する (未実装)" />
+                <Button x:Name="AddButton"     Content="追加"     Click="AddButton_Click"     IsEnabled="False" ToolTip="ファイルを書庫に追加する。一覧にドラッグしても追加できる" />
                 <Separator />
                 <Button x:Name="RefreshButton" Content="更新"     Click="RefreshButton_Click" IsEnabled="False" ToolTip="書庫を読み直す" />
             </ToolBar>
@@ -169,6 +169,9 @@
                 -->
                 <ListView x:Name="EntryList"
                           BorderThickness="0"
+                          AllowDrop="True"
+                          DragOver="EntryList_DragOver"
+                          Drop="EntryList_Drop"
                           SelectionChanged="EntryList_SelectionChanged"
                           MouseDoubleClick="EntryList_MouseDoubleClick"
                           GridViewColumnHeader.Click="EntryList_ColumnHeaderClick"

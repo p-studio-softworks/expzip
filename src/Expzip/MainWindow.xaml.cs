@@ -156,6 +156,7 @@ public partial class MainWindow : Window
         FolderTree.ItemsSource = new[] { contents.Root };
         RefreshButton.IsEnabled = true;
         ExtractButton.IsEnabled = true;
+        AddButton.IsEnabled = true;
         UpdateTitle(Path.GetFileName(path));
 
         var target = restorePath is null ? contents.Root : FindFolder(contents.Root, restorePath) ?? contents.Root;
@@ -174,6 +175,206 @@ public partial class MainWindow : Window
             $"パスが通常ではない項目が {contents.SuspiciousCount:N0} 件あります";
         TotalSizeInfo.Text = $"合計 {contents.TotalLength:N0} バイト "
                            + $"(圧縮後 {contents.TotalCompressedLength:N0} バイト)";
+    }
+
+    // ------------------------------------------------------------------ 追加
+
+    private async void AddButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_contents is null)
+        {
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "書庫に追加するファイルを選択",
+            Filter = "すべてのファイル (*.*)|*.*",
+            Multiselect = true,
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            await AddToArchiveAsync(dialog.FileNames);
+        }
+    }
+
+    private void EntryList_DragOver(object sender, DragEventArgs e)
+    {
+        // 書庫を開いていないと追加先が無い
+        var acceptable = _contents is not null
+                         && _cancellation is null
+                         && e.Data.GetDataPresent(DataFormats.FileDrop);
+
+        e.Effects = acceptable ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void EntryList_Drop(object sender, DragEventArgs e)
+    {
+        if (_contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await AddToArchiveAsync(paths);
+    }
+
+    /// <summary>ディスク上のファイルやフォルダを、いま表示しているフォルダに追加する。</summary>
+    private async Task AddToArchiveAsync(IReadOnlyList<string> sourcePaths)
+    {
+        if (_contents is null)
+        {
+            return;
+        }
+
+        var archivePath = _contents.FilePath;
+        var destinationFolder = _currentFolder?.FullPath ?? string.Empty;
+
+        // 同名のエントリがある場合だけ確認を出す。無用な確認は挟まない
+        var replaceExisting = true;
+        var conflicts = FindConflicts(sourcePaths, destinationFolder);
+        if (conflicts.Count > 0)
+        {
+            var preview = string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c));
+            var more = conflicts.Count > 5 ? $"{Environment.NewLine}  ほか {conflicts.Count - 5:N0} 件" : string.Empty;
+
+            var answer = MessageBox.Show(
+                this,
+                $"同じ名前の項目が書庫内に {conflicts.Count:N0} 件あります。置き換えますか?"
+                + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
+                + $"{Environment.NewLine}{Environment.NewLine}"
+                + "「いいえ」を選ぶと、それらは書庫内のまま残します。",
+                AppName, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+            if (answer == MessageBoxResult.Cancel)
+            {
+                return;
+            }
+
+            replaceExisting = answer == MessageBoxResult.Yes;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var progress = new Progress<AddProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Percent;
+            StatusMessage.Text = $"追加中: {p.CurrentName}";
+        });
+
+        try
+        {
+            var result = await Task.Run(() => ZipArchiveWriter.Add(
+                archivePath, sourcePaths, destinationFolder, replaceExisting, progress, cancellation.Token));
+
+            ShowAddResult(result);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"書庫に追加できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
+                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+            else
+            {
+                // 書庫の中身が変わったので読み直す。表示位置は保つ
+                OpenArchive(archivePath, destinationFolder);
+            }
+        }
+    }
+
+    private void ShowAddResult(AddResult result)
+    {
+        if (result.Cancelled)
+        {
+            StatusMessage.Text = "追加を中断しました";
+            MessageBox.Show(
+                this,
+                $"追加を中断しました。{Environment.NewLine}{Environment.NewLine}"
+                + "書庫は変更していません。作業用の複製に対して処理していたため、"
+                + $"{Environment.NewLine}中断しても元の書庫はそのまま残ります。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var message = new System.Text.StringBuilder();
+        message.AppendLine($"追加したファイル: {result.Added:N0} 個");
+
+        if (result.Replaced > 0)
+        {
+            message.AppendLine($"置き換えたファイル: {result.Replaced:N0} 個");
+        }
+
+        if (result.Skipped > 0)
+        {
+            message.AppendLine($"置き換えず残したファイル: {result.Skipped:N0} 個");
+        }
+
+        var icon = MessageBoxImage.Information;
+        if (result.Failed.Count > 0)
+        {
+            icon = MessageBoxImage.Warning;
+            message.AppendLine();
+            message.AppendLine($"追加できなかったファイル: {result.Failed.Count:N0} 個");
+            foreach (var (name, reason) in result.Failed.Take(5))
+            {
+                message.AppendLine($"  {name} … {reason}");
+            }
+        }
+
+        StatusMessage.Text = $"{result.Added + result.Replaced:N0} 個のファイルを追加しました";
+        MessageBox.Show(this, message.ToString().TrimEnd(), AppName, MessageBoxButton.OK, icon);
+    }
+
+    /// <summary>追加しようとしている名前のうち、書庫内に既にあるものを返す。</summary>
+    private List<string> FindConflicts(IReadOnlyList<string> sourcePaths, string destinationFolder)
+    {
+        if (_contents is null)
+        {
+            return [];
+        }
+
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectPaths(_contents.Root, existing);
+
+        return ZipArchiveWriter.PlanEntryNames(sourcePaths, destinationFolder)
+            .Where(name => existing.Contains(name.TrimEnd('/')))
+            .ToList();
+    }
+
+    private static void CollectPaths(ArchiveFolder folder, HashSet<string> into)
+    {
+        foreach (var file in folder.Files)
+        {
+            into.Add(file.FullPath);
+        }
+
+        foreach (var child in folder.Folders)
+        {
+            into.Add(child.FullPath);
+            CollectPaths(child, into);
+        }
     }
 
     // ------------------------------------------------------------------ 展開
@@ -404,6 +605,7 @@ public partial class MainWindow : Window
         OpenButton.IsEnabled = !busy;
         NewButton.IsEnabled = !busy;
         ExtractButton.IsEnabled = !busy && _contents is not null;
+        AddButton.IsEnabled = !busy && _contents is not null;
         RefreshButton.IsEnabled = !busy && _contents is not null;
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;
