@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <AssemblyName>Expzip</AssemblyName>
+    <RootNamespace>Expzip</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>Expzip</Product>
+    <Copyright>Copyright (c) 2026 P studio</Copyright>
+    <!-- フェーズ1〜2は日本語UIのみ。多言語対応はフェーズ3 (docs/SPEC.md 8章) -->
+    <NeutralLanguage>ja-JP</NeutralLanguage>
+  </PropertyGroup>
+
+  <!--
+    発行設定は Properties/PublishProfiles/win-x64.pubxml にある。
+    ここに RuntimeIdentifier を書くと通常のビルドまで RID 固有になり
+    開発時のビルドが遅くなるため、発行プロファイル側に分離している。
+      dotnet publish src/Expzip -p:PublishProfile=win-x64
+  -->
+
+</Project>

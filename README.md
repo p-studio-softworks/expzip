@@ -28,7 +28,13 @@
 .NET 10 SDK が必要です。
 
 ```
-dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true
+dotnet build
+```
+
+配布用の単一 exe を作るには、発行プロファイルを指定します。出力は `publish/win-x64/` に生成されます。
+
+```
+dotnet publish src/Expzip -p:PublishProfile=win-x64
 ```
 
 ## ドキュメント

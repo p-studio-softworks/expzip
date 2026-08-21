@@ -1,0 +1,137 @@
+<Window x:Class="Expzip.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Expzip"
+        Height="620" Width="960"
+        MinHeight="360" MinWidth="640"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!--
+        エクスプローラーライクな基本レイアウト (docs/SPEC.md 5.1節)。
+        上から ツールバー / アドレスバー / [タブバー] / ツリー+リスト / ステータスバー。
+        タブバーはフェーズ3で アドレスバーの下 に追加する (#22)。
+    -->
+    <DockPanel>
+
+        <!-- ツールバー -->
+        <ToolBarTray DockPanel.Dock="Top" IsLocked="True">
+            <ToolBar ToolBarTray.IsLocked="True" Loaded="ToolBar_Loaded">
+                <!-- 各操作の実装はフェーズ1の個別チケット (#3, #6, #8 ほか) で行う -->
+                <Button x:Name="OpenButton"    Content="開く"     IsEnabled="False" ToolTip="書庫を開く (未実装)" />
+                <Button x:Name="NewButton"     Content="新規作成" IsEnabled="False" ToolTip="新しい書庫を作成する (未実装)" />
+                <Separator />
+                <Button x:Name="ExtractButton" Content="展開"     IsEnabled="False" ToolTip="選択した項目を展開する (未実装)" />
+                <Button x:Name="AddButton"     Content="追加"     IsEnabled="False" ToolTip="ファイルを書庫に追加する (未実装)" />
+                <Separator />
+                <Button x:Name="RefreshButton" Content="更新"     IsEnabled="False" ToolTip="表示を最新の状態にする (未実装)" />
+            </ToolBar>
+        </ToolBarTray>
+
+        <!-- アドレスバー: 書庫内の現在パスを表示する -->
+        <Border DockPanel.Dock="Top"
+                BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="8,5">
+            <DockPanel>
+                <TextBlock Text="場所"
+                           DockPanel.Dock="Left"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+                <TextBox x:Name="AddressBar"
+                         IsReadOnly="True"
+                         IsReadOnlyCaretVisible="True"
+                         Padding="4,2"
+                         VerticalContentAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <!-- ステータスバー: 選択数 / 合計サイズ / 進捗 -->
+        <StatusBar DockPanel.Dock="Bottom">
+            <!-- 進捗は右端に寄せるため、あえて先頭に記述している -->
+            <StatusBarItem DockPanel.Dock="Right">
+                <ProgressBar x:Name="ProgressIndicator"
+                             Width="150" Height="14"
+                             Visibility="Collapsed" />
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock x:Name="StatusMessage" Text="書庫が開かれていません" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock x:Name="SelectionInfo" Text="選択 0 個" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem>
+                <TextBlock x:Name="TotalSizeInfo" Text="合計 0 バイト" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <!-- 本体: 左にフォルダ階層、右にファイル一覧 -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240" MinWidth="140" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="260" />
+            </Grid.ColumnDefinitions>
+
+            <TreeView x:Name="FolderTree"
+                      Grid.Column="0"
+                      BorderThickness="0"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling" />
+
+            <GridSplitter Grid.Column="1"
+                          Width="4"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="{x:Static SystemColors.ControlBrush}"
+                          ShowsPreview="False" />
+
+            <Grid Grid.Column="2">
+                <!--
+                    数万ファイル規模の書庫でも固まらないよう、UI 仮想化を明示的に
+                    有効化している (docs/SPEC.md 7章, #14)。
+                -->
+                <ListView x:Name="EntryList"
+                          BorderThickness="0"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          VirtualizingPanel.ScrollUnit="Pixel"
+                          ScrollViewer.IsDeferredScrollingEnabled="False">
+                    <ListView.Resources>
+                        <!--
+                            エクスプローラーに合わせて列見出しを左揃えにする。
+                            既定では中央揃えになり、見た目が大きく異なる。
+                            サイズ系の列の値を右揃えにするのは、実際に項目を
+                            表示する #5 で セルテンプレートと併せて行う。
+                        -->
+                        <Style TargetType="GridViewColumnHeader">
+                            <Setter Property="HorizontalContentAlignment" Value="Left" />
+                            <Setter Property="Padding" Value="6,2" />
+                        </Style>
+                    </ListView.Resources>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="名前"     Width="300" />
+                            <GridViewColumn Header="サイズ"   Width="100" />
+                            <GridViewColumn Header="圧縮後"   Width="100" />
+                            <GridViewColumn Header="圧縮率"   Width="70" />
+                            <GridViewColumn Header="更新日時" Width="150" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!-- 書庫が開かれていないときの案内。項目を表示したら隠す -->
+                <TextBlock x:Name="EmptyStateMessage"
+                           Text="書庫が開かれていません"
+                           Foreground="{x:Static SystemColors.GrayTextBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           IsHitTestVisible="False" />
+            </Grid>
+        </Grid>
+
+    </DockPanel>
+</Window>

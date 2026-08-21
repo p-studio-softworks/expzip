@@ -50,9 +50,11 @@ MVP(フェーズ1)は **ZIPの読み書きのみ** を必須とする。
   - ZIP: `System.IO.Compression`(標準)をベースに、Shift-JISファイル名対応のためエンコーディング処理を独自にラップ、またはSharpCompressで代替
   - 7z/tar等: [SharpCompress](https://github.com/adamhathcock/sharpcompress)(マネージド、ライセンス的にクリア)
   - パスワード付きZIP(AES-256)の書き込みは対応ライブラリに課題あり([7章](#7-既知の技術的リスク)参照)
-- **配布方式**: `dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true`
+- **配布方式**: 発行プロファイル `src/Expzip/Properties/PublishProfiles/win-x64.pubxml` を使用する
+  - `dotnet publish src/Expzip -p:PublishProfile=win-x64` で `publish/win-x64/Expzip.exe` を生成
   - 単一exeとしてビルドし、フォルダにコピーするだけで動作させる
-  - トリミング(`PublishTrimmed`)はWPFでは非サポートのため使用しない。exeサイズは70〜100MB程度になる見込みで、自己完結型配布のコストとして許容する
+  - トリミング(`PublishTrimmed`)はWPFでは非サポートのため使用しない
+  - 代わりに単一ファイル圧縮(`EnableCompressionInSingleFile`)を有効にする。**実測で134MB → 61.8MB**まで削減できた(v0.1.0時点)
   - レジストリ書き込み・インストーラは一切使用しない
 
 ## 5. UI設計
@@ -127,7 +129,7 @@ MVP(フェーズ1)は **ZIPの読み書きのみ** を必須とする。
 
 ## 8. 非機能要件
 
-- 起動時間: 実用上ストレスのない範囲(具体的な数値目標は開発初期に計測して設定)
+- 起動時間: 雛形段階での実測は初回927ms / 2回目524ms(単一ファイル圧縮あり)。機能追加後もウィンドウ表示まで**1秒以内**を目標とする
 - ポータブル性: 設定ファイルはexeと同じフォルダに配置する(確定。`%APPDATA%`は使用しない)
 - ローカライズ: フェーズ1〜2は日本語UIのみ。フェーズ3で多言語対応(日本語・英語)を追加
 

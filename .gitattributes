@@ -8,6 +8,7 @@
 
 # Windows のツールが CRLF を前提とするもの
 *.sln      text eol=crlf
+*.slnx     text eol=crlf
 *.cmd      text eol=crlf
 *.bat      text eol=crlf
 
