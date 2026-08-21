@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
@@ -43,6 +45,16 @@ public partial class MainWindow : Window
     /// <summary>exe と同じフォルダに保存する設定 (#2)。</summary>
     private readonly AppSettings _settings;
 
+    /// <summary>
+    /// 既定のアプリで開くために取り出したファイルの置き場 (#12)。
+    /// 実際に取り出すまで作らない。一時フォルダに書けない環境でも、
+    /// 書庫を見るだけなら支障なく使えるようにするため。
+    /// </summary>
+    private TempWorkspace? _temp;
+
+    /// <summary>一時フォルダを用意できなかった。同じ知らせを繰り返さないための記録。</summary>
+    private bool _tempUnavailableReported;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -50,6 +62,11 @@ public partial class MainWindow : Window
 
         _settings = SettingsStore.Load();
         ApplySettings();
+
+        // 異常終了で消し残した一時ファイルを片付ける (#12)。
+        // 起動を待たせたくないので裏で行い、結果も見ない。動いている別の
+        // インスタンスの置き場は錠ファイルで守られているため巻き込まない。
+        Task.Run(static () => TempWorkspace.CleanUpAbandoned(null));
 
         // 引数で書庫を渡された場合はそれを開く。
         // ウィンドウが出来上がってからでないとエラー表示の親にできないため Loaded で行う。
@@ -334,9 +351,18 @@ public partial class MainWindow : Window
 
     private void EntryList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
+        var editable = SelectedRowsForEdit();
+
         DeleteMenuItem.IsEnabled = _contents is not null
                                    && _cancellation is null
-                                   && SelectedRowsForEdit().Count > 0;
+                                   && editable.Count > 0;
+
+        // 「開く」は1件だけを対象にする。複数選んだまま開くと、
+        // 選んだ数だけアプリが立ち上がって収拾がつかない (#12)
+        OpenMenuItem.IsEnabled = _contents is not null
+                                 && _cancellation is null
+                                 && EntryList.SelectedItems.Count == 1
+                                 && editable.Count == 1;
     }
 
     private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
@@ -344,6 +370,18 @@ public partial class MainWindow : Window
 
     private async void EntryList_KeyDown(object sender, KeyEventArgs e)
     {
+        // Enter でも開けるようにする。エクスプローラーと同じ操作感にするため (#12)
+        if (e.Key == Key.Enter)
+        {
+            if (EntryList.SelectedItem is EntryRow row)
+            {
+                e.Handled = true;
+                await ActivateAsync(row);
+            }
+
+            return;
+        }
+
         if (e.Key != Key.Delete)
         {
             return;
@@ -683,6 +721,301 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 展開
 
+    // ------------------------------------------------------------------ 既定のアプリで開く (#12)
+
+    private async void OpenMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (EntryList.SelectedItem is EntryRow row)
+        {
+            await ActivateAsync(row);
+        }
+    }
+
+    /// <summary>
+    /// 書庫内のファイルを一時フォルダへ取り出し、既定のアプリで開く (#12)。
+    /// 取り出したファイルはアプリ終了時に消える。
+    /// </summary>
+    private async Task OpenWithDefaultAppAsync(ArchiveEntry entry)
+    {
+        if (_contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        // 取り出し先は書庫内のパスから決める。展開と同じ判定を使い、
+        // 置き場の外を指すエントリは開かない (Zip Slip 対策)。
+        var relative = ArchivePath.ToSafeRelativePath(entry.SourceName);
+        if (relative is null)
+        {
+            MessageBox.Show(
+                this,
+                $"このファイルは開けません。{Environment.NewLine}{Environment.NewLine}"
+                + $"{entry.SourceName}{Environment.NewLine}{Environment.NewLine}"
+                + "書庫の外を指すパスが指定されています。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (RiskyFileTypes.IsExecutable(entry.Name) && !ConfirmExecutable(entry.Name))
+        {
+            return;
+        }
+
+        var workspace = EnsureWorkspace();
+        if (workspace is null)
+        {
+            return;
+        }
+
+        string directory;
+        string target;
+        try
+        {
+            directory = workspace.DirectoryFor(_contents.FilePath);
+            target = Path.GetFullPath(Path.Combine(directory, relative));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or ArgumentException or PathTooLongException
+                                   or NotSupportedException)
+        {
+            ReportTempFailure(ex);
+            return;
+        }
+
+        // 同じファイルを開き直したときは取り出し直さない。開いたままのアプリに
+        // 掴まれていると上書きできないうえ、大きなファイルでは待ち時間も無駄になる。
+        var reusable = TryGetLength(target) == entry.Length;
+
+        if (!reusable && !await ExtractForViewingAsync(entry, directory, target))
+        {
+            return;
+        }
+
+        LaunchDefaultApp(target);
+    }
+
+    /// <summary>
+    /// 実行されうるファイルを開く前の確認。
+    /// </summary>
+    /// <remarks>
+    /// 「はい / いいえ」ではなく「OK / キャンセル」にしている。前者では Esc も
+    /// タイトルバーの×も効かず、必ずボタンを押させることになる。危ないほうを
+    /// 既定にしない確認では、何もせず閉じられることのほうが大事なため。
+    /// </remarks>
+    private bool ConfirmExecutable(string fileName)
+        => MessageBox.Show(
+            this,
+            $"{fileName}{Environment.NewLine}{Environment.NewLine}"
+            + $"このファイルは開くと実行されます。{Environment.NewLine}"
+            + $"出所の分からない書庫の場合は開かないでください。{Environment.NewLine}{Environment.NewLine}"
+            + "続けますか?",
+            AppName,
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel) == MessageBoxResult.OK;
+
+    /// <summary>一時ファイルの置き場を用意する。用意できなければ <see langword="null"/>。</summary>
+    private TempWorkspace? EnsureWorkspace()
+    {
+        if (_temp is not null)
+        {
+            return _temp;
+        }
+
+        try
+        {
+            _temp = TempWorkspace.Create();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ReportTempFailure(ex);
+        }
+
+        return _temp;
+    }
+
+    /// <summary>
+    /// 一時フォルダを使えなかったことを知らせる。
+    /// ダイアログは一度だけにする。開くたびに同じ知らせが出ても操作の邪魔にしかならない。
+    /// </summary>
+    private void ReportTempFailure(Exception ex)
+    {
+        StatusMessage.Text = "一時フォルダを使えないため、ファイルを開けません";
+
+        if (_tempUnavailableReported)
+        {
+            return;
+        }
+
+        _tempUnavailableReported = true;
+        MessageBox.Show(
+            this,
+            $"ファイルを開くための一時フォルダを用意できませんでした。{Environment.NewLine}"
+            + $"「展開」で場所を指定すれば取り出せます。{Environment.NewLine}{Environment.NewLine}"
+            + $"{TempWorkspace.Root}{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+            AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>ファイルの大きさ。無い場合や読めない場合は -1。</summary>
+    private static long TryGetLength(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Exists ? info.Length : -1;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>1ファイルだけを一時フォルダへ取り出す。</summary>
+    /// <returns>取り出せて、開いてよい状態になった場合は true。</returns>
+    private async Task<bool> ExtractForViewingAsync(ArchiveEntry entry, string directory, string target)
+    {
+        var archivePath = _contents!.FilePath;
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var progress = new Progress<ExtractProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Percent;
+            StatusMessage.Text = $"{entry.Name} を取り出しています…";
+        });
+
+        try
+        {
+            // 書庫に付いている出所の印は、取り出したファイルにも引き継ぐ (#12)
+            var zone = MarkOfTheWeb.TryRead(archivePath);
+
+            var result = await Task.Run(() =>
+            {
+                // 前回取り出したものが読み取り専用のまま残っていると上書きできない
+                TempWorkspace.ClearReadOnly(target);
+
+                var extracted = ArchiveExtractor.Extract(
+                    archivePath,
+                    new HashSet<string>(StringComparer.Ordinal) { entry.SourceName },
+                    directory, overwrite: true, progress, cancellation.Token);
+
+                if (extracted.Extracted == 1)
+                {
+                    MarkOfTheWeb.TryApply(target, zone);
+                    TempWorkspace.MakeReadOnly(target);
+                }
+
+                return extracted;
+            });
+
+            if (result.Cancelled)
+            {
+                StatusMessage.Text = "取り出しを中断しました";
+                return false;
+            }
+
+            if (result.Extracted != 1)
+            {
+                var reason = result.Failed.Count > 0
+                    ? result.Failed[0].Reason
+                    : "書庫から取り出せませんでした。";
+
+                MessageBox.Show(
+                    this,
+                    $"{entry.Name} を開けませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"{entry.Name} を開けませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            // 取り出している間に閉じられていた場合は、ここで閉じる。
+            // 戻り値は finally より先に決まるため、閉じる場合は開かずに終わる。
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+    }
+
+    /// <summary>取り出したファイルを既定のアプリに渡す。</summary>
+    private void LaunchDefaultApp(string path)
+    {
+        // 関連付けが無い / 利用者が「アプリを選ぶ」を取り消した場合の Win32 のエラー番号
+        const int NoAssociation = 1155;
+        const int Cancelled = 1223;
+
+        try
+        {
+            // UseShellExecute を有効にしないと関連付けが使われず、実行ファイル以外を開けない
+            using (Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }))
+            {
+            }
+
+            StatusMessage.Text = $"{Path.GetFileName(path)} を既定のアプリで開きました";
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == NoAssociation)
+        {
+            // 関連付けが無いときは Windows の「プログラムから開く」を出す。
+            // ここで諦めると、拡張子の無いファイルなどを覗く手立てが無くなる。
+            ShowOpenWithDialog(path);
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == Cancelled)
+        {
+            StatusMessage.Text = "開くのを取り消しました";
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException
+                                   or FileNotFoundException or ObjectDisposedException)
+        {
+            MessageBox.Show(
+                this,
+                $"既定のアプリで開けませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Windows の「プログラムから開く」を表示する。</summary>
+    private void ShowOpenWithDialog(string path)
+    {
+        try
+        {
+            using (Process.Start(new ProcessStartInfo("rundll32.exe")
+            {
+                Arguments = $"shell32.dll,OpenAs_RunDLL \"{path}\"",
+                UseShellExecute = true,
+            }))
+            {
+            }
+
+            StatusMessage.Text = $"{Path.GetFileName(path)} を開くアプリを選んでください";
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException
+                                   or FileNotFoundException)
+        {
+            MessageBox.Show(
+                this,
+                $"このファイルを開けるアプリが見つかりませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    // ------------------------------------------------------------------ 展開
+
     private async void ExtractButton_Click(object sender, RoutedEventArgs e)
     {
         if (_contents is null)
@@ -791,6 +1124,12 @@ public partial class MainWindow : Window
             // 場合は設定が残らないだけで、動作そのものには影響しない (#2)
             CaptureSettings();
             SettingsStore.TrySave(_settings);
+
+            // 既定のアプリで開くために取り出したファイルを消す (#12)。
+            // 開いたままのアプリに掴まれている分は消せないが、それは次回起動時に
+            // 片付ける。ここで待たされてアプリが終われないほうが困る。
+            _temp?.Dispose();
+            _temp = null;
             return;
         }
 
@@ -1041,16 +1380,37 @@ public partial class MainWindow : Window
         Navigate(folder);
     }
 
-    private void EntryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private async void EntryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (EntryList.SelectedItem is not EntryRow row || row.Folder is null)
+        // 列見出しや余白のダブルクリックでは何もしない。
+        // 行の上で押されたかを確かめないと、見出しをダブルクリックしただけで
+        // 選択中のファイルが開いてしまう。
+        if (e.OriginalSource is not DependencyObject source
+            || ItemsControl.ContainerFromElement(EntryList, source) is not ListViewItem item
+            || item.Content is not EntryRow row)
         {
-            // ファイルのダブルクリックで既定のアプリを開く動作は #12 で実装する
             return;
         }
 
-        SelectInTree(row.Folder);
-        Navigate(row.Folder);
+        await ActivateAsync(row);
+    }
+
+    /// <summary>
+    /// 行を「開く」。フォルダなら移動し、ファイルなら既定のアプリで開く (#12)。
+    /// </summary>
+    private async Task ActivateAsync(EntryRow row)
+    {
+        if (row.Folder is not null)
+        {
+            SelectInTree(row.Folder);
+            Navigate(row.Folder);
+            return;
+        }
+
+        if (row.Entry is not null)
+        {
+            await OpenWithDefaultAppAsync(row.Entry);
+        }
     }
 
     private void EntryList_SelectionChanged(object sender, SelectionChangedEventArgs e)

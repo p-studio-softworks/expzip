@@ -199,6 +199,13 @@
                     <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
                     <ListView.ContextMenu>
                         <ContextMenu>
+                            <!-- 一時フォルダへ取り出して既定のアプリに渡す (#12) -->
+                            <MenuItem x:Name="OpenMenuItem"
+                                      Header="開く"
+                                      InputGestureText="Enter"
+                                      FontWeight="Bold"
+                                      Click="OpenMenuItem_Click" />
+                            <Separator />
                             <MenuItem x:Name="DeleteMenuItem"
                                       Header="削除"
                                       InputGestureText="Del"
