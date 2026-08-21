@@ -64,6 +64,53 @@ public partial class MainWindow : Window
         }
     }
 
+    private void NewButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "新しい書庫を作成",
+            Filter = "ZIP書庫 (*.zip)|*.zip",
+            DefaultExt = ".zip",
+            AddExtension = true,
+            FileName = "新しい書庫.zip",
+            // 上書きの確認はダイアログ側に任せる。既存の書庫を選ぶと中身が消えるため
+            OverwritePrompt = true,
+        };
+
+        // 書庫を開いているなら、その隣に作るのが自然
+        if (_contents is not null)
+        {
+            var directory = Path.GetDirectoryName(_contents.FilePath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                dialog.InitialDirectory = directory;
+            }
+        }
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            ZipArchiveWriter.CreateEmpty(dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or ArgumentException or NotSupportedException)
+        {
+            MessageBox.Show(
+                this,
+                $"書庫を作成できませんでした。{Environment.NewLine}{Environment.NewLine}"
+                + $"{dialog.FileName}{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // 作ったらそのまま開く。中身は空なので、ここからファイルを追加していく
+        OpenArchive(dialog.FileName);
+    }
+
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         if (_contents is not null)
@@ -294,6 +341,7 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         OpenButton.IsEnabled = !busy;
+        NewButton.IsEnabled = !busy;
         ExtractButton.IsEnabled = !busy && _contents is not null;
         RefreshButton.IsEnabled = !busy && _contents is not null;
         EntryList.IsEnabled = !busy;
