@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -183,6 +184,32 @@ public partial class MainWindow : Window
             $"パスが通常ではない項目が {contents.SuspiciousCount:N0} 件あります";
         TotalSizeInfo.Text = $"合計 {contents.TotalLength:N0} バイト "
                            + $"(圧縮後 {contents.TotalCompressedLength:N0} バイト)";
+    }
+
+    // ------------------------------------------------------------------ 圧縮方式
+
+    /// <summary>いま選ばれている圧縮の強さ (#11)。</summary>
+    private CompressionLevel SelectedCompressionLevel
+        => CompressionCombo.SelectedItem is CompressionLevelOption option
+            ? option.Level
+            : CompressionLevelOption.Default;
+
+    private void CompressionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // 起動時の初期化でも呼ばれるので、設定を読み終える前は何もしない
+        if (_settings is null || CompressionCombo.SelectedItem is not CompressionLevelOption option)
+        {
+            return;
+        }
+
+        var value = CompressionLevelOption.ToSettingValue(option.Level);
+        if (_settings.CompressionLevel == value)
+        {
+            return;
+        }
+
+        _settings.CompressionLevel = value;
+        SettingsStore.TrySave(_settings);
     }
 
     // ------------------------------------------------------------------ 最近使った書庫
@@ -551,7 +578,8 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() => ZipArchiveWriter.Add(
-                archivePath, sourcePaths, destinationFolder, replaceExisting, progress, cancellation.Token));
+                archivePath, sourcePaths, destinationFolder, replaceExisting,
+                SelectedCompressionLevel, progress, cancellation.Token));
 
             ShowAddResult(result);
         }
@@ -1138,6 +1166,11 @@ public partial class MainWindow : Window
         {
             TreeColumn.Width = new GridLength(paneWidth);
         }
+
+        CompressionCombo.ItemsSource = CompressionLevelOption.All;
+        var level = CompressionLevelOption.Parse(_settings.CompressionLevel);
+        CompressionCombo.SelectedItem =
+            CompressionLevelOption.All.First(option => option.Level == level);
 
         // 列を増減した場合に古い設定が残っていることがあるので、数が合うときだけ使う
         if (_settings.ColumnWidths is { } columnWidths

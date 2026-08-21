@@ -61,6 +61,7 @@ internal static class ZipArchiveWriter
     /// <param name="sourcePaths">追加するファイルまたはフォルダのパス。</param>
     /// <param name="destinationFolder">書庫内の追加先フォルダ。ルートは空文字。</param>
     /// <param name="replaceExisting">同名のエントリがある場合に置き換えるか。</param>
+    /// <param name="compressionLevel">圧縮の強さ (#11)。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <remarks>
@@ -73,6 +74,7 @@ internal static class ZipArchiveWriter
         IReadOnlyList<string> sourcePaths,
         string destinationFolder,
         bool replaceExisting,
+        CompressionLevel compressionLevel,
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -129,7 +131,7 @@ internal static class ZipArchiveWriter
                         }
                         else
                         {
-                            var entry = zip.CreateEntry(item.EntryName, CompressionLevel.Optimal);
+                            var entry = zip.CreateEntry(item.EntryName, compressionLevel);
                             entry.LastWriteTime = ReadLastWriteTime(item.SourcePath);
 
                             using var source = File.OpenRead(item.SourcePath);

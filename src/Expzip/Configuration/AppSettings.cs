@@ -27,4 +27,12 @@ internal sealed class AppSettings
 
     /// <summary>最近開いた書庫のパス。新しいものが先頭 (#10)。</summary>
     public List<string> RecentArchives { get; set; } = [];
+
+    /// <summary>
+    /// ファイルを追加するときの圧縮方式 (#11)。
+    /// NoCompression / Fastest / Optimal / SmallestSize のいずれか。
+    /// 数値ではなく名前で持つのは、利用者が設定ファイルを開いたときに
+    /// 何を指しているか分かるようにするため。
+    /// </summary>
+    public string CompressionLevel { get; set; } = "Optimal";
 }
