@@ -1,0 +1,27 @@
+namespace Expzip.Archives;
+
+/// <summary>書庫内の1ファイルを表す。</summary>
+internal sealed class ArchiveEntry
+{
+    /// <summary>書庫内のパス。区切りは <c>/</c> に正規化されている。</summary>
+    public required string FullPath { get; init; }
+
+    /// <summary>ファイル名(パスを含まない)。</summary>
+    public required string Name { get; init; }
+
+    /// <summary>展開後のサイズ(バイト)。</summary>
+    public long Length { get; init; }
+
+    /// <summary>書庫内での圧縮後サイズ(バイト)。</summary>
+    public long CompressedLength { get; init; }
+
+    /// <summary>最終更新日時。</summary>
+    public DateTime LastWriteTime { get; init; }
+
+    /// <summary>
+    /// 圧縮率(%)。圧縮後サイズが元の何%になったかを表し、小さいほどよく縮んでいる。
+    /// 展開後サイズが0のときは0を返す。
+    /// </summary>
+    public double CompressionRatio
+        => Length == 0 ? 0 : (double)CompressedLength / Length * 100.0;
+}

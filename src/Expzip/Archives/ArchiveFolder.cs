@@ -1,0 +1,26 @@
+namespace Expzip.Archives;
+
+/// <summary>
+/// 書庫内のフォルダを表すツリーのノード。
+/// ZIPはフォルダ構造を明示的に持たないこともあるため、エントリのパスから組み立てる。
+/// </summary>
+internal sealed class ArchiveFolder
+{
+    /// <summary>フォルダ名。ルートの場合は書庫のファイル名を入れる。</summary>
+    public required string Name { get; init; }
+
+    /// <summary>書庫内のパス。ルートは空文字。区切りは <c>/</c>。</summary>
+    public required string FullPath { get; init; }
+
+    /// <summary>親フォルダ。ルートの場合は <see langword="null"/>。</summary>
+    public ArchiveFolder? Parent { get; init; }
+
+    /// <summary>直下のフォルダ。</summary>
+    public List<ArchiveFolder> Folders { get; } = [];
+
+    /// <summary>直下のファイル。</summary>
+    public List<ArchiveEntry> Files { get; } = [];
+
+    /// <summary>ツリーの初期表示で開いておくかどうか。ルートのみ true にする。</summary>
+    public bool IsExpanded { get; set; }
+}
