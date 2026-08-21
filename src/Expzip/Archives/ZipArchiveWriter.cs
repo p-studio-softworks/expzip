@@ -31,6 +31,11 @@ internal sealed record AddResult(
 /// <param name="Cancelled">書庫を書き換える前に中断した場合は true。</param>
 internal sealed record DeleteResult(int Deleted, bool Cancelled);
 
+/// <summary>名前の変更の結果。</summary>
+/// <param name="Renamed">名前を変えたエントリ数。フォルダの場合は配下を含む。</param>
+/// <param name="Cancelled">書庫を書き換える前に中断した場合は true。</param>
+internal sealed record RenameResult(int Renamed, bool Cancelled);
+
 /// <summary>ZIP書庫を作成・更新する。</summary>
 internal static class ZipArchiveWriter
 {
@@ -332,6 +337,132 @@ internal static class ZipArchiveWriter
                                    or ArgumentOutOfRangeException)
         {
             return DateTimeOffset.Now;
+        }
+    }
+
+    /// <summary>
+    /// 書庫内のファイルまたはフォルダの名前を変える (#15)。
+    /// </summary>
+    /// <param name="archivePath">書庫ファイルのパス。</param>
+    /// <param name="oldPath">変更前の書庫内パス。区切りは <c>/</c>、末尾に区切りは付けない。</param>
+    /// <param name="newPath">変更後の書庫内パス。</param>
+    /// <param name="isFolder">フォルダなら true。配下のエントリもまとめて付け替える。</param>
+    /// <param name="compressionLevel">詰め直すときの圧縮の強さ。</param>
+    /// <param name="progress">進捗の通知先。</param>
+    /// <param name="cancellationToken">中断用。</param>
+    /// <remarks>
+    /// <para>
+    /// ZIPのエントリ名を直接書き換える手段が <see cref="System.IO.Compression"/> には無い。
+    /// 新しい名前でエントリを作り、中身を移してから元を消す形になるため、
+    /// **名前を変えたエントリは圧縮し直される**。圧縮後のサイズが変わることがあるが、
+    /// 中身は変わらない。書庫全体を作り直すわけではないので、対象外のエントリは
+    /// そのまま持ち越される。
+    /// </para>
+    /// <para>
+    /// 他の更新と同じく作業用ファイル上で行い、最後に差し替える。
+    /// 途中で失敗しても元の書庫はそのまま残る。
+    /// </para>
+    /// </remarks>
+    public static RenameResult Rename(
+        string archivePath,
+        string oldPath,
+        string newPath,
+        bool isFolder,
+        CompressionLevel compressionLevel,
+        IProgress<int>? progress,
+        CancellationToken cancellationToken)
+    {
+        var temp = archivePath + TempSuffix;
+        var renamed = 0;
+
+        try
+        {
+            File.Copy(archivePath, temp, overwrite: true);
+
+            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Update))
+            {
+                // 付け替える対象を先に確定させる。作成と削除でコレクションが変わるため
+                var targets = zip.Entries
+                    .Select(e => (Entry: e, NewName: MapName(e.FullName, oldPath, newPath, isFolder)))
+                    .Where(static x => x.NewName is not null)
+                    .ToList();
+
+                foreach (var (entry, newName) in targets)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return new RenameResult(0, Cancelled: true);
+                    }
+
+                    var created = zip.CreateEntry(newName!, compressionLevel);
+                    CopyTimestamp(entry, created);
+
+                    // フォルダそのものを表すエントリは中身を持たない
+                    if (!newName!.EndsWith('/'))
+                    {
+                        using var source = entry.Open();
+                        using var destination = created.Open();
+                        CancellableCopy.Copy(source, destination, cancellationToken);
+                    }
+
+                    entry.Delete();
+                    renamed++;
+                    progress?.Report(renamed);
+                }
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                // 作業用ファイルは書き換わっているが、差し替えていないので元の書庫は無事
+                return new RenameResult(0, Cancelled: true);
+            }
+
+            File.Move(temp, archivePath, overwrite: true);
+        }
+        finally
+        {
+            TryDelete(temp);
+        }
+
+        return new RenameResult(renamed, Cancelled: false);
+    }
+
+    /// <summary>
+    /// エントリ名を付け替えた結果を返す。対象外なら <see langword="null"/>。
+    /// </summary>
+    private static string? MapName(string entryName, string oldPath, string newPath, bool isFolder)
+    {
+        var normalized = ArchivePath.Normalize(entryName);
+        var isDirectoryEntry = normalized.EndsWith('/');
+        var bare = isDirectoryEntry ? normalized.TrimEnd('/') : normalized;
+
+        if (string.Equals(bare, oldPath, StringComparison.Ordinal))
+        {
+            return isDirectoryEntry ? newPath + "/" : newPath;
+        }
+
+        // フォルダなら配下もまとめて付け替える
+        if (isFolder && bare.StartsWith(oldPath + "/", StringComparison.Ordinal))
+        {
+            var suffix = bare[oldPath.Length..];
+            return isDirectoryEntry ? newPath + suffix + "/" : newPath + suffix;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 更新日時を引き継ぐ。書庫によってはZIPで表せない日付が入っていることがあり、
+    /// その場合は読み書きのどちらかで例外になる。名前の変更自体は成立するので無視する。
+    /// </summary>
+    private static void CopyTimestamp(ZipArchiveEntry from, ZipArchiveEntry to)
+    {
+        try
+        {
+            to.LastWriteTime = from.LastWriteTime;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
         }
     }
 

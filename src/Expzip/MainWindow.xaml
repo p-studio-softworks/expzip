@@ -206,6 +206,11 @@
                                       FontWeight="Bold"
                                       Click="OpenMenuItem_Click" />
                             <Separator />
+                            <!-- 書庫内の名前を変える (#15) -->
+                            <MenuItem x:Name="RenameMenuItem"
+                                      Header="名前の変更"
+                                      InputGestureText="F2"
+                                      Click="RenameMenuItem_Click" />
                             <MenuItem x:Name="DeleteMenuItem"
                                       Header="削除"
                                       InputGestureText="Del"

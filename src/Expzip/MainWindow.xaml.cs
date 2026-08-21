@@ -407,10 +407,160 @@ public partial class MainWindow : Window
                                  && _cancellation is null
                                  && EntryList.SelectedItems.Count == 1
                                  && editable.Count == 1;
+
+        // 名前の変更も1件ずつ (#15)
+        RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled;
     }
 
     private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
         => await DeleteSelectedAsync();
+
+    private async void RenameMenuItem_Click(object sender, RoutedEventArgs e)
+        => await RenameSelectedAsync();
+
+    // ------------------------------------------------------------------ 名前の変更 (#15)
+
+    /// <summary>選択している1件の名前を変える。</summary>
+    private async Task RenameSelectedAsync()
+    {
+        if (_contents is null || _cancellation is not null || _currentFolder is null)
+        {
+            return;
+        }
+
+        var rows = SelectedRowsForEdit();
+        if (rows.Count != 1)
+        {
+            return;
+        }
+
+        var row = rows[0];
+        var isFolder = row.Folder is not null;
+        var oldPath = isFolder ? row.Folder!.FullPath : row.Entry!.FullPath;
+
+        var dialog = new RenameDialog(this, row.Name, isFolder);
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var newName = dialog.NewName;
+        if (string.Equals(newName, row.Name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!ValidateNewName(newName, row))
+        {
+            return;
+        }
+
+        var parent = _currentFolder.FullPath;
+        var newPath = parent.Length == 0 ? newName : parent + "/" + newName;
+
+        await RunRenameAsync(_contents.FilePath, oldPath, newPath, isFolder, _currentFolder.FullPath);
+    }
+
+    /// <summary>入力された名前が書庫内で使えるかを確かめ、駄目な理由を伝える。</summary>
+    private bool ValidateNewName(string newName, EntryRow row)
+    {
+        // 区切り文字を許すと、名前の変更のつもりが移動になってしまう
+        if (newName.IndexOfAny(['/', '\\']) >= 0)
+        {
+            ShowRenameProblem("名前に \\ と / は使えません。フォルダの移動は名前の変更では行えません。");
+            return false;
+        }
+
+        if (newName is "." or "..")
+        {
+            ShowRenameProblem("その名前は使えません。");
+            return false;
+        }
+
+        // 書庫に入れられても、展開した先で作れない名前にはしない
+        var invalid = newName.IndexOfAny(Path.GetInvalidFileNameChars());
+        if (invalid >= 0)
+        {
+            ShowRenameProblem(
+                $"名前に使えない文字が含まれています ({newName[invalid]})。"
+                + $"{Environment.NewLine}展開したときにファイルを作れなくなります。");
+            return false;
+        }
+
+        // 同じフォルダに同じ名前があると、展開時にどちらかが失われる
+        var duplicated = _currentFolder!.Folders.Any(
+                             f => !ReferenceEquals(f, row.Folder)
+                                  && string.Equals(f.Name, newName, StringComparison.OrdinalIgnoreCase))
+                         || _currentFolder.Files.Any(
+                             f => !ReferenceEquals(f, row.Entry)
+                                  && string.Equals(f.Name, newName, StringComparison.OrdinalIgnoreCase));
+
+        if (duplicated)
+        {
+            ShowRenameProblem($"このフォルダには既に「{newName}」があります。");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ShowRenameProblem(string message)
+        => MessageBox.Show(this, message, AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+
+    private async Task RunRenameAsync(
+        string archivePath, string oldPath, string newPath, bool isFolder, string restorePath)
+    {
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var level = SelectedCompressionLevel;
+        var progress = new Progress<int>(done =>
+        {
+            StatusMessage.Text = $"名前を変更しています… ({done:N0} 件)";
+        });
+
+        RenameResult? result = null;
+        try
+        {
+            result = await Task.Run(() => ZipArchiveWriter.Rename(
+                archivePath, oldPath, newPath, isFolder, level, progress, cancellation.Token));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"名前を変更できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        if (_closeWhenIdle || result is null)
+        {
+            return;
+        }
+
+        if (result.Cancelled)
+        {
+            StatusMessage.Text = "名前の変更を中断しました";
+            return;
+        }
+
+        // 書庫が変わったので開き直す。フォルダ名を変えた場合は元の場所が
+        // 無くなっているため、その親を表示する
+        var restore = isFolder && restorePath.Length == 0 ? null : restorePath;
+        await OpenArchiveAsync(archivePath, restore);
+        StatusMessage.Text = $"{result.Renamed:N0} 件の名前を変更しました";
+    }
 
     private async void EntryList_KeyDown(object sender, KeyEventArgs e)
     {
@@ -423,6 +573,14 @@ public partial class MainWindow : Window
                 await ActivateAsync(row);
             }
 
+            return;
+        }
+
+        // F2 で名前の変更。エクスプローラーと同じ操作 (#15)
+        if (e.Key == Key.F2)
+        {
+            e.Handled = true;
+            await RenameSelectedAsync();
             return;
         }
 
