@@ -24,4 +24,7 @@ internal sealed class AppSettings
 
     /// <summary>一覧の各列の幅。列を増減した場合に備え、数が合わなければ無視する。</summary>
     public double[]? ColumnWidths { get; set; }
+
+    /// <summary>最近開いた書庫のパス。新しいものが先頭 (#10)。</summary>
+    public List<string> RecentArchives { get; set; } = [];
 }

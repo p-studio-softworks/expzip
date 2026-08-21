@@ -38,6 +38,13 @@
         <ToolBarTray DockPanel.Dock="Top" IsLocked="True">
             <ToolBar ToolBarTray.IsLocked="True" Loaded="ToolBar_Loaded">
                 <Button x:Name="OpenButton"    Content="開く"     Click="OpenButton_Click"    ToolTip="書庫を開く" />
+                <!-- 最近使った書庫 (#10)。開くの隣に畳んで置く -->
+                <Button x:Name="RecentButton" Click="RecentButton_Click" Padding="5,0" ToolTip="最近使った書庫">
+                    <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                    <Button.ContextMenu>
+                        <ContextMenu />
+                    </Button.ContextMenu>
+                </Button>
                 <Button x:Name="NewButton"     Content="新規作成" Click="NewButton_Click"     ToolTip="空の書庫を新しく作って開く" />
                 <Separator />
                 <Button x:Name="ExtractButton" Content="展開"     Click="ExtractButton_Click" IsEnabled="False" ToolTip="選択した項目を展開する。選択していなければ書庫全体を展開する" />

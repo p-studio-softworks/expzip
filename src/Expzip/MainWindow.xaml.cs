@@ -160,6 +160,7 @@ public partial class MainWindow : Window
         }
 
         _contents = contents;
+        RememberRecent(path);
         FolderTree.ItemsSource = new[] { contents.Root };
         RefreshButton.IsEnabled = true;
         ExtractButton.IsEnabled = true;
@@ -182,6 +183,124 @@ public partial class MainWindow : Window
             $"パスが通常ではない項目が {contents.SuspiciousCount:N0} 件あります";
         TotalSizeInfo.Text = $"合計 {contents.TotalLength:N0} バイト "
                            + $"(圧縮後 {contents.TotalCompressedLength:N0} バイト)";
+    }
+
+    // ------------------------------------------------------------------ 最近使った書庫
+
+    /// <summary>履歴に残す件数。</summary>
+    private const int RecentLimit = 10;
+
+    private void RecentButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (RecentButton.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        BuildRecentMenu(menu);
+        menu.PlacementTarget = RecentButton;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private void BuildRecentMenu(ContextMenu menu)
+    {
+        menu.Items.Clear();
+
+        if (_settings.RecentArchives.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "(履歴はありません)", IsEnabled = false });
+            return;
+        }
+
+        var index = 1;
+        foreach (var path in _settings.RecentArchives)
+        {
+            // ファイル名の _ がアクセスキー扱いにならないよう二重にする
+            var label = Path.GetFileName(path).Replace("_", "__");
+
+            var item = new MenuItem
+            {
+                Header = $"_{index % 10} {label}",
+                ToolTip = path,
+                Tag = path,
+                IsEnabled = _cancellation is null,
+            };
+
+            item.Click += RecentItem_Click;
+            menu.Items.Add(item);
+            index++;
+        }
+
+        menu.Items.Add(new Separator());
+
+        var clear = new MenuItem { Header = "履歴を消去(_C)" };
+        clear.Click += (_, _) =>
+        {
+            _settings.RecentArchives.Clear();
+            SettingsStore.TrySave(_settings);
+        };
+        menu.Items.Add(clear);
+    }
+
+    private void RecentItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string path })
+        {
+            return;
+        }
+
+        // 履歴に載せたあとで移動や削除をされていることがある
+        if (!File.Exists(path))
+        {
+            MessageBox.Show(
+                this,
+                $"ファイルが見つかりませんでした。{Environment.NewLine}{Environment.NewLine}{path}"
+                + $"{Environment.NewLine}{Environment.NewLine}履歴から削除します。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+
+            _settings.RecentArchives.RemoveAll(
+                p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            SettingsStore.TrySave(_settings);
+            return;
+        }
+
+        OpenArchive(path);
+    }
+
+    /// <summary>開いた書庫を履歴の先頭に移す。</summary>
+    private void RememberRecent(string path)
+    {
+        string full;
+        try
+        {
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return;
+        }
+
+        // 「更新」や追加・削除のあとの読み直しでも呼ばれる。
+        // 既に先頭なら中身は変わらないので、設定ファイルへの書き込みも省く
+        if (_settings.RecentArchives.Count > 0
+            && string.Equals(_settings.RecentArchives[0], full, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _settings.RecentArchives.RemoveAll(
+            p => string.Equals(p, full, StringComparison.OrdinalIgnoreCase));
+        _settings.RecentArchives.Insert(0, full);
+
+        if (_settings.RecentArchives.Count > RecentLimit)
+        {
+            _settings.RecentArchives.RemoveRange(
+                RecentLimit, _settings.RecentArchives.Count - RecentLimit);
+        }
+
+        // 終了時だけでなくこの時点で保存する。異常終了しても履歴が残るように
+        SettingsStore.TrySave(_settings);
     }
 
     // ------------------------------------------------------------------ 削除

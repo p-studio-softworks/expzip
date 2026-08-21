@@ -65,7 +65,11 @@ internal static class SettingsStore
             }
 
             var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+
+            // 古い設定ファイルや手で編集されたものには項目が無いことがある
+            settings.RecentArchives ??= [];
+            return settings;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or JsonException or NotSupportedException)
