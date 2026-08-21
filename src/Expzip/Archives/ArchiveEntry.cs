@@ -6,6 +6,12 @@ internal sealed class ArchiveEntry
     /// <summary>書庫内のパス。区切りは <c>/</c> に正規化されている。</summary>
     public required string FullPath { get; init; }
 
+    /// <summary>
+    /// 書庫内での元のエントリ名。正規化していないため、展開時に
+    /// 書庫から該当エントリを引き当てるのに使う。
+    /// </summary>
+    public required string SourceName { get; init; }
+
     /// <summary>ファイル名(パスを含まない)。</summary>
     public required string Name { get; init; }
 

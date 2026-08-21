@@ -15,8 +15,9 @@ internal static class ZipArchiveReader
     /// <summary>
     /// エントリ名の解釈に使う <see cref="Encoding"/>。
     /// CP932は.NET Core以降 既定では登録されていないため、初回に取得を試みる。
+    /// 展開時も同じ解釈でなければエントリを引き当てられないため、共有している。
     /// </summary>
-    private static Encoding EntryNameEncoding
+    internal static Encoding EntryNameEncoding
     {
         get
         {
@@ -91,6 +92,7 @@ internal static class ZipArchiveReader
             parent.Files.Add(new ArchiveEntry
             {
                 FullPath = fullName,
+                SourceName = entry.FullName,
                 Name = name,
                 Length = entry.Length,
                 CompressedLength = entry.CompressedLength,

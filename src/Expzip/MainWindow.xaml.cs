@@ -102,6 +102,7 @@ public partial class MainWindow : Window
         _contents = contents;
         FolderTree.ItemsSource = new[] { contents.Root };
         RefreshButton.IsEnabled = true;
+        ExtractButton.IsEnabled = true;
         UpdateTitle(Path.GetFileName(path));
 
         var target = restorePath is null ? contents.Root : FindFolder(contents.Root, restorePath) ?? contents.Root;
@@ -111,6 +112,187 @@ public partial class MainWindow : Window
         StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル";
         TotalSizeInfo.Text = $"合計 {contents.TotalLength:N0} バイト "
                            + $"(圧縮後 {contents.TotalCompressedLength:N0} バイト)";
+    }
+
+    // ------------------------------------------------------------------ 展開
+
+    private async void ExtractButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_contents is null)
+        {
+            return;
+        }
+
+        // 選択が無ければ書庫全体を展開する
+        var selection = CollectSelectedSourceNames();
+
+        var picker = new OpenFolderDialog
+        {
+            Title = selection is null ? "書庫全体の展開先を選択" : "選択した項目の展開先を選択",
+        };
+
+        if (picker.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        var destination = picker.FolderName;
+
+        // 展開先が空なら衝突しようがないので、無用な確認を出さない
+        var overwrite = true;
+        if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
+        {
+            var answer = MessageBox.Show(
+                this,
+                $"展開先に既にファイルがあります。{Environment.NewLine}"
+                + $"同名のファイルを上書きしますか?{Environment.NewLine}{Environment.NewLine}"
+                + "「いいえ」を選ぶと、同名のファイルは展開せずに残します。",
+                AppName,
+                MessageBoxButton.YesNoCancel,
+                MessageBoxImage.Question);
+
+            if (answer == MessageBoxResult.Cancel)
+            {
+                return;
+            }
+
+            overwrite = answer == MessageBoxResult.Yes;
+        }
+
+        await RunExtractionAsync(_contents.FilePath, selection, destination, overwrite);
+    }
+
+    private async Task RunExtractionAsync(
+        string archivePath, IReadOnlySet<string>? selection, string destination, bool overwrite)
+    {
+        SetBusy(true);
+
+        var progress = new Progress<ExtractProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Percent;
+            StatusMessage.Text = $"展開中: {p.CurrentName}";
+        });
+
+        try
+        {
+            var result = await Task.Run(() => ArchiveExtractor.Extract(
+                archivePath, selection, destination, overwrite, progress, CancellationToken.None));
+
+            ShowExtractResult(result, destination);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"展開に失敗しました。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private void ShowExtractResult(ExtractResult result, string destination)
+    {
+        StatusMessage.Text = $"{result.Extracted:N0} 個のファイルを展開しました";
+
+        var message = new System.Text.StringBuilder();
+        message.AppendLine($"展開先: {destination}");
+        message.AppendLine();
+        message.AppendLine($"展開したファイル: {result.Extracted:N0} 個");
+
+        if (result.Skipped > 0)
+        {
+            message.AppendLine($"上書きせず残したファイル: {result.Skipped:N0} 個");
+        }
+
+        var icon = MessageBoxImage.Information;
+
+        if (result.Rejected.Count > 0)
+        {
+            // 展開先の外へ書き出そうとするエントリ。書庫が細工されている可能性がある
+            icon = MessageBoxImage.Warning;
+            message.AppendLine();
+            message.AppendLine($"安全でないパスのため展開しなかったファイル: {result.Rejected.Count:N0} 個");
+            message.AppendLine("展開先の外に書き出そうとするエントリが含まれていました。");
+            foreach (var name in result.Rejected.Take(5))
+            {
+                message.AppendLine($"  {name}");
+            }
+        }
+
+        if (result.Failed.Count > 0)
+        {
+            icon = MessageBoxImage.Warning;
+            message.AppendLine();
+            message.AppendLine($"書き出せなかったファイル: {result.Failed.Count:N0} 個");
+            foreach (var (name, reason) in result.Failed.Take(5))
+            {
+                message.AppendLine($"  {name} … {reason}");
+            }
+        }
+
+        MessageBox.Show(this, message.ToString().TrimEnd(), AppName, MessageBoxButton.OK, icon);
+    }
+
+    /// <summary>
+    /// 選択されている項目のエントリ名を集める。
+    /// フォルダが選ばれている場合はその配下をすべて含める。
+    /// </summary>
+    /// <returns>選択が無ければ <see langword="null"/> (書庫全体が対象)。</returns>
+    private IReadOnlySet<string>? CollectSelectedSourceNames()
+    {
+        var rows = EntryList.SelectedItems.OfType<EntryRow>()
+            .Where(static r => r.Kind != EntryRowKind.Parent)
+            .ToList();
+
+        if (rows.Count == 0)
+        {
+            return null;
+        }
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            if (row.Entry is not null)
+            {
+                names.Add(row.Entry.SourceName);
+            }
+            else if (row.Folder is not null)
+            {
+                AddFilesRecursively(row.Folder, names);
+            }
+        }
+
+        return names;
+    }
+
+    private static void AddFilesRecursively(ArchiveFolder folder, HashSet<string> names)
+    {
+        foreach (var file in folder.Files)
+        {
+            names.Add(file.SourceName);
+        }
+
+        foreach (var child in folder.Folders)
+        {
+            AddFilesRecursively(child, names);
+        }
+    }
+
+    /// <summary>時間のかかる処理の間、操作を止めて進捗を表示する。</summary>
+    private void SetBusy(bool busy)
+    {
+        OpenButton.IsEnabled = !busy;
+        ExtractButton.IsEnabled = !busy && _contents is not null;
+        RefreshButton.IsEnabled = !busy && _contents is not null;
+        EntryList.IsEnabled = !busy;
+        FolderTree.IsEnabled = !busy;
+
+        ProgressIndicator.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        ProgressIndicator.Value = 0;
+        Mouse.OverrideCursor = busy ? Cursors.AppStarting : null;
     }
 
     /// <summary>指定フォルダの内容をリストビューに表示する。</summary>
