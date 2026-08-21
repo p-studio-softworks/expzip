@@ -74,13 +74,13 @@ public partial class MainWindow : Window
         if (args.Length > 1 && File.Exists(args[1]))
         {
             var path = args[1];
-            Loaded += (_, _) => OpenArchive(path);
+            Loaded += async (_, _) => await OpenArchiveAsync(path);
         }
     }
 
     // ------------------------------------------------------------------ 操作
 
-    private void OpenButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog
         {
@@ -91,11 +91,11 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog(this) == true)
         {
-            OpenArchive(dialog.FileName);
+            await OpenArchiveAsync(dialog.FileName);
         }
     }
 
-    private void NewButton_Click(object sender, RoutedEventArgs e)
+    private async void NewButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new SaveFileDialog
         {
@@ -139,28 +139,59 @@ public partial class MainWindow : Window
         }
 
         // 作ったらそのまま開く。中身は空なので、ここからファイルを追加していく
-        OpenArchive(dialog.FileName);
+        await OpenArchiveAsync(dialog.FileName);
     }
 
-    private void RefreshButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         if (_contents is not null)
         {
             // 開き直したあとも同じ場所を表示できるよう、現在位置を覚えておく
-            OpenArchive(_contents.FilePath, _currentFolder?.FullPath);
+            await OpenArchiveAsync(_contents.FilePath, _currentFolder?.FullPath);
         }
     }
 
     /// <summary>書庫を読み込んで画面に反映する。</summary>
     /// <param name="path">書庫ファイルのパス。</param>
     /// <param name="restorePath">読み込み後に表示したい書庫内フォルダのパス。</param>
-    private void OpenArchive(string path, string? restorePath = null)
+    /// <remarks>
+    /// 読み込みは別スレッドで行う。同期で読むと、大きな書庫やネットワーク上の
+    /// 書庫でウィンドウが応答しなくなり、中断もできない (#39)。
+    /// 読み込み中は今開いている書庫の表示をそのまま残し、成功した時点で差し替える。
+    /// 中断や失敗のたびに画面が空になるのは、開き直しの操作で不便なため。
+    /// </remarks>
+    private async Task OpenArchiveAsync(string path, string? restorePath = null)
     {
+        // 他の処理の最中は受け付けない。ツールバーは SetBusy で止めているが、
+        // 最近使った書庫のメニューやコマンドライン起動など別の入口もある。
+        if (_cancellation is not null)
+        {
+            return;
+        }
+
         ArchiveContents contents;
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var fileName = Path.GetFileName(path);
+        var progress = new Progress<OpenProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Percent;
+            StatusMessage.Text = $"{fileName} を読み込んでいます… "
+                                 + $"({p.DoneEntries:N0} / {p.TotalEntries:N0} 件)";
+        });
+
         try
         {
-            Mouse.OverrideCursor = Cursors.Wait;
-            contents = ZipArchiveReader.Open(path);
+            contents = await Task.Run(
+                () => ZipArchiveReader.Open(path, progress, cancellation.Token), cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage.Text = "読み込みを中断しました";
+            return;
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
@@ -174,7 +205,20 @@ public partial class MainWindow : Window
         }
         finally
         {
-            Mouse.OverrideCursor = null;
+            _cancellation = null;
+            SetBusy(false);
+
+            // 読み込み中に閉じられていた場合は、ここで閉じる
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        // 閉じる途中なら画面を作り直さない
+        if (_closeWhenIdle)
+        {
+            return;
         }
 
         _contents = contents;
@@ -287,7 +331,7 @@ public partial class MainWindow : Window
         menu.Items.Add(clear);
     }
 
-    private void RecentItem_Click(object sender, RoutedEventArgs e)
+    private async void RecentItem_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem { Tag: string path })
         {
@@ -309,7 +353,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        OpenArchive(path);
+        await OpenArchiveAsync(path);
     }
 
     /// <summary>開いた書庫を履歴の先頭に移す。</summary>
@@ -510,7 +554,7 @@ public partial class MainWindow : Window
             else
             {
                 // 消したフォルダを表示中だった場合に備え、無ければルートに戻る
-                OpenArchive(archivePath, destinationFolder);
+                await OpenArchiveAsync(archivePath, destinationFolder);
             }
         }
     }
@@ -641,7 +685,7 @@ public partial class MainWindow : Window
             else
             {
                 // 書庫の中身が変わったので読み直す。表示位置は保つ
-                OpenArchive(archivePath, destinationFolder);
+                await OpenArchiveAsync(archivePath, destinationFolder);
             }
         }
     }
@@ -1418,12 +1462,20 @@ public partial class MainWindow : Window
 
     private void UpdateSelectionInfo()
     {
-        var selected = EntryList.SelectedItems.OfType<EntryRow>().ToList();
-        var totalBytes = selected.Sum(static r => r.SortLength);
+        // 全選択のたびに選択分のリストを作り直すと、30万件で0.25秒かかっていた。
+        // 数えるだけなので一度なめれば足りる (#39)。
+        var count = 0;
+        long totalBytes = 0;
 
-        SelectionInfo.Text = selected.Count == 0
+        foreach (var row in EntryList.SelectedItems.OfType<EntryRow>())
+        {
+            count++;
+            totalBytes += row.SortLength;
+        }
+
+        SelectionInfo.Text = count == 0
             ? "選択 0 個"
-            : $"選択 {selected.Count:N0} 個 ({totalBytes:N0} バイト)";
+            : $"選択 {count:N0} 個 ({totalBytes:N0} バイト)";
     }
 
     /// <summary>ツリー上の該当ノードを選択状態にする。祖先は順に展開する。</summary>
