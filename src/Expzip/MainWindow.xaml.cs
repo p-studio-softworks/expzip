@@ -177,6 +177,156 @@ public partial class MainWindow : Window
                            + $"(圧縮後 {contents.TotalCompressedLength:N0} バイト)";
     }
 
+    // ------------------------------------------------------------------ 削除
+
+    private void EntryList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        DeleteMenuItem.IsEnabled = _contents is not null
+                                   && _cancellation is null
+                                   && SelectedRowsForEdit().Count > 0;
+    }
+
+    private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
+        => await DeleteSelectedAsync();
+
+    private async void EntryList_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Delete)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await DeleteSelectedAsync();
+    }
+
+    /// <summary>操作の対象にできる選択行。親へ戻る行は除く。</summary>
+    private List<EntryRow> SelectedRowsForEdit()
+        => EntryList.SelectedItems.OfType<EntryRow>()
+            .Where(static r => r.Kind != EntryRowKind.Parent)
+            .ToList();
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (_contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        var rows = SelectedRowsForEdit();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var files = new HashSet<string>(StringComparer.Ordinal);
+        var folders = new List<string>();
+        var affected = 0;
+
+        foreach (var row in rows)
+        {
+            if (row.Entry is not null)
+            {
+                files.Add(row.Entry.SourceName);
+                affected++;
+            }
+            else if (row.Folder is not null)
+            {
+                folders.Add(row.Folder.FullPath);
+                affected += CountFilesUnder(row.Folder);
+            }
+        }
+
+        // 取り消せない操作なので、何がいくつ消えるかを示してから確認する
+        var preview = string.Join(Environment.NewLine, rows.Take(5).Select(static r => "  " + r.Name));
+        var more = rows.Count > 5 ? $"{Environment.NewLine}  ほか {rows.Count - 5:N0} 件" : string.Empty;
+        var detail = folders.Count > 0
+            ? $"{Environment.NewLine}{Environment.NewLine}フォルダの中身を含めて {affected:N0} 個のファイルが削除されます。"
+            : string.Empty;
+
+        var answer = MessageBox.Show(
+            this,
+            $"選択した {rows.Count:N0} 個の項目を書庫から削除します。"
+            + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}{detail}"
+            + $"{Environment.NewLine}{Environment.NewLine}この操作は取り消せません。削除しますか?",
+            AppName,
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await RunDeleteAsync(files, folders);
+    }
+
+    private async Task RunDeleteAsync(IReadOnlySet<string> files, IReadOnlyList<string> folders)
+    {
+        if (_contents is null)
+        {
+            return;
+        }
+
+        var archivePath = _contents.FilePath;
+        var destinationFolder = _currentFolder?.FullPath ?? string.Empty;
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        // 削除は書庫全体の書き直しが1回走るだけなので、進捗を刻めない
+        ProgressIndicator.IsIndeterminate = true;
+        StatusMessage.Text = "削除しています…";
+
+        try
+        {
+            var result = await Task.Run(() => ZipArchiveWriter.Delete(
+                archivePath, files, folders, cancellation.Token));
+
+            if (result.Cancelled)
+            {
+                StatusMessage.Text = "削除を中断しました";
+                MessageBox.Show(
+                    this,
+                    $"削除を中断しました。{Environment.NewLine}{Environment.NewLine}書庫は変更していません。",
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                StatusMessage.Text = $"{result.Deleted:N0} 個の項目を削除しました";
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"削除できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
+                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            ProgressIndicator.IsIndeterminate = false;
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+            else
+            {
+                // 消したフォルダを表示中だった場合に備え、無ければルートに戻る
+                OpenArchive(archivePath, destinationFolder);
+            }
+        }
+    }
+
+    private static int CountFilesUnder(ArchiveFolder folder)
+        => folder.Files.Count + folder.Folders.Sum(CountFilesUnder);
+
     // ------------------------------------------------------------------ 追加
 
     private async void AddButton_Click(object sender, RoutedEventArgs e)

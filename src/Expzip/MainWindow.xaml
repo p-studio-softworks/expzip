@@ -174,11 +174,22 @@
                           Drop="EntryList_Drop"
                           SelectionChanged="EntryList_SelectionChanged"
                           MouseDoubleClick="EntryList_MouseDoubleClick"
+                          KeyDown="EntryList_KeyDown"
+                          ContextMenuOpening="EntryList_ContextMenuOpening"
                           GridViewColumnHeader.Click="EntryList_ColumnHeaderClick"
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.VirtualizationMode="Recycling"
                           VirtualizingPanel.ScrollUnit="Pixel"
                           ScrollViewer.IsDeferredScrollingEnabled="False">
+                    <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
+                    <ListView.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem x:Name="DeleteMenuItem"
+                                      Header="削除"
+                                      InputGestureText="Del"
+                                      Click="DeleteMenuItem_Click" />
+                        </ContextMenu>
+                    </ListView.ContextMenu>
                     <ListView.Resources>
                         <!--
                             エクスプローラーに合わせて列見出しを左揃えにする。

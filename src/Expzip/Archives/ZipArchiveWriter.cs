@@ -26,6 +26,11 @@ internal sealed record AddResult(
     IReadOnlyList<(string Name, string Reason)> Failed,
     bool Cancelled);
 
+/// <summary>削除の結果。</summary>
+/// <param name="Deleted">削除したエントリ数。</param>
+/// <param name="Cancelled">書庫を書き換える前に中断した場合は true。</param>
+internal sealed record DeleteResult(int Deleted, bool Cancelled);
+
 /// <summary>ZIP書庫を作成・更新する。</summary>
 internal static class ZipArchiveWriter
 {
@@ -164,6 +169,97 @@ internal static class ZipArchiveWriter
         }
 
         return new AddResult(added, replaced, skipped, failed, Cancelled: false);
+    }
+
+    /// <summary>
+    /// 書庫からエントリを削除する。
+    /// </summary>
+    /// <param name="archivePath">対象の書庫。</param>
+    /// <param name="fileEntryNames">名前が完全に一致するエントリを削除する。</param>
+    /// <param name="folderPaths">
+    /// このフォルダ自身と配下のエントリをすべて削除する。区切りは <c>/</c> の正規化済みパス。
+    /// </param>
+    /// <param name="cancellationToken">中断用。</param>
+    /// <remarks>
+    /// <para>
+    /// 追加と同じく、複製した作業用ファイルを更新してから差し替える。
+    /// 中断や失敗が起きても元の書庫は無傷で残る。
+    /// </para>
+    /// <para>
+    /// 中断できるのは書庫を書き換え始める前まで。ZIPは1件消すだけでも
+    /// 全体を書き直す必要があり、その書き出しは途中で止められない。
+    /// </para>
+    /// </remarks>
+    public static DeleteResult Delete(
+        string archivePath,
+        IReadOnlySet<string> fileEntryNames,
+        IReadOnlyList<string> folderPaths,
+        CancellationToken cancellationToken)
+    {
+        var temp = archivePath + TempSuffix;
+        var deleted = 0;
+
+        try
+        {
+            File.Copy(archivePath, temp, overwrite: true);
+
+            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Update))
+            {
+                // Delete するとコレクションが変わるので、先に対象を確定させる
+                var targets = zip.Entries
+                    .Where(e => ShouldDelete(e.FullName, fileEntryNames, folderPaths))
+                    .ToList();
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return new DeleteResult(0, Cancelled: true);
+                }
+
+                foreach (var entry in targets)
+                {
+                    entry.Delete();
+                    deleted++;
+                }
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                // 書き換えは済んでいるが差し替えていないので、元の書庫は元のまま
+                return new DeleteResult(0, Cancelled: true);
+            }
+
+            File.Move(temp, archivePath, overwrite: true);
+        }
+        finally
+        {
+            TryDelete(temp);
+        }
+
+        return new DeleteResult(deleted, Cancelled: false);
+    }
+
+    /// <summary>このエントリが削除の対象かどうか。</summary>
+    private static bool ShouldDelete(
+        string entryName, IReadOnlySet<string> fileEntryNames, IReadOnlyList<string> folderPaths)
+    {
+        if (fileEntryNames.Contains(entryName))
+        {
+            return true;
+        }
+
+        var normalized = ArchivePath.Normalize(entryName);
+        var trimmed = normalized.TrimEnd('/');
+
+        foreach (var folder in folderPaths)
+        {
+            // フォルダ自身のエントリと、その配下すべて
+            if (trimmed == folder || normalized.StartsWith(folder + "/", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
