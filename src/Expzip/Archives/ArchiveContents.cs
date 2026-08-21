@@ -17,4 +17,10 @@ internal sealed class ArchiveContents
 
     /// <summary>圧縮後サイズの合計(バイト)。</summary>
     public long TotalCompressedLength { get; init; }
+
+    /// <summary>
+    /// パスが通常ではない項目の数(ファイルとフォルダの合計)。
+    /// 0 より大きい場合、書庫を開いた時点で注意を促す (#36)。
+    /// </summary>
+    public int SuspiciousCount { get; init; }
 }

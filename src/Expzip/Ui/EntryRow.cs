@@ -22,16 +22,19 @@ internal enum EntryRowKind
 internal sealed class EntryRow
 {
     /// <summary>フォルダに上矢印を重ねた「一つ上へ」のアイコン。</summary>
-    private const string GlyphParent = "";
+    private const string GlyphParent = "\uE197";
 
     /// <summary>
     /// 塗りつぶしのフォルダ。輪郭線だけのフォルダ (E8B7) は
     /// 書類アイコンと形が似ており、一覧の中で見分けがつかない。
     /// </summary>
-    private const string GlyphFolder = "";
+    private const string GlyphFolder = "\uE8D5";
 
     /// <summary>書類。</summary>
-    private const string GlyphFile = "";
+    private const string GlyphFile = "\uE7C3";
+
+    /// <summary>塗りつぶしの警告三角。小さく表示しても輪郭線より目に留まる。</summary>
+    private const string GlyphWarning = "\uE814";
 
     public required string Name { get; init; }
 
@@ -50,6 +53,22 @@ internal sealed class EntryRow
         EntryRowKind.Folder => GlyphFolder,
         _ => GlyphFile,
     };
+
+    /// <summary>
+    /// パスが通常ではない項目かどうか (#36)。
+    /// 一覧から隠すのではなく警告を添えて見せる。隠すと書庫に何が入っているかを
+    /// 確認できなくなり、かえって危険なため。
+    /// </summary>
+    public bool IsPathSuspicious =>
+        Entry?.IsPathSuspicious ?? Folder?.IsPathSuspicious ?? false;
+
+    public string WarningGlyph => GlyphWarning;
+
+    public string? WarningTooltip => IsPathSuspicious
+        ? "このパスは通常の書庫では使われない形式です。"
+          + Environment.NewLine
+          + "展開しても、選んだフォルダの外には書き出されません。"
+        : null;
 
     public string SizeText => Entry is null ? string.Empty : Entry.Length.ToString("N0");
 

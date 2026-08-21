@@ -69,7 +69,7 @@ internal static class ZipArchiveReader
 
         foreach (var entry in zip.Entries)
         {
-            var fullName = NormalizeSeparators(entry.FullName);
+            var fullName = ArchivePath.Normalize(entry.FullName);
 
             // 末尾が区切り文字のエントリはフォルダそのものを表す
             if (fullName.EndsWith('/'))
@@ -97,6 +97,7 @@ internal static class ZipArchiveReader
                 Length = entry.Length,
                 CompressedLength = entry.CompressedLength,
                 LastWriteTime = ReadLastWriteTime(entry),
+                IsPathSuspicious = ArchivePath.IsSuspicious(entry.FullName),
             });
 
             fileCount++;
@@ -113,16 +114,27 @@ internal static class ZipArchiveReader
             FileCount = fileCount,
             TotalLength = totalLength,
             TotalCompressedLength = totalCompressed,
+            SuspiciousCount = CountSuspicious(root),
         };
     }
 
-    /// <summary>
-    /// 区切り文字を <c>/</c> に揃える。
-    /// ZIP仕様は <c>/</c> と定めているが、DOS時代のツールには <c>\</c> を書くものがあった。
-    /// Windowsのファイル名に <c>\</c> は使えないため、区切りとみなして差し支えない。
-    /// </summary>
-    private static string NormalizeSeparators(string name)
-        => name.Replace('\\', '/');
+    /// <summary>パスが通常ではない項目の数を数える。</summary>
+    private static int CountSuspicious(ArchiveFolder folder)
+    {
+        var count = folder.Files.Count(static f => f.IsPathSuspicious);
+
+        foreach (var child in folder.Folders)
+        {
+            if (child.IsPathSuspicious)
+            {
+                count++;
+            }
+
+            count += CountSuspicious(child);
+        }
+
+        return count;
+    }
 
     /// <summary>指定パスのフォルダを取得する。無ければ途中の階層ごと作る。</summary>
     private static ArchiveFolder GetOrCreateFolder(Dictionary<string, ArchiveFolder> folders, string path)
@@ -142,6 +154,7 @@ internal static class ZipArchiveReader
             Name = name,
             FullPath = path,
             Parent = parent,
+            IsPathSuspicious = ArchivePath.IsSuspicious(path),
         };
 
         parent.Folders.Add(folder);

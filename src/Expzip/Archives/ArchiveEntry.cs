@@ -25,6 +25,12 @@ internal sealed class ArchiveEntry
     public DateTime LastWriteTime { get; init; }
 
     /// <summary>
+    /// パスに <c>..</c> やドライブ指定が含まれ、通常の書庫ではあり得ない形のとき true。
+    /// 一覧で警告を出すために使う (#36)。
+    /// </summary>
+    public bool IsPathSuspicious { get; init; }
+
+    /// <summary>
     /// 圧縮率(%)。圧縮後サイズが元の何%になったかを表し、小さいほどよく縮んでいる。
     /// 展開後サイズが0のときは0を返す。
     /// </summary>

@@ -110,6 +110,15 @@ public partial class MainWindow : Window
         Navigate(target);
 
         StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル";
+
+        // パスが通常ではない項目を含む書庫は、開いた時点で気付けるようにする (#36)。
+        // 一覧から隠すのではなく警告を添える。隠すと書庫に何が入っているかを
+        // 確認できなくなり、かえって危険なため。
+        SuspiciousWarningItem.Visibility = contents.SuspiciousCount > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SuspiciousWarningText.Text =
+            $"パスが通常ではない項目が {contents.SuspiciousCount:N0} 件あります";
         TotalSizeInfo.Text = $"合計 {contents.TotalLength:N0} バイト "
                            + $"(圧縮後 {contents.TotalCompressedLength:N0} バイト)";
     }

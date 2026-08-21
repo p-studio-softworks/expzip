@@ -75,7 +75,7 @@ internal static class ArchiveExtractor
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var relative = ToSafeRelativePath(entry.FullName);
+            var relative = ArchivePath.ToSafeRelativePath(entry.FullName);
             if (relative is null)
             {
                 rejected.Add(entry.FullName);
@@ -135,35 +135,6 @@ internal static class ArchiveExtractor
         }
 
         return new ExtractResult(extracted, skipped, rejected, failed);
-    }
-
-    /// <summary>
-    /// エントリ名を展開先からの相対パスに変換する。
-    /// 絶対パスやドライブ指定など、そのまま結合すると展開先を離れてしまう形は拒否する。
-    /// </summary>
-    /// <remarks>
-    /// 先頭の <c>/</c> は拒否せず取り除く。<c>/foo.txt</c> は展開先を起点とした
-    /// <c>foo.txt</c> として扱われ、展開先の外には出ないため危険ではない。
-    /// 多くのアーカイバも同じ扱いをする。一方 <c>../</c> を含む経路とドライブ指定は、
-    /// 展開先の外を指しうるので拒否する。
-    /// </remarks>
-    /// <returns>安全な相対パス。扱えない場合は <see langword="null"/>。</returns>
-    private static string? ToSafeRelativePath(string entryName)
-    {
-        var normalized = entryName.Replace('\\', '/').TrimStart('/');
-
-        if (normalized.Length == 0)
-        {
-            return null;
-        }
-
-        // "C:/..." のようなドライブ指定や UNC パスは相対パスとして扱えない
-        if (Path.IsPathRooted(normalized) || normalized.Contains(':'))
-        {
-            return null;
-        }
-
-        return normalized.Replace('/', Path.DirectorySeparatorChar);
     }
 
     /// <summary>解決済みのパスが指定フォルダの配下にあるか。</summary>

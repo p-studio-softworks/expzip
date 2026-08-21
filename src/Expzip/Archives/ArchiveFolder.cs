@@ -23,4 +23,10 @@ internal sealed class ArchiveFolder
 
     /// <summary>ツリーの初期表示で開いておくかどうか。ルートのみ true にする。</summary>
     public bool IsExpanded { get; set; }
+
+    /// <summary>
+    /// パスに <c>..</c> やドライブ指定が含まれ、通常の書庫ではあり得ない形のとき true。
+    /// ツリーと一覧で警告を出すために使う (#36)。
+    /// </summary>
+    public bool IsPathSuspicious { get; init; }
 }
