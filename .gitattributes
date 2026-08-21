@@ -1,0 +1,32 @@
+# 改行コードの正規化。リポジトリ内は LF、チェックアウト時に環境に合わせる。
+* text=auto
+
+# 明示的に LF を強制するもの(シェルスクリプトは CRLF だと動かない)
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Windows のツールが CRLF を前提とするもの
+*.sln      text eol=crlf
+*.cmd      text eol=crlf
+*.bat      text eol=crlf
+
+# C# / .NET
+*.cs      text diff=csharp
+*.csproj  text
+*.props   text
+*.targets text
+*.xaml    text
+*.json    text
+*.md      text
+
+# バイナリ(差分を取らせない)
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.zip  binary
+*.7z   binary
+*.lzh  binary
+*.exe  binary
+*.dll  binary
+*.snk  binary

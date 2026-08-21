@@ -1,0 +1,64 @@
+# === .NET ビルド成果物 ===
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+publish/
+artifacts/
+*.dll
+*.exe
+*.pdb
+*.cache
+
+# === Visual Studio / Rider / VS Code ===
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+.vscode/*
+!.vscode/extensions.json
+
+# === NuGet ===
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# === テスト結果 ===
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+
+# === 秘密情報(絶対にコミットしない) ===
+# Expzip 本体はフェーズ4で AI API のエンドポイントとキーを
+# exe と同じフォルダの設定ファイルに保存する。開発中の実データが
+# 作業ツリーに残ってもコミットされないようにする。
+*.key
+*.pfx
+secrets.json
+appsettings.Local.json
+expzip.settings.json
+.redmine-api-key
+
+# === OS / エディタ ===
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*~
+*.swp
+
+# === 一時ファイル ===
+*.tmp
+*.bak
+*.log
