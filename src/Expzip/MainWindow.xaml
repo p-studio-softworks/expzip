@@ -10,6 +10,8 @@
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
         AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop"
         Closing="Window_Closing">
 
     <Window.Resources>
@@ -140,6 +142,8 @@
                       Grid.Column="0"
                       BorderThickness="0"
                       SelectedItemChanged="FolderTree_SelectedItemChanged"
+                      PreviewMouseLeftButtonDown="FolderTree_PreviewMouseLeftButtonDown"
+                      PreviewMouseMove="FolderTree_PreviewMouseMove"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <TreeView.ItemContainerStyle>

@@ -5,6 +5,8 @@ using System.IO;
 using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Expzip.Archives;
@@ -75,6 +77,9 @@ public partial class MainWindow : Window
 
     /// <summary>自分が始めたドラッグの最中。自分の一覧に落とし直されるのを防ぐ。</summary>
     private bool _draggingOut;
+
+    /// <summary>ツリーで押されたフォルダ。動かされたらドラッグアウトを始める (#17)。</summary>
+    private ArchiveFolder? _treeDragFolder;
 
     public MainWindow()
     {
@@ -859,32 +864,90 @@ public partial class MainWindow : Window
         }
     }
 
-    private void EntryList_DragOver(object sender, DragEventArgs e)
+    private void EntryList_DragOver(object sender, DragEventArgs e) => HandleDragOver(e);
+
+    private async void EntryList_Drop(object sender, DragEventArgs e) => await HandleDropAsync(e);
+
+    // 一覧の外(ツリーやステータスバーの上)に落とされても受け取る。
+    // 「ウィンドウに書庫を落とすと開く」ようにするため (#41)
+    private void Window_DragOver(object sender, DragEventArgs e) => HandleDragOver(e);
+
+    private async void Window_Drop(object sender, DragEventArgs e) => await HandleDropAsync(e);
+
+    /// <summary>落とされたファイルのパス。ファイル以外が落とされた場合は空。</summary>
+    private static string[] DroppedPaths(DragEventArgs e)
+        => e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
+
+    /// <summary>開ける書庫として扱う拡張子か。</summary>
+    /// <remarks>7z や tar はフェーズ3で読めるようになった時点で足す。</remarks>
+    private static bool IsArchiveFile(string path)
+        => File.Exists(path)
+           && string.Equals(Path.GetExtension(path), ".zip", StringComparison.OrdinalIgnoreCase);
+
+    private void HandleDragOver(DragEventArgs e)
     {
-        // 書庫を開いていないと追加先が無い。
-        // 自分が書庫から出したファイルを自分に落とし直すのは無意味なので受け取らない (#17)
-        var acceptable = _contents is not null
-                         && _cancellation is null
+        var paths = DroppedPaths(e);
+
+        // 自分が書庫から出したファイルを自分に落とし直すのは無意味なので受け取らない (#17)。
+        // 書庫を開いていなくても、書庫そのものが落とされたなら開ける
+        var acceptable = _cancellation is null
                          && !_draggingOut
-                         && e.Data.GetDataPresent(DataFormats.FileDrop);
+                         && paths.Length > 0
+                         && (_contents is not null || (paths.Length == 1 && IsArchiveFile(paths[0])));
 
         e.Effects = acceptable ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private async void EntryList_Drop(object sender, DragEventArgs e)
+    /// <summary>
+    /// 落とされたものを受け取る。書庫を1つ落とされた場合は開き、それ以外は追加する (#41)。
+    /// </summary>
+    /// <remarks>
+    /// 「書庫を落としたら開く」と「書庫を落としたら中に入れる」は両立しない。
+    /// 開くほうを既定にする。書庫の中に書庫を入れたい場合は
+    /// Shift を押しながら落とす。使う頻度は開くほうが高いという判断。
+    /// </remarks>
+    private async Task HandleDropAsync(DragEventArgs e)
     {
-        if (_contents is null || _cancellation is not null || _draggingOut)
+        if (_cancellation is not null || _draggingOut)
         {
             return;
         }
 
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
+        var paths = DroppedPaths(e);
+        if (paths.Length == 0)
         {
             return;
         }
 
         e.Handled = true;
+
+        var addInstead = (e.KeyStates & DragDropKeyStates.ShiftKey) != 0;
+
+        if (!addInstead && paths.Length == 1 && IsArchiveFile(paths[0]))
+        {
+            await OpenArchiveAsync(paths[0]);
+
+            // 書庫の中に書庫を入れたかった場合に気付けるようにする
+            if (_contents is not null)
+            {
+                StatusMessage.Text = $"{Path.GetFileName(paths[0])} を開きました "
+                                     + "(Shift を押しながら落とすと書庫に追加します)";
+            }
+
+            return;
+        }
+
+        if (_contents is null)
+        {
+            MessageBox.Show(
+                this,
+                $"追加先の書庫がありません。{Environment.NewLine}{Environment.NewLine}"
+                + "先に書庫を開くか、「新規作成」で作ってください。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         await AddToArchiveAsync(paths);
     }
 
@@ -1296,7 +1359,69 @@ public partial class MainWindow : Window
         }
 
         _dragCandidate = false;
-        DragOutSelection();
+        DragOut(SelectedRowsForEdit(), EntryList);
+    }
+
+    private void FolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _treeDragFolder = null;
+        _dragOrigin = e.GetPosition(null);
+
+        if (e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        // 開閉の三角を押しただけならドラッグにしない
+        if (FindAncestor<ToggleButton>(source) is not null)
+        {
+            return;
+        }
+
+        _treeDragFolder = (FindAncestor<TreeViewItem>(source)?.DataContext) as ArchiveFolder;
+    }
+
+    private void FolderTree_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_treeDragFolder is null || _draggingOut || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var moved = e.GetPosition(null) - _dragOrigin;
+        if (Math.Abs(moved.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(moved.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var folder = _treeDragFolder;
+        _treeDragFolder = null;
+
+        // ルートは書庫そのもの。フォルダとしては取り出せないので、直下の項目をまとめて渡す
+        var rows = folder.Parent is null
+            ? folder.Folders
+                .Select(f => new EntryRow { Name = f.Name, Kind = EntryRowKind.Folder, Folder = f })
+                .Concat(folder.Files
+                    .Select(f => new EntryRow { Name = f.Name, Kind = EntryRowKind.File, Entry = f }))
+                .ToList()
+            : [new EntryRow { Name = folder.Name, Kind = EntryRowKind.Folder, Folder = folder }];
+
+        DragOut(rows, FolderTree);
+    }
+
+    /// <summary>視覚ツリーを遡って目的の型の親を探す。</summary>
+    private static T? FindAncestor<T>(DependencyObject start) where T : DependencyObject
+    {
+        for (var current = start; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -1307,22 +1432,17 @@ public partial class MainWindow : Window
     /// 途中で待たせる手段が無い。そのため取り出しもここで待ち合わせる。
     /// 件数と大きさに上限を設けているのはこのため。
     /// </remarks>
-    private void DragOutSelection()
+    private void DragOut(List<EntryRow> rows, UIElement dragSource)
     {
-        if (_contents is null || _cancellation is not null)
+        if (_contents is null || _cancellation is not null || rows.Count == 0)
         {
             return;
         }
 
-        var rows = SelectedRowsForEdit();
-        if (rows.Count == 0)
+        var names = CollectSourceNames(rows);
+        if (names.Count == 0)
         {
-            return;
-        }
-
-        var names = CollectSelectedSourceNames();
-        if (names is null || names.Count == 0)
-        {
+            StatusMessage.Text = "取り出せるファイルがありません";
             return;
         }
 
@@ -1387,7 +1507,7 @@ public partial class MainWindow : Window
         try
         {
             var data = new DataObject(DataFormats.FileDrop, paths);
-            DragDrop.DoDragDrop(EntryList, data, DragDropEffects.Copy);
+            DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Copy);
             StatusMessage.Text = $"{paths.Length:N0} 件を取り出しました";
         }
         catch (COMException)
@@ -1993,15 +2113,13 @@ public partial class MainWindow : Window
     /// <returns>選択が無ければ <see langword="null"/> (書庫全体が対象)。</returns>
     private IReadOnlySet<string>? CollectSelectedSourceNames()
     {
-        var rows = EntryList.SelectedItems.OfType<EntryRow>()
-            .Where(static r => r.Kind != EntryRowKind.Parent)
-            .ToList();
+        var rows = SelectedRowsForEdit();
+        return rows.Count == 0 ? null : CollectSourceNames(rows);
+    }
 
-        if (rows.Count == 0)
-        {
-            return null;
-        }
-
+    /// <summary>指定した行に含まれるファイルのエントリ名を集める。フォルダは配下ごと。</summary>
+    private static IReadOnlySet<string> CollectSourceNames(IReadOnlyList<EntryRow> rows)
+    {
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var row in rows)
         {
