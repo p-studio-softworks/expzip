@@ -735,6 +735,20 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 一つ上のフォルダへ。`..` の行を置かない代わりの手段 (#46)
+        if (e.Key == Key.Back)
+        {
+            e.Handled = true;
+
+            if (_currentFolder?.Parent is { } parent)
+            {
+                SelectInTree(parent);
+                Navigate(parent);
+            }
+
+            return;
+        }
+
         // F2 で名前の変更。エクスプローラーと同じ操作 (#15)
         if (e.Key == Key.F2)
         {
@@ -752,11 +766,9 @@ public partial class MainWindow : Window
         await DeleteSelectedAsync();
     }
 
-    /// <summary>操作の対象にできる選択行。親へ戻る行は除く。</summary>
+    /// <summary>操作の対象にできる選択行。</summary>
     private List<EntryRow> SelectedRowsForEdit()
-        => EntryList.SelectedItems.OfType<EntryRow>()
-            .Where(static r => r.Kind != EntryRowKind.Parent)
-            .ToList();
+        => EntryList.SelectedItems.OfType<EntryRow>().ToList();
 
     private async Task DeleteSelectedAsync()
     {
@@ -1482,7 +1494,6 @@ public partial class MainWindow : Window
         // エクスプローラーと同じく、選択済みの項目をもう一度クリックすると
         // 名前の変更を始める。押した時点で選ばれていたかどうかで見分ける (#44)
         _pendingRenameRow = item is { Content: EntryRow row }
-                            && row.Kind != EntryRowKind.Parent
                             && item.IsSelected
                             && EntryList.SelectedItems.Count == 1
                             && !row.IsEditing
@@ -2518,13 +2529,9 @@ public partial class MainWindow : Window
     {
         _currentFolder = folder;
 
-        var rows = new List<EntryRow>(folder.Folders.Count + folder.Files.Count + 1);
-
-        // ルート以外では先頭に親へ戻る行を置く
-        if (folder.Parent is not null)
-        {
-            rows.Add(new EntryRow { Name = "..", Kind = EntryRowKind.Parent, Folder = folder.Parent });
-        }
+        // 親へ戻る `..` の行は置かない。エクスプローラーにも無い。
+        // 一つ上へはツリーか BackSpace で移動する (#46)
+        var rows = new List<EntryRow>(folder.Folders.Count + folder.Files.Count);
 
         foreach (var child in folder.Folders)
         {
@@ -2552,18 +2559,13 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 現在の並び順を適用する。
-    /// エクスプローラーと同じく、親行を先頭に、続いてフォルダ、最後にファイルを置く。
+    /// エクスプローラーと同じく、フォルダを先に、続いてファイルを置く。
     /// 列の値による並び替えはその各グループの中で行う。
     /// </summary>
     private List<EntryRow> ApplySort(List<EntryRow> rows)
     {
         var sorted = rows
-            .OrderBy(static r => r.Kind switch
-            {
-                EntryRowKind.Parent => 0,
-                EntryRowKind.Folder => 1,
-                _ => 2,
-            })
+            .OrderBy(static r => r.Kind == EntryRowKind.Folder ? 0 : 1)
             .ThenBy(r => r, Comparer<EntryRow>.Create(CompareByCurrentColumn))
             .ToList();
 

@@ -6,9 +6,6 @@ namespace Expzip.Ui;
 /// <summary>リストビューの行の種別。</summary>
 internal enum EntryRowKind
 {
-    /// <summary>親フォルダへ戻るための行。</summary>
-    Parent,
-
     /// <summary>フォルダ。</summary>
     Folder,
 
@@ -79,19 +76,14 @@ internal sealed class EntryRow : INotifyPropertyChanged
 
     public required EntryRowKind Kind { get; init; }
 
-    /// <summary>フォルダ行および親行の移動先。ファイル行では <see langword="null"/>。</summary>
+    /// <summary>フォルダ行の移動先。ファイル行では <see langword="null"/>。</summary>
     public ArchiveFolder? Folder { get; init; }
 
     /// <summary>ファイル行の実体。それ以外では <see langword="null"/>。</summary>
     public ArchiveEntry? Entry { get; init; }
 
     /// <summary>Segoe MDL2 Assets のアイコン。</summary>
-    public string Glyph => Kind switch
-    {
-        EntryRowKind.Parent => GlyphParent,
-        EntryRowKind.Folder => GlyphFolder,
-        _ => GlyphFile,
-    };
+    public string Glyph => Kind == EntryRowKind.Folder ? GlyphFolder : GlyphFile;
 
     /// <summary>
     /// パスが通常ではない項目かどうか (#36)。
