@@ -31,6 +31,12 @@ internal sealed record AddResult(
 /// <param name="Cancelled">書庫を書き換える前に中断した場合は true。</param>
 internal sealed record DeleteResult(int Deleted, bool Cancelled);
 
+/// <summary>書庫内のパスの付け替え。名前の変更にも移動にも使う (#43)。</summary>
+/// <param name="OldPath">変更前の書庫内パス。区切りは <c>/</c>、末尾に区切りは付けない。</param>
+/// <param name="NewPath">変更後の書庫内パス。</param>
+/// <param name="IsFolder">フォルダなら true。配下のエントリもまとめて付け替える。</param>
+internal readonly record struct PathChange(string OldPath, string NewPath, bool IsFolder);
+
 /// <summary>名前の変更の結果。</summary>
 /// <param name="Renamed">名前を変えたエントリ数。フォルダの場合は配下を含む。</param>
 /// <param name="Cancelled">書庫を書き換える前に中断した場合は true。</param>
@@ -371,6 +377,24 @@ internal static class ZipArchiveWriter
         CompressionLevel compressionLevel,
         IProgress<int>? progress,
         CancellationToken cancellationToken)
+        => Move(archivePath, [new PathChange(oldPath, newPath, isFolder)],
+                compressionLevel, progress, cancellationToken);
+
+    /// <summary>
+    /// 書庫内の項目をまとめて別の場所へ移す (#43)。名前の変更もこの一種として扱う。
+    /// </summary>
+    /// <param name="archivePath">書庫ファイルのパス。</param>
+    /// <param name="changes">付け替える書庫内パスの組。</param>
+    /// <param name="compressionLevel">詰め直すときの圧縮の強さ。</param>
+    /// <param name="progress">進捗の通知先。</param>
+    /// <param name="cancellationToken">中断用。</param>
+    /// <inheritdoc cref="Rename" path="/remarks"/>
+    public static RenameResult Move(
+        string archivePath,
+        IReadOnlyList<PathChange> changes,
+        CompressionLevel compressionLevel,
+        IProgress<int>? progress,
+        CancellationToken cancellationToken)
     {
         var temp = archivePath + TempSuffix;
         var renamed = 0;
@@ -383,7 +407,7 @@ internal static class ZipArchiveWriter
             {
                 // 付け替える対象を先に確定させる。作成と削除でコレクションが変わるため
                 var targets = zip.Entries
-                    .Select(e => (Entry: e, NewName: MapName(e.FullName, oldPath, newPath, isFolder)))
+                    .Select(e => (Entry: e, NewName: MapAny(e.FullName, changes)))
                     .Where(static x => x.NewName is not null)
                     .ToList();
 
@@ -425,6 +449,20 @@ internal static class ZipArchiveWriter
         }
 
         return new RenameResult(renamed, Cancelled: false);
+    }
+
+    /// <summary>いずれかの組に当てはめた結果を返す。どれにも当たらなければ null。</summary>
+    private static string? MapAny(string entryName, IReadOnlyList<PathChange> changes)
+    {
+        foreach (var change in changes)
+        {
+            if (MapName(entryName, change.OldPath, change.NewPath, change.IsFolder) is { } mapped)
+            {
+                return mapped;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

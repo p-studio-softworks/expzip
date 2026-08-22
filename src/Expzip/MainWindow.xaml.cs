@@ -886,6 +886,17 @@ public partial class MainWindow : Window
 
     private void HandleDragOver(DragEventArgs e)
     {
+        e.Handled = true;
+
+        // 書庫の中での移動 (#43)。自分が始めたドラッグを自分の中に落とした場合
+        if (e.Data.GetData(InternalMoveFormat) is InternalMove move)
+        {
+            e.Effects = ResolveMoveTarget(e, move) is null
+                ? DragDropEffects.None
+                : DragDropEffects.Move;
+            return;
+        }
+
         var paths = DroppedPaths(e);
 
         // 自分が書庫から出したファイルを自分に落とし直すのは無意味なので受け取らない (#17)。
@@ -896,7 +907,65 @@ public partial class MainWindow : Window
                          && (_contents is not null || (paths.Length == 1 && IsArchiveFile(paths[0])));
 
         e.Effects = acceptable ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
+    }
+
+    /// <summary>
+    /// 落とそうとしている先のフォルダ。移動できない組み合わせなら <see langword="null"/>。
+    /// </summary>
+    private ArchiveFolder? ResolveMoveTarget(DragEventArgs e, InternalMove move)
+    {
+        if (_contents is null || _cancellation is not null
+            || !string.Equals(move.ArchivePath, _contents.FilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var target = FolderUnder(e.OriginalSource as DependencyObject) ?? _currentFolder;
+        if (target is null)
+        {
+            return null;
+        }
+
+        foreach (var item in move.Items)
+        {
+            // 元と同じ場所へは動かせない
+            var parent = ParentFolderOf(item.Path);
+            if (string.Equals(parent, target.FullPath, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            // 自分自身や自分の配下には入れられない
+            if (item.IsFolder
+                && (string.Equals(target.FullPath, item.Path, StringComparison.Ordinal)
+                    || target.FullPath.StartsWith(item.Path + "/", StringComparison.Ordinal)))
+            {
+                return null;
+            }
+        }
+
+        return target;
+    }
+
+    /// <summary>カーソルの下にあるフォルダ。ツリーの節、一覧のフォルダ行、親へ戻る行を見る。</summary>
+    private ArchiveFolder? FolderUnder(DependencyObject? source)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        if (FindAncestor<TreeViewItem>(source)?.DataContext is ArchiveFolder folder)
+        {
+            return folder;
+        }
+
+        if (FindAncestor<ListViewItem>(source)?.Content is EntryRow row)
+        {
+            return row.Folder;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -909,6 +978,20 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task HandleDropAsync(DragEventArgs e)
     {
+        // 書庫の中での移動 (#43)。自分が始めたドラッグなので、
+        // 外への持ち出しを拒む門 (_draggingOut) より前に見る
+        if (e.Data.GetData(InternalMoveFormat) is InternalMove move)
+        {
+            e.Handled = true;
+
+            if (ResolveMoveTarget(e, move) is { } target)
+            {
+                await MoveInArchiveAsync(move, target);
+            }
+
+            return;
+        }
+
         if (_cancellation is not null || _draggingOut)
         {
             return;
@@ -1518,8 +1601,24 @@ public partial class MainWindow : Window
         try
         {
             var data = new DataObject(DataFormats.FileDrop, paths);
-            DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Copy);
-            StatusMessage.Text = $"{paths.Length:N0} 件を取り出しました";
+
+            // 自分の中に落とされた場合は移動として扱いたいので、書庫内の情報も載せる。
+            // Explorer はこの形式を知らないので無視し、FileDrop のほうを使う (#43)
+            data.SetData(InternalMoveFormat, new InternalMove(_contents.FilePath, rows
+                .Select(r => new MoveItem(
+                    r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath,
+                    r.Name,
+                    r.Folder is not null))
+                .ToList()));
+
+            var effect = DragDrop.DoDragDrop(
+                dragSource, data, DragDropEffects.Copy | DragDropEffects.Move);
+
+            // 書庫の中へ落とされた場合は移動の側で知らせる
+            if (effect == DragDropEffects.Copy)
+            {
+                StatusMessage.Text = $"{paths.Length:N0} 件を取り出しました";
+            }
         }
         catch (COMException)
         {
@@ -1606,6 +1705,107 @@ public partial class MainWindow : Window
             AppName, MessageBoxButton.OK, MessageBoxImage.Information);
 
         return false;
+    }
+
+    // ------------------------------------------------------------------ 書庫内の移動 (#43)
+
+    /// <summary>
+    /// ドラッグに載せる、書庫の中での移動の情報。
+    /// Explorer はこの形式を知らないため、外へ落とした場合は無視される。
+    /// </summary>
+    private const string InternalMoveFormat = "Expzip.InternalMove";
+
+    private sealed record MoveItem(string Path, string Name, bool IsFolder);
+
+    private sealed record InternalMove(string ArchivePath, IReadOnlyList<MoveItem> Items);
+
+    /// <summary>掴んだ項目を書庫内の別のフォルダへ移す。</summary>
+    private async Task MoveInArchiveAsync(InternalMove move, ArchiveFolder target)
+    {
+        if (_contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        // 移した先に同じ名前があると、どちらかが失われる。先に断る
+        var conflicts = move.Items
+            .Where(item => target.Folders.Any(
+                       f => string.Equals(f.Name, item.Name, StringComparison.OrdinalIgnoreCase))
+                   || target.Files.Any(
+                       f => string.Equals(f.Name, item.Name, StringComparison.OrdinalIgnoreCase)))
+            .Select(static item => item.Name)
+            .ToList();
+
+        if (conflicts.Count > 0)
+        {
+            MessageBox.Show(
+                this,
+                $"移動先に同じ名前の項目があります。{Environment.NewLine}{Environment.NewLine}"
+                + string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c))
+                + $"{Environment.NewLine}{Environment.NewLine}"
+                + "名前を変えてから移動してください。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var changes = move.Items
+            .Select(item => new PathChange(
+                item.Path,
+                target.FullPath.Length == 0 ? item.Name : target.FullPath + "/" + item.Name,
+                item.IsFolder))
+            .ToList();
+
+        var archivePath = _contents.FilePath;
+        var level = SelectedCompressionLevel;
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var progress = new Progress<int>(done =>
+        {
+            StatusMessage.Text = $"移動しています… ({done:N0} 件)";
+        });
+
+        RenameResult? result = null;
+        try
+        {
+            result = await Task.Run(() => ZipArchiveWriter.Move(
+                archivePath, changes, level, progress, cancellation.Token));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"移動できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
+                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        if (_closeWhenIdle || result is null)
+        {
+            return;
+        }
+
+        if (result.Cancelled)
+        {
+            StatusMessage.Text = "移動を中断しました";
+            return;
+        }
+
+        // 書庫が変わったので開き直す。移動先を見せたほうが結果が分かりやすい
+        await OpenArchiveAsync(archivePath, target.FullPath);
+        StatusMessage.Text = $"{move.Items.Count:N0} 件を移動しました";
     }
 
     // ------------------------------------------------------------------ 展開
