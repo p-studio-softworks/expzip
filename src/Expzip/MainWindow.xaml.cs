@@ -463,7 +463,32 @@ public partial class MainWindow : Window
         EditMenuItem.IsEnabled = OpenMenuItem.IsEnabled
                                  && editable.Count == 1
                                  && editable[0].Entry is not null;
+
+        // フォルダの作成は選択と関係なく、何もない場所を押したときも使える (#50)
+        NewFolderMenuItem.IsEnabled = _contents is not null && _cancellation is null;
     }
+
+    private async void NewFolderMenuItem_Click(object sender, RoutedEventArgs e)
+        => await CreateFolderAsync();
+
+    /// <summary>
+    /// ツリーを右クリックしたら、押された節へ移ってからメニューを出す (#50)。
+    /// 選ばれている場所と違う節を押したのに、別の場所にフォルダができるのを防ぐ。
+    /// </summary>
+    private void FolderTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (FolderUnder(e.OriginalSource as DependencyObject) is not { } folder
+            || ReferenceEquals(folder, _currentFolder))
+        {
+            return;
+        }
+
+        SelectInTree(folder);
+        Navigate(folder);
+    }
+
+    private void FolderTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        => TreeNewFolderMenuItem.IsEnabled = _contents is not null && _cancellation is null;
 
     private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
         => await DeleteSelectedAsync();
@@ -771,6 +796,15 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Ctrl+Shift+N で新しいフォルダ。これもエクスプローラーに合わせる (#50)
+        if (e.Key == Key.N
+            && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            await CreateFolderAsync();
+            return;
+        }
+
         if (e.Key != Key.Delete)
         {
             return;
@@ -778,6 +812,113 @@ public partial class MainWindow : Window
 
         e.Handled = true;
         await DeleteSelectedAsync();
+    }
+
+    /// <summary>
+    /// いま開いているフォルダの中に、空のフォルダを作る (#50)。
+    /// </summary>
+    /// <remarks>
+    /// エクスプローラーと同じく名前を尋ねるダイアログは出さず、仮の名前で作って
+    /// その場で書き換えられる状態にする。名前の変更の仕組みをそのまま使えるため、
+    /// 入力の検証や重複の扱いも一箇所で済む。
+    /// </remarks>
+    private async Task CreateFolderAsync()
+    {
+        if (_contents is null || _currentFolder is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        var archivePath = _contents.FilePath;
+        var parent = _currentFolder.FullPath;
+        var name = UniqueFolderName(_currentFolder);
+        var path = parent.Length == 0 ? name : parent + "/" + name;
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+        StatusMessage.Text = "フォルダを作っています…";
+
+        var created = false;
+        try
+        {
+            created = await Task.Run(() => ZipArchiveWriter.CreateFolder(archivePath, path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"フォルダを作れませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        if (_closeWhenIdle || !created)
+        {
+            return;
+        }
+
+        // 書庫が変わったので開き直す。同じ場所に戻る
+        await OpenArchiveAsync(archivePath, parent);
+        StatusMessage.Text = $"「{name}」を作りました";
+
+        // 作った直後は名前を打ち替えたいことがほとんど
+        var row = EntryList.Items.OfType<EntryRow>()
+            .FirstOrDefault(r => r.Folder is { } folder
+                                 && string.Equals(folder.FullPath, path, StringComparison.Ordinal));
+
+        if (row is null)
+        {
+            return;
+        }
+
+        EntryList.SelectedItem = row;
+        EntryList.ScrollIntoView(row);
+        BeginEditing(row);
+    }
+
+    /// <summary>
+    /// 新しいフォルダに付ける、そのフォルダの中で重複しない名前。
+    /// エクスプローラーと同じく、既にあれば番号を付けて避ける。
+    /// </summary>
+    private static string UniqueFolderName(ArchiveFolder folder)
+    {
+        const string BaseName = "新しいフォルダー";
+
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var child in folder.Folders)
+        {
+            taken.Add(child.Name);
+        }
+
+        foreach (var file in folder.Files)
+        {
+            taken.Add(file.Name);
+        }
+
+        if (!taken.Contains(BaseName))
+        {
+            return BaseName;
+        }
+
+        for (var number = 2; ; number++)
+        {
+            var candidate = $"{BaseName} ({number})";
+            if (!taken.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
     }
 
     /// <summary>操作の対象にできる選択行。</summary>

@@ -1,4 +1,4 @@
-<Window x:Class="Expzip.MainWindow"
+﻿<Window x:Class="Expzip.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:archives="clr-namespace:Expzip.Archives"
@@ -145,8 +145,19 @@
                       SelectedItemChanged="FolderTree_SelectedItemChanged"
                       PreviewMouseLeftButtonDown="FolderTree_PreviewMouseLeftButtonDown"
                       PreviewMouseMove="FolderTree_PreviewMouseMove"
+                      PreviewMouseRightButtonDown="FolderTree_PreviewMouseRightButtonDown"
+                      ContextMenuOpening="FolderTree_ContextMenuOpening"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling">
+                <!-- ツリー側からもフォルダを作れるようにする (#50) -->
+                <TreeView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem x:Name="TreeNewFolderMenuItem"
+                                  Header="新しいフォルダ"
+                                  InputGestureText="Ctrl+Shift+N"
+                                  Click="NewFolderMenuItem_Click" />
+                    </ContextMenu>
+                </TreeView.ContextMenu>
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
@@ -230,6 +241,12 @@
                                       Header="削除"
                                       InputGestureText="Del"
                                       Click="DeleteMenuItem_Click" />
+                            <Separator />
+                            <!-- 書庫の中に空のフォルダを作る (#50) -->
+                            <MenuItem x:Name="NewFolderMenuItem"
+                                      Header="新しいフォルダ"
+                                      InputGestureText="Ctrl+Shift+N"
+                                      Click="NewFolderMenuItem_Click" />
                         </ContextMenu>
                     </ListView.ContextMenu>
                     <ListView.Resources>

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Compression;
 
 namespace Expzip.Archives;
@@ -182,6 +182,63 @@ internal static class ZipArchiveWriter
         }
 
         return new AddResult(added, replaced, skipped, failed, Cancelled: false);
+    }
+
+    /// <summary>
+    /// 書庫の中に空のフォルダを作る (#50)。
+    /// </summary>
+    /// <param name="archivePath">対象の書庫。</param>
+    /// <param name="folderPath">
+    /// 作るフォルダの書庫内パス。区切りは <c>/</c>、末尾に区切りは付けない。
+    /// </param>
+    /// <returns>作れた場合は true。既に同じ場所に同じ名前がある場合は false。</returns>
+    /// <remarks>
+    /// <para>
+    /// ZIPはフォルダを明示的に持たなくてもよく、中身のあるフォルダはファイルの
+    /// パスから組み立てられる。空のフォルダはそれでは表せないため、末尾が
+    /// <c>/</c> のエントリを1件だけ書き込む。
+    /// </para>
+    /// <para>
+    /// 追加や削除と同じく、複製した作業用ファイルを更新してから差し替える。
+    /// 失敗しても元の書庫は無傷で残る。
+    /// </para>
+    /// </remarks>
+    /// <exception cref="IOException">書庫を書き換えられない場合。</exception>
+    public static bool CreateFolder(string archivePath, string folderPath)
+    {
+        var entryName = ArchivePath.Normalize(folderPath) + "/";
+        var temp = archivePath + TempSuffix;
+
+        try
+        {
+            File.Copy(archivePath, temp, overwrite: true);
+
+            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Update))
+            {
+                // 同名のエントリだけでなく配下の有無も見る。中身のあるフォルダは
+                // フォルダ自身のエントリを持たないことがあり、それを見落とすと
+                // 既にあるフォルダに二重の印を付けてしまう。
+                var taken = zip.Entries.Any(
+                    e => ArchivePath.Normalize(e.FullName)
+                        .StartsWith(entryName, StringComparison.OrdinalIgnoreCase));
+
+                if (taken)
+                {
+                    return false;
+                }
+
+                // フォルダのエントリは中身を持たない。圧縮の強さは効かないため指定しない
+                var entry = zip.CreateEntry(entryName);
+                entry.LastWriteTime = DateTimeOffset.Now;
+            }
+
+            File.Move(temp, archivePath, overwrite: true);
+            return true;
+        }
+        finally
+        {
+            TryDelete(temp);
+        }
     }
 
     /// <summary>
