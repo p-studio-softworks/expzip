@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.IO;
@@ -205,6 +205,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 同じ書庫を読み直すときは、ツリーで開いていたフォルダを覚えておく。
+        // ノードは読み込みのたびに作り直すため、控えておかないと表示先の祖先しか
+        // 開かれず、追加や名前の変更のたびにツリーが畳まれてしまう (#49)。
+        var expanded = _contents is not null
+                       && string.Equals(_contents.FilePath, path, StringComparison.OrdinalIgnoreCase)
+            ? CollectExpanded(_contents.Root)
+            : null;
+
         ArchiveContents contents;
 
         using var cancellation = new CancellationTokenSource();
@@ -259,6 +267,12 @@ public partial class MainWindow : Window
 
         _contents = contents;
         RememberRecent(path);
+
+        if (expanded is not null)
+        {
+            ApplyExpanded(contents.Root, expanded);
+        }
+
         FolderTree.ItemsSource = new[] { contents.Root };
         RefreshButton.IsEnabled = true;
         ExtractButton.IsEnabled = true;
@@ -2802,6 +2816,41 @@ public partial class MainWindow : Window
         SelectionInfo.Text = count == 0
             ? "選択 0 個"
             : $"選択 {count:N0} 個 ({totalBytes:N0} バイト)";
+    }
+
+    /// <summary>ツリーで開かれているフォルダのパスを集める。</summary>
+    private static HashSet<string> CollectExpanded(ArchiveFolder root)
+    {
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        Walk(root);
+        return paths;
+
+        void Walk(ArchiveFolder folder)
+        {
+            if (folder.IsExpanded)
+            {
+                paths.Add(folder.FullPath);
+            }
+
+            foreach (var child in folder.Folders)
+            {
+                Walk(child);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 読み込み直す前に開いていたフォルダを開き直す。
+    /// 無くなったフォルダは単に見つからないだけなので、特に何もしなくてよい。
+    /// </summary>
+    private static void ApplyExpanded(ArchiveFolder folder, HashSet<string> expanded)
+    {
+        folder.IsExpanded = expanded.Contains(folder.FullPath);
+
+        foreach (var child in folder.Folders)
+        {
+            ApplyExpanded(child, expanded);
+        }
     }
 
     /// <summary>ツリー上の該当ノードを選択状態にする。祖先は順に展開する。</summary>
