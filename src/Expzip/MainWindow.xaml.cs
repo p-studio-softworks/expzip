@@ -88,6 +88,9 @@ public partial class MainWindow : Window
     private DispatcherTimer? _renameClickTimer;
     private EntryRow? _pendingRenameRow;
 
+    /// <summary>いま名前を書き換えている行。ウィンドウのどこかを押したら確定させる (#45)。</summary>
+    private EntryRow? _editingRow;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -454,6 +457,33 @@ public partial class MainWindow : Window
     private async void RenameMenuItem_Click(object sender, RoutedEventArgs e)
         => await RenameSelectedAsync();
 
+    /// <summary>
+    /// 名前を書き換えている最中に、入力欄の外を押したら確定する (#45)。
+    /// </summary>
+    /// <remarks>
+    /// 入力欄から離れたことは <see cref="RenameBox_LostKeyboardFocus"/> でも拾えるが、
+    /// 一覧の余白やツリーの空き部分を押しても入力欄はフォーカスを手放さない。
+    /// そこで終わるようにする。
+    /// </remarks>
+    private async void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        var row = _editingRow;
+        if (row is null || !row.IsEditing)
+        {
+            return;
+        }
+
+        // 入力欄そのものの上なら、文字を選ぶための操作なので触らない
+        if (e.OriginalSource is DependencyObject source
+            && FindAncestor<TextBox>(source) is { DataContext: EntryRow clicked }
+            && ReferenceEquals(clicked, row))
+        {
+            return;
+        }
+
+        await CommitRenameAsync(row, row.EditName);
+    }
+
     // ------------------------------------------------------------------ 名前の変更 (#15)
 
     /// <summary>
@@ -476,8 +506,7 @@ public partial class MainWindow : Window
         }
 
         var row = rows[0];
-        row.EditName = row.Name;
-        row.IsEditing = true;
+        BeginEditing(row);
         return Task.CompletedTask;
     }
 
@@ -534,6 +563,7 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             row.IsEditing = false;
+            _editingRow = null;
             EntryList.Focus();
             return;
         }
@@ -564,6 +594,7 @@ public partial class MainWindow : Window
 
         // 二重に走らせない。確定の途中で入力欄が消え、再び通知が来ることがある
         row.IsEditing = false;
+        _editingRow = null;
 
         if (_contents is null || _currentFolder is null || _cancellation is not null)
         {
@@ -1504,6 +1535,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        BeginEditing(row);
+    }
+
+    /// <summary>一覧の上で名前を書き換え始める。</summary>
+    private void BeginEditing(EntryRow row)
+    {
+        _editingRow = row;
         row.EditName = row.Name;
         row.IsEditing = true;
     }

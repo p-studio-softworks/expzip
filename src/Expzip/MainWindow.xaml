@@ -10,6 +10,7 @@
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
         AllowDrop="True"
+        PreviewMouseDown="Window_PreviewMouseDown"
         DragOver="Window_DragOver"
         Drop="Window_Drop"
         Closing="Window_Closing">
