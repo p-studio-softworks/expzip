@@ -205,6 +205,10 @@
                                       InputGestureText="Enter"
                                       FontWeight="Bold"
                                       Click="OpenMenuItem_Click" />
+                            <!-- 取り出して編集し、保存されたら書庫へ書き戻す (#16) -->
+                            <MenuItem x:Name="EditMenuItem"
+                                      Header="編集"
+                                      Click="EditMenuItem_Click" />
                             <Separator />
                             <!-- 書庫内の名前を変える (#15) -->
                             <MenuItem x:Name="RenameMenuItem"

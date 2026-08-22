@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Expzip.Archives;
 using Expzip.Configuration;
 using Expzip.Ui;
@@ -54,6 +55,18 @@ public partial class MainWindow : Window
 
     /// <summary>一時フォルダを用意できなかった。同じ知らせを繰り返さないための記録。</summary>
     private bool _tempUnavailableReported;
+
+    /// <summary>外部のアプリで編集中のファイル (#16)。</summary>
+    private readonly List<EditSession> _edits = [];
+
+    /// <summary>編集中のファイルが書き換わっていないか見に行く巡回。</summary>
+    private DispatcherTimer? _editWatch;
+
+    /// <summary>反映するかどうかを尋ねている最中。巡回が重ならないようにする。</summary>
+    private bool _askingAboutEdit;
+
+    /// <summary>終了前の書き戻しを済ませてから閉じる途中。</summary>
+    private bool _closingAfterSave;
 
     public MainWindow()
     {
@@ -408,8 +421,11 @@ public partial class MainWindow : Window
                                  && EntryList.SelectedItems.Count == 1
                                  && editable.Count == 1;
 
-        // 名前の変更も1件ずつ (#15)
+        // 名前の変更と編集も1件ずつ (#15, #16)
         RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled;
+        EditMenuItem.IsEnabled = OpenMenuItem.IsEnabled
+                                 && editable.Count == 1
+                                 && editable[0].Entry is not null;
     }
 
     private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
@@ -921,6 +937,226 @@ public partial class MainWindow : Window
         }
     }
 
+    // ------------------------------------------------------------------ 編集 (#16)
+
+    /// <summary>取り出したファイルを編集対象として見張り始める。</summary>
+    private void StartEditing(ArchiveEntry entry, string target, string directory)
+    {
+        _edits.Add(new EditSession(_contents!.FilePath, entry, target, ParentFolderOf(entry.FullPath)));
+
+        // 巡回はファイルを編集し始めてから動かす。書庫を見ているだけの間は要らない
+        if (_editWatch is null)
+        {
+            _editWatch = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromSeconds(1),
+            };
+            _editWatch.Tick += EditWatch_Tick;
+        }
+
+        _editWatch.Start();
+        StatusMessage.Text = $"{entry.Name} を編集しています。保存すると書庫へ反映するか尋ねます";
+    }
+
+    /// <summary>書庫内のパスから、その親フォルダのパスを取り出す。</summary>
+    private static string ParentFolderOf(string entryPath)
+    {
+        var separator = entryPath.LastIndexOf('/');
+        return separator < 0 ? string.Empty : entryPath[..separator];
+    }
+
+    private EditSession? FindEdit(string tempPath)
+        => _edits.FirstOrDefault(
+            e => string.Equals(e.TempPath, tempPath, StringComparison.OrdinalIgnoreCase));
+
+    private async void EditWatch_Tick(object? sender, EventArgs e)
+    {
+        // 他の処理の最中や、既に尋ねている最中は見送る。次の巡回で拾える
+        if (_askingAboutEdit || _cancellation is not null || _closeWhenIdle)
+        {
+            return;
+        }
+
+        var changed = _edits.FirstOrDefault(static s => s.DetectChange());
+        if (changed is null)
+        {
+            return;
+        }
+
+        _askingAboutEdit = true;
+        try
+        {
+            var answer = MessageBox.Show(
+                this,
+                $"{changed.EntryPath}{Environment.NewLine}{Environment.NewLine}"
+                + $"編集されました。書庫に反映しますか?{Environment.NewLine}{Environment.NewLine}"
+                + "「いいえ」を選んでも編集内容は残ります。アプリを終了するときに改めて尋ねます。",
+                AppName, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                await ApplyEditAsync(changed);
+            }
+        }
+        finally
+        {
+            _askingAboutEdit = false;
+        }
+    }
+
+    /// <summary>編集した一時ファイルを書庫へ書き戻す。</summary>
+    /// <returns>書き戻せた場合は true。</returns>
+    private async Task<bool> ApplyEditAsync(EditSession session)
+    {
+        if (_cancellation is not null)
+        {
+            return false;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var level = SelectedCompressionLevel;
+        var progress = new Progress<AddProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Percent;
+            StatusMessage.Text = $"{session.Name} を書庫に反映しています…";
+        });
+
+        AddResult? result = null;
+        try
+        {
+            // 追加と同じ経路を通す。取り出したときのパスをそのまま使っているので、
+            // 追加先フォルダを指定すれば元のエントリを置き換える形になる。
+            result = await Task.Run(() => ZipArchiveWriter.Add(
+                session.ArchivePath, [session.TempPath], session.DestinationFolder,
+                replaceExisting: true, level, progress, cancellation.Token));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"書庫に反映できませんでした。{Environment.NewLine}{Environment.NewLine}"
+                + $"{session.EntryPath}{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+        }
+
+        if (result is null || result.Cancelled)
+        {
+            StatusMessage.Text = "反映を中断しました";
+            return false;
+        }
+
+        if (result.Failed.Count > 0)
+        {
+            MessageBox.Show(
+                this,
+                $"書庫に反映できませんでした。{Environment.NewLine}{Environment.NewLine}"
+                + $"{session.EntryPath}{Environment.NewLine}{Environment.NewLine}{result.Failed[0].Reason}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        // 書き戻したエントリ名は区切りを `/` に正規化した形になる。DOS時代の
+        // ツールが書いた `\` 区切りの書庫では元のエントリが別物として残るため、
+        // その場合だけ消しておく。放っておくと同じファイルが二重に見える。
+        var written = session.DestinationFolder.Length == 0
+            ? session.Name
+            : session.DestinationFolder + "/" + session.Name;
+
+        if (!string.Equals(written, session.SourceName, StringComparison.Ordinal))
+        {
+            try
+            {
+                var stale = session.SourceName;
+                await Task.Run(() => ZipArchiveWriter.Delete(
+                    session.ArchivePath, new HashSet<string>(StringComparer.Ordinal) { stale },
+                    [], CancellationToken.None));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                       or InvalidDataException)
+            {
+                // 消せなくても書き戻し自体は済んでいる。二重に見えるだけで中身は無事
+            }
+        }
+
+        session.MarkApplied();
+
+        // 反映後は大きさや圧縮率が変わっているので、開いている書庫なら表示を更新する
+        if (_contents is not null
+            && string.Equals(_contents.FilePath, session.ArchivePath, StringComparison.OrdinalIgnoreCase))
+        {
+            await OpenArchiveAsync(session.ArchivePath, _currentFolder?.FullPath);
+        }
+
+        StatusMessage.Text = $"{session.Name} を書庫に反映しました";
+        return true;
+    }
+
+    /// <summary>
+    /// まだ書庫に反映していない編集があれば、終了前に尋ねる (#16)。
+    /// </summary>
+    /// <returns>そのまま閉じてよい場合は true。</returns>
+    private bool ConfirmPendingEdits()
+    {
+        var pending = _edits.Where(static s => s.HasPendingChanges).ToList();
+        if (pending.Count == 0)
+        {
+            return true;
+        }
+
+        var names = string.Join(Environment.NewLine, pending.Select(static s => "・" + s.EntryPath));
+        var answer = MessageBox.Show(
+            this,
+            $"書庫に反映していない編集があります。{Environment.NewLine}{Environment.NewLine}{names}"
+            + $"{Environment.NewLine}{Environment.NewLine}反映してから終了しますか?{Environment.NewLine}"
+            + "「いいえ」を選ぶと編集内容は失われます。",
+            AppName, MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes);
+
+        if (answer == MessageBoxResult.Cancel)
+        {
+            return false;
+        }
+
+        if (answer == MessageBoxResult.No)
+        {
+            // 破棄して閉じる。以降は聞き直さない
+            foreach (var session in pending)
+            {
+                session.MarkApplied();
+            }
+
+            return true;
+        }
+
+        // 反映してから閉じる。書き戻しは非同期なので、いったん閉じるのを止める
+        _closingAfterSave = true;
+        _ = ApplyPendingThenCloseAsync(pending);
+        return false;
+    }
+
+    private async Task ApplyPendingThenCloseAsync(IReadOnlyList<EditSession> pending)
+    {
+        foreach (var session in pending)
+        {
+            if (!await ApplyEditAsync(session))
+            {
+                // 反映できなかったものは残す。閉じるのは取りやめ、状況を見せる
+                _closingAfterSave = false;
+                return;
+            }
+        }
+
+        _closingAfterSave = false;
+        Close();
+    }
+
     // ------------------------------------------------------------------ 展開
 
     // ------------------------------------------------------------------ 既定のアプリで開く (#12)
@@ -933,11 +1169,19 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void EditMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (EntryList.SelectedItem is EntryRow { Entry: not null } row)
+        {
+            await OpenWithDefaultAppAsync(row.Entry, forEditing: true);
+        }
+    }
+
     /// <summary>
     /// 書庫内のファイルを一時フォルダへ取り出し、既定のアプリで開く (#12)。
     /// 取り出したファイルはアプリ終了時に消える。
     /// </summary>
-    private async Task OpenWithDefaultAppAsync(ArchiveEntry entry)
+    private async Task OpenWithDefaultAppAsync(ArchiveEntry entry, bool forEditing = false)
     {
         if (_contents is null || _cancellation is not null)
         {
@@ -984,13 +1228,28 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 編集中のファイルをもう一度開こうとした場合は、取り出し直さずにそのまま渡す。
+        // 上書きしてしまうと、まだ書庫に反映していない編集内容が消える (#16)。
+        var editing = FindEdit(target);
+        if (editing is not null)
+        {
+            LaunchDefaultApp(target);
+            return;
+        }
+
         // 同じファイルを開き直したときは取り出し直さない。開いたままのアプリに
         // 掴まれていると上書きできないうえ、大きなファイルでは待ち時間も無駄になる。
-        var reusable = TryGetLength(target) == entry.Length;
+        // 編集の場合は書き込めるようにしたいので、読み取り専用のまま使い回さない。
+        var reusable = !forEditing && TryGetLength(target) == entry.Length;
 
-        if (!reusable && !await ExtractForViewingAsync(entry, directory, target))
+        if (!reusable && !await ExtractForViewingAsync(entry, directory, target, !forEditing))
         {
             return;
+        }
+
+        if (forEditing)
+        {
+            StartEditing(entry, target, directory);
         }
 
         LaunchDefaultApp(target);
@@ -1074,7 +1333,8 @@ public partial class MainWindow : Window
 
     /// <summary>1ファイルだけを一時フォルダへ取り出す。</summary>
     /// <returns>取り出せて、開いてよい状態になった場合は true。</returns>
-    private async Task<bool> ExtractForViewingAsync(ArchiveEntry entry, string directory, string target)
+    private async Task<bool> ExtractForViewingAsync(
+        ArchiveEntry entry, string directory, string target, bool makeReadOnly)
     {
         var archivePath = _contents!.FilePath;
 
@@ -1106,7 +1366,12 @@ public partial class MainWindow : Window
                 if (extracted.Extracted == 1)
                 {
                     MarkOfTheWeb.TryApply(target, zone);
-                    TempWorkspace.MakeReadOnly(target);
+
+                    // 編集のために取り出した場合は書き込めるままにする (#16)
+                    if (makeReadOnly)
+                    {
+                        TempWorkspace.MakeReadOnly(target);
+                    }
                 }
 
                 return extracted;
@@ -1322,6 +1587,16 @@ public partial class MainWindow : Window
     {
         if (_cancellation is null)
         {
+            // 反映していない編集が残っていれば先に尋ねる (#16)。
+            // 反映してから閉じる場合は、書き戻しが済んだ時点で閉じ直す。
+            if (!_closingAfterSave && !ConfirmPendingEdits())
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            _editWatch?.Stop();
+
             // 保存できなくてもアプリを止めない。書き込めない場所に置かれている
             // 場合は設定が残らないだけで、動作そのものには影響しない (#2)
             CaptureSettings();
