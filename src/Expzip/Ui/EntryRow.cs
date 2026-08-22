@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Expzip.Archives;
 
 namespace Expzip.Ui;
@@ -19,7 +20,7 @@ internal enum EntryRowKind
 /// リストビューの1行。親へ戻る行、フォルダ、ファイルを同じ型で扱う。
 /// 表示用の文字列とソート用の生値の両方を持たせ、桁揃えとソートを両立させる。
 /// </summary>
-internal sealed class EntryRow
+internal sealed class EntryRow : INotifyPropertyChanged
 {
     /// <summary>フォルダに上矢印を重ねた「一つ上へ」のアイコン。</summary>
     private const string GlyphParent = "\uE197";
@@ -36,7 +37,45 @@ internal sealed class EntryRow
     /// <summary>塗りつぶしの警告三角。小さく表示しても輪郭線より目に留まる。</summary>
     private const string GlyphWarning = "\uE814";
 
+    private bool _isEditing;
+    private string _editName = string.Empty;
+
     public required string Name { get; init; }
+
+    /// <summary>
+    /// 一覧の上で名前を書き換えている最中かどうか (#15)。
+    /// エクスプローラーと同じく、ダイアログではなくその場で書き換える。
+    /// </summary>
+    public bool IsEditing
+    {
+        get => _isEditing;
+        set
+        {
+            if (_isEditing == value)
+            {
+                return;
+            }
+
+            _isEditing = value;
+            Notify(nameof(IsEditing));
+        }
+    }
+
+    /// <summary>書き換え中の名前。確定するまで <see cref="Name"/> には反映しない。</summary>
+    public string EditName
+    {
+        get => _editName;
+        set
+        {
+            _editName = value;
+            Notify(nameof(EditName));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void Notify(string property)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
 
     public required EntryRowKind Kind { get; init; }
 

@@ -237,8 +237,8 @@ internal sealed class TempWorkspace : IDisposable
     }
 
     /// <summary>
-    /// 読み取り専用の属性を外す。取り出したファイルには書き換えを防ぐために
-    /// 読み取り専用を付けるが、そのままでは消すことも取り出し直すこともできない。
+    /// 読み取り専用の属性を外す。書庫の中身に読み取り専用のファイルがあった場合や、
+    /// 開いた先のアプリが属性を付けた場合、そのままでは消すことも取り出し直すこともできない。
     /// </summary>
     public static void ClearReadOnly(string path)
     {
@@ -256,24 +256,6 @@ internal sealed class TempWorkspace : IDisposable
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
-
-    /// <summary>取り出したファイルを読み取り専用にする。</summary>
-    /// <remarks>
-    /// 書き換えても書庫には戻らず、アプリ終了時に消えてしまう。黙って消えるより、
-    /// 保存しようとした時点でアプリ側に断られるほうが気付ける。
-    /// 書庫内のファイルを直接編集する機能はフェーズ2で扱う。
-    /// </remarks>
-    public static void MakeReadOnly(string path)
-    {
-        try
-        {
-            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-                                   or FileNotFoundException)
         {
         }
     }

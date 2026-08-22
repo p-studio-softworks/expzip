@@ -444,32 +444,122 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 名前の変更 (#15)
 
-    /// <summary>選択している1件の名前を変える。</summary>
-    private async Task RenameSelectedAsync()
+    /// <summary>
+    /// 選択している1件の名前を、一覧の上でその場で書き換え始める。
+    /// </summary>
+    /// <remarks>
+    /// エクスプローラー と同じく、ダイアログは出さない。
+    /// </remarks>
+    private Task RenameSelectedAsync()
     {
         if (_contents is null || _cancellation is not null || _currentFolder is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         var rows = SelectedRowsForEdit();
         if (rows.Count != 1)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         var row = rows[0];
-        var isFolder = row.Folder is not null;
-        var oldPath = isFolder ? row.Folder!.FullPath : row.Entry!.FullPath;
+        row.EditName = row.Name;
+        row.IsEditing = true;
+        return Task.CompletedTask;
+    }
 
-        var dialog = new RenameDialog(this, row.Name, isFolder);
-        if (dialog.ShowDialog() != true)
+    /// <summary>入力欄が現れたら、そこに入力できる状態にする。</summary>
+    private static void PrepareRenameBox(TextBox box)
+    {
+        if (box.DataContext is not EntryRow row || !row.IsEditing)
         {
             return;
         }
 
-        var newName = dialog.NewName;
-        if (string.Equals(newName, row.Name, StringComparison.Ordinal))
+        box.Focus();
+        Keyboard.Focus(box);
+
+        // エクスプローラーと同じく拡張子を除いた部分だけを選ぶ。
+        // 拡張子はそのまま使うことがほとんどで、毎回打ち直すのは煩わしい
+        var stem = row.Folder is not null ? -1 : row.Name.LastIndexOf('.');
+        if (stem > 0)
+        {
+            box.Select(0, stem);
+        }
+        else
+        {
+            box.SelectAll();
+        }
+    }
+
+    private void RenameBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox box)
+        {
+            PrepareRenameBox(box);
+        }
+    }
+
+    private void RenameBox_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        // 行は使い回されるため、表示されたタイミングでも整える必要がある
+        if (sender is TextBox box && e.NewValue is true)
+        {
+            box.Dispatcher.BeginInvoke(new Action(() => PrepareRenameBox(box)),
+                DispatcherPriority.Input);
+        }
+    }
+
+    private async void RenameBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box || box.DataContext is not EntryRow row)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            row.IsEditing = false;
+            EntryList.Focus();
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await CommitRenameAsync(row, box.Text);
+        }
+    }
+
+    private async void RenameBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        // エクスプローラーと同じく、他所をクリックした場合も確定させる
+        if (sender is TextBox box && box.DataContext is EntryRow row && row.IsEditing)
+        {
+            await CommitRenameAsync(row, box.Text);
+        }
+    }
+
+    /// <summary>書き換えた名前を確定する。</summary>
+    private async Task CommitRenameAsync(EntryRow row, string text)
+    {
+        if (!row.IsEditing)
+        {
+            return;
+        }
+
+        // 二重に走らせない。確定の途中で入力欄が消え、再び通知が来ることがある
+        row.IsEditing = false;
+
+        if (_contents is null || _currentFolder is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        var newName = text.Trim();
+        if (newName.Length == 0 || string.Equals(newName, row.Name, StringComparison.Ordinal))
         {
             return;
         }
@@ -479,6 +569,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        var isFolder = row.Folder is not null;
+        var oldPath = isFolder ? row.Folder!.FullPath : row.Entry!.FullPath;
         var parent = _currentFolder.FullPath;
         var newPath = parent.Length == 0 ? newName : parent + "/" + newName;
 
@@ -1172,12 +1264,12 @@ public partial class MainWindow : Window
     /// <summary>
     /// 一度に取り出せる件数の上限。
     /// ドラッグの開始は同期処理のため、展開にかかる時間がそのまま無応答時間になる。
-    /// ファイル1件あたり約0.28msの固定費があり、この件数で0.3秒ほど (#18)。
+    /// ファイル1件あたり約0.28msの固定費があり、この件数で0.85秒ほど (#18)。
     /// </summary>
-    private const int DragOutFileLimit = 1000;
+    private const int DragOutFileLimit = 3000;
 
     /// <summary>一度に取り出せる合計サイズの上限。展開の速度はおよそ300MB/秒 (#18)。</summary>
-    private const long DragOutByteLimit = 256L * 1024 * 1024;
+    private const long DragOutByteLimit = 512L * 1024 * 1024;
 
     private void EntryList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -1254,15 +1346,11 @@ public partial class MainWindow : Window
             Mouse.OverrideCursor = Cursors.Wait;
             StatusMessage.Text = $"{names.Count:N0} 件を取り出しています…";
 
-            var result = ArchiveExtractor.Extract(
+            // 既に取り出してあるものは触らない。開いたままのアプリに掴まれていて
+            // 上書きできない場合でも、ドラッグ自体は成り立つようにする
+            ArchiveExtractor.Extract(
                 _contents.FilePath, names, directory,
-                overwrite: true, progress: null, CancellationToken.None, zone);
-
-            if (result.Extracted == 0)
-            {
-                StatusMessage.Text = "取り出せませんでした";
-                return;
-            }
+                overwrite: false, progress: null, CancellationToken.None, zone);
 
             // ドラッグの対象は選んだ項目そのもの。フォルダを選んだ場合は
             // 配下のファイルではなくフォルダを渡す
@@ -1271,7 +1359,7 @@ public partial class MainWindow : Window
                 .Select(ArchivePath.ToSafeRelativePath)
                 .Where(static relative => relative is not null)
                 .Select(relative => Path.Combine(directory, relative!))
-                .Where(static path => File.Exists(path) || Directory.Exists(path))
+                .Where(path => EnsureDragPath(path, rows, directory))
                 .ToArray();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
@@ -1291,7 +1379,7 @@ public partial class MainWindow : Window
 
         if (paths.Length == 0)
         {
-            StatusMessage.Text = "取り出せませんでした";
+            StatusMessage.Text = "取り出せませんでした。ドラッグを開始できません";
             return;
         }
 
@@ -1311,6 +1399,38 @@ public partial class MainWindow : Window
         finally
         {
             _draggingOut = false;
+        }
+    }
+
+    /// <summary>
+    /// ドラッグで渡すパスが実体を持っているかを確かめる。
+    /// 中身の無いフォルダは取り出しでは作られないため、ここで用意する。
+    /// </summary>
+    private static bool EnsureDragPath(string path, List<EntryRow> rows, string directory)
+    {
+        if (File.Exists(path) || Directory.Exists(path))
+        {
+            return true;
+        }
+
+        // 空のフォルダを選んだ場合。フォルダとして渡せるように作っておく
+        var isFolder = rows.Any(r => r.Folder is not null
+                                     && ArchivePath.ToSafeRelativePath(r.Folder.FullPath) is { } relative
+                                     && string.Equals(Path.Combine(directory, relative), path,
+                                                      StringComparison.OrdinalIgnoreCase));
+        if (!isFolder)
+        {
+            return false;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -1439,10 +1559,9 @@ public partial class MainWindow : Window
 
         // 同じファイルを開き直したときは取り出し直さない。開いたままのアプリに
         // 掴まれていると上書きできないうえ、大きなファイルでは待ち時間も無駄になる。
-        // 編集の場合は書き込めるようにしたいので、読み取り専用のまま使い回さない。
-        var reusable = !forEditing && TryGetLength(target) == entry.Length;
+        var reusable = TryGetLength(target) == entry.Length;
 
-        if (!reusable && !await ExtractForViewingAsync(entry, directory, target, !forEditing))
+        if (!reusable && !await ExtractForViewingAsync(entry, directory, target))
         {
             return;
         }
@@ -1533,8 +1652,7 @@ public partial class MainWindow : Window
 
     /// <summary>1ファイルだけを一時フォルダへ取り出す。</summary>
     /// <returns>取り出せて、開いてよい状態になった場合は true。</returns>
-    private async Task<bool> ExtractForViewingAsync(
-        ArchiveEntry entry, string directory, string target, bool makeReadOnly)
+    private async Task<bool> ExtractForViewingAsync(ArchiveEntry entry, string directory, string target)
     {
         var archivePath = _contents!.FilePath;
 
@@ -1555,21 +1673,13 @@ public partial class MainWindow : Window
 
             var result = await Task.Run(() =>
             {
-                // 前回取り出したものが読み取り専用のまま残っていると上書きできない
+                // 何かの拍子に読み取り専用のまま残っていると上書きできない
                 TempWorkspace.ClearReadOnly(target);
 
-                var extracted = ArchiveExtractor.Extract(
+                return ArchiveExtractor.Extract(
                     archivePath,
                     new HashSet<string>(StringComparer.Ordinal) { entry.SourceName },
                     directory, overwrite: true, progress, cancellation.Token, zone);
-
-                // 編集のために取り出した場合は書き込めるままにする (#16)
-                if (extracted.Extracted == 1 && makeReadOnly)
-                {
-                    TempWorkspace.MakeReadOnly(target);
-                }
-
-                return extracted;
             });
 
             if (result.Cancelled)
