@@ -44,6 +44,12 @@ internal static class ArchiveExtractor
     /// <param name="zoneIdentifier">
     /// 書き出したファイルに引き継ぐ出所の印 (#12)。<see langword="null"/> なら何もしない。
     /// </param>
+    /// <param name="basePath">
+    /// 書き出し先を決める際に、書庫内パスの先頭から取り除くフォルダ (#48)。
+    /// 例えば <c>資料/画像</c> を選んで展開する場合に <c>資料</c> を渡すと、
+    /// 展開先には <c>画像\…</c> が並ぶ。<see langword="null"/> なら書庫のルートからの
+    /// 階層をそのまま作る。
+    /// </param>
     public static ExtractResult Extract(
         string archivePath,
         IReadOnlySet<string>? sourceNames,
@@ -51,7 +57,8 @@ internal static class ArchiveExtractor
         bool overwrite,
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
-        string? zoneIdentifier = null)
+        string? zoneIdentifier = null,
+        string? basePath = null)
     {
         // 展開先の正規化。これを基準に、書庫外へ書き出そうとするエントリを弾く
         var destinationRoot = Path.GetFullPath(destinationDirectory);
@@ -87,7 +94,7 @@ internal static class ArchiveExtractor
                 break;
             }
 
-            var relative = ArchivePath.ToSafeRelativePath(entry.FullName);
+            var relative = ArchivePath.ToSafeRelativePath(StripBase(entry.FullName, basePath));
             if (relative is null)
             {
                 rejected.Add(entry.FullName);
@@ -161,6 +168,25 @@ internal static class ArchiveExtractor
         }
 
         return new ExtractResult(extracted, skipped, rejected, failed, cancelled);
+    }
+
+    /// <summary>
+    /// 書庫内パスの先頭から、指定のフォルダを取り除く。
+    /// 選んだフォルダを展開先の最上位にするために使う (#48)。
+    /// </summary>
+    public static string StripBase(string entryName, string? basePath)
+    {
+        if (string.IsNullOrEmpty(basePath))
+        {
+            return entryName;
+        }
+
+        var normalized = ArchivePath.Normalize(entryName);
+        var prefix = basePath + "/";
+
+        return normalized.StartsWith(prefix, StringComparison.Ordinal)
+            ? normalized[prefix.Length..]
+            : normalized;
     }
 
     /// <summary>中断時の後始末。消せなくても中断自体は成立するので握りつぶす。</summary>

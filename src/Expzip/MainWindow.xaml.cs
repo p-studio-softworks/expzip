@@ -2260,6 +2260,11 @@ public partial class MainWindow : Window
         var selection = CollectSelectedSourceNames();
         var title = "選択した項目の展開先を選択";
 
+        // 選んだものを展開先の最上位に置く。書庫のルートからの階層は作らない (#48)。
+        // 一覧で選んだ場合はいま開いているフォルダまで、ツリーで選んだ場合は
+        // その親までを取り除く
+        var basePath = _currentFolder?.FullPath;
+
         if (selection is null)
         {
             // 一覧で何も選んでいない場合は、いま開いているフォルダが対象。
@@ -2272,12 +2277,14 @@ public partial class MainWindow : Window
                 if (names.Count > 0)
                 {
                     selection = names;
+                    basePath = current.Parent.FullPath;
                     title = $"「{current.Name}」の展開先を選択";
                 }
             }
 
             if (selection is null)
             {
+                basePath = null;
                 title = "書庫全体の展開先を選択";
             }
         }
@@ -2291,15 +2298,37 @@ public partial class MainWindow : Window
 
         var destination = picker.FolderName;
 
-        // 展開先が空なら衝突しようがないので、無用な確認を出さない
-        var overwrite = true;
-        if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
+        // 本当に同じ名前があるときだけ確認する。展開先に何か入っているだけで
+        // 尋ねるのは、関係のないファイルを見て驚かせるだけになる (#48)
+        List<string> conflicts;
+        try
         {
+            Mouse.OverrideCursor = Cursors.Wait;
+            conflicts = await Task.Run(() => FindExtractConflicts(selection, basePath, destination));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            conflicts = [];
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+
+        var overwrite = true;
+        if (conflicts.Count > 0)
+        {
+            var preview = string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c));
+            var more = conflicts.Count > 5
+                ? $"{Environment.NewLine}  ほか {conflicts.Count - 5:N0} 件"
+                : string.Empty;
+
             var answer = MessageBox.Show(
                 this,
-                $"展開先に既にファイルがあります。{Environment.NewLine}"
-                + $"同名のファイルを上書きしますか?{Environment.NewLine}{Environment.NewLine}"
-                + "「いいえ」を選ぶと、同名のファイルは展開せずに残します。",
+                $"展開先に同じ名前のファイルが {conflicts.Count:N0} 件あります。上書きしますか?"
+                + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
+                + $"{Environment.NewLine}{Environment.NewLine}"
+                + "「いいえ」を選ぶと、それらは展開せずに残します。",
                 AppName,
                 MessageBoxButton.YesNoCancel,
                 MessageBoxImage.Question);
@@ -2312,11 +2341,68 @@ public partial class MainWindow : Window
             overwrite = answer == MessageBoxResult.Yes;
         }
 
-        await RunExtractionAsync(_contents.FilePath, selection, destination, overwrite);
+        await RunExtractionAsync(_contents.FilePath, selection, destination, overwrite, basePath);
+    }
+
+    /// <summary>
+    /// 展開先に同じ名前のファイルが既にあるかを調べる。
+    /// </summary>
+    /// <remarks>
+    /// 展開先を一度なめて名前の一覧を作り、そこと突き合わせる。1件ずつ存在を
+    /// 確かめると件数が多い書庫で待たされるため。展開先が空なら即座に終わる。
+    /// </remarks>
+    private List<string> FindExtractConflicts(
+        IReadOnlySet<string>? selection, string? basePath, string destination)
+    {
+        var conflicts = new List<string>();
+
+        if (!Directory.Exists(destination))
+        {
+            return conflicts;
+        }
+
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in Directory.EnumerateFiles(destination, "*", SearchOption.AllDirectories))
+        {
+            existing.Add(Path.GetRelativePath(destination, path));
+        }
+
+        if (existing.Count == 0)
+        {
+            return conflicts;
+        }
+
+        void Walk(ArchiveFolder folder)
+        {
+            foreach (var file in folder.Files)
+            {
+                if (selection is not null && !selection.Contains(file.SourceName))
+                {
+                    continue;
+                }
+
+                var relative = ArchivePath.ToSafeRelativePath(
+                    ArchiveExtractor.StripBase(file.SourceName, basePath));
+
+                if (relative is not null && existing.Contains(relative))
+                {
+                    conflicts.Add(relative);
+                }
+            }
+
+            foreach (var child in folder.Folders)
+            {
+                Walk(child);
+            }
+        }
+
+        Walk(_contents!.Root);
+        return conflicts;
     }
 
     private async Task RunExtractionAsync(
-        string archivePath, IReadOnlySet<string>? selection, string destination, bool overwrite)
+        string archivePath, IReadOnlySet<string>? selection, string destination, bool overwrite,
+        string? basePath = null)
     {
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -2334,7 +2420,8 @@ public partial class MainWindow : Window
             var zone = MarkOfTheWeb.TryRead(archivePath);
 
             var result = await Task.Run(() => ArchiveExtractor.Extract(
-                archivePath, selection, destination, overwrite, progress, cancellation.Token, zone));
+                archivePath, selection, destination, overwrite, progress, cancellation.Token,
+                zone, basePath));
 
             ShowExtractResult(result, destination);
         }
