@@ -196,6 +196,7 @@
                           Drop="EntryList_Drop"
                           SelectionChanged="EntryList_SelectionChanged"
                           PreviewMouseLeftButtonDown="EntryList_PreviewMouseLeftButtonDown"
+                          PreviewMouseLeftButtonUp="EntryList_PreviewMouseLeftButtonUp"
                           PreviewMouseMove="EntryList_PreviewMouseMove"
                           MouseDoubleClick="EntryList_MouseDoubleClick"
                           KeyDown="EntryList_KeyDown"

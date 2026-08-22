@@ -81,6 +81,13 @@ public partial class MainWindow : Window
     /// <summary>ツリーで押されたフォルダ。動かされたらドラッグアウトを始める (#17)。</summary>
     private ArchiveFolder? _treeDragFolder;
 
+    /// <summary>
+    /// 選択済みの項目をもう一度クリックしたときに始める、名前の変更の待ち合わせ (#44)。
+    /// ダブルクリックと区別するため、少し待ってから始める。
+    /// </summary>
+    private DispatcherTimer? _renameClickTimer;
+    private EntryRow? _pendingRenameRow;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -1430,12 +1437,87 @@ public partial class MainWindow : Window
 
     private void EntryList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        CancelPendingRename();
+
         // 行の上で押された場合だけドラッグの起点にする。
         // 列見出しや余白から始まる範囲選択を邪魔しないため。
-        _dragCandidate = e.OriginalSource is DependencyObject source
-                         && ItemsControl.ContainerFromElement(EntryList, source) is ListViewItem;
+        var item = e.OriginalSource is DependencyObject source
+            ? ItemsControl.ContainerFromElement(EntryList, source) as ListViewItem
+            : null;
+
+        _dragCandidate = item is not null;
         _dragOrigin = e.GetPosition(null);
+
+        // エクスプローラーと同じく、選択済みの項目をもう一度クリックすると
+        // 名前の変更を始める。押した時点で選ばれていたかどうかで見分ける (#44)
+        _pendingRenameRow = item is { Content: EntryRow row }
+                            && row.Kind != EntryRowKind.Parent
+                            && item.IsSelected
+                            && EntryList.SelectedItems.Count == 1
+                            && !row.IsEditing
+                            && IsInNameColumn(e.GetPosition(item))
+            ? row
+            : null;
     }
+
+    /// <summary>行の中で、名前の列の上を指しているか。</summary>
+    private bool IsInNameColumn(Point positionInRow)
+        => EntryList.View is GridView { Columns.Count: > 0 } grid
+           && positionInRow.X >= 0
+           && positionInRow.X < grid.Columns[0].ActualWidth;
+
+    private void EntryList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        // ドラッグに移った場合や、対象でない場合は何もしない
+        if (_pendingRenameRow is null || !_dragCandidate || _cancellation is not null)
+        {
+            _pendingRenameRow = null;
+            return;
+        }
+
+        var row = _pendingRenameRow;
+
+        _renameClickTimer ??= new DispatcherTimer(DispatcherPriority.Input);
+        _renameClickTimer.Stop();
+
+        // ダブルクリックの2回目が来るかもしれないので、その分だけ待つ。
+        // 待たずに始めると、開くつもりのダブルクリックで入力欄が出てしまう
+        _renameClickTimer.Interval = TimeSpan.FromMilliseconds(GetDoubleClickTime() + 50);
+        _renameClickTimer.Tick -= RenameClickTimer_Tick;
+        _renameClickTimer.Tick += RenameClickTimer_Tick;
+        _pendingRenameRow = row;
+        _renameClickTimer.Start();
+    }
+
+    private void RenameClickTimer_Tick(object? sender, EventArgs e)
+    {
+        _renameClickTimer?.Stop();
+
+        var row = _pendingRenameRow;
+        _pendingRenameRow = null;
+
+        // 待っている間に選択が変わっていたら始めない
+        if (row is null || _cancellation is not null
+            || EntryList.SelectedItems.Count != 1
+            || !ReferenceEquals(EntryList.SelectedItem, row))
+        {
+            return;
+        }
+
+        row.EditName = row.Name;
+        row.IsEditing = true;
+    }
+
+    /// <summary>待ち合わせ中の名前の変更を取りやめる。</summary>
+    private void CancelPendingRename()
+    {
+        _renameClickTimer?.Stop();
+        _pendingRenameRow = null;
+    }
+
+    /// <summary>ダブルクリックとみなされる間隔 (ミリ秒)。利用者の設定に従う。</summary>
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDoubleClickTime();
 
     private void EntryList_PreviewMouseMove(object sender, MouseEventArgs e)
     {
@@ -2509,6 +2591,9 @@ public partial class MainWindow : Window
 
     private async void EntryList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        // 開くつもりのダブルクリックで名前の変更が始まらないようにする (#44)
+        CancelPendingRename();
+
         // 列見出しや余白のダブルクリックでは何もしない。
         // 行の上で押されたかを確かめないと、見出しをダブルクリックしただけで
         // 選択中のファイルが開いてしまう。
@@ -2541,7 +2626,19 @@ public partial class MainWindow : Window
     }
 
     private void EntryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        => UpdateSelectionInfo();
+    {
+        // 選択が別のものに移ったなら、もう一度クリックされたわけではない (#44)。
+        // 選択済みの項目をクリックした場合も、他を外す形で通知が来ることがあるため、
+        // 「その行だけが選ばれている」なら待ち合わせを続ける
+        if (_pendingRenameRow is not null
+            && !(EntryList.SelectedItems.Count == 1
+                 && ReferenceEquals(EntryList.SelectedItem, _pendingRenameRow)))
+        {
+            CancelPendingRename();
+        }
+
+        UpdateSelectionInfo();
+    }
 
     private void UpdateSelectionInfo()
     {
