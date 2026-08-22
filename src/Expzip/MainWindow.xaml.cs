@@ -2257,13 +2257,32 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 選択が無ければ書庫全体を展開する
         var selection = CollectSelectedSourceNames();
+        var title = "選択した項目の展開先を選択";
 
-        var picker = new OpenFolderDialog
+        if (selection is null)
         {
-            Title = selection is null ? "書庫全体の展開先を選択" : "選択した項目の展開先を選択",
-        };
+            // 一覧で何も選んでいない場合は、いま開いているフォルダが対象。
+            // ツリーでフォルダを選んだ状態はこれに当たる。ルートなら書庫全体 (#47)
+            if (_currentFolder is { Parent: not null } current)
+            {
+                var names = new HashSet<string>(StringComparer.Ordinal);
+                AddFilesRecursively(current, names);
+
+                if (names.Count > 0)
+                {
+                    selection = names;
+                    title = $"「{current.Name}」の展開先を選択";
+                }
+            }
+
+            if (selection is null)
+            {
+                title = "書庫全体の展開先を選択";
+            }
+        }
+
+        var picker = new OpenFolderDialog { Title = title };
 
         if (picker.ShowDialog(this) != true)
         {
