@@ -458,11 +458,8 @@ public partial class MainWindow : Window
                                  && EntryList.SelectedItems.Count == 1
                                  && editable.Count == 1;
 
-        // 名前の変更と編集も1件ずつ (#15, #16)
+        // 名前の変更も1件ずつ (#15)
         RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled;
-        EditMenuItem.IsEnabled = OpenMenuItem.IsEnabled
-                                 && editable.Count == 1
-                                 && editable[0].Entry is not null;
 
         // フォルダの作成は選択と関係なく、何もない場所を押したときも使える (#50)
         NewFolderMenuItem.IsEnabled = _contents is not null && _cancellation is null;
@@ -1394,9 +1391,9 @@ public partial class MainWindow : Window
         }
     }
 
-    // ------------------------------------------------------------------ 編集 (#16)
+    // ------------------------------------------------------------------ 保存されたら書き戻す (#16)
 
-    /// <summary>取り出したファイルを編集対象として見張り始める。</summary>
+    /// <summary>取り出したファイルを見張り始める。保存されたら書庫へ反映するか尋ねる。</summary>
     private void StartEditing(ArchiveEntry entry, string target, string directory)
     {
         _edits.Add(new EditSession(_contents!.FilePath, entry, target, ParentFolderOf(entry.FullPath)));
@@ -1412,7 +1409,7 @@ public partial class MainWindow : Window
         }
 
         _editWatch.Start();
-        StatusMessage.Text = $"{entry.Name} を編集しています。保存すると書庫へ反映するか尋ねます";
+        StatusMessage.Text = $"{entry.Name} を開きました。保存すると書庫へ反映するか尋ねます";
     }
 
     /// <summary>書庫内のパスから、その親フォルダのパスを取り出す。</summary>
@@ -2099,19 +2096,16 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void EditMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (EntryList.SelectedItem is EntryRow { Entry: not null } row)
-        {
-            await OpenWithDefaultAppAsync(row.Entry, forEditing: true);
-        }
-    }
-
     /// <summary>
     /// 書庫内のファイルを一時フォルダへ取り出し、既定のアプリで開く (#12)。
     /// 取り出したファイルはアプリ終了時に消える。
     /// </summary>
-    private async Task OpenWithDefaultAppAsync(ArchiveEntry entry, bool forEditing = false)
+    /// <remarks>
+    /// 開いた先で保存されたら、書庫へ反映するか尋ねる (#16)。以前は「開く」と
+    /// 「編集」を分けていたが、どちらも既定のアプリに渡すだけで見た目が同じで、
+    /// 違いが伝わらなかった。開く手段は一つにする (#52)。
+    /// </remarks>
+    private async Task OpenWithDefaultAppAsync(ArchiveEntry entry)
     {
         if (_contents is null || _cancellation is not null)
         {
@@ -2158,7 +2152,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 編集中のファイルをもう一度開こうとした場合は、取り出し直さずにそのまま渡す。
+        // 既に開いているファイルをもう一度開こうとした場合は、取り出し直さずにそのまま渡す。
         // 上書きしてしまうと、まだ書庫に反映していない編集内容が消える (#16)。
         var editing = FindEdit(target);
         if (editing is not null)
@@ -2176,11 +2170,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (forEditing)
-        {
-            StartEditing(entry, target, directory);
-        }
-
+        StartEditing(entry, target, directory);
         LaunchDefaultApp(target);
     }
 

@@ -221,16 +221,15 @@
                     <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
                     <ListView.ContextMenu>
                         <ContextMenu>
-                            <!-- 一時フォルダへ取り出して既定のアプリに渡す (#12) -->
+                            <!--
+                                一時フォルダへ取り出して既定のアプリに渡す (#12)。
+                                保存されたら書庫へ書き戻すか尋ねる (#16, #52)
+                            -->
                             <MenuItem x:Name="OpenMenuItem"
                                       Header="開く"
                                       InputGestureText="Enter"
                                       FontWeight="Bold"
                                       Click="OpenMenuItem_Click" />
-                            <!-- 取り出して編集し、保存されたら書庫へ書き戻す (#16) -->
-                            <MenuItem x:Name="EditMenuItem"
-                                      Header="編集"
-                                      Click="EditMenuItem_Click" />
                             <Separator />
                             <!-- 書庫内の名前を変える (#15) -->
                             <MenuItem x:Name="RenameMenuItem"
