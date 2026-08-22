@@ -188,6 +188,8 @@
                           DragOver="EntryList_DragOver"
                           Drop="EntryList_Drop"
                           SelectionChanged="EntryList_SelectionChanged"
+                          PreviewMouseLeftButtonDown="EntryList_PreviewMouseLeftButtonDown"
+                          PreviewMouseMove="EntryList_PreviewMouseMove"
                           MouseDoubleClick="EntryList_MouseDoubleClick"
                           KeyDown="EntryList_KeyDown"
                           ContextMenuOpening="EntryList_ContextMenuOpening"

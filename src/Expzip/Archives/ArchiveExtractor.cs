@@ -41,13 +41,17 @@ internal static class ArchiveExtractor
     /// <param name="overwrite">既存のファイルを上書きするかどうか。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
+    /// <param name="zoneIdentifier">
+    /// 書き出したファイルに引き継ぐ出所の印 (#12)。<see langword="null"/> なら何もしない。
+    /// </param>
     public static ExtractResult Extract(
         string archivePath,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
         bool overwrite,
         IProgress<ExtractProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? zoneIdentifier = null)
     {
         // 展開先の正規化。これを基準に、書庫外へ書き出そうとするエントリを弾く
         var destinationRoot = Path.GetFullPath(destinationDirectory);
@@ -123,6 +127,11 @@ internal static class ArchiveExtractor
                 }
 
                 TryPreserveTimestamp(entry, target);
+
+                // 書庫に出所の印が付いていた場合は、書き出したファイルにも引き継ぐ。
+                // 印が消えると SmartScreen や保護ビューが働かなくなる (#12)
+                MarkOfTheWeb.TryApply(target, zoneIdentifier);
+
                 extracted++;
             }
             catch (OperationCanceledException)

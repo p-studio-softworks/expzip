@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
@@ -67,6 +68,13 @@ public partial class MainWindow : Window
 
     /// <summary>終了前の書き戻しを済ませてから閉じる途中。</summary>
     private bool _closingAfterSave;
+
+    /// <summary>ドラッグアウトの起点 (#17)。押した位置から一定以上動いたら開始する。</summary>
+    private Point _dragOrigin;
+    private bool _dragCandidate;
+
+    /// <summary>自分が始めたドラッグの最中。自分の一覧に落とし直されるのを防ぐ。</summary>
+    private bool _draggingOut;
 
     public MainWindow()
     {
@@ -761,9 +769,11 @@ public partial class MainWindow : Window
 
     private void EntryList_DragOver(object sender, DragEventArgs e)
     {
-        // 書庫を開いていないと追加先が無い
+        // 書庫を開いていないと追加先が無い。
+        // 自分が書庫から出したファイルを自分に落とし直すのは無意味なので受け取らない (#17)
         var acceptable = _contents is not null
                          && _cancellation is null
+                         && !_draggingOut
                          && e.Data.GetDataPresent(DataFormats.FileDrop);
 
         e.Effects = acceptable ? DragDropEffects.Copy : DragDropEffects.None;
@@ -772,7 +782,7 @@ public partial class MainWindow : Window
 
     private async void EntryList_Drop(object sender, DragEventArgs e)
     {
-        if (_contents is null || _cancellation is not null)
+        if (_contents is null || _cancellation is not null || _draggingOut)
         {
             return;
         }
@@ -1157,6 +1167,196 @@ public partial class MainWindow : Window
         Close();
     }
 
+    // ------------------------------------------------------------------ ドラッグアウト (#17)
+
+    /// <summary>
+    /// 一度に取り出せる件数の上限。
+    /// ドラッグの開始は同期処理のため、展開にかかる時間がそのまま無応答時間になる。
+    /// ファイル1件あたり約0.28msの固定費があり、この件数で0.3秒ほど (#18)。
+    /// </summary>
+    private const int DragOutFileLimit = 1000;
+
+    /// <summary>一度に取り出せる合計サイズの上限。展開の速度はおよそ300MB/秒 (#18)。</summary>
+    private const long DragOutByteLimit = 256L * 1024 * 1024;
+
+    private void EntryList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // 行の上で押された場合だけドラッグの起点にする。
+        // 列見出しや余白から始まる範囲選択を邪魔しないため。
+        _dragCandidate = e.OriginalSource is DependencyObject source
+                         && ItemsControl.ContainerFromElement(EntryList, source) is ListViewItem;
+        _dragOrigin = e.GetPosition(null);
+    }
+
+    private void EntryList_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_dragCandidate || _draggingOut || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        // 押しただけの微妙な揺れでドラッグを始めない。判定はWindowsの設定に合わせる
+        var moved = e.GetPosition(null) - _dragOrigin;
+        if (Math.Abs(moved.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(moved.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _dragCandidate = false;
+        DragOutSelection();
+    }
+
+    /// <summary>
+    /// 選択した項目を一時フォルダへ取り出し、ファイルとしてドラッグを始める (#17)。
+    /// </summary>
+    /// <remarks>
+    /// 事前展開 + 標準ファイルドロップ方式 (#18で選定)。ドラッグの開始は同期処理で、
+    /// 途中で待たせる手段が無い。そのため取り出しもここで待ち合わせる。
+    /// 件数と大きさに上限を設けているのはこのため。
+    /// </remarks>
+    private void DragOutSelection()
+    {
+        if (_contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        var rows = SelectedRowsForEdit();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var names = CollectSelectedSourceNames();
+        if (names is null || names.Count == 0)
+        {
+            return;
+        }
+
+        if (!ConfirmDragOutSize(names))
+        {
+            return;
+        }
+
+        var workspace = EnsureWorkspace();
+        if (workspace is null)
+        {
+            return;
+        }
+
+        string[] paths;
+        try
+        {
+            var directory = workspace.DirectoryFor(_contents.FilePath);
+            var zone = MarkOfTheWeb.TryRead(_contents.FilePath);
+
+            Mouse.OverrideCursor = Cursors.Wait;
+            StatusMessage.Text = $"{names.Count:N0} 件を取り出しています…";
+
+            var result = ArchiveExtractor.Extract(
+                _contents.FilePath, names, directory,
+                overwrite: true, progress: null, CancellationToken.None, zone);
+
+            if (result.Extracted == 0)
+            {
+                StatusMessage.Text = "取り出せませんでした";
+                return;
+            }
+
+            // ドラッグの対象は選んだ項目そのもの。フォルダを選んだ場合は
+            // 配下のファイルではなくフォルダを渡す
+            paths = rows
+                .Select(r => r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath)
+                .Select(ArchivePath.ToSafeRelativePath)
+                .Where(static relative => relative is not null)
+                .Select(relative => Path.Combine(directory, relative!))
+                .Where(static path => File.Exists(path) || Directory.Exists(path))
+                .ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or InvalidDataException or NotSupportedException
+                                   or PathTooLongException)
+        {
+            MessageBox.Show(
+                this,
+                $"取り出しに失敗しました。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+
+        if (paths.Length == 0)
+        {
+            StatusMessage.Text = "取り出せませんでした";
+            return;
+        }
+
+        _draggingOut = true;
+        try
+        {
+            var data = new DataObject(DataFormats.FileDrop, paths);
+            DragDrop.DoDragDrop(EntryList, data, DragDropEffects.Copy);
+            StatusMessage.Text = $"{paths.Length:N0} 件を取り出しました";
+        }
+        catch (COMException)
+        {
+            // ドロップ先のアプリが応答しないなどで失敗することがある。
+            // 取り出したファイルは置き場に残り、終了時に片付く
+            StatusMessage.Text = "ドラッグを完了できませんでした";
+        }
+        finally
+        {
+            _draggingOut = false;
+        }
+    }
+
+    /// <summary>
+    /// 取り出す量が多すぎないかを確かめる。多い場合は「展開」を勧める。
+    /// </summary>
+    private bool ConfirmDragOutSize(IReadOnlySet<string> names)
+    {
+        long totalBytes = 0;
+        void Measure(ArchiveFolder folder)
+        {
+            foreach (var file in folder.Files)
+            {
+                if (names.Contains(file.SourceName))
+                {
+                    totalBytes += file.Length;
+                }
+            }
+
+            foreach (var child in folder.Folders)
+            {
+                Measure(child);
+            }
+        }
+
+        Measure(_contents!.Root);
+
+        if (names.Count <= DragOutFileLimit && totalBytes <= DragOutByteLimit)
+        {
+            return true;
+        }
+
+        MessageBox.Show(
+            this,
+            $"ドラッグで取り出せるのは {DragOutFileLimit:N0} 件 / "
+            + $"{DragOutByteLimit / 1024 / 1024:N0}MB までです。"
+            + $"{Environment.NewLine}選択されているのは {names.Count:N0} 件 / "
+            + $"{totalBytes / 1024 / 1024:N0}MB です。"
+            + $"{Environment.NewLine}{Environment.NewLine}"
+            + "ドラッグでは取り出しが終わるまで操作を受け付けられないため、"
+            + $"{Environment.NewLine}この量では「展開」を使ってください。中断もできます。",
+            AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+
+        return false;
+    }
+
     // ------------------------------------------------------------------ 展開
 
     // ------------------------------------------------------------------ 既定のアプリで開く (#12)
@@ -1361,17 +1561,12 @@ public partial class MainWindow : Window
                 var extracted = ArchiveExtractor.Extract(
                     archivePath,
                     new HashSet<string>(StringComparer.Ordinal) { entry.SourceName },
-                    directory, overwrite: true, progress, cancellation.Token);
+                    directory, overwrite: true, progress, cancellation.Token, zone);
 
-                if (extracted.Extracted == 1)
+                // 編集のために取り出した場合は書き込めるままにする (#16)
+                if (extracted.Extracted == 1 && makeReadOnly)
                 {
-                    MarkOfTheWeb.TryApply(target, zone);
-
-                    // 編集のために取り出した場合は書き込めるままにする (#16)
-                    if (makeReadOnly)
-                    {
-                        TempWorkspace.MakeReadOnly(target);
-                    }
+                    TempWorkspace.MakeReadOnly(target);
                 }
 
                 return extracted;
@@ -1544,8 +1739,11 @@ public partial class MainWindow : Window
 
         try
         {
+            // 書庫に付いている出所の印は、書き出したファイルにも引き継ぐ (#12)
+            var zone = MarkOfTheWeb.TryRead(archivePath);
+
             var result = await Task.Run(() => ArchiveExtractor.Extract(
-                archivePath, selection, destination, overwrite, progress, cancellation.Token));
+                archivePath, selection, destination, overwrite, progress, cancellation.Token, zone));
 
             ShowExtractResult(result, destination);
         }
