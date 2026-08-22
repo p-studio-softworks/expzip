@@ -1214,15 +1214,8 @@ public partial class MainWindow : Window
 
         if (!addInstead && paths.Length == 1 && IsArchiveFile(paths[0]))
         {
+            // 開いた結果 (件数) をそのまま出す。落とし方の説明は添えない (#51)
             await OpenArchiveAsync(paths[0]);
-
-            // 書庫の中に書庫を入れたかった場合に気付けるようにする
-            if (_contents is not null)
-            {
-                StatusMessage.Text = $"{Path.GetFileName(paths[0])} を開きました "
-                                     + "(Shift を押しながら落とすと書庫に追加します)";
-            }
-
             return;
         }
 
