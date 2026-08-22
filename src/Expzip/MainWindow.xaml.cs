@@ -990,6 +990,9 @@ public partial class MainWindow : Window
         _cancellation = cancellation;
         SetBusy(true);
 
+        // 別スレッドから画面の部品には触れないため、ここで値にしておく
+        var level = SelectedCompressionLevel;
+
         var progress = new Progress<AddProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
@@ -1000,7 +1003,7 @@ public partial class MainWindow : Window
         {
             var result = await Task.Run(() => ZipArchiveWriter.Add(
                 archivePath, sourcePaths, destinationFolder, replaceExisting,
-                SelectedCompressionLevel, progress, cancellation.Token));
+                level, progress, cancellation.Token));
 
             ShowAddResult(result);
         }
@@ -1069,6 +1072,14 @@ public partial class MainWindow : Window
         }
 
         StatusMessage.Text = $"{result.Added + result.Replaced:N0} 個のファイルを追加しました";
+
+        // うまくいった場合はステータスバーだけにする。ファイルを放り込むたびに
+        // ダイアログを閉じさせるのは邪魔でしかない。伝えることがある場合だけ出す
+        if (result.Failed.Count == 0 && result.Skipped == 0)
+        {
+            return;
+        }
+
         MessageBox.Show(this, message.ToString().TrimEnd(), AppName, MessageBoxButton.OK, icon);
     }
 
@@ -2150,6 +2161,19 @@ public partial class MainWindow : Window
     }
 
     /// <summary>時間のかかる処理の間、操作を止めて進捗を表示する。</summary>
+    /// <summary>
+    /// 拾いきれなかった失敗のあとに、操作を続けられる状態へ戻す。
+    /// 処理中のまま固まると、書庫を開くことも閉じることもできなくなるため。
+    /// </summary>
+    internal void RecoverFromUnhandledError()
+    {
+        _cancellation = null;
+        _draggingOut = false;
+        _askingAboutEdit = false;
+        SetBusy(false);
+        StatusMessage.Text = "処理を中断しました";
+    }
+
     private void SetBusy(bool busy)
     {
         OpenButton.IsEnabled = !busy;
