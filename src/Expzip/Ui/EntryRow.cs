@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Expzip.Archives;
 
 namespace Expzip.Ui;
@@ -103,9 +103,13 @@ internal sealed class EntryRow : INotifyPropertyChanged
 
     public string SizeText => Entry is null ? string.Empty : Entry.Length.ToString("N0");
 
-    public string CompressedText => Entry is null ? string.Empty : Entry.CompressedLength.ToString("N0");
+    // 7z のように、まとめて圧縮していてエントリごとの内訳を持たない形式がある (#19)。
+    // 0 と出すと「まったく場所を取っていない」ように見えるので、分からないことを示す
+    public string CompressedText => Entry is null ? string.Empty
+        : Entry.CompressedLengthKnown ? Entry.CompressedLength.ToString("N0") : "-";
 
-    public string RatioText => Entry is null ? string.Empty : $"{Entry.CompressionRatio:F0}%";
+    public string RatioText => Entry is null ? string.Empty
+        : Entry.CompressedLengthKnown ? $"{Entry.CompressionRatio:F0}%" : "-";
 
     public string DateText => Entry is null || Entry.LastWriteTime == default
         ? string.Empty

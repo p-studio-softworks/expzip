@@ -1,4 +1,4 @@
-namespace Expzip.Archives;
+﻿namespace Expzip.Archives;
 
 /// <summary>書庫内の1ファイルを表す。</summary>
 internal sealed class ArchiveEntry
@@ -20,6 +20,13 @@ internal sealed class ArchiveEntry
 
     /// <summary>書庫内での圧縮後サイズ(バイト)。</summary>
     public long CompressedLength { get; init; }
+
+    /// <summary>
+    /// 圧縮後サイズが分かるかどうか (#19)。
+    /// 7z はまとめて圧縮する (ソリッド) ため、エントリごとの圧縮後サイズを持たない。
+    /// 分からないものを 0 として出すと「100%縮んだ」ように見えるので区別する。
+    /// </summary>
+    public bool CompressedLengthKnown { get; init; } = true;
 
     /// <summary>最終更新日時。</summary>
     public DateTime LastWriteTime { get; init; }

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Compression;
 using System.Text;
 
@@ -68,22 +68,7 @@ internal static class ZipArchiveReader
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var root = new ArchiveFolder
-        {
-            Name = Path.GetFileName(path),
-            FullPath = string.Empty,
-            IsExpanded = true,
-        };
-
-        // パスからフォルダを引くための索引。数万エントリでも線形探索にならないようにする。
-        var folders = new Dictionary<string, ArchiveFolder>(StringComparer.Ordinal)
-        {
-            [string.Empty] = root,
-        };
-
-        var fileCount = 0;
-        long totalLength = 0;
-        long totalCompressed = 0;
+        var builder = new ArchiveTreeBuilder(path);
 
         using var stream = File.OpenRead(path);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false, EntryNameEncoding);
@@ -102,99 +87,25 @@ internal static class ZipArchiveReader
                 progress?.Report(new OpenProgress(done, entries.Count));
             }
 
-            var fullName = ArchivePath.Normalize(entry.FullName);
-
             // 末尾が区切り文字のエントリはフォルダそのものを表す
-            if (fullName.EndsWith('/'))
+            if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'))
             {
-                GetOrCreateFolder(folders, fullName.TrimEnd('/'));
+                builder.AddFolder(entry.FullName);
                 continue;
             }
 
-            var separator = fullName.LastIndexOf('/');
-            var parentPath = separator < 0 ? string.Empty : fullName[..separator];
-            var name = separator < 0 ? fullName : fullName[(separator + 1)..];
-
-            // 名前を持たないエントリは壊れているとみなして飛ばす
-            if (name.Length == 0)
-            {
-                continue;
-            }
-
-            var parent = GetOrCreateFolder(folders, parentPath);
-            parent.Files.Add(new ArchiveEntry
-            {
-                FullPath = fullName,
-                SourceName = entry.FullName,
-                Name = name,
-                Length = entry.Length,
-                CompressedLength = entry.CompressedLength,
-                LastWriteTime = ReadLastWriteTime(entry),
-                IsPathSuspicious = ArchivePath.IsSuspicious(entry.FullName),
-            });
-
-            fileCount++;
-            totalLength += entry.Length;
-            totalCompressed += entry.CompressedLength;
+            builder.AddFile(
+                entry.FullName,
+                entry.Length,
+                entry.CompressedLength,
+                compressedLengthKnown: true,
+                ReadLastWriteTime(entry));
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        SortRecursively(root);
         progress?.Report(new OpenProgress(entries.Count, entries.Count));
 
-        return new ArchiveContents
-        {
-            FilePath = path,
-            Root = root,
-            FileCount = fileCount,
-            TotalLength = totalLength,
-            TotalCompressedLength = totalCompressed,
-            SuspiciousCount = CountSuspicious(root),
-        };
-    }
-
-    /// <summary>パスが通常ではない項目の数を数える。</summary>
-    private static int CountSuspicious(ArchiveFolder folder)
-    {
-        var count = folder.Files.Count(static f => f.IsPathSuspicious);
-
-        foreach (var child in folder.Folders)
-        {
-            if (child.IsPathSuspicious)
-            {
-                count++;
-            }
-
-            count += CountSuspicious(child);
-        }
-
-        return count;
-    }
-
-    /// <summary>指定パスのフォルダを取得する。無ければ途中の階層ごと作る。</summary>
-    private static ArchiveFolder GetOrCreateFolder(Dictionary<string, ArchiveFolder> folders, string path)
-    {
-        if (folders.TryGetValue(path, out var found))
-        {
-            return found;
-        }
-
-        var separator = path.LastIndexOf('/');
-        var parentPath = separator < 0 ? string.Empty : path[..separator];
-        var name = separator < 0 ? path : path[(separator + 1)..];
-
-        var parent = GetOrCreateFolder(folders, parentPath);
-        var folder = new ArchiveFolder
-        {
-            Name = name,
-            FullPath = path,
-            Parent = parent,
-            IsPathSuspicious = ArchivePath.IsSuspicious(path),
-        };
-
-        parent.Folders.Add(folder);
-        folders[path] = folder;
-        return folder;
+        return builder.Build(path, ArchiveFormat.Zip);
     }
 
     /// <summary>
@@ -210,18 +121,6 @@ internal static class ZipArchiveReader
         catch (ArgumentOutOfRangeException)
         {
             return default;
-        }
-    }
-
-    /// <summary>表示順を安定させるため、フォルダとファイルを名前順に並べる。</summary>
-    private static void SortRecursively(ArchiveFolder folder)
-    {
-        folder.Folders.Sort(static (a, b) => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase));
-        folder.Files.Sort(static (a, b) => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase));
-
-        foreach (var child in folder.Folders)
-        {
-            SortRecursively(child);
         }
     }
 }

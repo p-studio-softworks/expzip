@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -17,6 +17,14 @@
     <!-- フェーズ1〜2は日本語UIのみ。多言語対応はフェーズ3 (docs/SPEC.md 8章) -->
     <NeutralLanguage>ja-JP</NeutralLanguage>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      7z / tar の読み取りに使う (#19)。MITライセンスの純マネージド実装で、
+      ネイティブDLLを持ち込まずに済む。ZIP は標準ライブラリのまま扱う。
+    -->
+    <PackageReference Include="SharpCompress" Version="0.50.4" />
+  </ItemGroup>
 
   <!--
     発行設定は Properties/PublishProfiles/win-x64.pubxml にある。

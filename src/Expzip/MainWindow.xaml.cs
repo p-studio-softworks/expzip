@@ -121,7 +121,7 @@ public partial class MainWindow : Window
         var dialog = new OpenFileDialog
         {
             Title = "書庫を開く",
-            Filter = "ZIP書庫 (*.zip)|*.zip|すべてのファイル (*.*)|*.*",
+            Filter = ArchiveFormats.OpenFilter,
             CheckFileExists = true,
         };
 
@@ -230,7 +230,7 @@ public partial class MainWindow : Window
         try
         {
             contents = await Task.Run(
-                () => ZipArchiveReader.Open(path, progress, cancellation.Token), cancellation.Token);
+                () => ArchiveReader.Open(path, progress, cancellation.Token), cancellation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -276,14 +276,29 @@ public partial class MainWindow : Window
         FolderTree.ItemsSource = new[] { contents.Root };
         RefreshButton.IsEnabled = true;
         ExtractButton.IsEnabled = true;
-        AddButton.IsEnabled = true;
+
+        // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
+        AddButton.IsEnabled = contents.IsEditable;
         UpdateTitle(Path.GetFileName(path));
 
         var target = restorePath is null ? contents.Root : FindFolder(contents.Root, restorePath) ?? contents.Root;
         SelectInTree(target);
         Navigate(target);
 
-        StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル";
+        StatusMessage.Text = contents.IsEditable
+            ? $"{contents.FileCount:N0} 個のファイル"
+            : $"{contents.FileCount:N0} 個のファイル "
+              + $"({ArchiveFormats.DisplayName(contents.Format)} は読み取りのみに対応)";
+
+        // 中身を取り出せないものが混じっている場合は、開いた時点で知らせる (#19)
+        if (contents.HasEncryptedEntries)
+        {
+            MessageBox.Show(
+                this,
+                $"この書庫には暗号化されたファイルが含まれています。{Environment.NewLine}{Environment.NewLine}"
+                + "一覧は読めますが、中身の取り出しには対応していません。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
 
         // パスが通常ではない項目を含む書庫は、開いた時点で気付けるようにする (#36)。
         // 一覧から隠すのではなく警告を添える。隠すと書庫に何が入っているかを
@@ -447,9 +462,7 @@ public partial class MainWindow : Window
     {
         var editable = SelectedRowsForEdit();
 
-        DeleteMenuItem.IsEnabled = _contents is not null
-                                   && _cancellation is null
-                                   && editable.Count > 0;
+        DeleteMenuItem.IsEnabled = CanEdit && editable.Count > 0;
 
         // 「開く」は1件だけを対象にする。複数選んだまま開くと、
         // 選んだ数だけアプリが立ち上がって収拾がつかない (#12)
@@ -459,10 +472,10 @@ public partial class MainWindow : Window
                                  && editable.Count == 1;
 
         // 名前の変更も1件ずつ (#15)
-        RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled;
+        RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled && CanEdit;
 
         // フォルダの作成は選択と関係なく、何もない場所を押したときも使える (#50)
-        NewFolderMenuItem.IsEnabled = _contents is not null && _cancellation is null;
+        NewFolderMenuItem.IsEnabled = CanEdit;
     }
 
     private async void NewFolderMenuItem_Click(object sender, RoutedEventArgs e)
@@ -485,7 +498,7 @@ public partial class MainWindow : Window
     }
 
     private void FolderTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
-        => TreeNewFolderMenuItem.IsEnabled = _contents is not null && _cancellation is null;
+        => TreeNewFolderMenuItem.IsEnabled = CanEdit;
 
     private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
         => await DeleteSelectedAsync();
@@ -530,7 +543,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private Task RenameSelectedAsync()
     {
-        if (_contents is null || _cancellation is not null || _currentFolder is null)
+        if (!CanEdit || _currentFolder is null)
         {
             return Task.CompletedTask;
         }
@@ -821,7 +834,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task CreateFolderAsync()
     {
-        if (_contents is null || _currentFolder is null || _cancellation is not null)
+        if (!CanEdit || _contents is null || _currentFolder is null)
         {
             return;
         }
@@ -918,13 +931,19 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// いま書き換えの操作を受け付けられるか (#19)。
+    /// 7z と tar は読み取りのみなので、追加・削除・名前の変更・移動は行わせない。
+    /// </summary>
+    private bool CanEdit => _contents is { IsEditable: true } && _cancellation is null;
+
     /// <summary>操作の対象にできる選択行。</summary>
     private List<EntryRow> SelectedRowsForEdit()
         => EntryList.SelectedItems.OfType<EntryRow>().ToList();
 
     private async Task DeleteSelectedAsync()
     {
-        if (_contents is null || _cancellation is not null)
+        if (!CanEdit || _contents is null)
         {
             return;
         }
@@ -1080,11 +1099,9 @@ public partial class MainWindow : Window
     private static string[] DroppedPaths(DragEventArgs e)
         => e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
 
-    /// <summary>開ける書庫として扱う拡張子か。</summary>
-    /// <remarks>7z や tar はフェーズ3で読めるようになった時点で足す。</remarks>
+    /// <summary>開ける書庫として扱う拡張子か (#19)。</summary>
     private static bool IsArchiveFile(string path)
-        => File.Exists(path)
-           && string.Equals(Path.GetExtension(path), ".zip", StringComparison.OrdinalIgnoreCase);
+        => File.Exists(path) && ArchiveFormats.IsArchive(path);
 
     private void HandleDragOver(DragEventArgs e)
     {
@@ -1116,7 +1133,7 @@ public partial class MainWindow : Window
     /// </summary>
     private ArchiveFolder? ResolveMoveTarget(DragEventArgs e, InternalMove move)
     {
-        if (_contents is null || _cancellation is not null
+        if (!CanEdit || _contents is null
             || !string.Equals(move.ArchivePath, _contents.FilePath, StringComparison.OrdinalIgnoreCase))
         {
             return null;
@@ -1226,13 +1243,25 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 7z と tar は読み取りのみ。落とされたものを黙って捨てない (#19)
+        if (!_contents.IsEditable)
+        {
+            MessageBox.Show(
+                this,
+                $"{ArchiveFormats.DisplayName(_contents.Format)} 書庫にはファイルを追加できません。"
+                + $"{Environment.NewLine}{Environment.NewLine}"
+                + "この形式は読み取りのみに対応しています。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         await AddToArchiveAsync(paths);
     }
 
     /// <summary>ディスク上のファイルやフォルダを、いま表示しているフォルダに追加する。</summary>
     private async Task AddToArchiveAsync(IReadOnlyList<string> sourcePaths)
     {
-        if (_contents is null)
+        if (!CanEdit || _contents is null)
         {
             return;
         }
@@ -1396,7 +1425,16 @@ public partial class MainWindow : Window
     /// <summary>取り出したファイルを見張り始める。保存されたら書庫へ反映するか尋ねる。</summary>
     private void StartEditing(ArchiveEntry entry, string target, string directory)
     {
-        _edits.Add(new EditSession(_contents!.FilePath, entry, target, ParentFolderOf(entry.FullPath)));
+        // 書き戻せない形式では見張らない。尋ねても応えられない (#19)
+        if (_contents is not { IsEditable: true })
+        {
+            StatusMessage.Text = $"{entry.Name} を開きました "
+                                 + $"({ArchiveFormats.DisplayName(_contents!.Format)} は読み取りのみのため、"
+                                 + "書き換えても書庫には戻りません)";
+            return;
+        }
+
+        _edits.Add(new EditSession(_contents.FilePath, entry, target, ParentFolderOf(entry.FullPath)));
 
         // 巡回はファイルを編集し始めてから動かす。書庫を見ているだけの間は要らない
         if (_editWatch is null)
@@ -1839,8 +1877,9 @@ public partial class MainWindow : Window
             // 既に取り出してあるものは触らない。開いたままのアプリに掴まれていて
             // 上書きできない場合でも、ドラッグ自体は成り立つようにする
             ArchiveExtractor.Extract(
-                _contents.FilePath, names, directory,
-                overwrite: false, progress: null, CancellationToken.None, zone);
+                _contents.FilePath, _contents.Format, names, directory,
+                overwrite: false, progress: null, cancellationToken: CancellationToken.None,
+                zoneIdentifier: zone);
 
             // ドラッグの対象は選んだ項目そのもの。フォルダを選んだ場合は
             // 配下のファイルではなくフォルダを渡す
@@ -1998,7 +2037,7 @@ public partial class MainWindow : Window
     /// <summary>掴んだ項目を書庫内の別のフォルダへ移す。</summary>
     private async Task MoveInArchiveAsync(InternalMove move, ArchiveFolder target)
     {
-        if (_contents is null || _cancellation is not null)
+        if (!CanEdit || _contents is null)
         {
             return;
         }
@@ -2255,6 +2294,7 @@ public partial class MainWindow : Window
     private async Task<bool> ExtractForViewingAsync(ArchiveEntry entry, string directory, string target)
     {
         var archivePath = _contents!.FilePath;
+        var format = _contents.Format;
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -2277,9 +2317,10 @@ public partial class MainWindow : Window
                 TempWorkspace.ClearReadOnly(target);
 
                 return ArchiveExtractor.Extract(
-                    archivePath,
+                    archivePath, format,
                     new HashSet<string>(StringComparer.Ordinal) { entry.SourceName },
-                    directory, overwrite: true, progress, cancellation.Token, zone);
+                    directory, overwrite: true, progress: progress,
+                    cancellationToken: cancellation.Token, zoneIdentifier: zone);
             });
 
             if (result.Cancelled)
@@ -2479,7 +2520,8 @@ public partial class MainWindow : Window
             overwrite = answer == MessageBoxResult.Yes;
         }
 
-        await RunExtractionAsync(_contents.FilePath, selection, destination, overwrite, basePath);
+        await RunExtractionAsync(
+            _contents.FilePath, _contents.Format, selection, destination, overwrite, basePath);
     }
 
     /// <summary>
@@ -2539,8 +2581,8 @@ public partial class MainWindow : Window
     }
 
     private async Task RunExtractionAsync(
-        string archivePath, IReadOnlySet<string>? selection, string destination, bool overwrite,
-        string? basePath = null)
+        string archivePath, ArchiveFormat format, IReadOnlySet<string>? selection, string destination,
+        bool overwrite, string? basePath = null)
     {
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -2558,7 +2600,7 @@ public partial class MainWindow : Window
             var zone = MarkOfTheWeb.TryRead(archivePath);
 
             var result = await Task.Run(() => ArchiveExtractor.Extract(
-                archivePath, selection, destination, overwrite, progress, cancellation.Token,
+                archivePath, format, selection, destination, overwrite, progress, cancellation.Token,
                 zone, basePath));
 
             ShowExtractResult(result, destination);
@@ -2754,7 +2796,7 @@ public partial class MainWindow : Window
         OpenButton.IsEnabled = !busy;
         NewButton.IsEnabled = !busy;
         ExtractButton.IsEnabled = !busy && _contents is not null;
-        AddButton.IsEnabled = !busy && _contents is not null;
+        AddButton.IsEnabled = !busy && _contents is { IsEditable: true };
         RefreshButton.IsEnabled = !busy && _contents is not null;
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Compression;
 
 namespace Expzip.Archives;
@@ -50,8 +50,10 @@ internal static class ArchiveExtractor
     /// 展開先には <c>画像\…</c> が並ぶ。<see langword="null"/> なら書庫のルートからの
     /// 階層をそのまま作る。
     /// </param>
+    /// <param name="format">書庫の形式 (#19)。ZIP 以外は SharpCompress 側へ回す。</param>
     public static ExtractResult Extract(
         string archivePath,
+        ArchiveFormat format,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
         bool overwrite,
@@ -59,6 +61,21 @@ internal static class ArchiveExtractor
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
         string? basePath = null)
+        => format == ArchiveFormat.Zip
+            ? ExtractZip(archivePath, sourceNames, destinationDirectory, overwrite,
+                progress, cancellationToken, zoneIdentifier, basePath)
+            : SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath);
+
+    private static ExtractResult ExtractZip(
+        string archivePath,
+        IReadOnlySet<string>? sourceNames,
+        string destinationDirectory,
+        bool overwrite,
+        IProgress<ExtractProgress>? progress,
+        CancellationToken cancellationToken,
+        string? zoneIdentifier,
+        string? basePath)
     {
         // 展開先の正規化。これを基準に、書庫外へ書き出そうとするエントリを弾く
         var destinationRoot = Path.GetFullPath(destinationDirectory);
@@ -190,7 +207,7 @@ internal static class ArchiveExtractor
     }
 
     /// <summary>中断時の後始末。消せなくても中断自体は成立するので握りつぶす。</summary>
-    private static void TryDelete(string path)
+    internal static void TryDelete(string path)
     {
         try
         {
@@ -205,13 +222,35 @@ internal static class ArchiveExtractor
     }
 
     /// <summary>解決済みのパスが指定フォルダの配下にあるか。</summary>
-    private static bool IsInside(string root, string candidate)
+    internal static bool IsInside(string root, string candidate)
     {
         var prefix = root.EndsWith(Path.DirectorySeparatorChar)
             ? root
             : root + Path.DirectorySeparatorChar;
 
         return candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 書き出したファイルに、書庫が持っていた更新日時と出所の印を移す (#12, #19)。
+    /// </summary>
+    internal static void ApplyStamp(string target, DateTime lastWriteTime, string? zoneIdentifier)
+    {
+        try
+        {
+            if (lastWriteTime != default)
+            {
+                File.SetLastWriteTime(target, lastWriteTime);
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentOutOfRangeException or IOException
+                                   or UnauthorizedAccessException)
+        {
+        }
+
+        // 書庫に出所の印が付いていた場合は、書き出したファイルにも引き継ぐ。
+        // 印が消えると SmartScreen や保護ビューが働かなくなる (#12)
+        MarkOfTheWeb.TryApply(target, zoneIdentifier);
     }
 
     /// <summary>
