@@ -285,13 +285,11 @@ public partial class MainWindow : Window
         SelectInTree(target);
         Navigate(target);
 
-        StatusMessage.Text = contents.IsEditable
-            ? $"{contents.FileCount:N0} 個のファイル"
-            : $"{contents.FileCount:N0} 個のファイル "
-              + $"({ArchiveFormats.DisplayName(contents.Format)} は読み取りのみに対応)";
+        StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル{DescribeLimits(contents)}";
 
-        // 中身を取り出せないものが混じっている場合は、開いた時点で知らせる (#19)
-        if (contents.HasEncryptedEntries)
+        // 中身を取り出せないものが混じっている場合は、開いた時点で知らせる (#19)。
+        // ZIP はパスワードを入れれば取り出せるため、ここでは黙っている (#20)
+        if (contents.HasEncryptedEntries && !contents.RequiresPassword)
         {
             MessageBox.Show(
                 this,
@@ -929,6 +927,75 @@ public partial class MainWindow : Window
                 return candidate;
             }
         }
+    }
+
+    /// <summary>書庫にできることの断り書き。件数の後ろに添える。</summary>
+    private static string DescribeLimits(ArchiveContents contents)
+    {
+        if (contents.RequiresPassword)
+        {
+            // 取り出すときにパスワードを尋ねる。書き換えは行わない
+            return contents.UsesAes
+                ? " (パスワード付き / AES。取り出すときに尋ねます)"
+                : " (パスワード付き。取り出すときに尋ねます)";
+        }
+
+        return contents.IsEditable
+            ? string.Empty
+            : $" ({ArchiveFormats.DisplayName(contents.Format)} は読み取りのみに対応)";
+    }
+
+    /// <summary>
+    /// この起動の間だけ覚えておく、書庫ごとのパスワード (#20)。
+    /// 設定ファイルには書かない。持ち出されると書庫を守る意味が無くなるため。
+    /// </summary>
+    private readonly Dictionary<string, string> _passwords = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// いま開いている書庫のパスワードを用意する (#20)。
+    /// 一度入れたものは、この起動の間は覚えておく。
+    /// </summary>
+    /// <returns>合っているパスワード。取り消された場合は <see langword="null"/>。</returns>
+    private string? EnsurePassword(string archivePath)
+    {
+        if (_passwords.TryGetValue(archivePath, out var known))
+        {
+            return known;
+        }
+
+        var name = Path.GetFileName(archivePath);
+
+        for (var retry = false; ; retry = true)
+        {
+            var dialog = new PasswordDialog(this, name, retry);
+            if (dialog.ShowDialog() != true || dialog.Password is not { } password)
+            {
+                return null;
+            }
+
+            // 合っていないパスワードで展開を始めると、中身が壊れたファイルが
+            // 書き出される。始める前に確かめる
+            if (ZipEncryption.TestPassword(archivePath, password))
+            {
+                _passwords[archivePath] = password;
+                return password;
+            }
+        }
+    }
+
+    /// <summary>取り出しに使うパスワード。要らない書庫では null。</summary>
+    /// <returns>取り消された場合は false。</returns>
+    private bool TryGetPassword(out string? password)
+    {
+        password = null;
+
+        if (_contents is not { RequiresPassword: true })
+        {
+            return true;
+        }
+
+        password = EnsurePassword(_contents.FilePath);
+        return password is not null;
     }
 
     /// <summary>
@@ -1854,6 +1921,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        // ドラッグの前に合言葉を用意する。掴んだ後では尋ねられない (#20)
+        if (!TryGetPassword(out var dragPassword))
+        {
+            StatusMessage.Text = "取り出しを取りやめました";
+            return;
+        }
+
         if (!ConfirmDragOutSize(names))
         {
             return;
@@ -1879,7 +1953,7 @@ public partial class MainWindow : Window
             ArchiveExtractor.Extract(
                 _contents.FilePath, _contents.Format, names, directory,
                 overwrite: false, progress: null, cancellationToken: CancellationToken.None,
-                zoneIdentifier: zone);
+                zoneIdentifier: zone, password: dragPassword);
 
             // ドラッグの対象は選んだ項目そのもの。フォルダを選んだ場合は
             // 配下のファイルではなくフォルダを渡す
@@ -2296,6 +2370,11 @@ public partial class MainWindow : Window
         var archivePath = _contents!.FilePath;
         var format = _contents.Format;
 
+        if (!TryGetPassword(out var password))
+        {
+            return false;
+        }
+
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         SetBusy(true);
@@ -2320,7 +2399,7 @@ public partial class MainWindow : Window
                     archivePath, format,
                     new HashSet<string>(StringComparer.Ordinal) { entry.SourceName },
                     directory, overwrite: true, progress: progress,
-                    cancellationToken: cancellation.Token, zoneIdentifier: zone);
+                    cancellationToken: cancellation.Token, zoneIdentifier: zone, password: password);
             });
 
             if (result.Cancelled)
@@ -2584,6 +2663,13 @@ public partial class MainWindow : Window
         string archivePath, ArchiveFormat format, IReadOnlySet<string>? selection, string destination,
         bool overwrite, string? basePath = null)
     {
+        // パスワード付きの書庫では、始める前に合言葉を用意する (#20)
+        if (!TryGetPassword(out var password))
+        {
+            StatusMessage.Text = "展開を取りやめました";
+            return;
+        }
+
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         SetBusy(true);
@@ -2601,7 +2687,7 @@ public partial class MainWindow : Window
 
             var result = await Task.Run(() => ArchiveExtractor.Extract(
                 archivePath, format, selection, destination, overwrite, progress, cancellation.Token,
-                zone, basePath));
+                zone, basePath, password));
 
             ShowExtractResult(result, destination);
         }

@@ -105,7 +105,17 @@ internal static class ZipArchiveReader
         cancellationToken.ThrowIfCancellationRequested();
         progress?.Report(new OpenProgress(entries.Count, entries.Count));
 
-        return builder.Build(path, ArchiveFormat.Zip);
+        // 暗号化されているかを調べる (#20)。
+        // 「開いてみて駄目なら暗号化」では旧方式 (ZipCrypto) を見逃す。あちらは
+        // 圧縮方式が変わらないため開けてしまい、復号されない中身がそのまま出てくる。
+        // 中央ディレクトリをもう一度なめる費用を払ってでも、確実に見分ける
+        var encryption = ZipEncryption.Inspect(path);
+
+        return builder.Build(
+            path, ArchiveFormat.Zip,
+            hasEncryptedEntries: encryption.IsEncrypted,
+            requiresPassword: encryption.IsEncrypted,
+            usesAes: encryption.UsesAes);
     }
 
     /// <summary>

@@ -96,11 +96,15 @@ internal sealed class ArchiveTreeBuilder
     /// エントリごとの圧縮後サイズが分からない形式で、書庫全体の大きさを代わりに使う場合に渡す。
     /// </param>
     /// <param name="hasEncryptedEntries">暗号化されたエントリを含むかどうか。</param>
+    /// <param name="requiresPassword">中身の取り出しにパスワードが要るかどうか (#20)。</param>
+    /// <param name="usesAes">AES で暗号化されているかどうか (#20)。</param>
     public ArchiveContents Build(
         string archivePath,
         ArchiveFormat format,
         long? totalCompressedLength = null,
-        bool hasEncryptedEntries = false)
+        bool hasEncryptedEntries = false,
+        bool requiresPassword = false,
+        bool usesAes = false)
     {
         SortRecursively(_root);
 
@@ -114,6 +118,8 @@ internal sealed class ArchiveTreeBuilder
             TotalCompressedLength = totalCompressedLength ?? TotalCompressedLength,
             SuspiciousCount = CountSuspicious(_root),
             HasEncryptedEntries = hasEncryptedEntries,
+            RequiresPassword = requiresPassword,
+            UsesAes = usesAes,
         };
     }
 

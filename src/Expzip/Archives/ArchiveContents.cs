@@ -33,6 +33,18 @@ internal sealed class ArchiveContents
     /// </summary>
     public bool HasEncryptedEntries { get; init; }
 
-    /// <summary>中身を書き換えられる形式かどうか。</summary>
-    public bool IsEditable => ArchiveFormats.IsEditable(Format);
+    /// <summary>
+    /// 中身を取り出すのにパスワードが要るか (#20)。
+    /// 一覧は読めるので、開くこと自体はできる。
+    /// </summary>
+    public bool RequiresPassword { get; init; }
+
+    /// <summary>AES で暗号化されているか。false のときは旧方式 (ZipCrypto)。</summary>
+    public bool UsesAes { get; init; }
+
+    /// <summary>
+    /// 中身を書き換えられるかどうか。
+    /// パスワード付きの書庫は、書き換えると暗号化が外れてしまうため触らない (#20)。
+    /// </summary>
+    public bool IsEditable => ArchiveFormats.IsEditable(Format) && !RequiresPassword;
 }

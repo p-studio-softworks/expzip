@@ -24,6 +24,12 @@
       ネイティブDLLを持ち込まずに済む。ZIP は標準ライブラリのまま扱う。
     -->
     <PackageReference Include="SharpCompress" Version="0.50.4" />
+    <!--
+      パスワード付きZIPの読み書きに使う (#20)。MITライセンスの純マネージド実装で、
+      WinZip AES (128/256) と旧方式の ZipCrypto の両方を扱える。
+      暗号化されていない ZIP はこれまでどおり標準ライブラリで扱う。
+    -->
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
   </ItemGroup>
 
   <!--

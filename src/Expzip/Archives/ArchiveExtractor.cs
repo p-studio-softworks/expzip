@@ -51,6 +51,7 @@ internal static class ArchiveExtractor
     /// 階層をそのまま作る。
     /// </param>
     /// <param name="format">書庫の形式 (#19)。ZIP 以外は SharpCompress 側へ回す。</param>
+    /// <param name="password">パスワード付きZIPの合言葉 (#20)。要らない書庫では <see langword="null"/>。</param>
     public static ExtractResult Extract(
         string archivePath,
         ArchiveFormat format,
@@ -60,12 +61,16 @@ internal static class ArchiveExtractor
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
-        string? basePath = null)
-        => format == ArchiveFormat.Zip
-            ? ExtractZip(archivePath, sourceNames, destinationDirectory, overwrite,
-                progress, cancellationToken, zoneIdentifier, basePath)
-            : SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
-                overwrite, progress, cancellationToken, zoneIdentifier, basePath);
+        string? basePath = null,
+        string? password = null)
+        => format != ArchiveFormat.Zip
+            ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+            : password is null
+                ? ExtractZip(archivePath, sourceNames, destinationDirectory, overwrite,
+                    progress, cancellationToken, zoneIdentifier, basePath)
+                : ZipEncryption.Extract(archivePath, password, sourceNames, destinationDirectory,
+                    overwrite, progress, cancellationToken, zoneIdentifier, basePath);
 
     private static ExtractResult ExtractZip(
         string archivePath,
