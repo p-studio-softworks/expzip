@@ -44,7 +44,7 @@ internal sealed class ArchiveContents
 
     /// <summary>
     /// 中身を書き換えられるかどうか。
-    /// パスワード付きの書庫は、書き換えると暗号化が外れてしまうため触らない (#20)。
+    /// パスワード付きの書庫も書き換えられるが、作り直しになる (#20)。
     /// </summary>
-    public bool IsEditable => ArchiveFormats.IsEditable(Format) && !RequiresPassword;
+    public bool IsEditable => ArchiveFormats.IsEditable(Format);
 }

@@ -159,9 +159,20 @@ public partial class MainWindow : Window
             return;
         }
 
+        // パスワードを付けるかどうかをここで決める。中身を入れた後では、
+        // 既に暗号化されていないエントリが残ってしまう (#20)
+        var password = AskNewArchivePassword();
+
         try
         {
             ZipArchiveWriter.CreateEmpty(dialog.FileName);
+
+            if (password is not null)
+            {
+                // 空の書庫には暗号化するものが無い。合言葉を覚えておき、
+                // 最初に何かを入れるときから暗号化する
+                _passwords[dialog.FileName] = password;
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException)
@@ -716,6 +727,11 @@ public partial class MainWindow : Window
     private async Task RunRenameAsync(
         string archivePath, string oldPath, string newPath, bool isFolder, string restorePath)
     {
+        if (!TryGetPassword(out var password))
+        {
+            return;
+        }
+
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         SetBusy(true);
@@ -729,8 +745,12 @@ public partial class MainWindow : Window
         RenameResult? result = null;
         try
         {
-            result = await Task.Run(() => ZipArchiveWriter.Rename(
-                archivePath, oldPath, newPath, isFolder, level, progress, cancellation.Token));
+            result = await Task.Run(() => password is null
+                ? ZipArchiveWriter.Rename(
+                    archivePath, oldPath, newPath, isFolder, level, progress, cancellation.Token)
+                : ZipEncryptedWriter.Move(
+                    archivePath, [new PathChange(oldPath, newPath, isFolder)], password,
+                    level, progress, cancellation.Token));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -832,7 +852,8 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task CreateFolderAsync()
     {
-        if (!CanEdit || _contents is null || _currentFolder is null)
+        if (!CanEdit || _contents is null || _currentFolder is null
+            || !TryGetPassword(out var password))
         {
             return;
         }
@@ -850,7 +871,9 @@ public partial class MainWindow : Window
         var created = false;
         try
         {
-            created = await Task.Run(() => ZipArchiveWriter.CreateFolder(archivePath, path));
+            created = await Task.Run(() => password is null
+                ? ZipArchiveWriter.CreateFolder(archivePath, path)
+                : ZipEncryptedWriter.CreateFolder(archivePath, path, password));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException)
@@ -929,15 +952,36 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 新しく作る書庫にパスワードを付けるか尋ねる (#20)。
+    /// </summary>
+    /// <returns>付ける場合は合言葉。付けない場合は <see langword="null"/>。</returns>
+    private string? AskNewArchivePassword()
+    {
+        var answer = MessageBox.Show(
+            this,
+            $"この書庫にパスワードを付けますか?{Environment.NewLine}{Environment.NewLine}"
+            + $"付ける場合、入れたファイルは AES-256 で暗号化されます。{Environment.NewLine}"
+            + "パスワードを忘れると中身は取り出せません。",
+            AppName, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            return null;
+        }
+
+        var dialog = new PasswordDialog(this, "新しい書庫", retry: false);
+        return dialog.ShowDialog() == true ? dialog.Password : null;
+    }
+
     /// <summary>書庫にできることの断り書き。件数の後ろに添える。</summary>
     private static string DescribeLimits(ArchiveContents contents)
     {
         if (contents.RequiresPassword)
         {
-            // 取り出すときにパスワードを尋ねる。書き換えは行わない
             return contents.UsesAes
-                ? " (パスワード付き / AES。取り出すときに尋ねます)"
-                : " (パスワード付き。取り出すときに尋ねます)";
+                ? " (パスワード付き / AES)"
+                : " (パスワード付き)";
         }
 
         return contents.IsEditable
@@ -989,7 +1033,19 @@ public partial class MainWindow : Window
     {
         password = null;
 
-        if (_contents is not { RequiresPassword: true })
+        if (_contents is null)
+        {
+            return true;
+        }
+
+        // 一度入れたもの、または「新規作成」で決めたものがあればそれを使う
+        if (_passwords.TryGetValue(_contents.FilePath, out var known))
+        {
+            password = known;
+            return true;
+        }
+
+        if (!_contents.RequiresPassword)
         {
             return true;
         }
@@ -1066,7 +1122,7 @@ public partial class MainWindow : Window
 
     private async Task RunDeleteAsync(IReadOnlySet<string> files, IReadOnlyList<string> folders)
     {
-        if (_contents is null)
+        if (_contents is null || !TryGetPassword(out var password))
         {
             return;
         }
@@ -1084,8 +1140,9 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await Task.Run(() => ZipArchiveWriter.Delete(
-                archivePath, files, folders, cancellation.Token));
+            var result = await Task.Run(() => password is null
+                ? ZipArchiveWriter.Delete(archivePath, files, folders, cancellation.Token)
+                : ZipEncryptedWriter.Delete(archivePath, files, folders, password, cancellation.Token));
 
             if (result.Cancelled)
             {
@@ -1333,6 +1390,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        // パスワード付きの書庫では、足すものも同じ合言葉で暗号化する (#20)
+        if (!TryGetPassword(out var password))
+        {
+            return;
+        }
+
         var archivePath = _contents.FilePath;
         var destinationFolder = _currentFolder?.FullPath ?? string.Empty;
 
@@ -1373,11 +1436,23 @@ public partial class MainWindow : Window
             StatusMessage.Text = $"追加中: {p.CurrentName}";
         });
 
+        // パスワード付きの書庫は、残すエントリも暗号化し直すため書庫全体を作り直す。
+        // 2,000件の書庫に1件足すのに3.5秒かかる。何が起きているかを出しておく (#20)
+        if (password is not null)
+        {
+            ProgressIndicator.IsIndeterminate = true;
+            StatusMessage.Text = "パスワード付きの書庫を作り直しています…";
+        }
+
         try
         {
-            var result = await Task.Run(() => ZipArchiveWriter.Add(
-                archivePath, sourcePaths, destinationFolder, replaceExisting,
-                level, progress, cancellation.Token));
+            var result = await Task.Run(() => password is null
+                ? ZipArchiveWriter.Add(
+                    archivePath, sourcePaths, destinationFolder, replaceExisting,
+                    level, progress, cancellation.Token)
+                : ZipEncryptedWriter.Add(
+                    archivePath, sourcePaths, destinationFolder, replaceExisting, password,
+                    level, progress, cancellation.Token));
 
             ShowAddResult(result);
         }
@@ -1567,7 +1642,7 @@ public partial class MainWindow : Window
     /// <returns>書き戻せた場合は true。</returns>
     private async Task<bool> ApplyEditAsync(EditSession session)
     {
-        if (_cancellation is not null)
+        if (_cancellation is not null || !TryGetPassword(out var password))
         {
             return false;
         }
@@ -1588,9 +1663,13 @@ public partial class MainWindow : Window
         {
             // 追加と同じ経路を通す。取り出したときのパスをそのまま使っているので、
             // 追加先フォルダを指定すれば元のエントリを置き換える形になる。
-            result = await Task.Run(() => ZipArchiveWriter.Add(
-                session.ArchivePath, [session.TempPath], session.DestinationFolder,
-                replaceExisting: true, level, progress, cancellation.Token));
+            result = await Task.Run(() => password is null
+                ? ZipArchiveWriter.Add(
+                    session.ArchivePath, [session.TempPath], session.DestinationFolder,
+                    replaceExisting: true, level, progress, cancellation.Token)
+                : ZipEncryptedWriter.Add(
+                    session.ArchivePath, [session.TempPath], session.DestinationFolder,
+                    replaceExisting: true, password, level, progress, cancellation.Token));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -2116,6 +2195,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!TryGetPassword(out var password))
+        {
+            return;
+        }
+
         // 移した先に同じ名前があると、どちらかが失われる。先に断る
         var conflicts = move.Items
             .Where(item => target.Folders.Any(
@@ -2159,8 +2243,9 @@ public partial class MainWindow : Window
         RenameResult? result = null;
         try
         {
-            result = await Task.Run(() => ZipArchiveWriter.Move(
-                archivePath, changes, level, progress, cancellation.Token));
+            result = await Task.Run(() => password is null
+                ? ZipArchiveWriter.Move(archivePath, changes, level, progress, cancellation.Token)
+                : ZipEncryptedWriter.Move(archivePath, changes, password, level, progress, cancellation.Token));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {

@@ -46,7 +46,7 @@ internal sealed record RenameResult(int Renamed, bool Cancelled);
 internal static class ZipArchiveWriter
 {
     /// <summary>作業用ファイルの拡張子。</summary>
-    private const string TempSuffix = ".expzip-tmp";
+    internal const string TempSuffix = ".expzip-tmp";
 
     /// <summary>
     /// 空のZIP書庫を作る。既に同じ名前のファイルがあれば置き換える。
@@ -309,7 +309,7 @@ internal static class ZipArchiveWriter
     }
 
     /// <summary>このエントリが削除の対象かどうか。</summary>
-    private static bool ShouldDelete(
+    internal static bool ShouldDelete(
         string entryName, IReadOnlySet<string> fileEntryNames, IReadOnlyList<string> folderPaths)
     {
         if (fileEntryNames.Contains(entryName))
@@ -341,7 +341,7 @@ internal static class ZipArchiveWriter
         => BuildPlan(sourcePaths, destinationFolder).Select(static p => p.EntryName).ToList();
 
     /// <summary>追加するファイルの一覧。フォルダは中身を辿って展開する。</summary>
-    private static List<PlanItem> BuildPlan(IReadOnlyList<string> sourcePaths, string destinationFolder)
+    internal static List<PlanItem> BuildPlan(IReadOnlyList<string> sourcePaths, string destinationFolder)
     {
         var prefix = destinationFolder.Length == 0 ? string.Empty : destinationFolder.TrimEnd('/') + "/";
         var plan = new List<PlanItem>();
@@ -509,7 +509,7 @@ internal static class ZipArchiveWriter
     }
 
     /// <summary>いずれかの組に当てはめた結果を返す。どれにも当たらなければ null。</summary>
-    private static string? MapAny(string entryName, IReadOnlyList<PathChange> changes)
+    internal static string? MapAny(string entryName, IReadOnlyList<PathChange> changes)
     {
         foreach (var change in changes)
         {
@@ -561,7 +561,7 @@ internal static class ZipArchiveWriter
         }
     }
 
-    private static void TryDelete(string path)
+    internal static void TryDelete(string path)
     {
         try
         {
@@ -580,5 +580,5 @@ internal static class ZipArchiveWriter
     /// <param name="EntryName">書庫内での名前。区切りは <c>/</c>。</param>
     /// <param name="Length">ファイルの大きさ。進捗の計算に使う。</param>
     /// <param name="IsDirectory">空のフォルダを表すエントリなら true。</param>
-    private readonly record struct PlanItem(string SourcePath, string EntryName, long Length, bool IsDirectory);
+    internal readonly record struct PlanItem(string SourcePath, string EntryName, long Length, bool IsDirectory);
 }
