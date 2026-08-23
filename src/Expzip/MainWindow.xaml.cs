@@ -2791,10 +2791,17 @@ public partial class MainWindow : Window
         EmptyStateMessage.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyStateMessage.Text = _contents is null ? "書庫が開かれていません" : "このフォルダは空です";
 
+        // 書庫のあるフォルダから続けて書庫の中の位置まで、ひと続きの場所として出す。
+        // 書庫名だけでは同じ名前の別の書庫と区別が付かず、「場所」の名に合わない (#58)。
+        // エクスプローラーが書庫を開いたときの表示に合わせ、区切りは `\` にする
         AddressBar.Text = _contents is null
             ? string.Empty
-            : Path.GetFileName(_contents.FilePath)
-              + (folder.FullPath.Length == 0 ? string.Empty : "/" + folder.FullPath);
+            : folder.FullPath.Length == 0
+                ? _contents.FilePath
+                : _contents.FilePath + "\\" + folder.FullPath.Replace('/', '\\');
+
+        // 長い場所は欄からはみ出すため、全体を見られるようにしておく
+        AddressBar.ToolTip = AddressBar.Text.Length == 0 ? null : AddressBar.Text;
 
         UpdateSelectionInfo();
     }
