@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
@@ -24,15 +25,52 @@ public partial class MainWindow : Window
 {
     private const string AppName = "Expzip";
 
-    /// <summary>開いている書庫。未読み込みの場合は <see langword="null"/>。</summary>
-    private ArchiveContents? _contents;
+    /// <summary>開いているタブ (#22)。上限は設けない。</summary>
+    private readonly ObservableCollection<ArchiveTab> _tabs = [];
+
+    /// <summary>いま選ばれているタブ。1つも開いていなければ <see langword="null"/>。</summary>
+    private ArchiveTab? Tab => ArchiveTabs.SelectedItem as ArchiveTab;
+
+    /// <summary>いま見ている書庫。開いていなければ <see langword="null"/>。</summary>
+    private ArchiveContents? Contents => Tab?.Contents;
 
     /// <summary>リストビューに表示している現在のフォルダ。</summary>
-    private ArchiveFolder? _currentFolder;
+    private ArchiveFolder? CurrentFolder
+    {
+        get => Tab?.CurrentFolder;
+        set
+        {
+            if (Tab is { } tab && value is not null)
+            {
+                tab.CurrentFolder = value;
+            }
+        }
+    }
 
-    /// <summary>現在の並び順。ヘッダークリックのたびに更新する。</summary>
-    private string _sortColumn = "名前";
-    private bool _sortDescending;
+    /// <summary>現在の並び順。タブごとに覚える (仕様書 5.2)。</summary>
+    private string SortColumn
+    {
+        get => Tab?.SortColumn ?? "名前";
+        set
+        {
+            if (Tab is { } tab)
+            {
+                tab.SortColumn = value;
+            }
+        }
+    }
+
+    private bool SortDescending
+    {
+        get => Tab?.SortDescending ?? false;
+        set
+        {
+            if (Tab is { } tab)
+            {
+                tab.SortDescending = value;
+            }
+        }
+    }
 
     /// <summary>
     /// ツリーの選択変更に反応してリストを差し替える処理を、
@@ -91,10 +129,15 @@ public partial class MainWindow : Window
     /// <summary>いま名前を書き換えている行。ウィンドウのどこかを押したら確定させる (#45)。</summary>
     private EntryRow? _editingRow;
 
+    /// <summary>タブを足したり閉じたりしている最中。選択の変更に二重に反応しないための印 (#22)。</summary>
+    private bool _switchingTab;
+
     public MainWindow()
     {
         InitializeComponent();
         UpdateTitle(null);
+
+        ArchiveTabs.ItemsSource = _tabs;
 
         _settings = SettingsStore.Load();
         ApplySettings();
@@ -127,7 +170,7 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog(this) == true)
         {
-            await OpenArchiveAsync(dialog.FileName);
+            await OpenInTabAsync(dialog.FileName);
         }
     }
 
@@ -145,9 +188,9 @@ public partial class MainWindow : Window
         };
 
         // 書庫を開いているなら、その隣に作るのが自然
-        if (_contents is not null)
+        if (Contents is not null)
         {
-            var directory = Path.GetDirectoryName(_contents.FilePath);
+            var directory = Path.GetDirectoryName(Contents.FilePath);
             if (!string.IsNullOrEmpty(directory))
             {
                 dialog.InitialDirectory = directory;
@@ -186,28 +229,29 @@ public partial class MainWindow : Window
         }
 
         // 作ったらそのまま開く。中身は空なので、ここからファイルを追加していく
-        await OpenArchiveAsync(dialog.FileName);
+        await OpenInTabAsync(dialog.FileName);
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_contents is not null)
+        if (Contents is not null)
         {
             // 開き直したあとも同じ場所を表示できるよう、現在位置を覚えておく
-            await OpenArchiveAsync(_contents.FilePath, _currentFolder?.FullPath);
+            await OpenArchiveAsync(Contents.FilePath, CurrentFolder?.FullPath);
         }
     }
 
     /// <summary>書庫を読み込んで画面に反映する。</summary>
     /// <param name="path">書庫ファイルのパス。</param>
     /// <param name="restorePath">読み込み後に表示したい書庫内フォルダのパス。</param>
+    /// <param name="inNewTab">別のタブとして開くかどうか (#22)。</param>
     /// <remarks>
     /// 読み込みは別スレッドで行う。同期で読むと、大きな書庫やネットワーク上の
     /// 書庫でウィンドウが応答しなくなり、中断もできない (#39)。
     /// 読み込み中は今開いている書庫の表示をそのまま残し、成功した時点で差し替える。
     /// 中断や失敗のたびに画面が空になるのは、開き直しの操作で不便なため。
     /// </remarks>
-    private async Task OpenArchiveAsync(string path, string? restorePath = null)
+    private async Task OpenArchiveAsync(string path, string? restorePath = null, bool inNewTab = false)
     {
         // 他の処理の最中は受け付けない。ツールバーは SetBusy で止めているが、
         // 最近使った書庫のメニューやコマンドライン起動など別の入口もある。
@@ -219,9 +263,9 @@ public partial class MainWindow : Window
         // 同じ書庫を読み直すときは、ツリーで開いていたフォルダを覚えておく。
         // ノードは読み込みのたびに作り直すため、控えておかないと表示先の祖先しか
         // 開かれず、追加や名前の変更のたびにツリーが畳まれてしまう (#49)。
-        var expanded = _contents is not null
-                       && string.Equals(_contents.FilePath, path, StringComparison.OrdinalIgnoreCase)
-            ? CollectExpanded(_contents.Root)
+        var expanded = !inNewTab && Contents is not null
+                       && string.Equals(Contents.FilePath, path, StringComparison.OrdinalIgnoreCase)
+            ? CollectExpanded(Contents.Root)
             : null;
 
         ArchiveContents contents;
@@ -276,7 +320,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        _contents = contents;
         RememberRecent(path);
 
         if (expanded is not null)
@@ -284,17 +327,20 @@ public partial class MainWindow : Window
             ApplyExpanded(contents.Root, expanded);
         }
 
-        FolderTree.ItemsSource = new[] { contents.Root };
-        RefreshButton.IsEnabled = true;
-        ExtractButton.IsEnabled = true;
-
-        // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
-        AddButton.IsEnabled = contents.IsEditable;
-        UpdateTitle(Path.GetFileName(path));
+        // 新しいタブで開くか、いまのタブを差し替えるか (#22)
+        if (inNewTab || Tab is null)
+        {
+            AddTab(new ArchiveTab(contents));
+        }
+        else
+        {
+            Tab.Contents = contents;
+        }
 
         var target = restorePath is null ? contents.Root : FindFolder(contents.Root, restorePath) ?? contents.Root;
-        SelectInTree(target);
-        Navigate(target);
+        CurrentFolder = target;
+
+        ShowActiveTab();
 
         StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル{DescribeLimits(contents)}";
 
@@ -427,7 +473,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        await OpenArchiveAsync(path);
+        await OpenInTabAsync(path);
     }
 
     /// <summary>開いた書庫を履歴の先頭に移す。</summary>
@@ -475,7 +521,7 @@ public partial class MainWindow : Window
 
         // 「開く」は1件だけを対象にする。複数選んだまま開くと、
         // 選んだ数だけアプリが立ち上がって収拾がつかない (#12)
-        OpenMenuItem.IsEnabled = _contents is not null
+        OpenMenuItem.IsEnabled = Contents is not null
                                  && _cancellation is null
                                  && EntryList.SelectedItems.Count == 1
                                  && editable.Count == 1;
@@ -497,7 +543,7 @@ public partial class MainWindow : Window
     private void FolderTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (FolderUnder(e.OriginalSource as DependencyObject) is not { } folder
-            || ReferenceEquals(folder, _currentFolder))
+            || ReferenceEquals(folder, CurrentFolder))
         {
             return;
         }
@@ -552,7 +598,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private Task RenameSelectedAsync()
     {
-        if (!CanEdit || _currentFolder is null)
+        if (!CanEdit || CurrentFolder is null)
         {
             return Task.CompletedTask;
         }
@@ -654,7 +700,7 @@ public partial class MainWindow : Window
         row.IsEditing = false;
         _editingRow = null;
 
-        if (_contents is null || _currentFolder is null || _cancellation is not null)
+        if (Contents is null || CurrentFolder is null || _cancellation is not null)
         {
             return;
         }
@@ -672,10 +718,10 @@ public partial class MainWindow : Window
 
         var isFolder = row.Folder is not null;
         var oldPath = isFolder ? row.Folder!.FullPath : row.Entry!.FullPath;
-        var parent = _currentFolder.FullPath;
+        var parent = CurrentFolder.FullPath;
         var newPath = parent.Length == 0 ? newName : parent + "/" + newName;
 
-        await RunRenameAsync(_contents.FilePath, oldPath, newPath, isFolder, _currentFolder.FullPath);
+        await RunRenameAsync(Contents.FilePath, oldPath, newPath, isFolder, CurrentFolder.FullPath);
     }
 
     /// <summary>入力された名前が書庫内で使えるかを確かめ、駄目な理由を伝える。</summary>
@@ -705,10 +751,10 @@ public partial class MainWindow : Window
         }
 
         // 同じフォルダに同じ名前があると、展開時にどちらかが失われる
-        var duplicated = _currentFolder!.Folders.Any(
+        var duplicated = CurrentFolder!.Folders.Any(
                              f => !ReferenceEquals(f, row.Folder)
                                   && string.Equals(f.Name, newName, StringComparison.OrdinalIgnoreCase))
-                         || _currentFolder.Files.Any(
+                         || CurrentFolder.Files.Any(
                              f => !ReferenceEquals(f, row.Entry)
                                   && string.Equals(f.Name, newName, StringComparison.OrdinalIgnoreCase));
 
@@ -807,7 +853,7 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
 
-            if (_currentFolder?.Parent is { } parent)
+            if (CurrentFolder?.Parent is { } parent)
             {
                 SelectInTree(parent);
                 Navigate(parent);
@@ -852,15 +898,15 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task CreateFolderAsync()
     {
-        if (!CanEdit || _contents is null || _currentFolder is null
+        if (!CanEdit || Contents is null || CurrentFolder is null
             || !TryGetPassword(out var password))
         {
             return;
         }
 
-        var archivePath = _contents.FilePath;
-        var parent = _currentFolder.FullPath;
-        var name = UniqueFolderName(_currentFolder);
+        var archivePath = Contents.FilePath;
+        var parent = CurrentFolder.FullPath;
+        var name = UniqueFolderName(CurrentFolder);
         var path = parent.Length == 0 ? name : parent + "/" + name;
 
         using var cancellation = new CancellationTokenSource();
@@ -974,6 +1020,244 @@ public partial class MainWindow : Window
         return dialog.ShowDialog() == true ? dialog.Password : null;
     }
 
+    // ------------------------------------------------------------------ タブ (#22)
+
+    /// <summary>
+    /// 別の書庫を開く。開いていない書庫は新しいタブに出し、既に開いていれば
+    /// そのタブへ移る (#22)。
+    /// </summary>
+    private async Task OpenInTabAsync(string path)
+    {
+        if (TrySwitchToOpenArchive(path))
+        {
+            return;
+        }
+
+        await OpenArchiveAsync(path, inNewTab: true);
+    }
+
+    /// <summary>
+    /// タブの切り替えと開け閉め (#22)。ブラウザやエクスプローラーに合わせる。
+    /// </summary>
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        // 名前を書き換えている最中は、そちらの操作を優先する
+        if (_editingRow is not null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.W && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+
+            if (Tab is { } tab)
+            {
+                CloseTab(tab);
+            }
+
+            return;
+        }
+
+        // Ctrl+Tab で次のタブ、Ctrl+Shift+Tab で前のタブ
+        if (e.Key is Key.Tab && (Keyboard.Modifiers & ModifierKeys.Control) != 0 && _tabs.Count > 1)
+        {
+            e.Handled = true;
+
+            var index = Tab is { } current ? _tabs.IndexOf(current) : -1;
+            var step = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1;
+            ArchiveTabs.SelectedItem = _tabs[((index + step) % _tabs.Count + _tabs.Count) % _tabs.Count];
+        }
+    }
+
+    /// <summary>タブを足して、それを選ぶ。</summary>
+    private void AddTab(ArchiveTab tab)
+    {
+        _tabs.Add(tab);
+
+        // 1つでも開いていればタブの帯を出す。閉じるボタンがそこにあるため
+        ArchiveTabs.Visibility = Visibility.Visible;
+
+        _switchingTab = true;
+        try
+        {
+            ArchiveTabs.SelectedItem = tab;
+        }
+        finally
+        {
+            _switchingTab = false;
+        }
+    }
+
+    /// <summary>いま選ばれているタブの内容を画面に出す。</summary>
+    private void ShowActiveTab()
+    {
+        if (Tab is not { } tab)
+        {
+            ClearView();
+            return;
+        }
+
+        var contents = tab.Contents;
+
+        FolderTree.ItemsSource = new[] { contents.Root };
+        RefreshButton.IsEnabled = true;
+        ExtractButton.IsEnabled = true;
+
+        // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
+        AddButton.IsEnabled = contents.IsEditable;
+        UpdateTitle(tab.Title);
+
+        SelectInTree(tab.CurrentFolder);
+        Navigate(tab.CurrentFolder);
+        RestoreSelection(tab);
+
+        StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル{DescribeLimits(contents)}";
+    }
+
+    /// <summary>タブに戻ったときに、前に選んでいた項目を選び直す。</summary>
+    private void RestoreSelection(ArchiveTab tab)
+    {
+        if (tab.SelectedNames.Count == 0)
+        {
+            return;
+        }
+
+        var wanted = tab.SelectedNames.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var row in EntryList.Items.OfType<EntryRow>())
+        {
+            if (wanted.Contains(row.Name))
+            {
+                EntryList.SelectedItems.Add(row);
+            }
+        }
+
+        if (EntryList.SelectedItem is EntryRow first)
+        {
+            EntryList.ScrollIntoView(first);
+        }
+    }
+
+    /// <summary>書庫を1つも開いていない状態に戻す。</summary>
+    private void ClearView()
+    {
+        FolderTree.ItemsSource = null;
+        EntryList.ItemsSource = null;
+        AddressBar.Text = string.Empty;
+        AddressBar.ToolTip = null;
+        SuspiciousWarningItem.Visibility = Visibility.Collapsed;
+        TotalSizeInfo.Text = string.Empty;
+        SelectionInfo.Text = "選択 0 個";
+        StatusMessage.Text = "書庫が開かれていません";
+        EmptyStateMessage.Visibility = Visibility.Visible;
+        EmptyStateMessage.Text = "書庫が開かれていません";
+
+        RefreshButton.IsEnabled = false;
+        ExtractButton.IsEnabled = false;
+        AddButton.IsEnabled = false;
+        UpdateTitle(null);
+
+        ArchiveTabs.Visibility = _tabs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ArchiveTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // タブを足した直後は、開く処理の側で画面を作る
+        if (_switchingTab || !ReferenceEquals(e.OriginalSource, ArchiveTabs))
+        {
+            return;
+        }
+
+        // 離れるタブの選択を控えておく。戻ってきたときに選び直すため (仕様書 5.2)
+        if (e.RemovedItems.Count > 0 && e.RemovedItems[0] is ArchiveTab leaving)
+        {
+            leaving.SelectedNames = EntryList.SelectedItems.OfType<EntryRow>()
+                .Select(static r => r.Name)
+                .ToList();
+        }
+
+        ShowActiveTab();
+    }
+
+    /// <summary>タブの帯を中ボタンで押したら、そのタブを閉じる (ブラウザと同じ)。</summary>
+    private void ArchiveTabs_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle)
+        {
+            return;
+        }
+
+        if (FindAncestor<TabItem>(e.OriginalSource as DependencyObject)?.DataContext is ArchiveTab tab)
+        {
+            e.Handled = true;
+            CloseTab(tab);
+        }
+    }
+
+    private void CloseTabButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ArchiveTab tab)
+        {
+            CloseTab(tab);
+        }
+    }
+
+    /// <summary>タブを閉じる。最後の1つを閉じたら、書庫を開いていない状態に戻す。</summary>
+    private void CloseTab(ArchiveTab tab)
+    {
+        // 何かの処理中は閉じない。読み込みの結果を差し込む先が消えてしまう
+        if (_cancellation is not null)
+        {
+            return;
+        }
+
+        var index = _tabs.IndexOf(tab);
+        if (index < 0)
+        {
+            return;
+        }
+
+        CancelPendingRename();
+
+        _switchingTab = true;
+        try
+        {
+            _tabs.RemoveAt(index);
+
+            // 閉じた位置の次を選ぶ。無ければ手前 (ブラウザと同じ)
+            ArchiveTabs.SelectedItem = _tabs.Count == 0
+                ? null
+                : _tabs[Math.Min(index, _tabs.Count - 1)];
+        }
+        finally
+        {
+            _switchingTab = false;
+        }
+
+        ShowActiveTab();
+    }
+
+    /// <summary>同じ書庫を開いているタブがあれば、それを選ぶ。</summary>
+    /// <returns>切り替えた場合は true。</returns>
+    private bool TrySwitchToOpenArchive(string path)
+    {
+        var found = _tabs.FirstOrDefault(
+            t => string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase));
+
+        if (found is null)
+        {
+            return false;
+        }
+
+        if (!ReferenceEquals(found, Tab))
+        {
+            ArchiveTabs.SelectedItem = found;
+        }
+
+        return true;
+    }
+
     /// <summary>書庫にできることの断り書き。件数の後ろに添える。</summary>
     private static string DescribeLimits(ArchiveContents contents)
     {
@@ -1033,24 +1317,24 @@ public partial class MainWindow : Window
     {
         password = null;
 
-        if (_contents is null)
+        if (Contents is null)
         {
             return true;
         }
 
         // 一度入れたもの、または「新規作成」で決めたものがあればそれを使う
-        if (_passwords.TryGetValue(_contents.FilePath, out var known))
+        if (_passwords.TryGetValue(Contents.FilePath, out var known))
         {
             password = known;
             return true;
         }
 
-        if (!_contents.RequiresPassword)
+        if (!Contents.RequiresPassword)
         {
             return true;
         }
 
-        password = EnsurePassword(_contents.FilePath);
+        password = EnsurePassword(Contents.FilePath);
         return password is not null;
     }
 
@@ -1058,7 +1342,7 @@ public partial class MainWindow : Window
     /// いま書き換えの操作を受け付けられるか (#19)。
     /// 7z と tar は読み取りのみなので、追加・削除・名前の変更・移動は行わせない。
     /// </summary>
-    private bool CanEdit => _contents is { IsEditable: true } && _cancellation is null;
+    private bool CanEdit => Contents is { IsEditable: true } && _cancellation is null;
 
     /// <summary>操作の対象にできる選択行。</summary>
     private List<EntryRow> SelectedRowsForEdit()
@@ -1066,7 +1350,7 @@ public partial class MainWindow : Window
 
     private async Task DeleteSelectedAsync()
     {
-        if (!CanEdit || _contents is null)
+        if (!CanEdit || Contents is null)
         {
             return;
         }
@@ -1122,13 +1406,13 @@ public partial class MainWindow : Window
 
     private async Task RunDeleteAsync(IReadOnlySet<string> files, IReadOnlyList<string> folders)
     {
-        if (_contents is null || !TryGetPassword(out var password))
+        if (Contents is null || !TryGetPassword(out var password))
         {
             return;
         }
 
-        var archivePath = _contents.FilePath;
-        var destinationFolder = _currentFolder?.FullPath ?? string.Empty;
+        var archivePath = Contents.FilePath;
+        var destinationFolder = CurrentFolder?.FullPath ?? string.Empty;
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -1190,7 +1474,7 @@ public partial class MainWindow : Window
 
     private async void AddButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_contents is null)
+        if (Contents is null)
         {
             return;
         }
@@ -1247,7 +1531,7 @@ public partial class MainWindow : Window
         var acceptable = _cancellation is null
                          && !_draggingOut
                          && paths.Length > 0
-                         && (_contents is not null || (paths.Length == 1 && IsArchiveFile(paths[0])));
+                         && (Contents is not null || (paths.Length == 1 && IsArchiveFile(paths[0])));
 
         e.Effects = acceptable ? DragDropEffects.Copy : DragDropEffects.None;
     }
@@ -1257,13 +1541,13 @@ public partial class MainWindow : Window
     /// </summary>
     private ArchiveFolder? ResolveMoveTarget(DragEventArgs e, InternalMove move)
     {
-        if (!CanEdit || _contents is null
-            || !string.Equals(move.ArchivePath, _contents.FilePath, StringComparison.OrdinalIgnoreCase))
+        if (!CanEdit || Contents is null
+            || !string.Equals(move.ArchivePath, Contents.FilePath, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        var target = FolderUnder(e.OriginalSource as DependencyObject) ?? _currentFolder;
+        var target = FolderUnder(e.OriginalSource as DependencyObject) ?? CurrentFolder;
         if (target is null)
         {
             return null;
@@ -1353,11 +1637,11 @@ public partial class MainWindow : Window
         if (!addInstead && paths.Length == 1 && IsArchiveFile(paths[0]))
         {
             // 開いた結果 (件数) をそのまま出す。落とし方の説明は添えない (#51)
-            await OpenArchiveAsync(paths[0]);
+            await OpenInTabAsync(paths[0]);
             return;
         }
 
-        if (_contents is null)
+        if (Contents is null)
         {
             MessageBox.Show(
                 this,
@@ -1368,11 +1652,11 @@ public partial class MainWindow : Window
         }
 
         // 7z と tar は読み取りのみ。落とされたものを黙って捨てない (#19)
-        if (!_contents.IsEditable)
+        if (!Contents.IsEditable)
         {
             MessageBox.Show(
                 this,
-                $"{ArchiveFormats.DisplayName(_contents.Format)} 書庫にはファイルを追加できません。"
+                $"{ArchiveFormats.DisplayName(Contents.Format)} 書庫にはファイルを追加できません。"
                 + $"{Environment.NewLine}{Environment.NewLine}"
                 + "この形式は読み取りのみに対応しています。",
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1385,7 +1669,7 @@ public partial class MainWindow : Window
     /// <summary>ディスク上のファイルやフォルダを、いま表示しているフォルダに追加する。</summary>
     private async Task AddToArchiveAsync(IReadOnlyList<string> sourcePaths)
     {
-        if (!CanEdit || _contents is null)
+        if (!CanEdit || Contents is null)
         {
             return;
         }
@@ -1396,8 +1680,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var archivePath = _contents.FilePath;
-        var destinationFolder = _currentFolder?.FullPath ?? string.Empty;
+        var archivePath = Contents.FilePath;
+        var destinationFolder = CurrentFolder?.FullPath ?? string.Empty;
 
         // 同名のエントリがある場合だけ確認を出す。無用な確認は挟まない
         var replaceExisting = true;
@@ -1535,13 +1819,13 @@ public partial class MainWindow : Window
     /// <summary>追加しようとしている名前のうち、書庫内に既にあるものを返す。</summary>
     private List<string> FindConflicts(IReadOnlyList<string> sourcePaths, string destinationFolder)
     {
-        if (_contents is null)
+        if (Contents is null)
         {
             return [];
         }
 
         var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        CollectPaths(_contents.Root, existing);
+        CollectPaths(Contents.Root, existing);
 
         return ZipArchiveWriter.PlanEntryNames(sourcePaths, destinationFolder)
             .Where(name => existing.Contains(name.TrimEnd('/')))
@@ -1568,15 +1852,15 @@ public partial class MainWindow : Window
     private void StartEditing(ArchiveEntry entry, string target, string directory)
     {
         // 書き戻せない形式では見張らない。尋ねても応えられない (#19)
-        if (_contents is not { IsEditable: true })
+        if (Contents is not { IsEditable: true })
         {
             StatusMessage.Text = $"{entry.Name} を開きました "
-                                 + $"({ArchiveFormats.DisplayName(_contents!.Format)} は読み取りのみのため、"
+                                 + $"({ArchiveFormats.DisplayName(Contents!.Format)} は読み取りのみのため、"
                                  + "書き換えても書庫には戻りません)";
             return;
         }
 
-        _edits.Add(new EditSession(_contents.FilePath, entry, target, ParentFolderOf(entry.FullPath)));
+        _edits.Add(new EditSession(Contents.FilePath, entry, target, ParentFolderOf(entry.FullPath)));
 
         // 巡回はファイルを編集し始めてから動かす。書庫を見ているだけの間は要らない
         if (_editWatch is null)
@@ -1727,10 +2011,10 @@ public partial class MainWindow : Window
         session.MarkApplied();
 
         // 反映後は大きさや圧縮率が変わっているので、開いている書庫なら表示を更新する
-        if (_contents is not null
-            && string.Equals(_contents.FilePath, session.ArchivePath, StringComparison.OrdinalIgnoreCase))
+        if (Contents is not null
+            && string.Equals(Contents.FilePath, session.ArchivePath, StringComparison.OrdinalIgnoreCase))
         {
-            await OpenArchiveAsync(session.ArchivePath, _currentFolder?.FullPath);
+            await OpenArchiveAsync(session.ArchivePath, CurrentFolder?.FullPath);
         }
 
         StatusMessage.Text = $"{session.Name} を書庫に反映しました";
@@ -1988,7 +2272,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private void DragOut(List<EntryRow> rows, UIElement dragSource)
     {
-        if (_contents is null || _cancellation is not null || rows.Count == 0)
+        if (Contents is null || _cancellation is not null || rows.Count == 0)
         {
             return;
         }
@@ -2021,8 +2305,8 @@ public partial class MainWindow : Window
         string[] paths;
         try
         {
-            var directory = workspace.DirectoryFor(_contents.FilePath);
-            var zone = MarkOfTheWeb.TryRead(_contents.FilePath);
+            var directory = workspace.DirectoryFor(Contents.FilePath);
+            var zone = MarkOfTheWeb.TryRead(Contents.FilePath);
 
             Mouse.OverrideCursor = Cursors.Wait;
             StatusMessage.Text = $"{names.Count:N0} 件を取り出しています…";
@@ -2030,7 +2314,7 @@ public partial class MainWindow : Window
             // 既に取り出してあるものは触らない。開いたままのアプリに掴まれていて
             // 上書きできない場合でも、ドラッグ自体は成り立つようにする
             ArchiveExtractor.Extract(
-                _contents.FilePath, _contents.Format, names, directory,
+                Contents.FilePath, Contents.Format, names, directory,
                 overwrite: false, progress: null, cancellationToken: CancellationToken.None,
                 zoneIdentifier: zone, password: dragPassword);
 
@@ -2072,7 +2356,7 @@ public partial class MainWindow : Window
 
             // 自分の中に落とされた場合は移動として扱いたいので、書庫内の情報も載せる。
             // Explorer はこの形式を知らないので無視し、FileDrop のほうを使う (#43)
-            data.SetData(InternalMoveFormat, new InternalMove(_contents.FilePath, rows
+            data.SetData(InternalMoveFormat, new InternalMove(Contents.FilePath, rows
                 .Select(r => new MoveItem(
                     r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath,
                     r.Name,
@@ -2154,7 +2438,7 @@ public partial class MainWindow : Window
             }
         }
 
-        Measure(_contents!.Root);
+        Measure(Contents!.Root);
 
         if (names.Count <= DragOutFileLimit && totalBytes <= DragOutByteLimit)
         {
@@ -2190,7 +2474,7 @@ public partial class MainWindow : Window
     /// <summary>掴んだ項目を書庫内の別のフォルダへ移す。</summary>
     private async Task MoveInArchiveAsync(InternalMove move, ArchiveFolder target)
     {
-        if (!CanEdit || _contents is null)
+        if (!CanEdit || Contents is null)
         {
             return;
         }
@@ -2228,7 +2512,7 @@ public partial class MainWindow : Window
                 item.IsFolder))
             .ToList();
 
-        var archivePath = _contents.FilePath;
+        var archivePath = Contents.FilePath;
         var level = SelectedCompressionLevel;
 
         using var cancellation = new CancellationTokenSource();
@@ -2305,7 +2589,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task OpenWithDefaultAppAsync(ArchiveEntry entry)
     {
-        if (_contents is null || _cancellation is not null)
+        if (Contents is null || _cancellation is not null)
         {
             return;
         }
@@ -2339,7 +2623,7 @@ public partial class MainWindow : Window
         string target;
         try
         {
-            directory = workspace.DirectoryFor(_contents.FilePath);
+            directory = workspace.DirectoryFor(Contents.FilePath);
             target = Path.GetFullPath(Path.Combine(directory, relative));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
@@ -2452,8 +2736,8 @@ public partial class MainWindow : Window
     /// <returns>取り出せて、開いてよい状態になった場合は true。</returns>
     private async Task<bool> ExtractForViewingAsync(ArchiveEntry entry, string directory, string target)
     {
-        var archivePath = _contents!.FilePath;
-        var format = _contents.Format;
+        var archivePath = Contents!.FilePath;
+        var format = Contents.Format;
 
         if (!TryGetPassword(out var password))
         {
@@ -2595,7 +2879,7 @@ public partial class MainWindow : Window
 
     private async void ExtractButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_contents is null)
+        if (Contents is null)
         {
             return;
         }
@@ -2606,13 +2890,13 @@ public partial class MainWindow : Window
         // 選んだものを展開先の最上位に置く。書庫のルートからの階層は作らない (#48)。
         // 一覧で選んだ場合はいま開いているフォルダまで、ツリーで選んだ場合は
         // その親までを取り除く
-        var basePath = _currentFolder?.FullPath;
+        var basePath = CurrentFolder?.FullPath;
 
         if (selection is null)
         {
             // 一覧で何も選んでいない場合は、いま開いているフォルダが対象。
             // ツリーでフォルダを選んだ状態はこれに当たる。ルートなら書庫全体 (#47)
-            if (_currentFolder is { Parent: not null } current)
+            if (CurrentFolder is { Parent: not null } current)
             {
                 var names = new HashSet<string>(StringComparer.Ordinal);
                 AddFilesRecursively(current, names);
@@ -2685,7 +2969,7 @@ public partial class MainWindow : Window
         }
 
         await RunExtractionAsync(
-            _contents.FilePath, _contents.Format, selection, destination, overwrite, basePath);
+            Contents.FilePath, Contents.Format, selection, destination, overwrite, basePath);
     }
 
     /// <summary>
@@ -2740,7 +3024,7 @@ public partial class MainWindow : Window
             }
         }
 
-        Walk(_contents!.Root);
+        Walk(Contents!.Root);
         return conflicts;
     }
 
@@ -2966,9 +3250,9 @@ public partial class MainWindow : Window
     {
         OpenButton.IsEnabled = !busy;
         NewButton.IsEnabled = !busy;
-        ExtractButton.IsEnabled = !busy && _contents is not null;
-        AddButton.IsEnabled = !busy && _contents is { IsEditable: true };
-        RefreshButton.IsEnabled = !busy && _contents is not null;
+        ExtractButton.IsEnabled = !busy && Contents is not null;
+        AddButton.IsEnabled = !busy && Contents is { IsEditable: true };
+        RefreshButton.IsEnabled = !busy && Contents is not null;
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;
 
@@ -2984,7 +3268,7 @@ public partial class MainWindow : Window
     /// <summary>指定フォルダの内容をリストビューに表示する。</summary>
     private void Navigate(ArchiveFolder folder)
     {
-        _currentFolder = folder;
+        CurrentFolder = folder;
 
         // 親へ戻る `..` の行は置かない。エクスプローラーにも無い。
         // 一つ上へはツリーか BackSpace で移動する (#46)
@@ -3002,16 +3286,16 @@ public partial class MainWindow : Window
 
         EntryList.ItemsSource = ApplySort(rows);
         EmptyStateMessage.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyStateMessage.Text = _contents is null ? "書庫が開かれていません" : "このフォルダは空です";
+        EmptyStateMessage.Text = Contents is null ? "書庫が開かれていません" : "このフォルダは空です";
 
         // 書庫のあるフォルダから続けて書庫の中の位置まで、ひと続きの場所として出す。
         // 書庫名だけでは同じ名前の別の書庫と区別が付かず、「場所」の名に合わない (#58)。
         // エクスプローラーが書庫を開いたときの表示に合わせ、区切りは `\` にする
-        AddressBar.Text = _contents is null
+        AddressBar.Text = Contents is null
             ? string.Empty
             : folder.FullPath.Length == 0
-                ? _contents.FilePath
-                : _contents.FilePath + "\\" + folder.FullPath.Replace('/', '\\');
+                ? Contents.FilePath
+                : Contents.FilePath + "\\" + folder.FullPath.Replace('/', '\\');
 
         // 長い場所は欄からはみ出すため、全体を見られるようにしておく
         AddressBar.ToolTip = AddressBar.Text.Length == 0 ? null : AddressBar.Text;
@@ -3038,7 +3322,7 @@ public partial class MainWindow : Window
 
     private int CompareByCurrentColumn(EntryRow a, EntryRow b)
     {
-        var result = _sortColumn switch
+        var result = SortColumn switch
         {
             "サイズ" => a.SortLength.CompareTo(b.SortLength),
             "圧縮後" => a.SortCompressedLength.CompareTo(b.SortCompressedLength),
@@ -3054,7 +3338,7 @@ public partial class MainWindow : Window
             return result;
         }
 
-        return _sortDescending ? -result : result;
+        return SortDescending ? -result : result;
     }
 
     private void EntryList_ColumnHeaderClick(object sender, RoutedEventArgs e)
@@ -3065,14 +3349,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_sortColumn == column)
+        if (SortColumn == column)
         {
-            _sortDescending = !_sortDescending;
+            SortDescending = !SortDescending;
         }
         else
         {
-            _sortColumn = column;
-            _sortDescending = false;
+            SortColumn = column;
+            SortDescending = false;
         }
 
         if (EntryList.ItemsSource is List<EntryRow> current)

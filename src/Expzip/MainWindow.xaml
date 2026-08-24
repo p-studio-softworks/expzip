@@ -11,6 +11,7 @@
         TextOptions.TextFormattingMode="Display"
         AllowDrop="True"
         PreviewMouseDown="Window_PreviewMouseDown"
+        PreviewKeyDown="Window_PreviewKeyDown"
         DragOver="Window_DragOver"
         Drop="Window_Drop"
         Closing="Window_Closing">
@@ -85,6 +86,45 @@
                          VerticalContentAlignment="Center" />
             </DockPanel>
         </Border>
+
+        <!--
+            タブバー: 書庫ごとに1タブ (#22)。中身の表示はタブごとに作らず、
+            ツリーと一覧の1組を使い回して差し替える。TabControl の見た目は
+            見出しの帯だけにしてある
+        -->
+        <TabControl x:Name="ArchiveTabs"
+                    DockPanel.Dock="Top"
+                    SelectionChanged="ArchiveTabs_SelectionChanged"
+                    PreviewMouseDown="ArchiveTabs_PreviewMouseDown"
+                    Visibility="Collapsed">
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <Border Background="{x:Static SystemColors.ControlBrush}"
+                            BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                            BorderThickness="0,0,0,1">
+                        <TabPanel IsItemsHost="True" Margin="4,4,4,0" />
+                    </Border>
+                </ControlTemplate>
+            </TabControl.Template>
+            <TabControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type ui:ArchiveTab}">
+                    <StackPanel Orientation="Horizontal" ToolTip="{Binding FilePath}">
+                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                        <!-- 閉じるボタン。エクスプローラーやブラウザと同じ位置に置く -->
+                        <Button Content="&#xE711;"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="9"
+                                Width="18" Height="18"
+                                Margin="8,0,-4,0"
+                                Padding="0"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                ToolTip="このタブを閉じる (Ctrl+W)"
+                                Click="CloseTabButton_Click" />
+                    </StackPanel>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+        </TabControl>
 
         <!-- ステータスバー: 選択数 / 合計サイズ / 進捗 -->
         <StatusBar DockPanel.Dock="Bottom">
