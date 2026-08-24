@@ -52,7 +52,6 @@
                         <ContextMenu />
                     </Button.ContextMenu>
                 </Button>
-                <Button x:Name="NewButton"     Content="新規作成" Click="NewButton_Click"     ToolTip="空の書庫を新しく作って開く" />
                 <Separator />
                 <Button x:Name="ExtractButton" Content="展開"     Click="ExtractButton_Click" IsEnabled="False" ToolTip="選択した項目を展開する。選択していなければ書庫全体を展開する" />
                 <Button x:Name="AddButton"     Content="追加"     Click="AddButton_Click"     IsEnabled="False" ToolTip="ファイルを書庫に追加する。一覧にドラッグしても追加できる" />
@@ -92,22 +91,22 @@
             ツリーと一覧の1組を使い回して差し替える。TabControl の見た目は
             見出しの帯だけにしてある
         -->
-        <TabControl x:Name="ArchiveTabs"
-                    DockPanel.Dock="Top"
-                    SelectionChanged="ArchiveTabs_SelectionChanged"
-                    PreviewMouseDown="ArchiveTabs_PreviewMouseDown"
-                    Visibility="Collapsed">
-            <TabControl.Template>
-                <ControlTemplate TargetType="TabControl">
-                    <Border Background="{x:Static SystemColors.ControlBrush}"
-                            BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
-                            BorderThickness="0,0,0,1">
-                        <TabPanel IsItemsHost="True" Margin="4,4,4,0" />
-                    </Border>
-                </ControlTemplate>
-            </TabControl.Template>
-            <TabControl.ItemTemplate>
-                <DataTemplate DataType="{x:Type ui:ArchiveTab}">
+        <Border DockPanel.Dock="Top"
+                Background="{x:Static SystemColors.ControlBrush}"
+                BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <TabControl x:Name="ArchiveTabs"
+                            Margin="4,4,0,0"
+                            SelectionChanged="ArchiveTabs_SelectionChanged"
+                            PreviewMouseDown="ArchiveTabs_PreviewMouseDown">
+                    <TabControl.Template>
+                        <ControlTemplate TargetType="TabControl">
+                            <TabPanel IsItemsHost="True" />
+                        </ControlTemplate>
+                    </TabControl.Template>
+                    <TabControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type ui:ArchiveTab}">
                     <StackPanel Orientation="Horizontal" ToolTip="{Binding FilePath}">
                         <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
                         <!-- 閉じるボタン。エクスプローラーやブラウザと同じ位置に置く -->
@@ -122,9 +121,31 @@
                                 ToolTip="このタブを閉じる (Ctrl+W)"
                                 Click="CloseTabButton_Click" />
                     </StackPanel>
-                </DataTemplate>
-            </TabControl.ItemTemplate>
-        </TabControl>
+                        </DataTemplate>
+                    </TabControl.ItemTemplate>
+                </TabControl>
+
+                <!--
+                    エクスプローラーと同じく、タブの右で新しい書庫を作る (#22)。
+                    以前ツールバーにあった「新規作成」はここに移した。
+                    タブの中に置くと、WPF の TabControl は中の部品を
+                    支援技術に見せないため、外に出してある
+                -->
+                <Button x:Name="NewTabButton"
+                        Content="&#xE710;"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="10"
+                        Width="24" Height="22"
+                        Margin="4,4,4,0"
+                        Padding="0"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        VerticalAlignment="Bottom"
+                        ToolTip="新しい書庫を作って開く"
+                        AutomationProperties.Name="新しい書庫"
+                        Click="NewTabButton_Click" />
+            </StackPanel>
+        </Border>
 
         <!-- ステータスバー: 選択数 / 合計サイズ / 進捗 -->
         <StatusBar DockPanel.Dock="Bottom">

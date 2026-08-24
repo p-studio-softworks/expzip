@@ -174,8 +174,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void NewButton_Click(object sender, RoutedEventArgs e)
+    /// <summary>タブの右の + から、新しい書庫を作って開く (#22)。</summary>
+    private async void NewTabButton_Click(object sender, RoutedEventArgs e)
+        => await CreateArchiveAsync();
+
+    /// <summary>空の書庫を作り、新しいタブで開く。</summary>
+    private async Task CreateArchiveAsync()
     {
+        // 何かの処理中は受け付けない。ツールバーと違って + は止められないため
+        if (_cancellation is not null)
+        {
+            return;
+        }
+
         var dialog = new SaveFileDialog
         {
             Title = "新しい書庫を作成",
@@ -1075,9 +1086,6 @@ public partial class MainWindow : Window
     {
         _tabs.Add(tab);
 
-        // 1つでも開いていればタブの帯を出す。閉じるボタンがそこにあるため
-        ArchiveTabs.Visibility = Visibility.Visible;
-
         _switchingTab = true;
         try
         {
@@ -1157,8 +1165,6 @@ public partial class MainWindow : Window
         ExtractButton.IsEnabled = false;
         AddButton.IsEnabled = false;
         UpdateTitle(null);
-
-        ArchiveTabs.Visibility = _tabs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ArchiveTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1188,7 +1194,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (FindAncestor<TabItem>(e.OriginalSource as DependencyObject)?.DataContext is ArchiveTab tab)
+        if (e.OriginalSource is DependencyObject source
+            && FindAncestor<TabItem>(source)?.DataContext is ArchiveTab tab)
         {
             e.Handled = true;
             CloseTab(tab);
@@ -3249,7 +3256,7 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         OpenButton.IsEnabled = !busy;
-        NewButton.IsEnabled = !busy;
+        NewTabButton.IsEnabled = !busy;
         ExtractButton.IsEnabled = !busy && Contents is not null;
         AddButton.IsEnabled = !busy && Contents is { IsEditable: true };
         RefreshButton.IsEnabled = !busy && Contents is not null;
