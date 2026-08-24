@@ -211,6 +211,35 @@ internal static class ZipEncryptedWriter
     }
 
     /// <summary>
+    /// 書庫のパスワードを付け替える (#63)。
+    /// </summary>
+    /// <param name="oldPassword">いまのパスワード。付いていなければ <see langword="null"/>。</param>
+    /// <param name="newPassword">新しいパスワード。<see langword="null"/> なら外す。</param>
+    /// <remarks>
+    /// 中身は変わらないが、暗号化のやり直しになるため書庫全体を作り直す。
+    /// </remarks>
+    public static bool ChangePassword(
+        string archivePath,
+        string? oldPassword,
+        string? newPassword,
+        CompressionLevel compressionLevel,
+        IProgress<int>? progress,
+        CancellationToken cancellationToken)
+    {
+        var done = 0;
+
+        return Rewrite(
+            archivePath, oldPassword, compressionLevel, cancellationToken,
+            keep: name =>
+            {
+                progress?.Report(++done);
+                return name;
+            },
+            writePassword: newPassword,
+            changingPassword: true);
+    }
+
+    /// <summary>
     /// 書庫を作り直す。
     /// </summary>
     /// <param name="keep">
@@ -221,13 +250,18 @@ internal static class ZipEncryptedWriter
     /// <returns>書き換えられた場合は true。中断した場合は false。</returns>
     private static bool Rewrite(
         string archivePath,
-        string password,
+        string? password,
         CompressionLevel compressionLevel,
         CancellationToken cancellationToken,
         Func<string, string?> keep,
-        Action<EncryptedZipWriter>? append = null)
+        Action<EncryptedZipWriter>? append = null,
+        string? writePassword = null,
+        bool changingPassword = false)
     {
         var temp = archivePath + ZipArchiveWriter.TempSuffix;
+
+        // 付け替えのときだけ、読むときと書くときで合言葉が変わる
+        var outgoing = changingPassword ? writePassword : password;
 
         try
         {
@@ -236,10 +270,10 @@ internal static class ZipEncryptedWriter
             using (var output = new ZipOutputStream(stream))
             {
                 output.SetLevel(ToSharpLevel(compressionLevel));
-                output.Password = password;
+                output.Password = outgoing;
                 output.UseZip64 = UseZip64.Dynamic;
 
-                var writer = new EncryptedZipWriter(output);
+                var writer = new EncryptedZipWriter(output, encrypt: outgoing is not null);
 
                 foreach (ZipEntry entry in source)
                 {
@@ -279,8 +313,8 @@ internal static class ZipEncryptedWriter
         }
     }
 
-    /// <summary>暗号化しながら書き出す。</summary>
-    private sealed class EncryptedZipWriter(ZipOutputStream output)
+    /// <summary>書き出しの受け口。合言葉があるときは AES-256 で暗号化する。</summary>
+    private sealed class EncryptedZipWriter(ZipOutputStream output, bool encrypt = true)
     {
         public void WriteFolder(string entryName)
         {
@@ -294,7 +328,10 @@ internal static class ZipEncryptedWriter
             output.PutNextEntry(new ZipEntry(entryName)
             {
                 DateTime = lastWriteTime,
-                AESKeySize = AesKeySize,
+
+                // 合言葉が無いときに鍵長を指定すると、暗号化していないのに
+                // AES の印だけが付いた書庫になってしまう
+                AESKeySize = encrypt ? AesKeySize : 0,
                 IsUnicodeText = true,
                 CompressionMethod = CompressionMethod.Deflated,
             });
@@ -305,7 +342,7 @@ internal static class ZipEncryptedWriter
     }
 
     /// <summary>読み書きの両方で、一覧と同じ名前の読み方を使う。</summary>
-    private static SharpZipFile OpenSharp(string path, string password)
+    private static SharpZipFile OpenSharp(string path, string? password)
         => new(path)
         {
             Password = password,

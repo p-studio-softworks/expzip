@@ -15,8 +15,23 @@ internal sealed class PasswordDialog : Window
 {
     private readonly PasswordBox _input;
 
-    public PasswordDialog(Window owner, string archiveName, bool retry)
+    private readonly bool _allowEmpty;
+
+    /// <summary>取り出しや書き換えのために、いまの合言葉を尋ねる。</summary>
+    public static PasswordDialog Ask(Window owner, string archiveName, bool retry)
+        => new(owner, retry
+            ? $"パスワードが違います。{Environment.NewLine}「{archiveName}」のパスワードを入力してください。"
+            : $"「{archiveName}」はパスワードで保護されています。", allowEmpty: false);
+
+    /// <summary>
+    /// これから付けるパスワードを尋ねる (#63)。空のまま確定でき、その場合は外す意味になる。
+    /// </summary>
+    public static PasswordDialog Change(Window owner, string message)
+        => new(owner, message, allowEmpty: true);
+
+    private PasswordDialog(Window owner, string message, bool allowEmpty)
     {
+        _allowEmpty = allowEmpty;
         Owner = owner;
         Title = "パスワード";
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -28,11 +43,9 @@ internal sealed class PasswordDialog : Window
         _input = new PasswordBox { Margin = new Thickness(0, 8, 0, 0), Padding = new Thickness(4, 3, 4, 3) };
         _input.KeyDown += OnInputKeyDown;
 
-        var message = new TextBlock
+        var caption = new TextBlock
         {
-            Text = retry
-                ? $"パスワードが違います。{Environment.NewLine}「{archiveName}」のパスワードを入力してください。"
-                : $"「{archiveName}」はパスワードで保護されています。",
+            Text = message,
             TextWrapping = TextWrapping.Wrap,
         };
 
@@ -68,7 +81,7 @@ internal sealed class PasswordDialog : Window
         buttons.Children.Add(cancel);
 
         var layout = new StackPanel { Margin = new Thickness(16) };
-        layout.Children.Add(message);
+        layout.Children.Add(caption);
         layout.Children.Add(_input);
         layout.Children.Add(buttons);
         Content = layout;
@@ -93,7 +106,7 @@ internal sealed class PasswordDialog : Window
 
     private void Close(bool accepted)
     {
-        Password = accepted && _input.Password.Length > 0 ? _input.Password : null;
+        Password = accepted && (_allowEmpty || _input.Password.Length > 0) ? _input.Password : null;
         DialogResult = accepted && Password is not null;
         Close();
     }

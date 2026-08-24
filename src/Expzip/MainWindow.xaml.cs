@@ -213,20 +213,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        // パスワードを付けるかどうかをここで決める。中身を入れた後では、
-        // 既に暗号化されていないエントリが残ってしまう (#20)
-        var password = AskNewArchivePassword();
-
         try
         {
             ZipArchiveWriter.CreateEmpty(dialog.FileName);
-
-            if (password is not null)
-            {
-                // 空の書庫には暗号化するものが無い。合言葉を覚えておき、
-                // 最初に何かを入れるときから暗号化する
-                _passwords[dialog.FileName] = password;
-            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException)
@@ -1009,26 +998,141 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// 新しく作る書庫にパスワードを付けるか尋ねる (#20)。
-    /// </summary>
-    /// <returns>付ける場合は合言葉。付けない場合は <see langword="null"/>。</returns>
-    private string? AskNewArchivePassword()
-    {
-        var answer = MessageBox.Show(
-            this,
-            $"この書庫にパスワードを付けますか?{Environment.NewLine}{Environment.NewLine}"
-            + $"付ける場合、入れたファイルは AES-256 で暗号化されます。{Environment.NewLine}"
-            + "パスワードを忘れると中身は取り出せません。",
-            AppName, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+    private async void PasswordButton_Click(object sender, RoutedEventArgs e)
+        => await ChangePasswordAsync();
 
-        if (answer != MessageBoxResult.Yes)
+    /// <summary>
+    /// 書庫のパスワードを付ける・変える・外す (#63)。
+    /// </summary>
+    /// <remarks>
+    /// 書庫を作るときには尋ねない。作った後でも決められるようにしてある。
+    /// 中身のある書庫に付けた場合は、既にあるエントリも暗号化し直す。
+    /// </remarks>
+    private async Task ChangePasswordAsync()
+    {
+        if (!CanEdit || Contents is not { } contents)
         {
-            return null;
+            return;
         }
 
-        var dialog = new PasswordDialog(this, "新しい書庫", retry: false);
-        return dialog.ShowDialog() == true ? dialog.Password : null;
+        // いまのパスワード。付いていれば尋ねる
+        if (!TryGetPassword(out var current))
+        {
+            return;
+        }
+
+        var name = Path.GetFileName(contents.FilePath);
+        var message = current is null
+            ? $"「{name}」に付けるパスワードを入力してください。{Environment.NewLine}{Environment.NewLine}"
+              + $"入れたファイルは AES-256 で暗号化されます。{Environment.NewLine}"
+              + "パスワードを忘れると中身は取り出せません。"
+            : $"「{name}」の新しいパスワードを入力してください。{Environment.NewLine}{Environment.NewLine}"
+              + "空のままにするとパスワードを外します。";
+
+        var dialog = PasswordDialog.Change(this, message);
+        if (dialog.ShowDialog() != true || dialog.Password is not { } entered)
+        {
+            return;
+        }
+
+        var next = entered.Length == 0 ? null : entered;
+
+        if (next is null && current is null)
+        {
+            StatusMessage.Text = "この書庫にパスワードは付いていません";
+            return;
+        }
+
+        if (string.Equals(next, current, StringComparison.Ordinal))
+        {
+            StatusMessage.Text = "パスワードは変わっていません";
+            return;
+        }
+
+        // 中身が無ければ暗号化するものが無い。合言葉だけ覚えておき、
+        // 最初に何かを入れるときから暗号化する
+        if (contents.FileCount == 0)
+        {
+            RememberPassword(contents.FilePath, next);
+            StatusMessage.Text = next is null ? "パスワードを外しました" : "パスワードを設定しました";
+            return;
+        }
+
+        await RunPasswordChangeAsync(contents.FilePath, current, next);
+    }
+
+    /// <summary>覚えている合言葉を差し替える。</summary>
+    private void RememberPassword(string archivePath, string? password)
+    {
+        if (password is null)
+        {
+            _passwords.Remove(archivePath);
+        }
+        else
+        {
+            _passwords[archivePath] = password;
+        }
+    }
+
+    /// <summary>書庫を作り直してパスワードを付け替える。</summary>
+    private async Task RunPasswordChangeAsync(string archivePath, string? current, string? next)
+    {
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var level = SelectedCompressionLevel;
+        var restore = CurrentFolder?.FullPath;
+
+        // 暗号化のやり直しになるため、書庫全体を作り直すことになる (#20)
+        ProgressIndicator.IsIndeterminate = true;
+        StatusMessage.Text = next is null
+            ? "パスワードを外しています…"
+            : "パスワードを付けて書庫を作り直しています…";
+
+        var progress = new Progress<int>(done =>
+        {
+            StatusMessage.Text = $"書庫を作り直しています… ({done:N0} 件)";
+        });
+
+        var done = false;
+        try
+        {
+            done = await Task.Run(() => ZipEncryptedWriter.ChangePassword(
+                archivePath, current, next, level, progress, cancellation.Token));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                $"パスワードを変更できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
+                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            ProgressIndicator.IsIndeterminate = false;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        if (_closeWhenIdle || !done)
+        {
+            return;
+        }
+
+        RememberPassword(archivePath, next);
+        await OpenArchiveAsync(archivePath, restore);
+
+        // 読み直しで出た件数の代わりに、いま何をしたかを出す
+        StatusMessage.Text = next is null
+            ? "パスワードを外しました"
+            : "パスワードを設定しました (AES-256)";
     }
 
     // ------------------------------------------------------------------ タブ (#22)
@@ -1114,6 +1218,7 @@ public partial class MainWindow : Window
 
         // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
         AddButton.IsEnabled = contents.IsEditable;
+        PasswordButton.IsEnabled = contents.IsEditable;
         UpdateTitle(tab.Title);
 
         SelectInTree(tab.CurrentFolder);
@@ -1164,6 +1269,7 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = false;
         ExtractButton.IsEnabled = false;
         AddButton.IsEnabled = false;
+        PasswordButton.IsEnabled = false;
         UpdateTitle(null);
     }
 
@@ -1302,7 +1408,7 @@ public partial class MainWindow : Window
 
         for (var retry = false; ; retry = true)
         {
-            var dialog = new PasswordDialog(this, name, retry);
+            var dialog = PasswordDialog.Ask(this, name, retry);
             if (dialog.ShowDialog() != true || dialog.Password is not { } password)
             {
                 return null;
@@ -3260,6 +3366,9 @@ public partial class MainWindow : Window
         ExtractButton.IsEnabled = !busy && Contents is not null;
         AddButton.IsEnabled = !busy && Contents is { IsEditable: true };
         RefreshButton.IsEnabled = !busy && Contents is not null;
+
+        // パスワードを扱えるのは ZIP だけ (#63)
+        PasswordButton.IsEnabled = !busy && Contents is { IsEditable: true };
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;
 
