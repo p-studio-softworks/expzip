@@ -3897,17 +3897,27 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ 見た目の調整
 
     /// <summary>
-    /// ツールバー右端のオーバーフロー用矢印を消す。
-    /// WPF の ToolBar は入りきらない項目を畳むための領域を常に確保するため、
-    /// 何も畳まれていなくても矢印が表示されてしまう。
+    /// ツールバー右端のオーバーフロー用矢印を、畳まれた項目があるときだけ出す。
     /// </summary>
+    /// <remarks>
+    /// WPF の ToolBar は入りきらない項目を畳むための領域を常に確保するため、
+    /// 何も畳まれていなくても矢印が表示されてしまう。かといって消したままにすると、
+    /// 窓を狭めたときや文字の長い言語 (#23) で項目がはみ出したときに、
+    /// 畳まれたボタンへ手が届かなくなる。畳まれた項目の有無に結び付ける。
+    /// </remarks>
     private void ToolBar_Loaded(object sender, RoutedEventArgs e)
     {
         var toolBar = (ToolBar)sender;
 
         if (toolBar.Template.FindName("OverflowGrid", toolBar) is FrameworkElement overflowGrid)
         {
-            overflowGrid.Visibility = Visibility.Collapsed;
+            overflowGrid.SetBinding(
+                VisibilityProperty,
+                new System.Windows.Data.Binding(nameof(ToolBar.HasOverflowItems))
+                {
+                    Source = toolBar,
+                    Converter = new BooleanToVisibilityConverter(),
+                });
         }
 
         if (toolBar.Template.FindName("MainPanelBorder", toolBar) is FrameworkElement mainPanelBorder)
