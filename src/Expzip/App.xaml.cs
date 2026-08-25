@@ -1,5 +1,6 @@
 using System.Text;
 using System.Windows;
+using Expzip.Localization;
 
 namespace Expzip;
 
@@ -34,9 +35,7 @@ public partial class App : Application
 
         MessageBox.Show(
             base.MainWindow,
-            $"処理中に問題が起きました。{Environment.NewLine}"
-            + $"書庫は変更していません。{Environment.NewLine}{Environment.NewLine}"
-            + $"{e.Exception.GetType().Name}{Environment.NewLine}{e.Exception.Message}",
+            Strings.UnhandledError(e.Exception.GetType().Name, e.Exception.Message),
             "Expzip", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 }

@@ -1,19 +1,25 @@
 using System.IO.Compression;
+using Expzip.Localization;
 
 namespace Expzip.Ui;
 
 /// <summary>圧縮方式の選択肢 (#11)。</summary>
 /// <param name="Level">実際に使う圧縮の強さ。</param>
-/// <param name="Label">画面に出す名前。</param>
-internal sealed record CompressionLevelOption(CompressionLevel Level, string Label)
+internal sealed record CompressionLevelOption(CompressionLevel Level)
 {
+    /// <summary>
+    /// 画面に出す名前。
+    /// 言語を切り替えたら選択肢を作り直す前提で、その時点の文言を返す (#23)。
+    /// </summary>
+    public string Label => Strings.CompressionLevelLabel(Level);
+
     /// <summary>選べる圧縮方式。強さの弱い順に並べる。</summary>
     public static IReadOnlyList<CompressionLevelOption> All { get; } =
     [
-        new(CompressionLevel.NoCompression, "格納のみ"),
-        new(CompressionLevel.Fastest, "高速"),
-        new(CompressionLevel.Optimal, "標準"),
-        new(CompressionLevel.SmallestSize, "最大圧縮"),
+        new(CompressionLevel.NoCompression),
+        new(CompressionLevel.Fastest),
+        new(CompressionLevel.Optimal),
+        new(CompressionLevel.SmallestSize),
     ];
 
     /// <summary>既定の圧縮方式。</summary>

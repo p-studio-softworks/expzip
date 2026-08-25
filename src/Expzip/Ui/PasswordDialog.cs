@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Expzip.Localization;
 
 namespace Expzip.Ui;
 
@@ -20,8 +21,8 @@ internal sealed class PasswordDialog : Window
     /// <summary>取り出しや書き換えのために、いまの合言葉を尋ねる。</summary>
     public static PasswordDialog Ask(Window owner, string archiveName, bool retry)
         => new(owner, retry
-            ? $"パスワードが違います。{Environment.NewLine}「{archiveName}」のパスワードを入力してください。"
-            : $"「{archiveName}」はパスワードで保護されています。", allowEmpty: false);
+            ? Strings.AskPasswordAgain(archiveName)
+            : Strings.AskPassword(archiveName), allowEmpty: false);
 
     /// <summary>
     /// これから付けるパスワードを尋ねる (#63)。空のまま確定でき、その場合は外す意味になる。
@@ -33,7 +34,7 @@ internal sealed class PasswordDialog : Window
     {
         _allowEmpty = allowEmpty;
         Owner = owner;
-        Title = "パスワード";
+        Title = Strings.PasswordDialogTitle;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         SizeToContent = SizeToContent.Height;
         Width = 420;
@@ -51,7 +52,7 @@ internal sealed class PasswordDialog : Window
 
         var ok = new Button
         {
-            Content = "OK",
+            Content = Strings.PasswordOk,
             IsDefault = true,
             Width = 88,
             Height = 26,
@@ -62,7 +63,7 @@ internal sealed class PasswordDialog : Window
 
         var cancel = new Button
         {
-            Content = "キャンセル",
+            Content = Strings.PasswordCancel,
             IsCancel = true,
             Width = 88,
             Height = 26,

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using Expzip.Archives;
+using Expzip.Localization;
 
 namespace Expzip.Ui;
 
@@ -33,7 +34,7 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     public ArchiveFolder CurrentFolder { get; set; } = contents.Root;
 
     /// <summary>並び順。タブごとに覚える (仕様書 5.2)。</summary>
-    public string SortColumn { get; set; } = "名前";
+    public EntryColumn SortColumn { get; set; } = EntryColumn.Name;
 
     /// <summary>並び順が降順かどうか。</summary>
     public bool SortDescending { get; set; }
@@ -48,6 +49,12 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
 
     /// <summary>書庫ファイルのパス。同じ書庫を二重に開かないための照合に使う。</summary>
     public string FilePath => _contents.FilePath;
+
+    /// <summary>閉じるボタンの説明。見出しの中にあるため、束縛で言語を切り替える (#23)。</summary>
+    public string CloseTooltip => Strings.CloseTabTooltip;
+
+    /// <summary>言語が変わったことを見出しに伝える (#23)。</summary>
+    public void NotifyLanguageChanged() => Notify(nameof(CloseTooltip));
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

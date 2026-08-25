@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using Expzip.Archives;
+using Expzip.Localization;
 
 namespace Expzip.Ui;
 
@@ -95,11 +96,10 @@ internal sealed class EntryRow : INotifyPropertyChanged
 
     public string WarningGlyph => GlyphWarning;
 
-    public string? WarningTooltip => IsPathSuspicious
-        ? "このパスは通常の書庫では使われない形式です。"
-          + Environment.NewLine
-          + "展開しても、選んだフォルダの外には書き出されません。"
-        : null;
+    public string? WarningTooltip => IsPathSuspicious ? Strings.SuspiciousPathTooltip : null;
+
+    /// <summary>言語が変わったことを行に伝える (#23)。</summary>
+    public void NotifyLanguageChanged() => Notify(nameof(WarningTooltip));
 
     public string SizeText => Entry is null ? string.Empty : Entry.Length.ToString("N0");
 

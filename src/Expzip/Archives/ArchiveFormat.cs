@@ -1,4 +1,5 @@
 using System.IO;
+using Expzip.Localization;
 
 namespace Expzip.Archives;
 
@@ -37,12 +38,7 @@ internal static class ArchiveFormats
     ];
 
     /// <summary>「開く」ダイアログで使う絞り込み。</summary>
-    public const string OpenFilter =
-        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
-        + "|ZIP書庫 (*.zip)|*.zip"
-        + "|7z書庫 (*.7z)|*.7z"
-        + "|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
-        + "|すべてのファイル (*.*)|*.*";
+    public static string OpenFilter => Strings.OpenFilter;
 
     /// <summary>
     /// パスの拡張子から形式を判別する。
@@ -81,11 +77,5 @@ internal static class ArchiveFormats
     public static bool IsEditable(ArchiveFormat format) => format == ArchiveFormat.Zip;
 
     /// <summary>画面に出す形式の名前。</summary>
-    public static string DisplayName(ArchiveFormat format) => format switch
-    {
-        ArchiveFormat.Zip => "ZIP",
-        ArchiveFormat.SevenZip => "7z",
-        ArchiveFormat.Tar => "tar",
-        _ => "不明",
-    };
+    public static string DisplayName(ArchiveFormat format) => Strings.FormatName(format);
 }

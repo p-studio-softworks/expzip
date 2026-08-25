@@ -1,3 +1,5 @@
+using Expzip.Localization;
+
 namespace Expzip.Configuration;
 
 /// <summary>
@@ -35,4 +37,10 @@ internal sealed class AppSettings
     /// 何を指しているか分かるようにするため。
     /// </summary>
     public string CompressionLevel { get; set; } = "Optimal";
+
+    /// <summary>
+    /// 画面の言語 (#23)。<c>auto</c> / <c>ja</c> / <c>en</c>。
+    /// 既定の <c>auto</c> は Windows の表示言語に合わせる。
+    /// </summary>
+    public string Language { get; set; } = Strings.AutoPreference;
 }

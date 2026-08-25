@@ -6,12 +6,14 @@ using System.IO;
 using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Automation;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Expzip.Archives;
 using Expzip.Configuration;
+using Expzip.Localization;
 using Expzip.Ui;
 using Microsoft.Win32;
 
@@ -48,9 +50,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>現在の並び順。タブごとに覚える (仕様書 5.2)。</summary>
-    private string SortColumn
+    private EntryColumn SortColumn
     {
-        get => Tab?.SortColumn ?? "名前";
+        get => Tab?.SortColumn ?? EntryColumn.Name;
         set
         {
             if (Tab is { } tab)
@@ -140,7 +142,12 @@ public partial class MainWindow : Window
         ArchiveTabs.ItemsSource = _tabs;
 
         _settings = SettingsStore.Load();
+
+        // 画面に文字を貼る前に言語を決める (#23)。XAML には文言を書いていないため、
+        // ApplyLanguage を呼ぶまでツールバーもステータスバーも空のまま
+        Strings.Language = Strings.Resolve(_settings.Language);
         ApplySettings();
+        ApplyLanguage();
 
         // 異常終了で消し残した一時ファイルを片付ける (#12)。
         // 起動を待たせたくないので裏で行い、結果も見ない。動いている別の
@@ -163,7 +170,7 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "書庫を開く",
+            Title = Strings.OpenDialogTitle,
             Filter = ArchiveFormats.OpenFilter,
             CheckFileExists = true,
         };
@@ -189,11 +196,11 @@ public partial class MainWindow : Window
 
         var dialog = new SaveFileDialog
         {
-            Title = "新しい書庫を作成",
-            Filter = "ZIP書庫 (*.zip)|*.zip",
+            Title = Strings.NewArchiveDialogTitle,
+            Filter = Strings.ZipFilter,
             DefaultExt = ".zip",
             AddExtension = true,
-            FileName = "新しい書庫.zip",
+            FileName = Strings.NewArchiveFileName,
             // 上書きの確認はダイアログ側に任せる。既存の書庫を選ぶと中身が消えるため
             OverwritePrompt = true,
         };
@@ -222,8 +229,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"書庫を作成できませんでした。{Environment.NewLine}{Environment.NewLine}"
-                + $"{dialog.FileName}{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.CreateArchiveFailed(dialog.FileName, ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -278,8 +284,7 @@ public partial class MainWindow : Window
         var progress = new Progress<OpenProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
-            StatusMessage.Text = $"{fileName} を読み込んでいます… "
-                                 + $"({p.DoneEntries:N0} / {p.TotalEntries:N0} 件)";
+            StatusMessage.Text = Strings.Reading(fileName, p.DoneEntries, p.TotalEntries);
         });
 
         try
@@ -289,14 +294,14 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            StatusMessage.Text = "読み込みを中断しました";
+            StatusMessage.Text = Strings.ReadCancelled;
             return;
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
             MessageBox.Show(
                 this,
-                $"書庫を開けませんでした。{Environment.NewLine}{Environment.NewLine}{path}{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.OpenArchiveFailed(path, ex.Message),
                 AppName,
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -342,7 +347,7 @@ public partial class MainWindow : Window
 
         ShowActiveTab();
 
-        StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル{DescribeLimits(contents)}";
+        StatusMessage.Text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
 
         // 中身を取り出せないものが混じっている場合は、開いた時点で知らせる (#19)。
         // ZIP はパスワードを入れれば取り出せるため、ここでは黙っている (#20)
@@ -350,8 +355,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"この書庫には暗号化されたファイルが含まれています。{Environment.NewLine}{Environment.NewLine}"
-                + "一覧は読めますが、中身の取り出しには対応していません。",
+                Strings.EncryptedEntriesNotice,
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -361,10 +365,9 @@ public partial class MainWindow : Window
         SuspiciousWarningItem.Visibility = contents.SuspiciousCount > 0
             ? Visibility.Visible
             : Visibility.Collapsed;
-        SuspiciousWarningText.Text =
-            $"パスが通常ではない項目が {contents.SuspiciousCount:N0} 件あります";
-        TotalSizeInfo.Text = $"合計 {contents.TotalLength:N0} バイト "
-                           + $"(圧縮後 {contents.TotalCompressedLength:N0} バイト)";
+        SuspiciousWarningText.Text = Strings.SuspiciousCount(contents.SuspiciousCount);
+        TotalSizeInfo.Text = Strings.TotalSize(
+            contents.TotalLength, contents.TotalCompressedLength);
     }
 
     // ------------------------------------------------------------------ 圧縮方式
@@ -417,7 +420,7 @@ public partial class MainWindow : Window
 
         if (_settings.RecentArchives.Count == 0)
         {
-            menu.Items.Add(new MenuItem { Header = "(履歴はありません)", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = Strings.RecentEmpty, IsEnabled = false });
             return;
         }
 
@@ -442,7 +445,7 @@ public partial class MainWindow : Window
 
         menu.Items.Add(new Separator());
 
-        var clear = new MenuItem { Header = "履歴を消去(_C)" };
+        var clear = new MenuItem { Header = Strings.ClearRecent };
         clear.Click += (_, _) =>
         {
             _settings.RecentArchives.Clear();
@@ -463,8 +466,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"ファイルが見つかりませんでした。{Environment.NewLine}{Environment.NewLine}{path}"
-                + $"{Environment.NewLine}{Environment.NewLine}履歴から削除します。",
+                Strings.RecentMissing(path),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
 
             _settings.RecentArchives.RemoveAll(
@@ -730,13 +732,13 @@ public partial class MainWindow : Window
         // 区切り文字を許すと、名前の変更のつもりが移動になってしまう
         if (newName.IndexOfAny(['/', '\\']) >= 0)
         {
-            ShowRenameProblem("名前に \\ と / は使えません。フォルダの移動は名前の変更では行えません。");
+            ShowRenameProblem(Strings.RenameSeparatorNotAllowed);
             return false;
         }
 
         if (newName is "." or "..")
         {
-            ShowRenameProblem("その名前は使えません。");
+            ShowRenameProblem(Strings.RenameReservedName);
             return false;
         }
 
@@ -744,9 +746,7 @@ public partial class MainWindow : Window
         var invalid = newName.IndexOfAny(Path.GetInvalidFileNameChars());
         if (invalid >= 0)
         {
-            ShowRenameProblem(
-                $"名前に使えない文字が含まれています ({newName[invalid]})。"
-                + $"{Environment.NewLine}展開したときにファイルを作れなくなります。");
+            ShowRenameProblem(Strings.RenameInvalidCharacter(newName[invalid]));
             return false;
         }
 
@@ -760,7 +760,7 @@ public partial class MainWindow : Window
 
         if (duplicated)
         {
-            ShowRenameProblem($"このフォルダには既に「{newName}」があります。");
+            ShowRenameProblem(Strings.RenameDuplicate(newName));
             return false;
         }
 
@@ -785,7 +785,7 @@ public partial class MainWindow : Window
         var level = SelectedCompressionLevel;
         var progress = new Progress<int>(done =>
         {
-            StatusMessage.Text = $"名前を変更しています… ({done:N0} 件)";
+            StatusMessage.Text = Strings.Renaming(done);
         });
 
         RenameResult? result = null;
@@ -802,7 +802,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"名前を変更できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.RenameFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -823,7 +823,7 @@ public partial class MainWindow : Window
 
         if (result.Cancelled)
         {
-            StatusMessage.Text = "名前の変更を中断しました";
+            StatusMessage.Text = Strings.RenameCancelled;
             return;
         }
 
@@ -831,7 +831,7 @@ public partial class MainWindow : Window
         // 無くなっているため、その親を表示する
         var restore = isFolder && restorePath.Length == 0 ? null : restorePath;
         await OpenArchiveAsync(archivePath, restore);
-        StatusMessage.Text = $"{result.Renamed:N0} 件の名前を変更しました";
+        StatusMessage.Text = Strings.RenameDone(result.Renamed);
     }
 
     private async void EntryList_KeyDown(object sender, KeyEventArgs e)
@@ -912,7 +912,7 @@ public partial class MainWindow : Window
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         SetBusy(true);
-        StatusMessage.Text = "フォルダを作っています…";
+        StatusMessage.Text = Strings.CreatingFolder;
 
         var created = false;
         try
@@ -926,7 +926,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"フォルダを作れませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.CreateFolderFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -947,7 +947,7 @@ public partial class MainWindow : Window
 
         // 書庫が変わったので開き直す。同じ場所に戻る
         await OpenArchiveAsync(archivePath, parent);
-        StatusMessage.Text = $"「{name}」を作りました";
+        StatusMessage.Text = Strings.FolderCreated(name);
 
         // 作った直後は名前を打ち替えたいことがほとんど
         var row = EntryList.Items.OfType<EntryRow>()
@@ -970,7 +970,7 @@ public partial class MainWindow : Window
     /// </summary>
     private static string UniqueFolderName(ArchiveFolder folder)
     {
-        const string BaseName = "新しいフォルダー";
+        var baseName = Strings.NewFolderName;
 
         var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var child in folder.Folders)
@@ -983,14 +983,14 @@ public partial class MainWindow : Window
             taken.Add(file.Name);
         }
 
-        if (!taken.Contains(BaseName))
+        if (!taken.Contains(baseName))
         {
-            return BaseName;
+            return baseName;
         }
 
         for (var number = 2; ; number++)
         {
-            var candidate = $"{BaseName} ({number})";
+            var candidate = $"{baseName} ({number})";
             if (!taken.Contains(candidate))
             {
                 return candidate;
@@ -1023,11 +1023,8 @@ public partial class MainWindow : Window
 
         var name = Path.GetFileName(contents.FilePath);
         var message = current is null
-            ? $"「{name}」に付けるパスワードを入力してください。{Environment.NewLine}{Environment.NewLine}"
-              + $"入れたファイルは AES-256 で暗号化されます。{Environment.NewLine}"
-              + "パスワードを忘れると中身は取り出せません。"
-            : $"「{name}」の新しいパスワードを入力してください。{Environment.NewLine}{Environment.NewLine}"
-              + "空のままにするとパスワードを外します。";
+            ? Strings.SetPasswordPrompt(name)
+            : Strings.ChangePasswordPrompt(name);
 
         var dialog = PasswordDialog.Change(this, message);
         if (dialog.ShowDialog() != true || dialog.Password is not { } entered)
@@ -1039,13 +1036,13 @@ public partial class MainWindow : Window
 
         if (next is null && current is null)
         {
-            StatusMessage.Text = "この書庫にパスワードは付いていません";
+            StatusMessage.Text = Strings.NoPasswordSet;
             return;
         }
 
         if (string.Equals(next, current, StringComparison.Ordinal))
         {
-            StatusMessage.Text = "パスワードは変わっていません";
+            StatusMessage.Text = Strings.PasswordUnchanged;
             return;
         }
 
@@ -1054,7 +1051,7 @@ public partial class MainWindow : Window
         if (contents.FileCount == 0)
         {
             RememberPassword(contents.FilePath, next);
-            StatusMessage.Text = next is null ? "パスワードを外しました" : "パスワードを設定しました";
+            StatusMessage.Text = next is null ? Strings.PasswordRemoved : Strings.PasswordSet;
             return;
         }
 
@@ -1086,13 +1083,11 @@ public partial class MainWindow : Window
 
         // 暗号化のやり直しになるため、書庫全体を作り直すことになる (#20)
         ProgressIndicator.IsIndeterminate = true;
-        StatusMessage.Text = next is null
-            ? "パスワードを外しています…"
-            : "パスワードを付けて書庫を作り直しています…";
+        StatusMessage.Text = next is null ? Strings.RemovingPassword : Strings.ApplyingPassword;
 
         var progress = new Progress<int>(done =>
         {
-            StatusMessage.Text = $"書庫を作り直しています… ({done:N0} 件)";
+            StatusMessage.Text = Strings.Rebuilding(done);
         });
 
         var done = false;
@@ -1105,8 +1100,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"パスワードを変更できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
-                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                Strings.ChangePasswordFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -1130,9 +1124,7 @@ public partial class MainWindow : Window
         await OpenArchiveAsync(archivePath, restore);
 
         // 読み直しで出た件数の代わりに、いま何をしたかを出す
-        StatusMessage.Text = next is null
-            ? "パスワードを外しました"
-            : "パスワードを設定しました (AES-256)";
+        StatusMessage.Text = next is null ? Strings.PasswordRemoved : Strings.PasswordSetAes;
     }
 
     // ------------------------------------------------------------------ タブ (#22)
@@ -1225,7 +1217,7 @@ public partial class MainWindow : Window
         Navigate(tab.CurrentFolder);
         RestoreSelection(tab);
 
-        StatusMessage.Text = $"{contents.FileCount:N0} 個のファイル{DescribeLimits(contents)}";
+        StatusMessage.Text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
     }
 
     /// <summary>タブに戻ったときに、前に選んでいた項目を選び直す。</summary>
@@ -1261,10 +1253,10 @@ public partial class MainWindow : Window
         AddressBar.ToolTip = null;
         SuspiciousWarningItem.Visibility = Visibility.Collapsed;
         TotalSizeInfo.Text = string.Empty;
-        SelectionInfo.Text = "選択 0 個";
-        StatusMessage.Text = "書庫が開かれていません";
+        SelectionInfo.Text = Strings.SelectionNone;
+        StatusMessage.Text = Strings.NoArchiveOpen;
         EmptyStateMessage.Visibility = Visibility.Visible;
-        EmptyStateMessage.Text = "書庫が開かれていません";
+        EmptyStateMessage.Text = Strings.NoArchiveOpen;
 
         RefreshButton.IsEnabled = false;
         ExtractButton.IsEnabled = false;
@@ -1376,14 +1368,12 @@ public partial class MainWindow : Window
     {
         if (contents.RequiresPassword)
         {
-            return contents.UsesAes
-                ? " (パスワード付き / AES)"
-                : " (パスワード付き)";
+            return contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted;
         }
 
         return contents.IsEditable
             ? string.Empty
-            : $" ({ArchiveFormats.DisplayName(contents.Format)} は読み取りのみに対応)";
+            : Strings.LimitReadOnly(ArchiveFormats.DisplayName(contents.Format));
     }
 
     /// <summary>
@@ -1494,16 +1484,12 @@ public partial class MainWindow : Window
 
         // 取り消せない操作なので、何がいくつ消えるかを示してから確認する
         var preview = string.Join(Environment.NewLine, rows.Take(5).Select(static r => "  " + r.Name));
-        var more = rows.Count > 5 ? $"{Environment.NewLine}  ほか {rows.Count - 5:N0} 件" : string.Empty;
-        var detail = folders.Count > 0
-            ? $"{Environment.NewLine}{Environment.NewLine}フォルダの中身を含めて {affected:N0} 個のファイルが削除されます。"
-            : string.Empty;
+        var more = rows.Count > 5 ? Strings.More(rows.Count - 5) : string.Empty;
+        var detail = folders.Count > 0 ? Strings.DeleteFolderDetail(affected) : string.Empty;
 
         var answer = MessageBox.Show(
             this,
-            $"選択した {rows.Count:N0} 個の項目を書庫から削除します。"
-            + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}{detail}"
-            + $"{Environment.NewLine}{Environment.NewLine}この操作は取り消せません。削除しますか?",
+            Strings.ConfirmDelete(rows.Count, preview, more, detail),
             AppName,
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning,
@@ -1533,7 +1519,7 @@ public partial class MainWindow : Window
 
         // 削除は書庫全体の書き直しが1回走るだけなので、進捗を刻めない
         ProgressIndicator.IsIndeterminate = true;
-        StatusMessage.Text = "削除しています…";
+        StatusMessage.Text = Strings.Deleting;
 
         try
         {
@@ -1543,23 +1529,22 @@ public partial class MainWindow : Window
 
             if (result.Cancelled)
             {
-                StatusMessage.Text = "削除を中断しました";
+                StatusMessage.Text = Strings.DeleteCancelled;
                 MessageBox.Show(
                     this,
-                    $"削除を中断しました。{Environment.NewLine}{Environment.NewLine}書庫は変更していません。",
+                    Strings.DeleteCancelledDetail,
                     AppName, MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
-                StatusMessage.Text = $"{result.Deleted:N0} 個の項目を削除しました";
+                StatusMessage.Text = Strings.DeleteDone(result.Deleted);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             MessageBox.Show(
                 this,
-                $"削除できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
-                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                Strings.DeleteFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -1594,8 +1579,8 @@ public partial class MainWindow : Window
 
         var dialog = new OpenFileDialog
         {
-            Title = "書庫に追加するファイルを選択",
-            Filter = "すべてのファイル (*.*)|*.*",
+            Title = Strings.AddDialogTitle,
+            Filter = Strings.AllFilesFilter,
             Multiselect = true,
             CheckFileExists = true,
         };
@@ -1758,8 +1743,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"追加先の書庫がありません。{Environment.NewLine}{Environment.NewLine}"
-                + "先に書庫を開くか、「新規作成」で作ってください。",
+                Strings.NoArchiveToAddTo,
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -1769,9 +1753,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"{ArchiveFormats.DisplayName(Contents.Format)} 書庫にはファイルを追加できません。"
-                + $"{Environment.NewLine}{Environment.NewLine}"
-                + "この形式は読み取りのみに対応しています。",
+                Strings.FormatIsReadOnly(ArchiveFormats.DisplayName(Contents.Format)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -1802,14 +1784,11 @@ public partial class MainWindow : Window
         if (conflicts.Count > 0)
         {
             var preview = string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c));
-            var more = conflicts.Count > 5 ? $"{Environment.NewLine}  ほか {conflicts.Count - 5:N0} 件" : string.Empty;
+            var more = conflicts.Count > 5 ? Strings.More(conflicts.Count - 5) : string.Empty;
 
             var answer = MessageBox.Show(
                 this,
-                $"同じ名前の項目が書庫内に {conflicts.Count:N0} 件あります。置き換えますか?"
-                + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
-                + $"{Environment.NewLine}{Environment.NewLine}"
-                + "「いいえ」を選ぶと、それらは書庫内のまま残します。",
+                Strings.ConfirmReplace(conflicts.Count, preview, more),
                 AppName, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
 
             if (answer == MessageBoxResult.Cancel)
@@ -1830,7 +1809,7 @@ public partial class MainWindow : Window
         var progress = new Progress<AddProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
-            StatusMessage.Text = $"追加中: {p.CurrentName}";
+            StatusMessage.Text = Strings.Adding(p.CurrentName);
         });
 
         // パスワード付きの書庫は、残すエントリも暗号化し直すため書庫全体を作り直す。
@@ -1838,7 +1817,7 @@ public partial class MainWindow : Window
         if (password is not null)
         {
             ProgressIndicator.IsIndeterminate = true;
-            StatusMessage.Text = "パスワード付きの書庫を作り直しています…";
+            StatusMessage.Text = Strings.RebuildingEncrypted;
         }
 
         try
@@ -1857,8 +1836,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"書庫に追加できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
-                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                Strings.AddFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -1882,27 +1860,25 @@ public partial class MainWindow : Window
     {
         if (result.Cancelled)
         {
-            StatusMessage.Text = "追加を中断しました";
+            StatusMessage.Text = Strings.AddCancelled;
             MessageBox.Show(
                 this,
-                $"追加を中断しました。{Environment.NewLine}{Environment.NewLine}"
-                + "書庫は変更していません。作業用の複製に対して処理していたため、"
-                + $"{Environment.NewLine}中断しても元の書庫はそのまま残ります。",
+                Strings.AddCancelledDetail,
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var message = new System.Text.StringBuilder();
-        message.AppendLine($"追加したファイル: {result.Added:N0} 個");
+        message.AppendLine(Strings.AddedFilesLine(result.Added));
 
         if (result.Replaced > 0)
         {
-            message.AppendLine($"置き換えたファイル: {result.Replaced:N0} 個");
+            message.AppendLine(Strings.ReplacedFilesLine(result.Replaced));
         }
 
         if (result.Skipped > 0)
         {
-            message.AppendLine($"置き換えず残したファイル: {result.Skipped:N0} 個");
+            message.AppendLine(Strings.KeptFilesLine(result.Skipped));
         }
 
         var icon = MessageBoxImage.Information;
@@ -1910,14 +1886,14 @@ public partial class MainWindow : Window
         {
             icon = MessageBoxImage.Warning;
             message.AppendLine();
-            message.AppendLine($"追加できなかったファイル: {result.Failed.Count:N0} 個");
+            message.AppendLine(Strings.FailedFilesLine(result.Failed.Count));
             foreach (var (name, reason) in result.Failed.Take(5))
             {
-                message.AppendLine($"  {name} … {reason}");
+                message.AppendLine(Strings.FailureLine(name, reason));
             }
         }
 
-        StatusMessage.Text = $"{result.Added + result.Replaced:N0} 個のファイルを追加しました";
+        StatusMessage.Text = Strings.AddDone(result.Added + result.Replaced);
 
         // うまくいった場合はステータスバーだけにする。ファイルを放り込むたびに
         // ダイアログを閉じさせるのは邪魔でしかない。伝えることがある場合だけ出す
@@ -1967,9 +1943,8 @@ public partial class MainWindow : Window
         // 書き戻せない形式では見張らない。尋ねても応えられない (#19)
         if (Contents is not { IsEditable: true })
         {
-            StatusMessage.Text = $"{entry.Name} を開きました "
-                                 + $"({ArchiveFormats.DisplayName(Contents!.Format)} は読み取りのみのため、"
-                                 + "書き換えても書庫には戻りません)";
+            StatusMessage.Text = Strings.OpenedReadOnly(
+                entry.Name, ArchiveFormats.DisplayName(Contents!.Format));
             return;
         }
 
@@ -1986,7 +1961,7 @@ public partial class MainWindow : Window
         }
 
         _editWatch.Start();
-        StatusMessage.Text = $"{entry.Name} を開きました。保存すると書庫へ反映するか尋ねます";
+        StatusMessage.Text = Strings.OpenedWatching(entry.Name);
     }
 
     /// <summary>書庫内のパスから、その親フォルダのパスを取り出す。</summary>
@@ -2019,9 +1994,7 @@ public partial class MainWindow : Window
         {
             var answer = MessageBox.Show(
                 this,
-                $"{changed.EntryPath}{Environment.NewLine}{Environment.NewLine}"
-                + $"編集されました。書庫に反映しますか?{Environment.NewLine}{Environment.NewLine}"
-                + "「いいえ」を選んでも編集内容は残ります。アプリを終了するときに改めて尋ねます。",
+                Strings.ConfirmApplyEdit(changed.EntryPath),
                 AppName, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
 
             if (answer == MessageBoxResult.Yes)
@@ -2052,7 +2025,7 @@ public partial class MainWindow : Window
         var progress = new Progress<AddProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
-            StatusMessage.Text = $"{session.Name} を書庫に反映しています…";
+            StatusMessage.Text = Strings.ApplyingEdit(session.Name);
         });
 
         AddResult? result = null;
@@ -2072,8 +2045,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"書庫に反映できませんでした。{Environment.NewLine}{Environment.NewLine}"
-                + $"{session.EntryPath}{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.ApplyEditFailed(session.EntryPath, ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -2084,7 +2056,7 @@ public partial class MainWindow : Window
 
         if (result is null || result.Cancelled)
         {
-            StatusMessage.Text = "反映を中断しました";
+            StatusMessage.Text = Strings.ApplyEditCancelled;
             return false;
         }
 
@@ -2092,8 +2064,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"書庫に反映できませんでした。{Environment.NewLine}{Environment.NewLine}"
-                + $"{session.EntryPath}{Environment.NewLine}{Environment.NewLine}{result.Failed[0].Reason}",
+                Strings.ApplyEditFailed(session.EntryPath, result.Failed[0].Reason),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -2130,7 +2101,7 @@ public partial class MainWindow : Window
             await OpenArchiveAsync(session.ArchivePath, CurrentFolder?.FullPath);
         }
 
-        StatusMessage.Text = $"{session.Name} を書庫に反映しました";
+        StatusMessage.Text = Strings.ApplyEditDone(session.Name);
         return true;
     }
 
@@ -2146,12 +2117,11 @@ public partial class MainWindow : Window
             return true;
         }
 
-        var names = string.Join(Environment.NewLine, pending.Select(static s => "・" + s.EntryPath));
+        var names = string.Join(
+            Environment.NewLine, pending.Select(static s => Strings.Bullet + s.EntryPath));
         var answer = MessageBox.Show(
             this,
-            $"書庫に反映していない編集があります。{Environment.NewLine}{Environment.NewLine}{names}"
-            + $"{Environment.NewLine}{Environment.NewLine}反映してから終了しますか?{Environment.NewLine}"
-            + "「いいえ」を選ぶと編集内容は失われます。",
+            Strings.ConfirmPendingEdits(names),
             AppName, MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes);
 
         if (answer == MessageBoxResult.Cancel)
@@ -2393,14 +2363,14 @@ public partial class MainWindow : Window
         var names = CollectSourceNames(rows);
         if (names.Count == 0)
         {
-            StatusMessage.Text = "取り出せるファイルがありません";
+            StatusMessage.Text = Strings.NothingToExtract;
             return;
         }
 
         // ドラッグの前に合言葉を用意する。掴んだ後では尋ねられない (#20)
         if (!TryGetPassword(out var dragPassword))
         {
-            StatusMessage.Text = "取り出しを取りやめました";
+            StatusMessage.Text = Strings.DragCancelled;
             return;
         }
 
@@ -2422,7 +2392,7 @@ public partial class MainWindow : Window
             var zone = MarkOfTheWeb.TryRead(Contents.FilePath);
 
             Mouse.OverrideCursor = Cursors.Wait;
-            StatusMessage.Text = $"{names.Count:N0} 件を取り出しています…";
+            StatusMessage.Text = Strings.ExtractingCount(names.Count);
 
             // 既に取り出してあるものは触らない。開いたままのアプリに掴まれていて
             // 上書きできない場合でも、ドラッグ自体は成り立つようにする
@@ -2447,7 +2417,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"取り出しに失敗しました。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.DragExtractFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -2458,7 +2428,7 @@ public partial class MainWindow : Window
 
         if (paths.Length == 0)
         {
-            StatusMessage.Text = "取り出せませんでした。ドラッグを開始できません";
+            StatusMessage.Text = Strings.DragCannotStart;
             return;
         }
 
@@ -2482,14 +2452,14 @@ public partial class MainWindow : Window
             // 書庫の中へ落とされた場合は移動の側で知らせる
             if (effect == DragDropEffects.Copy)
             {
-                StatusMessage.Text = $"{paths.Length:N0} 件を取り出しました";
+                StatusMessage.Text = Strings.DragExtracted(paths.Length);
             }
         }
         catch (COMException)
         {
             // ドロップ先のアプリが応答しないなどで失敗することがある。
             // 取り出したファイルは置き場に残り、終了時に片付く
-            StatusMessage.Text = "ドラッグを完了できませんでした";
+            StatusMessage.Text = Strings.DragFailed;
         }
         finally
         {
@@ -2560,13 +2530,9 @@ public partial class MainWindow : Window
 
         MessageBox.Show(
             this,
-            $"ドラッグで取り出せるのは {DragOutFileLimit:N0} 件 / "
-            + $"{DragOutByteLimit / 1024 / 1024:N0}MB までです。"
-            + $"{Environment.NewLine}選択されているのは {names.Count:N0} 件 / "
-            + $"{totalBytes / 1024 / 1024:N0}MB です。"
-            + $"{Environment.NewLine}{Environment.NewLine}"
-            + "ドラッグでは取り出しが終わるまで操作を受け付けられないため、"
-            + $"{Environment.NewLine}この量では「展開」を使ってください。中断もできます。",
+            Strings.DragTooLarge(
+                DragOutFileLimit, DragOutByteLimit / 1024 / 1024,
+                names.Count, totalBytes / 1024 / 1024),
             AppName, MessageBoxButton.OK, MessageBoxImage.Information);
 
         return false;
@@ -2610,10 +2576,8 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"移動先に同じ名前の項目があります。{Environment.NewLine}{Environment.NewLine}"
-                + string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c))
-                + $"{Environment.NewLine}{Environment.NewLine}"
-                + "名前を変えてから移動してください。",
+                Strings.MoveConflict(string.Join(
+                    Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c))),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -2634,7 +2598,7 @@ public partial class MainWindow : Window
 
         var progress = new Progress<int>(done =>
         {
-            StatusMessage.Text = $"移動しています… ({done:N0} 件)";
+            StatusMessage.Text = Strings.Moving(done);
         });
 
         RenameResult? result = null;
@@ -2648,8 +2612,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"移動できませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}"
-                + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
+                Strings.MoveFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -2670,13 +2633,13 @@ public partial class MainWindow : Window
 
         if (result.Cancelled)
         {
-            StatusMessage.Text = "移動を中断しました";
+            StatusMessage.Text = Strings.MoveCancelled;
             return;
         }
 
         // 書庫が変わったので開き直す。移動先を見せたほうが結果が分かりやすい
         await OpenArchiveAsync(archivePath, target.FullPath);
-        StatusMessage.Text = $"{move.Items.Count:N0} 件を移動しました";
+        StatusMessage.Text = Strings.MoveDone(move.Items.Count);
     }
 
     // ------------------------------------------------------------------ 展開
@@ -2714,9 +2677,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"このファイルは開けません。{Environment.NewLine}{Environment.NewLine}"
-                + $"{entry.SourceName}{Environment.NewLine}{Environment.NewLine}"
-                + "書庫の外を指すパスが指定されています。",
+                Strings.CannotOpenOutsidePath(entry.SourceName),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -2780,10 +2741,7 @@ public partial class MainWindow : Window
     private bool ConfirmExecutable(string fileName)
         => MessageBox.Show(
             this,
-            $"{fileName}{Environment.NewLine}{Environment.NewLine}"
-            + $"このファイルは開くと実行されます。{Environment.NewLine}"
-            + $"出所の分からない書庫の場合は開かないでください。{Environment.NewLine}{Environment.NewLine}"
-            + "続けますか?",
+            Strings.ConfirmExecutable(fileName),
             AppName,
             MessageBoxButton.OKCancel,
             MessageBoxImage.Warning,
@@ -2815,7 +2773,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void ReportTempFailure(Exception ex)
     {
-        StatusMessage.Text = "一時フォルダを使えないため、ファイルを開けません";
+        StatusMessage.Text = Strings.TempUnavailable;
 
         if (_tempUnavailableReported)
         {
@@ -2825,9 +2783,7 @@ public partial class MainWindow : Window
         _tempUnavailableReported = true;
         MessageBox.Show(
             this,
-            $"ファイルを開くための一時フォルダを用意できませんでした。{Environment.NewLine}"
-            + $"「展開」で場所を指定すれば取り出せます。{Environment.NewLine}{Environment.NewLine}"
-            + $"{TempWorkspace.Root}{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+            Strings.TempUnavailableDetail(TempWorkspace.Root, ex.Message),
             AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
@@ -2864,7 +2820,7 @@ public partial class MainWindow : Window
         var progress = new Progress<ExtractProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
-            StatusMessage.Text = $"{entry.Name} を取り出しています…";
+            StatusMessage.Text = Strings.ExtractingOne(entry.Name);
         });
 
         try
@@ -2886,7 +2842,7 @@ public partial class MainWindow : Window
 
             if (result.Cancelled)
             {
-                StatusMessage.Text = "取り出しを中断しました";
+                StatusMessage.Text = Strings.ExtractOneCancelled;
                 return false;
             }
 
@@ -2894,11 +2850,11 @@ public partial class MainWindow : Window
             {
                 var reason = result.Failed.Count > 0
                     ? result.Failed[0].Reason
-                    : "書庫から取り出せませんでした。";
+                    : Strings.ExtractOneFailedReason;
 
                 MessageBox.Show(
                     this,
-                    $"{entry.Name} を開けませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+                    Strings.OpenEntryFailed(entry.Name, reason),
                     AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
@@ -2909,7 +2865,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"{entry.Name} を開けませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.OpenEntryFailed(entry.Name, ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -2941,7 +2897,7 @@ public partial class MainWindow : Window
             {
             }
 
-            StatusMessage.Text = $"{Path.GetFileName(path)} を既定のアプリで開きました";
+            StatusMessage.Text = Strings.OpenedWithDefaultApp(Path.GetFileName(path));
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == NoAssociation)
         {
@@ -2951,14 +2907,14 @@ public partial class MainWindow : Window
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == Cancelled)
         {
-            StatusMessage.Text = "開くのを取り消しました";
+            StatusMessage.Text = Strings.OpenLaunchCancelled;
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException
                                    or FileNotFoundException or ObjectDisposedException)
         {
             MessageBox.Show(
                 this,
-                $"既定のアプリで開けませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.DefaultAppFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -2976,14 +2932,14 @@ public partial class MainWindow : Window
             {
             }
 
-            StatusMessage.Text = $"{Path.GetFileName(path)} を開くアプリを選んでください";
+            StatusMessage.Text = Strings.ChooseAppPrompt(Path.GetFileName(path));
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException
                                    or FileNotFoundException)
         {
             MessageBox.Show(
                 this,
-                $"このファイルを開けるアプリが見つかりませんでした。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.NoAppFound(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -2998,7 +2954,7 @@ public partial class MainWindow : Window
         }
 
         var selection = CollectSelectedSourceNames();
-        var title = "選択した項目の展開先を選択";
+        var title = Strings.ExtractSelectedTitle;
 
         // 選んだものを展開先の最上位に置く。書庫のルートからの階層は作らない (#48)。
         // 一覧で選んだ場合はいま開いているフォルダまで、ツリーで選んだ場合は
@@ -3018,14 +2974,14 @@ public partial class MainWindow : Window
                 {
                     selection = names;
                     basePath = current.Parent.FullPath;
-                    title = $"「{current.Name}」の展開先を選択";
+                    title = Strings.ExtractFolderTitle(current.Name);
                 }
             }
 
             if (selection is null)
             {
                 basePath = null;
-                title = "書庫全体の展開先を選択";
+                title = Strings.ExtractAllTitle;
             }
         }
 
@@ -3059,16 +3015,11 @@ public partial class MainWindow : Window
         if (conflicts.Count > 0)
         {
             var preview = string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c));
-            var more = conflicts.Count > 5
-                ? $"{Environment.NewLine}  ほか {conflicts.Count - 5:N0} 件"
-                : string.Empty;
+            var more = conflicts.Count > 5 ? Strings.More(conflicts.Count - 5) : string.Empty;
 
             var answer = MessageBox.Show(
                 this,
-                $"展開先に同じ名前のファイルが {conflicts.Count:N0} 件あります。上書きしますか?"
-                + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
-                + $"{Environment.NewLine}{Environment.NewLine}"
-                + "「いいえ」を選ぶと、それらは展開せずに残します。",
+                Strings.ConfirmOverwrite(conflicts.Count, preview, more),
                 AppName,
                 MessageBoxButton.YesNoCancel,
                 MessageBoxImage.Question);
@@ -3148,7 +3099,7 @@ public partial class MainWindow : Window
         // パスワード付きの書庫では、始める前に合言葉を用意する (#20)
         if (!TryGetPassword(out var password))
         {
-            StatusMessage.Text = "展開を取りやめました";
+            StatusMessage.Text = Strings.ExtractCalledOff;
             return;
         }
 
@@ -3159,7 +3110,7 @@ public partial class MainWindow : Window
         var progress = new Progress<ExtractProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
-            StatusMessage.Text = $"展開中: {p.CurrentName}";
+            StatusMessage.Text = Strings.Extracting(p.CurrentName);
         });
 
         try
@@ -3177,7 +3128,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                $"展開に失敗しました。{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                Strings.ExtractFailed(ex.Message),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -3203,7 +3154,7 @@ public partial class MainWindow : Window
         // 二度押しを防ぎ、要求が伝わったことを見せる。
         // 実際に止まるのは処理側が次に中断を確認した時点。
         CancelButton.IsEnabled = false;
-        StatusMessage.Text = "中断しています…";
+        StatusMessage.Text = Strings.Stopping;
         _cancellation.Cancel();
     }
 
@@ -3242,7 +3193,7 @@ public partial class MainWindow : Window
         if (!_cancellation.IsCancellationRequested)
         {
             CancelButton.IsEnabled = false;
-            StatusMessage.Text = "中断しています…";
+            StatusMessage.Text = Strings.Stopping;
             _cancellation.Cancel();
         }
     }
@@ -3250,27 +3201,27 @@ public partial class MainWindow : Window
     private void ShowExtractResult(ExtractResult result, string destination)
     {
         StatusMessage.Text = result.Cancelled
-            ? $"展開を中断しました({result.Extracted:N0} 個展開済み)"
-            : $"{result.Extracted:N0} 個のファイルを展開しました";
+            ? Strings.ExtractCancelledStatus(result.Extracted)
+            : Strings.ExtractDone(result.Extracted);
 
         var message = new System.Text.StringBuilder();
 
         if (result.Cancelled)
         {
             // 中断は失敗ではないので、警告ではなく事実だけを伝える
-            message.AppendLine("展開を中断しました。");
-            message.AppendLine("中断までに展開したファイルはそのまま残してあります。");
-            message.AppendLine("書きかけだったファイルは削除しました。");
+            message.AppendLine(Strings.ExtractCancelledLine1);
+            message.AppendLine(Strings.ExtractCancelledLine2);
+            message.AppendLine(Strings.ExtractCancelledLine3);
             message.AppendLine();
         }
 
-        message.AppendLine($"展開先: {destination}");
+        message.AppendLine(Strings.ExtractDestinationLine(destination));
         message.AppendLine();
-        message.AppendLine($"展開したファイル: {result.Extracted:N0} 個");
+        message.AppendLine(Strings.ExtractedFilesLine(result.Extracted));
 
         if (result.Skipped > 0)
         {
-            message.AppendLine($"上書きせず残したファイル: {result.Skipped:N0} 個");
+            message.AppendLine(Strings.SkippedFilesLine(result.Skipped));
         }
 
         var icon = MessageBoxImage.Information;
@@ -3280,8 +3231,8 @@ public partial class MainWindow : Window
             // 展開先の外へ書き出そうとするエントリ。書庫が細工されている可能性がある
             icon = MessageBoxImage.Warning;
             message.AppendLine();
-            message.AppendLine($"安全でないパスのため展開しなかったファイル: {result.Rejected.Count:N0} 個");
-            message.AppendLine("展開先の外に書き出そうとするエントリが含まれていました。");
+            message.AppendLine(Strings.RejectedFilesLine(result.Rejected.Count));
+            message.AppendLine(Strings.RejectedFilesDetail);
             foreach (var name in result.Rejected.Take(5))
             {
                 message.AppendLine($"  {name}");
@@ -3292,10 +3243,10 @@ public partial class MainWindow : Window
         {
             icon = MessageBoxImage.Warning;
             message.AppendLine();
-            message.AppendLine($"書き出せなかったファイル: {result.Failed.Count:N0} 個");
+            message.AppendLine(Strings.NotWrittenFilesLine(result.Failed.Count));
             foreach (var (name, reason) in result.Failed.Take(5))
             {
-                message.AppendLine($"  {name} … {reason}");
+                message.AppendLine(Strings.FailureLine(name, reason));
             }
         }
 
@@ -3356,7 +3307,7 @@ public partial class MainWindow : Window
         _draggingOut = false;
         _askingAboutEdit = false;
         SetBusy(false);
-        StatusMessage.Text = "処理を中断しました";
+        StatusMessage.Text = Strings.RecoveredFromError;
     }
 
     private void SetBusy(bool busy)
@@ -3402,7 +3353,7 @@ public partial class MainWindow : Window
 
         EntryList.ItemsSource = ApplySort(rows);
         EmptyStateMessage.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyStateMessage.Text = Contents is null ? "書庫が開かれていません" : "このフォルダは空です";
+        EmptyStateMessage.Text = Contents is null ? Strings.NoArchiveOpen : Strings.EmptyFolder;
 
         // 書庫のあるフォルダから続けて書庫の中の位置まで、ひと続きの場所として出す。
         // 書庫名だけでは同じ名前の別の書庫と区別が付かず、「場所」の名に合わない (#58)。
@@ -3440,10 +3391,10 @@ public partial class MainWindow : Window
     {
         var result = SortColumn switch
         {
-            "サイズ" => a.SortLength.CompareTo(b.SortLength),
-            "圧縮後" => a.SortCompressedLength.CompareTo(b.SortCompressedLength),
-            "圧縮率" => a.SortRatio.CompareTo(b.SortRatio),
-            "更新日時" => a.SortDate.CompareTo(b.SortDate),
+            EntryColumn.Size => a.SortLength.CompareTo(b.SortLength),
+            EntryColumn.Compressed => a.SortCompressedLength.CompareTo(b.SortCompressedLength),
+            EntryColumn.Ratio => a.SortRatio.CompareTo(b.SortRatio),
+            EntryColumn.Date => a.SortDate.CompareTo(b.SortDate),
             _ => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase),
         };
 
@@ -3460,7 +3411,7 @@ public partial class MainWindow : Window
     private void EntryList_ColumnHeaderClick(object sender, RoutedEventArgs e)
     {
         if (e.OriginalSource is not GridViewColumnHeader header
-            || header.Column?.Header is not string column)
+            || ColumnOf(header.Column) is not { } column)
         {
             return;
         }
@@ -3480,6 +3431,18 @@ public partial class MainWindow : Window
             EntryList.ItemsSource = ApplySort(current);
         }
     }
+
+    /// <summary>
+    /// 押された見出しがどの列か。
+    /// 見出しの文字ではなく列そのもので見分ける。文字は言語で変わるため (#23)。
+    /// </summary>
+    private EntryColumn? ColumnOf(GridViewColumn? column)
+        => ReferenceEquals(column, NameColumn) ? EntryColumn.Name
+            : ReferenceEquals(column, SizeColumn) ? EntryColumn.Size
+            : ReferenceEquals(column, CompressedColumn) ? EntryColumn.Compressed
+            : ReferenceEquals(column, RatioColumn) ? EntryColumn.Ratio
+            : ReferenceEquals(column, DateColumn) ? EntryColumn.Date
+            : null;
 
     // ------------------------------------------------------------------ 選択と移動
 
@@ -3558,8 +3521,8 @@ public partial class MainWindow : Window
         }
 
         SelectionInfo.Text = count == 0
-            ? "選択 0 個"
-            : $"選択 {count:N0} 個 ({totalBytes:N0} バイト)";
+            ? Strings.SelectionNone
+            : Strings.Selection(count, totalBytes);
     }
 
     /// <summary>ツリーで開かれているフォルダのパスを集める。</summary>
@@ -3777,6 +3740,161 @@ public partial class MainWindow : Window
             ? AppName
             : $"{archiveFileName} - {AppName}";
     }
+
+    // ------------------------------------------------------------------ 言語 (#23)
+
+    /// <summary>ツールバーの歯車。いまは言語だけがぶら下がっている。</summary>
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (SettingsButton.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        menu.PlacementTarget = SettingsButton;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    /// <summary>言語を選び直す。設定に残し、その場で画面を貼り替える。</summary>
+    private void LanguageItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string preference })
+        {
+            return;
+        }
+
+        _settings.Language = preference;
+        SettingsStore.TrySave(_settings);
+
+        Strings.Language = Strings.Resolve(preference);
+        ApplyLanguage();
+    }
+
+    /// <summary>
+    /// 画面の文字をいまの言語で入れ直す (#23)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// XAML には文言を書かず、起動時と言語の切り替え時にここでまとめて入れる。
+    /// 一箇所に集めておけば、入れ忘れた部品は空欄になってすぐ分かる。
+    /// </para>
+    /// <para>
+    /// 操作の結果としてその場で作る文字 (ステータスバーの経過など) はここに出てこない。
+    /// あちらは表示するたびに <see cref="Strings"/> を読むため、次に出た時点で切り替わる。
+    /// </para>
+    /// </remarks>
+    private void ApplyLanguage()
+    {
+        OpenButton.Content = Strings.Open;
+        OpenButton.ToolTip = Strings.OpenTooltip;
+        RecentButton.ToolTip = Strings.RecentTooltip;
+        ExtractButton.Content = Strings.Extract;
+        ExtractButton.ToolTip = Strings.ExtractTooltip;
+        AddButton.Content = Strings.Add;
+        AddButton.ToolTip = Strings.AddTooltip;
+        CompressionLabel.Text = Strings.CompressionLabel;
+        CompressionCombo.ToolTip = Strings.CompressionTooltip;
+        RefreshButton.Content = Strings.Refresh;
+        RefreshButton.ToolTip = Strings.RefreshTooltip;
+        PasswordButton.Content = Strings.Password;
+        PasswordButton.ToolTip = Strings.PasswordTooltip;
+        SettingsButton.ToolTip = Strings.SettingsTooltip;
+
+        // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。
+        // 説明と同じ文言を名前にしておく
+        AutomationProperties.SetName(RecentButton, Strings.RecentTooltip);
+        AutomationProperties.SetName(SettingsButton, Strings.SettingsTooltip);
+
+        LanguageMenuItem.Header = Strings.LanguageMenu;
+        LanguageAutoItem.Header = Strings.LanguageAuto;
+        LanguageJapaneseItem.Header = Strings.LanguageJapanese;
+        LanguageEnglishItem.Header = Strings.LanguageEnglish;
+        UpdateLanguageChecks();
+
+        LocationLabel.Text = Strings.LocationLabel;
+
+        NewTabButton.ToolTip = Strings.NewTabTooltip;
+        AutomationProperties.SetName(NewTabButton, Strings.NewTabName);
+
+        CancelButton.Content = Strings.Stop;
+
+        NameColumn.Header = Strings.ColumnName;
+        SizeColumn.Header = Strings.ColumnSize;
+        CompressedColumn.Header = Strings.ColumnCompressed;
+        RatioColumn.Header = Strings.ColumnRatio;
+        DateColumn.Header = Strings.ColumnDate;
+
+        OpenMenuItem.Header = Strings.MenuOpen;
+        RenameMenuItem.Header = Strings.MenuRename;
+        DeleteMenuItem.Header = Strings.MenuDelete;
+        NewFolderMenuItem.Header = Strings.MenuNewFolder;
+        TreeNewFolderMenuItem.Header = Strings.MenuNewFolder;
+
+        // ツリーと一覧の両方から使い回している警告の説明 (#36)
+        if (Resources["SuspiciousPathTooltip"] is ToolTip { Content: TextBlock tooltipText })
+        {
+            tooltipText.Text = Strings.SuspiciousPathTooltip;
+        }
+
+        // 圧縮方式の名前は選択肢が持っている。一覧を作り直させて読み直させる (#11)
+        var level = SelectedCompressionLevel;
+        CompressionCombo.ItemsSource = CompressionLevelOption.All.ToList();
+        CompressionCombo.SelectedItem =
+            CompressionLevelOption.All.First(option => option.Level == level);
+
+        // 束縛で出している文字は、変わったことを伝えないと入れ替わらない
+        foreach (var tab in _tabs)
+        {
+            tab.NotifyLanguageChanged();
+        }
+
+        foreach (var row in EntryList.Items.OfType<EntryRow>())
+        {
+            row.NotifyLanguageChanged();
+        }
+
+        // 処理中はその経過を消さない。終われば次の表示で切り替わる
+        if (_cancellation is null)
+        {
+            RefreshStatusTexts();
+        }
+    }
+
+    /// <summary>設定メニューの印を、いまの選び方に合わせる。</summary>
+    private void UpdateLanguageChecks()
+    {
+        var preference = _settings.Language?.ToLowerInvariant();
+
+        LanguageJapaneseItem.IsChecked = preference == "ja";
+        LanguageEnglishItem.IsChecked = preference == "en";
+
+        // 知らない値が書かれていた場合も「OS に合わせる」の扱いにする
+        LanguageAutoItem.IsChecked =
+            !LanguageJapaneseItem.IsChecked && !LanguageEnglishItem.IsChecked;
+    }
+
+    /// <summary>ステータスバーの文字を、いまの状態から作り直す。</summary>
+    private void RefreshStatusTexts()
+    {
+        if (Contents is not { } contents)
+        {
+            StatusMessage.Text = Strings.NoArchiveOpen;
+            EmptyStateMessage.Text = Strings.NoArchiveOpen;
+            SelectionInfo.Text = Strings.SelectionNone;
+            TotalSizeInfo.Text = string.Empty;
+            return;
+        }
+
+        StatusMessage.Text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
+        TotalSizeInfo.Text = Strings.TotalSize(
+            contents.TotalLength, contents.TotalCompressedLength);
+        SuspiciousWarningText.Text = Strings.SuspiciousCount(contents.SuspiciousCount);
+        EmptyStateMessage.Text = Strings.EmptyFolder;
+        UpdateSelectionInfo();
+    }
+
+    // ------------------------------------------------------------------ 見た目の調整
 
     /// <summary>
     /// ツールバー右端のオーバーフロー用矢印を消す。
