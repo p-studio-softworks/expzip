@@ -24,7 +24,9 @@
         <SolidColorBrush x:Key="WarningBrush" Color="#C42B1C" />
         <!--
             パスワードで保護された項目の色 (#20)。保護されていることは色で示す。
-            エクスプローラーが暗号化ファイルに使う緑に寄せている
+            緑にするのは、エクスプローラーが EFS で暗号化されたファイルを緑で出す
+            習わしに倣ったもの。色そのものは合わせていない (あちらの既定は #008000
+            あたりの深緑)。白地で読みやすいほうを採った
         -->
         <SolidColorBrush x:Key="EncryptedBrush" Color="#107C10" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
