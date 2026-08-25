@@ -1325,6 +1325,11 @@ public partial class MainWindow : Window
 
         CancelPendingRename();
 
+        // 覚えていた合言葉を捨てる (#20)。閉じたあとも覚えていると、
+        // 席を外している間に開き直されたときに素通しになる。
+        // 同じ書庫は1つのタブでしか開けないので、他のタブの分を巻き込まない
+        _passwords.Remove(tab.FilePath);
+
         _switchingTab = true;
         try
         {
@@ -1377,14 +1382,17 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// この起動の間だけ覚えておく、書庫ごとのパスワード (#20)。
-    /// 設定ファイルには書かない。持ち出されると書庫を守る意味が無くなるため。
+    /// 開いている間だけ覚えておく、書庫ごとのパスワード (#20)。
     /// </summary>
+    /// <remarks>
+    /// 設定ファイルには書かない。持ち出されると書庫を守る意味が無くなるため。
+    /// タブを閉じた時点でその書庫の分を捨てる。開き直せば改めて尋ねる。
+    /// </remarks>
     private readonly Dictionary<string, string> _passwords = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// いま開いている書庫のパスワードを用意する (#20)。
-    /// 一度入れたものは、この起動の間は覚えておく。
+    /// 一度入れたものは、そのタブを閉じるまで覚えておく。
     /// </summary>
     /// <returns>合っているパスワード。取り消された場合は <see langword="null"/>。</returns>
     private string? EnsurePassword(string archivePath)
@@ -3831,10 +3839,15 @@ public partial class MainWindow : Window
         NewFolderMenuItem.Header = Strings.MenuNewFolder;
         TreeNewFolderMenuItem.Header = Strings.MenuNewFolder;
 
-        // ツリーと一覧の両方から使い回している警告の説明 (#36)
-        if (Resources["SuspiciousPathTooltip"] is ToolTip { Content: TextBlock tooltipText })
+        // ツリーと一覧の両方から使い回している説明 (#36、#20)
+        if (Resources["SuspiciousPathTooltip"] is ToolTip { Content: TextBlock suspiciousText })
         {
-            tooltipText.Text = Strings.SuspiciousPathTooltip;
+            suspiciousText.Text = Strings.SuspiciousPathTooltip;
+        }
+
+        if (Resources["EncryptedTooltip"] is ToolTip { Content: TextBlock encryptedText })
+        {
+            encryptedText.Text = Strings.EncryptedTooltip;
         }
 
         // 圧縮方式の名前は選択肢が持っている。一覧を作り直させて読み直させる (#11)

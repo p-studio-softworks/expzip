@@ -128,6 +128,10 @@ internal static partial class Strings
     public static string LimitReadOnly(string format) => Pick(
         $" ({format} は読み取りのみに対応)", $" ({format} is read-only)");
 
+    public static string EncryptedTooltip => Pick(
+        "この項目はパスワードで保護されています。取り出すときにパスワードを尋ねます。",
+        "This item is protected with a password. You will be asked for it when extracting.");
+
     public static string SuspiciousPathTooltipLine1 => Pick(
         "このパスは通常の書庫では使われない形式です。",
         "This path is not in a form normally used by archives.");

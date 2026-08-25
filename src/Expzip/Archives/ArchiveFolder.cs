@@ -29,4 +29,11 @@ internal sealed class ArchiveFolder
     /// ツリーと一覧で警告を出すために使う (#36)。
     /// </summary>
     public bool IsPathSuspicious { get; init; }
+
+    /// <summary>
+    /// 配下にパスワードで保護されたファイルがあるとき true (#20)。
+    /// フォルダ自体は暗号化されないため、中身から決める。
+    /// 組み立ての最後に <see cref="ArchiveTreeBuilder"/> がまとめて印を付ける。
+    /// </summary>
+    public bool HasEncryptedContent { get; set; }
 }

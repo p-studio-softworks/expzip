@@ -53,12 +53,14 @@ internal sealed class ArchiveTreeBuilder
     /// <param name="compressedLength">圧縮後のサイズ。分からない形式では 0 を渡す。</param>
     /// <param name="compressedLengthKnown">圧縮後のサイズが分かるかどうか。</param>
     /// <param name="lastWriteTime">最終更新日時。</param>
+    /// <param name="isEncrypted">中身がパスワードで保護されているかどうか (#20)。</param>
     public void AddFile(
         string sourceName,
         long length,
         long compressedLength,
         bool compressedLengthKnown,
-        DateTime lastWriteTime)
+        DateTime lastWriteTime,
+        bool isEncrypted = false)
     {
         var fullName = Trim(sourceName);
 
@@ -82,6 +84,7 @@ internal sealed class ArchiveTreeBuilder
             CompressedLengthKnown = compressedLengthKnown,
             LastWriteTime = lastWriteTime,
             IsPathSuspicious = ArchivePath.IsSuspicious(sourceName),
+            IsEncrypted = isEncrypted,
         });
 
         FileCount++;
@@ -107,6 +110,7 @@ internal sealed class ArchiveTreeBuilder
         bool usesAes = false)
     {
         SortRecursively(_root);
+        MarkEncrypted(_root);
 
         return new ArchiveContents
         {
@@ -137,6 +141,27 @@ internal sealed class ArchiveTreeBuilder
         }
 
         return normalized == "." ? string.Empty : normalized;
+    }
+
+    /// <summary>
+    /// 配下に保護されたファイルを持つフォルダに印を付ける (#20)。
+    /// </summary>
+    /// <remarks>
+    /// 表示のたびに配下をたどると、木を開くだけで全体をなめることになる。
+    /// 組み立ての最後に一度で決めておく。
+    /// </remarks>
+    private static bool MarkEncrypted(ArchiveFolder folder)
+    {
+        var encrypted = folder.Files.Any(static f => f.IsEncrypted);
+
+        foreach (var child in folder.Folders)
+        {
+            // 子を先にたどる。途中で打ち切ると孫に印が付かない
+            encrypted |= MarkEncrypted(child);
+        }
+
+        folder.HasEncryptedContent = encrypted;
+        return encrypted;
     }
 
     /// <summary>パスが通常ではない項目の数を数える。</summary>

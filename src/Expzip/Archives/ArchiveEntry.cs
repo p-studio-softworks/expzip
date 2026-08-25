@@ -38,6 +38,12 @@ internal sealed class ArchiveEntry
     public bool IsPathSuspicious { get; init; }
 
     /// <summary>
+    /// 中身がパスワードで保護されているとき true (#20)。
+    /// 一覧で色を変えて示すために使う。ZIP も 7z もエントリごとに掛けられる。
+    /// </summary>
+    public bool IsEncrypted { get; init; }
+
+    /// <summary>
     /// 圧縮率(%)。圧縮後サイズが元の何%になったかを表し、小さいほどよく縮んでいる。
     /// 展開後サイズが0のときは0を返す。
     /// </summary>

@@ -22,6 +22,11 @@
         <SolidColorBrush x:Key="FileBrush" Color="#7A7A7A" />
         <!-- パスが通常ではない項目の警告色 (#36) -->
         <SolidColorBrush x:Key="WarningBrush" Color="#C42B1C" />
+        <!--
+            パスワードで保護された項目の色 (#20)。保護されていることは色で示す。
+            エクスプローラーが暗号化ファイルに使う緑に寄せている
+        -->
+        <SolidColorBrush x:Key="EncryptedBrush" Color="#107C10" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <!-- 名前の書き換え中だけ入れ替えるため、真偽を反転した表示切り替えも要る (#15) -->
         <ui:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
@@ -30,6 +35,30 @@
         <ToolTip x:Key="SuspiciousPathTooltip">
             <TextBlock TextWrapping="Wrap" />
         </ToolTip>
+        <ToolTip x:Key="EncryptedTooltip">
+            <TextBlock TextWrapping="Wrap" />
+        </ToolTip>
+
+        <!--
+            名前の色。保護された項目だけ色を変える (#20)。
+            ツリーと一覧で同じ見え方にするため、ひとつの型を両方から使う
+        -->
+        <Style x:Key="EntryNameText" TargetType="TextBlock">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEncrypted}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
+                    <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="FolderNameText" TargetType="TextBlock">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasEncryptedContent}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
+                    <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <!--
@@ -261,7 +290,9 @@
                                        Foreground="{StaticResource FolderBrush}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Name}"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource FolderNameText}" />
                         </StackPanel>
                     </HierarchicalDataTemplate>
                 </TreeView.Resources>
@@ -367,6 +398,7 @@
                                 <!-- 通常は表示のみ。名前の変更中だけ入力欄に入れ替える (#15) -->
                                 <TextBlock Text="{Binding Name}"
                                            VerticalAlignment="Center"
+                                           Style="{StaticResource EntryNameText}"
                                            Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVisibility}}" />
                                 <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
                                          MinWidth="120"

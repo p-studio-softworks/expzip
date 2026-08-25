@@ -34,11 +34,21 @@ internal static class ZipEncryption
         {
             using var zip = OpenSharp(path);
 
+            var files = 0;
             var encrypted = 0;
             var aes = false;
 
             foreach (ZipEntry entry in zip)
             {
+                // フォルダのエントリは暗号化されない。数に入れると
+                // 「一部だけ暗号化」と見誤る
+                if (!entry.IsFile)
+                {
+                    continue;
+                }
+
+                files++;
+
                 if (!entry.IsCrypted)
                 {
                     continue;
@@ -48,13 +58,46 @@ internal static class ZipEncryption
                 aes |= entry.AESKeySize > 0;
             }
 
-            return new ZipEncryptionInfo(encrypted > 0, encrypted, aes);
+            return new ZipEncryptionInfo(encrypted > 0, encrypted, files, aes);
         }
         catch (Exception ex) when (ex is ZipException or IOException or UnauthorizedAccessException
                                    or InvalidDataException or NotSupportedException)
         {
-            return new ZipEncryptionInfo(false, 0, false);
+            return new ZipEncryptionInfo(false, 0, 0, false);
         }
+    }
+
+    /// <summary>
+    /// 暗号化されているエントリの名前を集める (#20)。
+    /// </summary>
+    /// <remarks>
+    /// 中央ディレクトリをもう一度なめるうえ、エントリ名をもう一組抱えることになる。
+    /// 一部だけが暗号化された書庫 (<see cref="ZipEncryptionInfo.IsPartial"/>) のときだけ
+    /// 呼ぶこと。書庫まるごと暗号化されている場合は、名前を引き当てるまでもない。
+    /// </remarks>
+    public static HashSet<string> CollectEncryptedNames(string path)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        try
+        {
+            using var zip = OpenSharp(path);
+
+            foreach (ZipEntry entry in zip)
+            {
+                if (entry.IsFile && entry.IsCrypted)
+                {
+                    names.Add(ArchiveTreeBuilder.Trim(entry.Name));
+                }
+            }
+        }
+        catch (Exception ex) when (ex is ZipException or IOException or UnauthorizedAccessException
+                                   or InvalidDataException or NotSupportedException)
+        {
+            // 調べられなければ印を付けないだけ。書庫は開けている
+        }
+
+        return names;
     }
 
     /// <summary>
@@ -232,5 +275,14 @@ internal static class ZipEncryption
 /// <summary>書庫の暗号化の状態。</summary>
 /// <param name="IsEncrypted">暗号化されたエントリを含むか。</param>
 /// <param name="EncryptedCount">暗号化されたエントリの数。</param>
+/// <param name="FileCount">フォルダを除いたエントリの数。</param>
 /// <param name="UsesAes">AES で暗号化されているか。false の場合は旧方式 (ZipCrypto)。</param>
-internal readonly record struct ZipEncryptionInfo(bool IsEncrypted, int EncryptedCount, bool UsesAes);
+internal readonly record struct ZipEncryptionInfo(
+    bool IsEncrypted, int EncryptedCount, int FileCount, bool UsesAes)
+{
+    /// <summary>
+    /// 一部のエントリだけが暗号化されているか (#20)。
+    /// この場合だけ、どのエントリが保護されているかを名前で引き当てる必要がある。
+    /// </summary>
+    public bool IsPartial => EncryptedCount > 0 && EncryptedCount < FileCount;
+}

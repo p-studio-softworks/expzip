@@ -94,6 +94,12 @@ internal sealed class EntryRow : INotifyPropertyChanged
     public bool IsPathSuspicious =>
         Entry?.IsPathSuspicious ?? Folder?.IsPathSuspicious ?? false;
 
+    /// <summary>
+    /// パスワードで保護されているかどうか (#20)。
+    /// フォルダの行は、配下に保護されたファイルがあれば印を付ける。
+    /// </summary>
+    public bool IsEncrypted => Entry?.IsEncrypted ?? Folder?.HasEncryptedContent ?? false;
+
     public string WarningGlyph => GlyphWarning;
 
     public string? WarningTooltip => IsPathSuspicious ? Strings.SuspiciousPathTooltip : null;

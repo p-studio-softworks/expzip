@@ -70,6 +70,18 @@ internal static class ZipArchiveReader
     {
         var builder = new ArchiveTreeBuilder(path);
 
+        // 暗号化されているかを先に調べる (#20)。
+        // 「開いてみて駄目なら暗号化」では旧方式 (ZipCrypto) を見逃す。あちらは
+        // 圧縮方式が変わらないため開けてしまい、復号されない中身がそのまま出てくる。
+        // 中央ディレクトリをもう一度なめる費用を払ってでも、確実に見分ける
+        var encryption = ZipEncryption.Inspect(path);
+
+        // どのエントリが保護されているかを名前で引き当てるのは、
+        // 一部だけが暗号化された書庫のときだけ (#20)
+        var encryptedNames = encryption.IsPartial
+            ? ZipEncryption.CollectEncryptedNames(path)
+            : null;
+
         using var stream = File.OpenRead(path);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false, EntryNameEncoding);
 
@@ -99,17 +111,14 @@ internal static class ZipArchiveReader
                 entry.Length,
                 entry.CompressedLength,
                 compressedLengthKnown: true,
-                ReadLastWriteTime(entry));
+                ReadLastWriteTime(entry),
+                isEncrypted: encryption.IsEncrypted
+                             && (encryptedNames is null
+                                 || encryptedNames.Contains(ArchiveTreeBuilder.Trim(entry.FullName))));
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         progress?.Report(new OpenProgress(entries.Count, entries.Count));
-
-        // 暗号化されているかを調べる (#20)。
-        // 「開いてみて駄目なら暗号化」では旧方式 (ZipCrypto) を見逃す。あちらは
-        // 圧縮方式が変わらないため開けてしまい、復号されない中身がそのまま出てくる。
-        // 中央ディレクトリをもう一度なめる費用を払ってでも、確実に見分ける
-        var encryption = ZipEncryption.Inspect(path);
 
         return builder.Build(
             path, ArchiveFormat.Zip,

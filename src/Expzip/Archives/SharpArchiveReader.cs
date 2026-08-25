@@ -55,7 +55,9 @@ internal static class SharpArchiveReader
             }
 
             // 7z はまとめて圧縮する (ソリッド) ため、エントリごとの圧縮後サイズを持たない
-            builder.AddFile(key, entry.Size, 0, compressedLengthKnown: false, ReadTime(entry.LastModifiedTime));
+            builder.AddFile(
+                key, entry.Size, 0, compressedLengthKnown: false,
+                ReadTime(entry.LastModifiedTime), entry.IsEncrypted);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
