@@ -15,8 +15,8 @@
     <DockPanel>
 
         <!--
-            要約。問題が無かった場合でも、行った検査と件数を必ず出す。
-            何も出ないと検査が働いたのか分からないため
+            要約。既定では結末だけを出す。何をどれだけ調べたかは畳んでおき、
+            見たい人が開けるようにする。問題が無かったことは言い切る
         -->
         <Border DockPanel.Dock="Top"
                 Background="{x:Static SystemColors.ControlLightLightBrush}"
@@ -41,22 +41,39 @@
                            TextWrapping="Wrap"
                            Visibility="Collapsed"
                            Foreground="{StaticResource CautionBrush}" />
-                <TextBlock x:Name="ChecksLine"
+                <!--
+                    検査が使えなかったことだけは畳まない (#56)。
+                    結果そのものの意味が変わるため
+                -->
+                <TextBlock x:Name="MalwareWarningLine"
                            Margin="24,6,0,0"
                            TextWrapping="Wrap"
-                           Foreground="{x:Static SystemColors.GrayTextBrush}" />
-                <TextBlock x:Name="ContentsLine"
-                           Margin="24,3,0,0"
-                           TextWrapping="Wrap"
-                           Foreground="{x:Static SystemColors.GrayTextBrush}" />
-                <!-- 使えなかった場合は色を変えてはっきり出す (#56) -->
-                <TextBlock x:Name="MalwareLine"
-                           Margin="24,3,0,0"
-                           TextWrapping="Wrap"
-                           Foreground="{x:Static SystemColors.GrayTextBrush}" />
-                <TextBlock x:Name="ElapsedLine"
-                           Margin="24,3,0,0"
-                           Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                           Visibility="Collapsed"
+                           Foreground="{StaticResource CautionBrush}" />
+                <!--
+                    何をどれだけ調べたかは畳んでおく。変わるのは数だけで、
+                    利用者が知りたいのは結末のほう。見たい人だけ開く
+                -->
+                <Expander x:Name="DetailsExpander"
+                          Margin="20,6,0,0"
+                          Foreground="{x:Static SystemColors.GrayTextBrush}">
+                    <StackPanel Margin="4,4,0,0">
+                        <TextBlock x:Name="ChecksLine"
+                                   TextWrapping="Wrap"
+                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                        <TextBlock x:Name="ContentsLine"
+                                   Margin="0,3,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                        <TextBlock x:Name="MalwareLine"
+                                   Margin="0,3,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                        <TextBlock x:Name="ElapsedLine"
+                                   Margin="0,3,0,0"
+                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                    </StackPanel>
+                </Expander>
             </StackPanel>
         </Border>
 

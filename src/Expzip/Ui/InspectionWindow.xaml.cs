@@ -17,8 +17,9 @@ namespace Expzip.Ui;
 /// </para>
 /// <para>
 /// <b>問題が無かったことも明示する</b>。何も出ないと、検査が働いたのか、それとも
-/// 何も見つからなかったのかが区別できない。行った検査の種類と件数を必ず出し、
-/// 一覧にも「問題は見つかりませんでした」の1行を置く。
+/// 何も見つからなかったのかが区別できない。一覧にも「問題は見つかりませんでした」の
+/// 1行を置く。ただし「何をどれだけ調べたか」は畳んでおく。変わるのは数だけで、
+/// 利用者が知りたいのは結末のほうのため。
 /// </para>
 /// </remarks>
 // WPF が作る相方の宣言に合わせて public にしてある。書庫検査の型は internal の
@@ -92,6 +93,12 @@ public partial class InspectionWindow : Window
 
         var scanned = _report.Malware == MalwareStatus.Ran;
 
+        // 使えなかったことは黙って省かない (#56)。ここだけは畳まずに出す
+        MalwareWarningLine.Text = Strings.InspectionMalwareUnavailable;
+        MalwareWarningLine.Visibility = scanned ? Visibility.Collapsed : Visibility.Visible;
+
+        DetailsExpander.Header = Strings.InspectionDetails;
+
         ChecksLine.Text = scanned
             ? Strings.InspectionChecksLine
             : Strings.InspectionChecksLineWithoutMalware;
@@ -99,14 +106,8 @@ public partial class InspectionWindow : Window
         ContentsLine.Text = Strings.InspectionContentsLine(
             _report.ContentsChecked, _report.FileCount);
 
-        // 使えなかったことは黙って省かず、色を変えてはっきり出す (#56)
-        MalwareLine.Text = scanned
-            ? Strings.InspectionMalwareLine(_report.MalwareScanned)
-            : Strings.InspectionMalwareUnavailable;
-
-        MalwareLine.Foreground = scanned
-            ? SystemColors.GrayTextBrush
-            : AccentOf(InspectionSeverity.Warning);
+        MalwareLine.Text = Strings.InspectionMalwareLine(_report.MalwareScanned);
+        MalwareLine.Visibility = scanned ? Visibility.Visible : Visibility.Collapsed;
 
         ElapsedLine.Text = Strings.InspectionElapsedLine(_report.Elapsed);
     }

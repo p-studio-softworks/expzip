@@ -759,6 +759,15 @@ internal static partial class Strings
     };
 
     /// <summary>
+    /// 何をどれだけ調べたかを開くための見出し (#57)。
+    /// </summary>
+    /// <remarks>
+    /// 既定では畳んでおく。変わるのは数だけで、利用者が知りたいのは結末のほう。
+    /// 見たい人が開けるようにはしておく。
+    /// </remarks>
+    public static string InspectionDetails => Pick("調べた内容", "What was checked");
+
+    /// <summary>
     /// 行った検査の種類。
     /// </summary>
     /// <remarks>
