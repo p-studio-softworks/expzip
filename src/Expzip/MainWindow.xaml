@@ -20,15 +20,10 @@
         <!-- フォルダの黄色。エクスプローラーの配色に寄せる -->
         <SolidColorBrush x:Key="FolderBrush" Color="#E8B44A" />
         <SolidColorBrush x:Key="FileBrush" Color="#7A7A7A" />
-        <!-- パスが通常ではない項目の警告色 (#36) -->
-        <SolidColorBrush x:Key="WarningBrush" Color="#C42B1C" />
         <!--
-            パスワードで保護された項目の色 (#20)。保護されていることは色で示す。
-            緑にするのは、エクスプローラーが EFS で暗号化されたファイルを緑で出す
-            習わしに倣ったもの。色そのものは合わせていない (あちらの既定は #008000
-            あたりの深緑)。白地で読みやすいほうを採った
+            警告色 (#36) と保護された項目の色 (#20) は App.xaml にある。
+            検査結果の画面 (#57) から同じものを使うため
         -->
-        <SolidColorBrush x:Key="EncryptedBrush" Color="#107C10" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <!-- 名前の書き換え中だけ入れ替えるため、真偽を反転した表示切り替えも要る (#15) -->
         <ui:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
@@ -96,6 +91,12 @@
                 <Button x:Name="RefreshButton" Click="RefreshButton_Click" IsEnabled="False" />
                 <!-- 書庫のパスワードを付ける・変える・外す (#63) -->
                 <Button x:Name="PasswordButton" Click="PasswordButton_Click" IsEnabled="False" />
+                <Separator />
+                <!--
+                    書庫検査 (#53)。押したときだけ走る。書庫を丸ごと読むため、
+                    開くたびに走らせると開く速さが中身の大きさに引きずられる
+                -->
+                <Button x:Name="InspectButton" Click="InspectButton_Click" IsEnabled="False" />
                 <Separator />
                 <!--
                     設定 (#23)。いまは言語だけ。設定ファイルを開かずに変えられる

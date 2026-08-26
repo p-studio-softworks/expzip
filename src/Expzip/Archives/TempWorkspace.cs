@@ -1,4 +1,5 @@
 using System.IO;
+using Expzip.Localization;
 
 namespace Expzip.Archives;
 
@@ -90,7 +91,7 @@ internal sealed class TempWorkspace : IDisposable
             }
         }
 
-        throw new IOException($"一時ファイルの置き場を作れませんでした。{Environment.NewLine}{Root}");
+        throw new IOException(Strings.TempWorkspaceFailed(Root));
     }
 
     /// <summary>

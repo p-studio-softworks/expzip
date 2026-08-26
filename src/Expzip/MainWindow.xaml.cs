@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Expzip.Archives;
 using Expzip.Configuration;
+using Expzip.Inspection;
 using Expzip.Localization;
 using Expzip.Ui;
 using Microsoft.Win32;
@@ -1207,6 +1208,7 @@ public partial class MainWindow : Window
         FolderTree.ItemsSource = new[] { contents.Root };
         RefreshButton.IsEnabled = true;
         ExtractButton.IsEnabled = true;
+        InspectButton.IsEnabled = true;
 
         // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
         AddButton.IsEnabled = contents.IsEditable;
@@ -1260,6 +1262,7 @@ public partial class MainWindow : Window
 
         RefreshButton.IsEnabled = false;
         ExtractButton.IsEnabled = false;
+        InspectButton.IsEnabled = false;
         AddButton.IsEnabled = false;
         PasswordButton.IsEnabled = false;
         UpdateTitle(null);
@@ -3152,6 +3155,151 @@ public partial class MainWindow : Window
         }
     }
 
+
+    // ------------------------------------------------------------------ 書庫検査 (#53)
+
+    /// <summary>検査結果の窓。1つだけ開き、次の検査では中身を差し替える (#57)。</summary>
+    private InspectionWindow? _inspection;
+
+    private async void InspectButton_Click(object sender, RoutedEventArgs e)
+        => await InspectArchiveAsync();
+
+    /// <summary>
+    /// 開いている書庫をまとめて調べる (#53)。
+    /// </summary>
+    /// <remarks>
+    /// 検査の種類でコマンドを分けない。利用者が知りたいのは「この書庫は安全に開けるか」
+    /// の一点で、構造とマルウェアの区別は実装側の都合でしかない。
+    /// </remarks>
+    private async Task InspectArchiveAsync()
+    {
+        if (Contents is not { } contents)
+        {
+            return;
+        }
+
+        // パスワード付きの書庫では先に合言葉を用意する。断られても検査は続ける。
+        // 名前や索引で分かることは合言葉なしでも調べられるため (#56)
+        var password = contents.RequiresPassword
+            ? EnsurePassword(contents.FilePath)
+            : _passwords.GetValueOrDefault(contents.FilePath);
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var progress = new Progress<InspectProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Percent;
+            StatusMessage.Text = Strings.Inspecting(p.Phase, p.CurrentName);
+        });
+
+        try
+        {
+            var report = await Task.Run(() => ArchiveInspector.Inspect(
+                contents, password, progress, cancellation.Token));
+
+            StatusMessage.Text = ReportSummary(report);
+            ShowInspection(report);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                Strings.InspectFailed(ex.Message),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            // 処理中に閉じられていた場合は、後始末が済んだこの時点で閉じる
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+    }
+
+    /// <summary>検査の結末をステータスバーの一言にする。</summary>
+    private static string ReportSummary(InspectionReport report)
+    {
+        if (report.Cancelled)
+        {
+            return Strings.InspectCancelledStatus;
+        }
+
+        var found = report.DangerCount + report.WarningCount;
+        return found == 0 ? Strings.InspectClean : Strings.InspectFound(found);
+    }
+
+    /// <summary>検査結果を出す。既に開いていれば、その窓の中身を差し替える (#57)。</summary>
+    private void ShowInspection(InspectionReport report)
+    {
+        if (_inspection is { } opened)
+        {
+            opened.ShowReport(report);
+            return;
+        }
+
+        var window = new InspectionWindow(this, report, JumpToFinding);
+        window.Closed += (_, _) => _inspection = null;
+        _inspection = window;
+        window.Show();
+    }
+
+    /// <summary>
+    /// 検査結果の行から、その項目を一覧で選んだ状態にして飛ぶ (#57)。
+    /// </summary>
+    /// <remarks>
+    /// 検査した書庫のタブに切り替えてから移動する。そのタブが既に閉じられている
+    /// 場合は何もしない。結果の窓は書庫と独立して開いたままにできるため。
+    /// </remarks>
+    private void JumpToFinding(string entryPath)
+    {
+        if (_cancellation is not null
+            || _inspection is not { } inspection
+            || !TrySwitchToOpenArchive(inspection.ArchivePath)
+            || Contents is not { } contents)
+        {
+            return;
+        }
+
+        // フォルダそのものを指している場合は、そのフォルダを開いて終わり
+        if (FindFolder(contents.Root, entryPath) is { } folder)
+        {
+            SelectInTree(folder);
+            Navigate(folder);
+            return;
+        }
+
+        var separator = entryPath.LastIndexOf('/');
+        var parent = FindFolder(
+            contents.Root, separator < 0 ? string.Empty : entryPath[..separator]);
+
+        if (parent is null)
+        {
+            return;
+        }
+
+        SelectInTree(parent);
+        Navigate(parent);
+
+        var name = separator < 0 ? entryPath : entryPath[(separator + 1)..];
+        var row = EntryList.Items.OfType<EntryRow>()
+            .FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.Ordinal));
+
+        if (row is null)
+        {
+            return;
+        }
+
+        EntryList.SelectedItem = row;
+        EntryList.ScrollIntoView(row);
+    }
+
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
         if (_cancellation is null)
@@ -3328,6 +3476,7 @@ public partial class MainWindow : Window
 
         // パスワードを扱えるのは ZIP だけ (#63)
         PasswordButton.IsEnabled = !busy && Contents is { IsEditable: true };
+        InspectButton.IsEnabled = !busy && Contents is not null;
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;
 
@@ -3807,6 +3956,8 @@ public partial class MainWindow : Window
         RefreshButton.ToolTip = Strings.RefreshTooltip;
         PasswordButton.Content = Strings.Password;
         PasswordButton.ToolTip = Strings.PasswordTooltip;
+        InspectButton.Content = Strings.Inspect;
+        InspectButton.ToolTip = Strings.InspectTooltip;
         SettingsButton.ToolTip = Strings.SettingsTooltip;
 
         // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。
@@ -3866,6 +4017,9 @@ public partial class MainWindow : Window
         {
             row.NotifyLanguageChanged();
         }
+
+        // 検査結果は文言ではなく事柄の種類で持っているため、開いたままでも入れ替わる (#57)
+        _inspection?.ApplyLanguage();
 
         // 処理中はその経過を消さない。終われば次の表示で切り替わる
         if (_cancellation is null)

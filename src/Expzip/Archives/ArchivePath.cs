@@ -69,8 +69,12 @@ internal static class ArchivePath
     /// <summary>
     /// 一覧に警告を出すべきパスかどうか。
     /// <see cref="IsEscaping"/> より広く、結果的に展開先の中に収まる場合でも
-    /// <c>..</c> や <c>.</c> を名前に持つ項目は通常あり得ないので対象にする。
+    /// <c>..</c> を名前に持つ項目は通常あり得ないので対象にする。
     /// </summary>
+    /// <remarks>
+    /// <c>.</c> だけの区切りは対象にしない。その場を指すだけで展開先は変わらず、
+    /// GNU tar が既定で先頭に付けるため、ふつうの tar が丸ごと警告になってしまう。
+    /// </remarks>
     public static bool IsSuspicious(string entryName)
     {
         if (IsEscaping(entryName))
@@ -80,7 +84,7 @@ internal static class ArchivePath
 
         foreach (var segment in Normalize(entryName).Split('/'))
         {
-            if (segment == ".." || segment == ".")
+            if (segment == "..")
             {
                 return true;
             }

@@ -1,6 +1,7 @@
 using System.IO;
 using SharpCompress.Common;
 using SharpCompress.Readers;
+using Expzip.Localization;
 
 namespace Expzip.Archives;
 
@@ -159,7 +160,7 @@ internal static class SharpArchiveExtractor
     private static string Explain(Exception ex)
         => ex is System.Security.Cryptography.CryptographicException
             or SharpCompress.Common.CryptographicException
-            ? "パスワードが必要です。パスワード付き書庫の展開には対応していません。"
+            ? Strings.PasswordNotSupported
             : ex.Message;
 
     /// <summary>展開の途中経過。ZIP 側と同じ結果の形にまとめる。</summary>

@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Expzip.Archives;
+using Expzip.Inspection;
 
 namespace Expzip.Localization;
 
@@ -675,10 +676,253 @@ internal static partial class Strings
         $"書き出せなかったファイル: {count:N0} 個",
         $"Files that could not be written: {count:N0}");
 
+    // ------------------------------------------------------------------ 書庫検査 (#53)
+
+    public static string Inspect => Pick("検査", "Inspect");
+
+    public static string InspectTooltip => Pick(
+        "この書庫が壊れていないか、危ない中身が入っていないかを調べる",
+        "Check this archive for damage and for content that could cause trouble");
+
+    /// <summary>検査中のステータスバー。区切りごとに何をしているかを出す。</summary>
+    public static string Inspecting(InspectionPhase phase, string name) => phase switch
+    {
+        InspectionPhase.Structure => Pick(
+            "検査中: 索引とヘッダを照合しています",
+            "Inspecting: comparing the index against the entry headers"),
+
+        InspectionPhase.Safety => Pick(
+            "検査中: 名前と大きさを調べています",
+            "Inspecting: checking names and sizes"),
+
+        _ => name.Length == 0
+            ? Pick("検査中: 中身を読んでいます", "Inspecting: reading the contents")
+            : Pick($"検査中: {name}", $"Inspecting: {name}"),
+    };
+
+    public static string InspectClean => Pick(
+        "検査しました。問題は見つかりませんでした",
+        "Inspection finished. Nothing to report.");
+
+    public static string InspectFound(int count) => Pick(
+        $"検査しました。{count:N0} 件見つかりました",
+        $"Inspection finished. {count:N0} {Plural(count, "item", "items")} to report.");
+
+    public static string InspectCancelledStatus => Pick(
+        "検査を中断しました", "The inspection was stopped");
+
+    public static string InspectFailed(string reason) => Pick(
+        $"検査できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"The archive could not be inspected.{Environment.NewLine}{Environment.NewLine}{reason}");
+
+    // ------------------------------------------------------------------ 検査結果の画面 (#57)
+
+    public static string InspectionTitle(string archiveName) => Pick(
+        $"検査結果 - {archiveName}", $"Inspection results - {archiveName}");
+
+    public static string InspectionColumnSeverity => Pick("重大度", "Severity");
+
+    public static string InspectionColumnTarget => Pick("対象", "Item");
+
+    public static string InspectionColumnDetail => Pick("内容", "What was found");
+
+    public static string InspectionClose => Pick("閉じる", "Close");
+
+    public static string SeverityName(InspectionSeverity severity) => severity switch
+    {
+        InspectionSeverity.Danger => Pick("危険", "Danger"),
+        InspectionSeverity.Warning => Pick("注意", "Caution"),
+        _ => Pick("問題なし", "All clear"),
+    };
+
+    /// <summary>書庫そのものが対象のときに、対象の欄へ出す文字。</summary>
+    public static string InspectionArchiveItself => Pick(
+        "(書庫そのもの)", "(the archive itself)");
+
+    /// <summary>見出し。いちばん重い結果を一言で表す。</summary>
+    public static string InspectionHeadline(int danger, int warning) => (danger, warning) switch
+    {
+        ( > 0, > 0) => Pick(
+            $"危険 {danger:N0} 件、注意 {warning:N0} 件が見つかりました",
+            $"Found {danger:N0} dangerous and {warning:N0} questionable "
+            + $"{Plural(danger + warning, "item", "items")}"),
+
+        ( > 0, _) => Pick(
+            $"危険な項目が {danger:N0} 件見つかりました",
+            $"Found {danger:N0} dangerous {Plural(danger, "item", "items")}"),
+
+        (_, > 0) => Pick(
+            $"注意したい項目が {warning:N0} 件見つかりました",
+            $"Found {warning:N0} questionable {Plural(warning, "item", "items")}"),
+
+        _ => Pick("問題は見つかりませんでした", "No problems were found"),
+    };
+
+    /// <summary>
+    /// 行った検査の種類。
+    /// </summary>
+    /// <remarks>
+    /// 何も出ないと検査が働いたのか分からないため、問題が無かった場合でも必ず出す (#57)。
+    /// </remarks>
+    public static string InspectionChecksLine => Pick(
+        "行った検査: 構造(索引・ヘッダ・CRCの照合)、安全性(パス・名前・圧縮率)、マルウェア(AMSI)",
+        "Checks performed: structure (index, headers, CRC), "
+        + "safety (paths, names, ratios), malware (AMSI)");
+
+    public static string InspectionChecksLineWithoutMalware => Pick(
+        "行った検査: 構造(索引・ヘッダ・CRCの照合)、安全性(パス・名前・圧縮率)",
+        "Checks performed: structure (index, headers, CRC), safety (paths, names, ratios)");
+
+    public static string InspectionContentsLine(int checkedCount, int fileCount) => Pick(
+        $"ファイル {fileCount:N0} 件のうち {checkedCount:N0} 件は中身まで読んで確かめました。",
+        $"Read and verified the contents of {checkedCount:N0} of {fileCount:N0} "
+        + $"{Plural(fileCount, "file", "files")}.");
+
+    public static string InspectionMalwareLine(int scanned) => Pick(
+        $"うち {scanned:N0} 件を対策ソフトの判定に掛けました。書庫ファイルそのものも渡しています。",
+        $"Of those, {scanned:N0} {Plural(scanned, "was", "were")} handed to the antimalware "
+        + "service. The archive file itself was handed over as well.");
+
+    /// <summary>マルウェア検査が使えなかったことを、黙って省かずに出す (#56、#57)。</summary>
+    public static string InspectionMalwareUnavailable => Pick(
+        "マルウェア検査は行えませんでした。AMSI に応じる対策ソフトがこの環境に居ません。"
+        + "ほかの検査は行っています。",
+        "The malware check could not run: no antimalware provider answered AMSI on this "
+        + "machine. The other checks did run.");
+
+    public static string InspectionCancelledLine => Pick(
+        "検査は途中で中断されました。ここに出ているのは、中断までに調べた範囲の結果です。",
+        "The inspection was stopped partway. What follows covers only what it reached.");
+
+    public static string InspectionElapsedLine(TimeSpan elapsed) => elapsed.TotalSeconds < 1
+        ? Pick(
+            $"かかった時間: {elapsed.TotalMilliseconds:N0} ミリ秒",
+            $"Time taken: {elapsed.TotalMilliseconds:N0} ms")
+        : Pick(
+            $"かかった時間: {elapsed.TotalSeconds:N1} 秒",
+            $"Time taken: {elapsed.TotalSeconds:N1} s");
+
+    public static string InspectionNoProblems => Pick(
+        "問題は見つかりませんでした", "Nothing to report");
+
+    /// <summary>同じ種類が多すぎて省いた分をまとめる1行。</summary>
+    public static string InspectionMoreLine(int count) => Pick(
+        $"同じものがほかに {count:N0} 件あります",
+        $"{count:N0} more like this");
+
+    /// <summary>見つかった事柄の説明 (#54、#55、#56)。</summary>
+    public static string InspectionMessage(InspectionIssue issue, string? detail) => issue switch
+    {
+        InspectionIssue.CrcMismatch => Pick(
+            "中身が壊れています。書庫に記録された照合値と一致しません",
+            "The contents are damaged: they do not match the checksum recorded in the archive"),
+
+        InspectionIssue.HeaderMismatch => Pick(
+            $"書庫の索引と項目の見出しが食い違っています{Paren(detail)}",
+            $"The archive index and the entry header disagree{Paren(detail)}"),
+
+        InspectionIssue.Truncated => Pick(
+            "書庫が途中で切れています。記録されている位置まで中身がありません",
+            "The archive is cut short: it ends before the point its own index refers to"),
+
+        InspectionIssue.TrailingData => Pick(
+            $"書庫の終わりのあとに、書庫ではないデータが {detail} バイト続いています",
+            $"{detail} bytes that are not part of the archive follow its end"),
+
+        InspectionIssue.UnsupportedMethod => Pick(
+            $"対応していない圧縮方式のため取り出せません{Paren(detail)}",
+            $"Stored with a compression method Expzip cannot read{Paren(detail)}"),
+
+        InspectionIssue.DuplicateName => Pick(
+            "同じ名前の項目が2つ以上あります。展開すると片方しか残りません",
+            "More than one item has this name. Extracting leaves only one of them."),
+
+        InspectionIssue.Unreadable => Pick(
+            $"中身を読み出せませんでした{Paren(detail)}",
+            $"The contents could not be read{Paren(detail)}"),
+
+        InspectionIssue.EncryptedNotChecked => Pick(
+            "パスワードが分からないため、中身を調べられませんでした",
+            "The contents could not be checked: the password is not known"),
+
+        InspectionIssue.EscapingPath => Pick(
+            $"展開先の外へ書き出そうとするパスです{Paren(detail)}",
+            $"This path would write outside the folder you extract into{Paren(detail)}"),
+
+        InspectionIssue.SuspiciousPath => Pick(
+            $"通常の書庫にはあり得ない形のパスです{Paren(detail)}",
+            $"This path is not shaped like anything a normal archive holds{Paren(detail)}"),
+
+        InspectionIssue.ReservedName => Pick(
+            $"Windows が装置の名前として扱うため、この名前では作れません{Paren(detail)}",
+            $"Windows treats this as a device name, so the file cannot be created{Paren(detail)}"),
+
+        InspectionIssue.TrailingSpaceOrDot => Pick(
+            $"末尾が空白かピリオドのため、Windows ではこの名前で作れません{Paren(detail)}",
+            $"Windows cannot create this name: it ends with a space or a period{Paren(detail)}"),
+
+        InspectionIssue.ControlCharacter => Pick(
+            "名前に制御文字が入っています。画面に見えている名前と実際の名前が違います",
+            "The name contains control characters, so what you see is not the real name"),
+
+        InspectionIssue.InvalidCharacter => Pick(
+            $"Windows のファイル名に使えない文字が入っています{Paren(detail)}",
+            $"The name contains characters Windows does not allow in a file name{Paren(detail)}"),
+
+        InspectionIssue.CaseCollision => Pick(
+            $"大文字小文字だけが違う項目があります{Paren(detail)}。展開すると片方が失われます",
+            $"Another item differs only in letter case{Paren(detail)}. "
+            + "Extracting loses one of them."),
+
+        InspectionIssue.BidiOverride => Pick(
+            "文字の向きを変える記号で拡張子を偽装しています。見えている拡張子と実際の拡張子が違います",
+            "A text-direction override disguises the extension: "
+            + "what you see is not the real extension"),
+
+        InspectionIssue.HighRatio => Pick(
+            $"展開すると {detail} 倍に膨らみます",
+            $"This expands to {detail} times its stored size"),
+
+        InspectionIssue.ZipBomb => Pick(
+            $"書庫全体が展開すると {detail} 倍に膨らみます。展開先の空きに気を付けてください",
+            $"The whole archive expands to {detail} times its size. "
+            + "Watch the free space where you extract it."),
+
+        InspectionIssue.ExecutableExtension => Pick(
+            $"開くと、中身を見るのではなくそのまま実行される種類のファイルです{Paren(detail)}",
+            $"Opening this runs it instead of showing its contents{Paren(detail)}"),
+
+        InspectionIssue.MalwareDetected => Pick(
+            "対策ソフトが問題のあるものとして検出しました",
+            "The antimalware service flagged this"),
+
+        InspectionIssue.TooLargeToScan => Pick(
+            $"大きすぎて一度に渡せないため、マルウェア検査を行えませんでした{Paren(detail)}",
+            $"Too large to hand over in one piece, so the malware check was skipped{Paren(detail)}"),
+
+        _ => string.Empty,
+    };
+
     // ------------------------------------------------------------------ 共通
 
     /// <summary>一覧に添える箇条書きの印。</summary>
     public static string Bullet => Pick("・", "- ");
+
+    /// <summary>
+    /// 7z / tar の展開が合言葉を求められて止まったときの理由 (#19)。
+    /// </summary>
+    /// <remarks>
+    /// ZIP は合言葉を尋ねて展開できる (#20) が、7z の復号には対応していない。
+    /// </remarks>
+    public static string PasswordNotSupported => Pick(
+        "パスワードが必要です。パスワード付き書庫の展開には対応していません。",
+        "A password is required. Extracting password-protected archives of this "
+        + "format is not supported.");
+
+    /// <summary>取り出したファイルの置き場を作れなかったときの理由 (#12)。</summary>
+    public static string TempWorkspaceFailed(string root) => Pick(
+        $"一時ファイルの置き場を作れませんでした。{Environment.NewLine}{root}",
+        $"Could not create a place to put temporary files.{Environment.NewLine}{root}");
 
     /// <summary>「この名前は この理由で駄目だった」の1行。</summary>
     public static string FailureLine(string name, string reason) => Pick(

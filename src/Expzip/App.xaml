@@ -1,9 +1,24 @@
-﻿<Application x:Class="Expzip.App"
+<Application x:Class="Expzip.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Expzip"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <!--
+            重さを表す色。一覧 (#36、#20) と検査結果の画面 (#57) の両方から使うため、
+            アプリ全体の資源に置いてある。同じ意味の色が窓ごとに違うと、
+            利用者はそれぞれ別の意味だと受け取る
+        -->
+        <SolidColorBrush x:Key="WarningBrush" Color="#C42B1C" />
+        <!-- 危険と問題なしの間。赤ほど強くなく、灰色よりは目に入る -->
+        <SolidColorBrush x:Key="CautionBrush" Color="#9D5D00" />
+        <!--
+            パスワードで保護された項目の色 (#20)。保護されていることは色で示す。
+            緑にするのは、エクスプローラーが EFS で暗号化されたファイルを緑で出す
+            習わしに倣ったもの。色そのものは合わせていない (あちらの既定は #008000
+            あたりの深緑)。白地で読みやすいほうを採った。
+            検査結果の「問題なし」にも同じ緑を使う (#57)
+        -->
+        <SolidColorBrush x:Key="EncryptedBrush" Color="#107C10" />
     </Application.Resources>
 </Application>

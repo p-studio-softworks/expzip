@@ -93,6 +93,16 @@ internal static partial class Strings
         => Language == UiLanguage.Japanese ? japanese : english;
 
     /// <summary>英語の複数形。日本語側では使わない。</summary>
+    /// <summary>
+    /// 補足を丸括弧でくくる。補足が無ければ何も付けない。
+    /// </summary>
+    /// <remarks>
+    /// 検査の報告 (#53) のように、同じ文言に補足が付く場合と付かない場合がある
+    /// ところで使う。空の括弧が残らないようにするため。
+    /// </remarks>
+    private static string Paren(string? detail)
+        => string.IsNullOrEmpty(detail) ? string.Empty : $" ({detail})";
+
     private static string Plural(long count, string singular, string plural)
         => count == 1 ? singular : plural;
 }
