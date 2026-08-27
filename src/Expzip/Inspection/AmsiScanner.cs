@@ -1,4 +1,7 @@
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Security;
+using Microsoft.Win32;
 
 namespace Expzip.Inspection;
 
@@ -49,14 +52,34 @@ internal sealed class AmsiScanner : IDisposable
     /// <summary>
     /// 検査の窓口を開く。
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// AMSI は Windows の口であって、特定の対策ソフトのものではない。Defender の
+    /// 代わりに別の対策ソフトを入れている環境でも、その製品が提供者として登録して
+    /// いれば同じように働く。こちら側は製品名を知らないし、知る必要もない。
+    /// </para>
+    /// <para>
+    /// ただし<b>初期化に成功しただけでは、判定が働いているとは言えない</b>。応じる
+    /// 提供者が居なければ、問い合わせはいつも「問題なし」で返ってくる。それを
+    /// 「調べた」として報告すると、何も見ていないのに安全だと伝えることになる。
+    /// そこで先に <see cref="HasProvider"/> で登録の有無を見る。
+    /// </para>
+    /// </remarks>
     /// <returns>
-    /// AMSI を提供する対策ソフトが居ない環境では <see langword="null"/>。
+    /// 判定に応じる対策ソフトが居ない環境では <see langword="null"/>。
     /// その場合はマルウェア検査だけを「利用できません」とし、他の検査は行う。
     /// </returns>
     public static AmsiScanner? TryCreate()
     {
         try
         {
+            // 初期化に成功しただけでは、判定が働いているとは言えない。
+            // 応じる相手が居なければ、問い合わせはいつも「問題なし」で返ってくる
+            if (!HasProvider())
+            {
+                return null;
+            }
+
             if (AmsiInitialize("Expzip", out var context) != 0 || context == IntPtr.Zero)
             {
                 return null;
@@ -78,6 +101,43 @@ internal sealed class AmsiScanner : IDisposable
             return null;
         }
     }
+
+    /// <summary>
+    /// 判定に応じる対策ソフトが登録されているかどうか。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// AMSI に応じる製品は、自分の識別子をここに登録する。1つも無ければ、
+    /// 問い合わせても答える相手が居ない。
+    /// </para>
+    /// <para>
+    /// 試験用の検体 (EICAR) を1つ通してみるほうが確実だが、その方法は採らない。
+    /// 対策ソフトの検出履歴に「Expzip.exe で脅威を検出」として毎回残るためで、
+    /// 利用者から見れば Expzip 自身がマルウェアのように見えてしまう。
+    /// </para>
+    /// <para>
+    /// 登録があっても、その製品が実際に答えるとは限らない (別の対策ソフトを
+    /// 入れると Defender は待機側に回る)。そこまでは見分けられないため、
+    /// 報告では「安全です」とは言わず「判定に掛けました」と書く。
+    /// </para>
+    /// </remarks>
+    private static bool HasProvider()
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(ProviderKey);
+            return key is not null && key.SubKeyCount > 0;
+        }
+        catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException
+                                   or IOException)
+        {
+            // 読めないだけなら、居ないとは限らない。使える前提で進む
+            return true;
+        }
+    }
+
+    /// <summary>AMSI に応じる製品が自分を登録する場所。</summary>
+    private const string ProviderKey = @"SOFTWARE\Microsoft\AMSI\Providers";
 
     /// <summary>
     /// バイト列を判定に掛ける。

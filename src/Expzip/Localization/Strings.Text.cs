@@ -794,10 +794,10 @@ internal static partial class Strings
 
     /// <summary>マルウェア検査が使えなかったことを、黙って省かずに出す (#56、#57)。</summary>
     public static string InspectionMalwareUnavailable => Pick(
-        "マルウェア検査は行えませんでした。AMSI に応じる対策ソフトがこの環境に居ません。"
-        + "ほかの検査は行っています。",
-        "The malware check could not run: no antimalware provider answered AMSI on this "
-        + "machine. The other checks did run.");
+        "マルウェア検査は行えませんでした。この環境の対策ソフトは、Windows の検査の口 (AMSI) "
+        + "に応じていません。ほかの検査は行っています。",
+        "The malware check could not run: the antimalware software on this machine does not "
+        + "answer Windows' scan interface (AMSI). The other checks did run.");
 
     public static string InspectionCancelledLine => Pick(
         "検査は途中で中断されました。ここに出ているのは、中断までに調べた範囲の結果です。",
