@@ -148,7 +148,7 @@ internal static class StructureInspector
     /// </remarks>
     private static void CheckCompressionMethods(InspectionContext context, SharpZipFile zip)
     {
-        using var fallback = new ZipMethodFallback(context.ArchivePath);
+        using var fallback = new ZipMethodFallback(context.ArchivePath, context.Password);
 
         foreach (ZipEntry entry in zip)
         {

@@ -25,22 +25,47 @@ namespace Expzip.Archives;
 /// SharpCompress を触らない。
 /// </para>
 /// </remarks>
-internal sealed class ZipMethodFallback(string archivePath) : IDisposable
+internal sealed class ZipMethodFallback(string archivePath, string? password = null)
+    : IDisposable
 {
     private IArchive? _archive;
     private Dictionary<string, IArchiveEntry>? _entries;
     private bool _unavailable;
 
     /// <summary>
-    /// 標準の実装が扱えない方式による失敗かどうか。
+    /// まず標準の道で開き、扱えなかった場合だけ開き直す。
     /// </summary>
+    /// <param name="entryName">書庫内でのエントリ名。</param>
+    /// <param name="primary">標準の道で中身を開く手続き。</param>
     /// <remarks>
-    /// 壊れた書庫の <see cref="InvalidDataException"/> と区別する術が例外の型に無いため、
-    /// ここでは型で絞らず、開き直して読めるかどうかで判断する。読めなければ元の
-    /// 失敗として扱うので、取り違えても結果は変わらない。
+    /// 例外の型で絞らないのは、扱えない方式や鍵長に当たったときに何が飛んでくるかが
+    /// ライブラリ任せのため。SharpZipLib は鍵長を受け付けないとき<b>素の
+    /// <see cref="Exception"/></b> を投げ (#67)、標準の ZIP 実装は方式を扱えないとき
+    /// <see cref="InvalidDataException"/> を投げる (#66)。型を並べて追いかけると
+    /// 拾い漏れる。
+    /// 開き直して読めなければ元の失敗をそのまま投げ直すので、取り違えても結果は変わらない。
     /// </remarks>
-    public static bool MayHelp(Exception ex)
-        => ex is InvalidDataException or NotSupportedException;
+    public Stream Open(string entryName, Func<Stream> primary)
+    {
+        try
+        {
+            return primary();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException
+                                   and not OutOfMemoryException)
+        {
+            var source = TryOpen(entryName);
+
+            // 開き直しても読めなければ、元の失敗として報告する
+            if (source is null)
+            {
+                throw;
+            }
+
+            _ = ex;
+            return source;
+        }
+    }
 
     /// <summary>
     /// 指定したエントリの中身を読む流れを返す。扱えない場合は <see langword="null"/>。
@@ -146,7 +171,8 @@ internal sealed class ZipMethodFallback(string archivePath) : IDisposable
 
         try
         {
-            _archive = ArchiveFactory.OpenArchive(archivePath, SharpArchiveAccess.Options());
+            _archive = ArchiveFactory.OpenArchive(
+                archivePath, SharpArchiveAccess.Options(password));
 
             // 同じ名前のエントリが複数ある細工された書庫では、先に出てきたものを使う。
             // 標準の実装が一覧に出すのも先頭のエントリのため、見えているものと揃う

@@ -152,7 +152,7 @@ internal static class ArchiveExtractor
                     Directory.CreateDirectory(directory);
                 }
 
-                using (var source = OpenEntryContent(entry, fallback))
+                using (var source = fallback.Open(entry.FullName, entry.Open))
                 using (var destination = new FileStream(
                     target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
@@ -198,30 +198,6 @@ internal static class ArchiveExtractor
         }
 
         return new ExtractResult(extracted, skipped, rejected, failed, cancelled);
-    }
-
-    /// <summary>
-    /// エントリの中身を読む流れを開く。
-    /// 標準の実装が扱えない圧縮方式は SharpCompress に回す (#66)。
-    /// </summary>
-    private static Stream OpenEntryContent(ZipArchiveEntry entry, ZipMethodFallback fallback)
-    {
-        try
-        {
-            return entry.Open();
-        }
-        catch (Exception ex) when (ZipMethodFallback.MayHelp(ex))
-        {
-            var source = fallback.TryOpen(entry.FullName);
-
-            // 開き直しても読めなければ、元の失敗として報告する
-            if (source is null)
-            {
-                throw;
-            }
-
-            return source;
-        }
     }
 
     /// <summary>失敗の理由を、利用者に読める文にする (#66)。</summary>

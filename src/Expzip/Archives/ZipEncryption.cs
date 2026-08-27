@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.IO.Compression;
 using ICSharpCode.SharpZipLib.Zip;
 
@@ -177,6 +177,9 @@ internal static class ZipEncryption
 
         using var zip = OpenSharp(archivePath, password);
 
+        // SharpZipLib が扱えない鍵長 (AES-192) のエントリ用 (#67)。要るまで開かない
+        using var fallback = new ZipMethodFallback(archivePath, password);
+
         var targets = zip.Cast<ZipEntry>()
             .Where(e => e.IsFile)
             .Where(e => sourceNames is null || sourceNames.Contains(e.Name))
@@ -226,7 +229,7 @@ internal static class ZipEncryption
                     Directory.CreateDirectory(directory);
                 }
 
-                using (var source = zip.GetInputStream(entry))
+                using (var source = fallback.Open(entry.Name, () => zip.GetInputStream(entry)))
                 using (var destination = new FileStream(
                            target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {

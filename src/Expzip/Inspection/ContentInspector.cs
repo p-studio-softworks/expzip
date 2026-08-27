@@ -121,8 +121,8 @@ internal static class ContentInspector
             return;
         }
 
-        // 標準の実装が復号できない方式のエントリ用 (#66)。要るまで開かない
-        using var fallback = new ZipMethodFallback(context.ArchivePath);
+        // 標準の実装が扱えないエントリ用 (#66、#67)。要るまで開かない
+        using var fallback = new ZipMethodFallback(context.ArchivePath, context.Password);
 
         using (zip)
         {
@@ -151,15 +151,11 @@ internal static class ContentInspector
                     continue;
                 }
 
-                // SharpZipLib が扱えない方式 (LZMA、PPMd、Deflate64 など) は
+                // SharpZipLib が扱えない方式 (LZMA、PPMd、Deflate64) や鍵長 (AES-192) は
                 // 開き直して読む。読めれば CRC まで確かめられるので、
-                // 「検査できなかった」ではなく本当の判定を出せる (#66)
+                // 「検査できなかった」ではなく本当の判定を出せる (#66、#67)
                 Read(context, pass, name, size, ExpectedCrc(entry),
-                    entry.CanDecompress
-                        ? () => zip.GetInputStream(entry)
-                        : () => fallback.TryOpen(entry.Name)
-                                ?? throw new NotSupportedException(
-                                    Strings.UnsupportedCompressionMethod));
+                    () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)));
             }
         }
     }
