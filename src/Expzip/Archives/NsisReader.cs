@@ -142,7 +142,8 @@ internal static class NsisReader
             throw new InvalidDataException(Localization.Strings.NsisNotSupported);
         }
 
-        var (header, dataStart) = ReadHeader(path, head);
+        var read = ReadHeader(path, head);
+        var header = read.Header;
 
         var table = new (uint Offset, uint Count)[BlockCount];
 
@@ -209,10 +210,17 @@ internal static class NsisReader
                 continue;
             }
 
-            files.Add(new NsisFile(name, dataAt, StoredLength(source, dataStart + dataAt)));
+            // まとめ圧縮では、塊の大きさを知るのに書庫を丸ごと展開することになる。
+            // 一覧のためだけに払うには高すぎるので、分からないままにする (7z と同じ)
+            files.Add(new NsisFile(
+                name, dataAt,
+                read.Solid ? 0 : StoredLength(source, read.DataStart + dataAt)));
         }
 
-        return new NsisLayout(dataStart, files);
+        return new NsisLayout(
+            read.DataStart, files,
+            read.Solid ? read.Properties : [],
+            read.Header.Length);
     }
 
     /// <summary>塊に入っている大きさ (圧縮後) を読む。読めない場合は 0。</summary>
@@ -242,8 +250,32 @@ internal static class NsisReader
         }
     }
 
-    /// <summary>先頭ヘッダの直後にある塊を展開し、中身の領域の始まりも返す。</summary>
-    private static (byte[] Header, long DataStart) ReadHeader(string path, long head)
+    /// <summary>読み取ったヘッダと、中身の領域の在り処。</summary>
+    /// <param name="Header">展開したヘッダ。</param>
+    /// <param name="DataStart">
+    /// 中身の領域の始まり。まとめ圧縮では、展開の流れの先頭を指す。
+    /// </param>
+    /// <param name="Solid">まとめ圧縮かどうか。</param>
+    /// <param name="Properties">まとめ圧縮の LZMA の設定 (5バイト)。</param>
+    private readonly record struct HeaderRead(
+        byte[] Header, long DataStart, bool Solid, byte[] Properties);
+
+    /// <summary>
+    /// 先頭ヘッダの直後にある塊を展開し、中身の領域の在り処も返す。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 並びが2通りある。<b>塊ごとの圧縮</b>では 4バイトの大きさに続いて塊が並び、
+    /// <b>まとめ圧縮</b>では 5バイトの LZMA の設定に続いて1本の流れになっていて、
+    /// 流れの先頭に 4バイトの長さとヘッダが入る。
+    /// </para>
+    /// <para>
+    /// 見分けは<b>読んでみて筋が通るか</b>で行う。旗で判別できればよいのだが、
+    /// 実物を見た限り旗には出ていない。塊ごとの圧縮として読んで通らなければ、
+    /// まとめ圧縮として読み直す。
+    /// </para>
+    /// </remarks>
+    private static HeaderRead ReadHeader(string path, long head)
     {
         using var stream = File.OpenRead(path);
 
@@ -259,47 +291,116 @@ internal static class NsisReader
             throw new InvalidDataException(Localization.Strings.NsisNotSupported);
         }
 
+        var body = head + FirstHeaderLength;
+
         Span<byte> lead = stackalloc byte[4];
         stream.ReadExactly(lead);
 
         var value = BinaryPrimitives.ReadUInt32LittleEndian(lead);
-        var compressed = (value & 0x80000000) != 0;
         var blockSize = value & 0x7FFFFFFF;
 
-        if (!compressed)
+        // 無圧縮。読んだ4バイトは大きさそのもの
+        if ((value & 0x80000000) == 0)
         {
-            // 無圧縮。読んだ4バイトは大きさそのもの
             var plain = new byte[headerSize];
             stream.ReadExactly(plain);
-            return (plain, stream.Position);
-        }
 
-        if (blockSize > HeaderLimit)
+            if (Looks(plain))
+            {
+                return new HeaderRead(plain, stream.Position, false, []);
+            }
+        }
+        else if (blockSize <= HeaderLimit)
         {
-            throw new InvalidDataException(Localization.Strings.NsisNotSupported);
+            var payload = new byte[blockSize];
+            stream.ReadExactly(payload);
+
+            var header = new byte[headerSize];
+
+            try
+            {
+                using var source = new MemoryStream(payload);
+
+                // NSIS の deflate は生 (zlib の包みが無い)
+                using var inflate = new DeflateStream(source, CompressionMode.Decompress);
+                inflate.ReadExactly(header);
+
+                if (Looks(header))
+                {
+                    return new HeaderRead(header, body + 4 + blockSize, false, []);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
+            {
+                // まとめ圧縮の書庫はここへ来る。読み直す
+                _ = ex;
+            }
         }
 
-        var payload = new byte[blockSize];
-        stream.ReadExactly(payload);
+        return ReadSolid(stream, body, headerSize);
+    }
 
-        var header = new byte[headerSize];
+    /// <summary>まとめ圧縮として読み直す。</summary>
+    private static HeaderRead ReadSolid(Stream stream, long body, uint headerSize)
+    {
+        stream.Position = body;
+
+        var properties = new byte[5];
+        stream.ReadExactly(properties);
 
         try
         {
-            using var source = new MemoryStream(payload);
+            using var lzma = SharpCompress.Compressors.LZMA.LzmaStream.Create(
+                properties, stream, leaveOpen: true);
 
-            // NSIS の deflate は生 (zlib の包みが無い)
-            using var inflate = new DeflateStream(source, CompressionMode.Decompress);
-            inflate.ReadExactly(header);
+            Span<byte> lead = stackalloc byte[4];
+            lzma.ReadExactly(lead);
+
+            // 流れの先頭に入っている長さは、先頭ヘッダの記録値と一致するはず
+            if (BinaryPrimitives.ReadUInt32LittleEndian(lead) != headerSize)
+            {
+                throw new InvalidDataException(Localization.Strings.NsisNotSupported);
+            }
+
+            var header = new byte[headerSize];
+            lzma.ReadExactly(header);
+
+            if (!Looks(header))
+            {
+                throw new InvalidDataException(Localization.Strings.NsisNotSupported);
+            }
+
+            return new HeaderRead(header, body + properties.Length, true, properties);
         }
-        catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
+        catch (Exception ex) when (ex is not InvalidDataException
+                                   and not OperationCanceledException)
         {
-            // まとめ圧縮 (LZMA) の書庫はここで落ちる。まだ対応していない
             throw new InvalidDataException(Localization.Strings.NsisNotSupported, ex);
         }
+    }
 
-        // 中身の領域はヘッダの塊のすぐ後ろから始まる
-        return (header, head + FirstHeaderLength + 4 + blockSize);
+    /// <summary>読み取ったヘッダの筋が通っているか。</summary>
+    /// <remarks>
+    /// 命令の並びの終わりが文字列表の始まりとちょうど一致するかを見る。
+    /// 位置表が正しく読めていれば必ず合う。読み方を間違えていれば、まず合わない。
+    /// </remarks>
+    private static bool Looks(byte[] header)
+    {
+        if (header.Length < 4 + (BlockCount * 8))
+        {
+            return false;
+        }
+
+        var entriesAt = BinaryPrimitives.ReadUInt32LittleEndian(
+            header.AsSpan(4 + (EntriesBlock * 8)));
+        var entryCount = BinaryPrimitives.ReadUInt32LittleEndian(
+            header.AsSpan(8 + (EntriesBlock * 8)));
+        var stringsAt = BinaryPrimitives.ReadUInt32LittleEndian(
+            header.AsSpan(4 + (StringsBlock * 8)));
+
+        return entryCount < int.MaxValue / EntryLength
+               && entriesAt + ((long)entryCount * EntryLength) == stringsAt
+               && stringsAt <= header.Length;
     }
 
     /// <summary>NSIS の名前を書庫内のパスに直す。</summary>

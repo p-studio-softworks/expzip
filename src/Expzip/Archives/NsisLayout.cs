@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO;
 using System.IO.Compression;
 
@@ -13,10 +13,73 @@ internal readonly record struct NsisFile(string Name, uint DataOffset, long Stor
 /// <summary>
 /// NSIS 製インストーラーの組み立て (#68)。一覧と取り出しで共通に使う。
 /// </summary>
-/// <param name="DataStart">中身の領域が始まる位置。ファイルの先頭からの絶対位置。</param>
+/// <param name="DataStart">
+/// 中身の領域が始まる位置。ファイルの先頭からの絶対位置。
+/// まとめ圧縮では、展開の流れの先頭 (LZMA の設定の直後) を指す。
+/// </param>
 /// <param name="Files">取り出されるファイル。中身の位置で畳んである。</param>
-internal sealed record NsisLayout(long DataStart, IReadOnlyList<NsisFile> Files)
+/// <param name="Properties">
+/// まとめ圧縮の LZMA の設定 (5バイト)。まとめ圧縮でなければ空。
+/// </param>
+/// <param name="HeaderLength">
+/// まとめ圧縮のとき、展開の流れの先頭に入っているヘッダの長さ。
+/// 中身の領域はその後ろから始まる。
+/// </param>
+internal sealed record NsisLayout(
+    long DataStart,
+    IReadOnlyList<NsisFile> Files,
+    byte[] Properties,
+    long HeaderLength)
 {
+    /// <summary>まとめ圧縮 (ソリッド) かどうか。</summary>
+    /// <remarks>
+    /// まとめ圧縮では中身が1本の流れになっていて、塊ごとに独立して展開できない。
+    /// 5番目のファイルを取り出すには前の4つを展開して読み飛ばす必要がある。
+    /// 7z (#19) と同じ性質。
+    /// </remarks>
+    public bool IsSolid => Properties.Length > 0;
+
+    /// <summary>
+    /// 中身の領域を頭から読める流れを開く。
+    /// </summary>
+    /// <remarks>
+    /// まとめ圧縮では、展開の流れの先頭に <c>[4バイトの長さ][ヘッダ]</c> が入っている。
+    /// その分を読み飛ばしてから返す。
+    /// </remarks>
+    public Stream OpenDataArea(Stream source)
+    {
+        source.Position = DataStart;
+
+        if (!IsSolid)
+        {
+            return source;
+        }
+
+        var stream = SharpCompress.Compressors.LZMA.LzmaStream.Create(
+            Properties, source, leaveOpen: true);
+
+        Skip(stream, 4 + HeaderLength);
+        return stream;
+    }
+
+    /// <summary>前から順にしか読めない流れを、指定の長さだけ読み飛ばす。</summary>
+    public static void Skip(Stream stream, long count)
+    {
+        var buffer = new byte[64 * 1024];
+
+        while (count > 0)
+        {
+            var got = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, count));
+
+            if (got <= 0)
+            {
+                throw new EndOfStreamException();
+            }
+
+            count -= got;
+        }
+    }
+
     /// <summary>
     /// 中身の塊を開く。展開後を頭から読める流れを返す。
     /// </summary>
