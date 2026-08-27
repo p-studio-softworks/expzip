@@ -107,7 +107,10 @@ internal sealed class EntryRow : INotifyPropertyChanged
     /// <summary>言語が変わったことを行に伝える (#23)。</summary>
     public void NotifyLanguageChanged() => Notify(nameof(WarningTooltip));
 
-    public string SizeText => Entry is null ? string.Empty : Entry.Length.ToString("N0");
+    // NSIS のように展開後の大きさを持たない形式がある (#68)。
+    // 0 と出すと「空のファイル」に見えるので、分からないことを示す
+    public string SizeText => Entry is null ? string.Empty
+        : Entry.LengthKnown ? Entry.Length.ToString("N0") : "-";
 
     // 7z のように、まとめて圧縮していてエントリごとの内訳を持たない形式がある (#19)。
     // 0 と出すと「まったく場所を取っていない」ように見えるので、分からないことを示す

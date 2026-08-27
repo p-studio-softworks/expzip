@@ -60,7 +60,8 @@ internal sealed class ArchiveTreeBuilder
         long compressedLength,
         bool compressedLengthKnown,
         DateTime lastWriteTime,
-        bool isEncrypted = false)
+        bool isEncrypted = false,
+        bool lengthKnown = true)
     {
         var fullName = Trim(sourceName);
 
@@ -82,6 +83,7 @@ internal sealed class ArchiveTreeBuilder
             Length = length,
             CompressedLength = compressedLength,
             CompressedLengthKnown = compressedLengthKnown,
+            LengthKnown = lengthKnown,
             LastWriteTime = lastWriteTime,
             IsPathSuspicious = ArchivePath.IsSuspicious(sourceName),
             IsEncrypted = isEncrypted,

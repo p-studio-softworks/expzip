@@ -18,6 +18,13 @@ internal sealed class ArchiveEntry
     /// <summary>展開後のサイズ(バイト)。</summary>
     public long Length { get; init; }
 
+    /// <summary>
+    /// 展開後のサイズが分かるかどうか (#68)。
+    /// NSIS は展開後の大きさを持たないため、実際に展開するまで分からない。
+    /// 分からないものを 0 として出すと「空のファイル」に見えるので区別する。
+    /// </summary>
+    public bool LengthKnown { get; init; } = true;
+
     /// <summary>書庫内での圧縮後サイズ(バイト)。</summary>
     public long CompressedLength { get; init; }
 

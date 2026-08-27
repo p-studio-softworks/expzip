@@ -17,6 +17,9 @@ internal enum ArchiveFormat
 
     /// <summary>tar。圧縮されたもの (tar.gz / tar.bz2 / tar.xz) を含む。読み取りのみ。</summary>
     Tar,
+
+    /// <summary>NSIS 製インストーラー (#68)。一覧のみ。</summary>
+    Nsis,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -95,11 +98,16 @@ internal static class ArchiveFormats
             return _sniffed.Format;
         }
 
-        var format = ZipPrefix.LooksLikeZip(path)
-            ? ArchiveFormat.Zip
-            : SharpArchiveAccess.SevenZipOffset(path) > 0
-                ? ArchiveFormat.SevenZip
-                : ArchiveFormat.Unknown;
+        // NSIS が先。しるしが DEADBEEF + NullsoftInst と具体的なのに対し、
+        // ZIP の見分けは「末尾に終端レコードがある」だけ。NSIS の中身に ZIP が
+        // 入っていると、そちらを拾って中身をまるごと取り違える (実測で確認)
+        var format = NsisReader.IsNsis(path)
+            ? ArchiveFormat.Nsis
+            : ZipPrefix.LooksLikeZip(path)
+                ? ArchiveFormat.Zip
+                : SharpArchiveAccess.SevenZipOffset(path) > 0
+                    ? ArchiveFormat.SevenZip
+                    : ArchiveFormat.Unknown;
 
         _sniffed = (path, format);
         return format;

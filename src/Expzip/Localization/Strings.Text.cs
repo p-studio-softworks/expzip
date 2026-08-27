@@ -170,6 +170,11 @@ internal static partial class Strings
 
     public static string FormatUnknown => Pick("不明", "Unknown");
 
+    /// <summary>NSIS 製インストーラーとして読めなかったときの断り (#68)。</summary>
+    public static string NsisNotSupported => Pick(
+        "このインストーラーの作りには、まだ対応していません",
+        "This installer layout is not supported yet.");
+
     /// <summary>「開く」ダイアログの絞り込み。</summary>
     /// <remarks>
     /// 自己解凍書庫 (#32) は名前が .exe なので、書庫ファイルの組にも入れる。
@@ -1072,6 +1077,7 @@ internal static partial class Strings
         ArchiveFormat.Zip => "ZIP",
         ArchiveFormat.SevenZip => "7z",
         ArchiveFormat.Tar => "tar",
+        ArchiveFormat.Nsis => "NSIS",
         _ => FormatUnknown,
     };
 }

@@ -22,6 +22,7 @@ internal static class ArchiveReader
 
         return format switch
         {
+            ArchiveFormat.Nsis => NsisReader.Open(path, progress, cancellationToken),
             ArchiveFormat.SevenZip or ArchiveFormat.Tar
                 => SharpArchiveReader.Open(path, format, progress, cancellationToken),
 
