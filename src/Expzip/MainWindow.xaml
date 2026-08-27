@@ -275,6 +275,25 @@
                     </Style>
                 </TreeView.ItemContainerStyle>
                 <TreeView.Resources>
+                    <!--
+                        選ばれている節の色 (#20)。WPF の既定では濃い青地に白文字になり、
+                        保護された項目の緑が読めなくなる。一覧側は薄い青地のまま文字色を
+                        変えないため、同じ窓の中で選択の見え方も食い違っていた。
+                        エクスプローラーも薄い青地なので、そちらに合わせる。
+                        一覧が使っている色をそのまま置く (実測 #98DDFB を挟む階調)
+                    -->
+                    <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                                         StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#D9F4FF" Offset="0" />
+                        <GradientStop Color="#9BDDFB" Offset="1" />
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                                     Color="{x:Static SystemColors.ControlTextColor}" />
+                    <!-- 焦点が一覧へ移っている間。エクスプローラーと同じく薄い灰色 -->
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
+                                     Color="#F0F0F0" />
+                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
+                                     Color="{x:Static SystemColors.ControlTextColor}" />
                     <HierarchicalDataTemplate DataType="{x:Type archives:ArchiveFolder}"
                                               ItemsSource="{Binding Folders}">
                         <StackPanel Orientation="Horizontal">
