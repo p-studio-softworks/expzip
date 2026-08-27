@@ -375,29 +375,6 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ 圧縮方式
 
     /// <summary>いま選ばれている圧縮の強さ (#11)。</summary>
-    private CompressionLevel SelectedCompressionLevel
-        => CompressionCombo.SelectedItem is CompressionLevelOption option
-            ? option.Level
-            : CompressionLevelOption.Default;
-
-    private void CompressionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        // 起動時の初期化でも呼ばれるので、設定を読み終える前は何もしない
-        if (_settings is null || CompressionCombo.SelectedItem is not CompressionLevelOption option)
-        {
-            return;
-        }
-
-        var value = CompressionLevelOption.ToSettingValue(option.Level);
-        if (_settings.CompressionLevel == value)
-        {
-            return;
-        }
-
-        _settings.CompressionLevel = value;
-        SettingsStore.TrySave(_settings);
-    }
-
     // ------------------------------------------------------------------ 最近使った書庫
 
     /// <summary>履歴に残す件数。</summary>
@@ -784,7 +761,6 @@ public partial class MainWindow : Window
         _cancellation = cancellation;
         SetBusy(true);
 
-        var level = SelectedCompressionLevel;
         var progress = new Progress<int>(done =>
         {
             StatusMessage.Text = Strings.Renaming(done);
@@ -795,10 +771,10 @@ public partial class MainWindow : Window
         {
             result = await Task.Run(() => password is null
                 ? ZipArchiveWriter.Rename(
-                    archivePath, oldPath, newPath, isFolder, level, progress, cancellation.Token)
+                    archivePath, oldPath, newPath, isFolder, progress, cancellation.Token)
                 : ZipEncryptedWriter.Move(
                     archivePath, [new PathChange(oldPath, newPath, isFolder)], password,
-                    level, progress, cancellation.Token));
+                    progress, cancellation.Token));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -1080,7 +1056,6 @@ public partial class MainWindow : Window
         _cancellation = cancellation;
         SetBusy(true);
 
-        var level = SelectedCompressionLevel;
         var restore = CurrentFolder?.FullPath;
 
         // 暗号化のやり直しになるため、書庫全体を作り直すことになる (#20)
@@ -1096,7 +1071,7 @@ public partial class MainWindow : Window
         try
         {
             done = await Task.Run(() => ZipEncryptedWriter.ChangePassword(
-                archivePath, current, next, level, progress, cancellation.Token));
+                archivePath, current, next, progress, cancellation.Token));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -1815,9 +1790,6 @@ public partial class MainWindow : Window
         _cancellation = cancellation;
         SetBusy(true);
 
-        // 別スレッドから画面の部品には触れないため、ここで値にしておく
-        var level = SelectedCompressionLevel;
-
         var progress = new Progress<AddProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
@@ -1837,10 +1809,10 @@ public partial class MainWindow : Window
             var result = await Task.Run(() => password is null
                 ? ZipArchiveWriter.Add(
                     archivePath, sourcePaths, destinationFolder, replaceExisting,
-                    level, progress, cancellation.Token)
+                    progress, cancellation.Token)
                 : ZipEncryptedWriter.Add(
                     archivePath, sourcePaths, destinationFolder, replaceExisting, password,
-                    level, progress, cancellation.Token));
+                    progress, cancellation.Token));
 
             ShowAddResult(result);
         }
@@ -2033,7 +2005,6 @@ public partial class MainWindow : Window
         _cancellation = cancellation;
         SetBusy(true);
 
-        var level = SelectedCompressionLevel;
         var progress = new Progress<AddProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
@@ -2048,10 +2019,10 @@ public partial class MainWindow : Window
             result = await Task.Run(() => password is null
                 ? ZipArchiveWriter.Add(
                     session.ArchivePath, [session.TempPath], session.DestinationFolder,
-                    replaceExisting: true, level, progress, cancellation.Token)
+                    replaceExisting: true, progress, cancellation.Token)
                 : ZipEncryptedWriter.Add(
                     session.ArchivePath, [session.TempPath], session.DestinationFolder,
-                    replaceExisting: true, password, level, progress, cancellation.Token));
+                    replaceExisting: true, password, progress, cancellation.Token));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -2602,7 +2573,6 @@ public partial class MainWindow : Window
             .ToList();
 
         var archivePath = Contents.FilePath;
-        var level = SelectedCompressionLevel;
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -2617,8 +2587,9 @@ public partial class MainWindow : Window
         try
         {
             result = await Task.Run(() => password is null
-                ? ZipArchiveWriter.Move(archivePath, changes, level, progress, cancellation.Token)
-                : ZipEncryptedWriter.Move(archivePath, changes, password, level, progress, cancellation.Token));
+                ? ZipArchiveWriter.Move(archivePath, changes, progress, cancellation.Token)
+                : ZipEncryptedWriter.Move(
+                    archivePath, changes, password, progress, cancellation.Token));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -3902,11 +3873,6 @@ public partial class MainWindow : Window
             TreeColumn.Width = new GridLength(paneWidth);
         }
 
-        CompressionCombo.ItemsSource = CompressionLevelOption.All;
-        var level = CompressionLevelOption.Parse(_settings.CompressionLevel);
-        CompressionCombo.SelectedItem =
-            CompressionLevelOption.All.First(option => option.Level == level);
-
         // 列を増減した場合に古い設定が残っていることがあるので、数が合うときだけ使う
         if (_settings.ColumnWidths is { } columnWidths
             && EntryList.View is GridView gridView
@@ -4034,8 +4000,6 @@ public partial class MainWindow : Window
         ExtractButton.ToolTip = Strings.ExtractTooltip;
         AddButton.Content = Strings.Add;
         AddButton.ToolTip = Strings.AddTooltip;
-        CompressionLabel.Text = Strings.CompressionLabel;
-        CompressionCombo.ToolTip = Strings.CompressionTooltip;
         RefreshButton.Content = Strings.Refresh;
         RefreshButton.ToolTip = Strings.RefreshTooltip;
         PasswordButton.Content = Strings.Password;
@@ -4086,12 +4050,6 @@ public partial class MainWindow : Window
         {
             encryptedText.Text = Strings.EncryptedTooltip;
         }
-
-        // 圧縮方式の名前は選択肢が持っている。一覧を作り直させて読み直させる (#11)
-        var level = SelectedCompressionLevel;
-        CompressionCombo.ItemsSource = CompressionLevelOption.All.ToList();
-        CompressionCombo.SelectedItem =
-            CompressionLevelOption.All.First(option => option.Level == level);
 
         // 束縛で出している文字は、変わったことを伝えないと入れ替わらない
         foreach (var tab in _tabs)

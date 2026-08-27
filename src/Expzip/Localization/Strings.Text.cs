@@ -34,12 +34,6 @@ internal static partial class Strings
         "ファイルを書庫に追加する。一覧にドラッグしても追加できる",
         "Add files to the archive. Dragging them onto the list works too.");
 
-    public static string CompressionLabel => Pick("圧縮", "Compression");
-
-    public static string CompressionTooltip => Pick(
-        "ファイルを追加するときの圧縮の強さ",
-        "Compression level used when adding files");
-
     public static string Refresh => Pick("更新", "Refresh");
 
     public static string RefreshTooltip => Pick("書庫を読み直す", "Reload the archive");

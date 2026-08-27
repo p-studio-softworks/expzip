@@ -36,8 +36,6 @@ internal sealed class AppSettings
     /// 数値ではなく名前で持つのは、利用者が設定ファイルを開いたときに
     /// 何を指しているか分かるようにするため。
     /// </summary>
-    public string CompressionLevel { get; set; } = "Optimal";
-
     /// <summary>
     /// 画面の言語 (#23)。<c>auto</c> / <c>ja</c> / <c>en</c>。
     /// 既定の <c>auto</c> は Windows の表示言語に合わせる。

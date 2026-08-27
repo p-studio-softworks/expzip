@@ -1,5 +1,4 @@
 using System.IO;
-using System.IO.Compression;
 using ICSharpCode.SharpZipLib.Zip;
 
 // 標準ライブラリにも同じ名前の型があるため、こちら側の名前をはっきりさせる
@@ -44,30 +43,18 @@ internal static class ZipUpdate
             StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
         };
 
-    /// <summary>
-    /// 圧縮の強さを ZIP の圧縮方式に対応付ける (#11)。
-    /// </summary>
-    /// <remarks>
-    /// 選べるのは「格納のみ」と「圧縮する」の2つ (仕様書 5.3)。SharpZipLib の更新は
-    /// deflate の段階を渡せず、実測でも段階を上げてもほとんど縮まなかったため。
-    /// </remarks>
-    public static CompressionMethod MethodOf(CompressionLevel level)
-        => level == CompressionLevel.NoCompression
-            ? CompressionMethod.Stored
-            : CompressionMethod.Deflated;
-
     /// <summary>書き出す1件分のエントリを組み立てる。</summary>
     /// <param name="name">書庫内での名前。区切りは <c>/</c>。</param>
-    /// <param name="level">圧縮の強さ。</param>
+    /// <param name="method">圧縮方式。<see cref="CompressionChoice"/> が決める (#38)。</param>
     /// <param name="lastWriteTime">最終更新日時。</param>
     /// <remarks>
     /// 名前は UTF-8 + EFSフラグで書く。読み取りの CP932 判定 (#13) は古い書庫を
     /// 救うためのもので、こちらから書くものをあえて古い形式にする理由は無い。
     /// </remarks>
-    public static ZipEntry NewEntry(string name, CompressionLevel level, DateTime lastWriteTime)
+    public static ZipEntry NewEntry(string name, CompressionMethod method, DateTime lastWriteTime)
         => new(name)
         {
-            CompressionMethod = MethodOf(level),
+            CompressionMethod = method,
             IsUnicodeText = true,
             DateTime = lastWriteTime,
         };

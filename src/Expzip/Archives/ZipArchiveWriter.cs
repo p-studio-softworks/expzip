@@ -76,7 +76,6 @@ internal static class ZipArchiveWriter
     /// <param name="sourcePaths">追加するファイルまたはフォルダのパス。</param>
     /// <param name="destinationFolder">書庫内の追加先フォルダ。ルートは空文字。</param>
     /// <param name="replaceExisting">同名のエントリがある場合に置き換えるか。</param>
-    /// <param name="compressionLevel">圧縮の強さ (#11)。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <remarks>
@@ -89,7 +88,6 @@ internal static class ZipArchiveWriter
         IReadOnlyList<string> sourcePaths,
         string destinationFolder,
         bool replaceExisting,
-        CompressionLevel compressionLevel,
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -138,9 +136,11 @@ internal static class ZipArchiveWriter
                 continue;
             }
 
-            // 読めないファイルはここで弾く。書き出しが始まってから失敗すると
-            // まとめて取りやめになり、他の分まで巻き添えになる
-            if (WhyUnreadable(item.SourcePath) is { } reason)
+            // 読めるかを確かめ、あわせて圧縮するかどうかを決める (#38)。
+            // 書き出しが始まってから読めないと分かると、その回の書き換えが
+            // まるごと取りやめになり、他の分まで巻き添えになる
+            var choice = CompressionChoice.Probe(item.SourcePath);
+            if (choice.Error is { } reason)
             {
                 failed.Add((item.SourcePath, reason));
                 continue;
@@ -162,7 +162,7 @@ internal static class ZipArchiveWriter
                     reportedAt = readBytes;
                     progress?.Report(new AddProgress(readBytes, totalBytes, name));
                 }),
-                ZipUpdate.NewEntry(name, compressionLevel, ReadLastWriteTime(item.SourcePath)));
+                ZipUpdate.NewEntry(name, choice.Method, ReadLastWriteTime(item.SourcePath)));
 
             if (found >= 0)
             {
@@ -224,29 +224,6 @@ internal static class ZipArchiveWriter
         catch (Exception ex) when (ex is ZipException or IOException or InvalidOperationException)
         {
             // 既に片付いている場合もある。取りやめの失敗で例外を重ねない
-        }
-    }
-
-    /// <summary>
-    /// このファイルを読めない理由。読めるなら <see langword="null"/>。
-    /// </summary>
-    /// <remarks>
-    /// 書き出しが始まってから読めないと分かると、その回の書き換えがまるごと
-    /// 取りやめになる。1件の失敗で他を巻き添えにしないよう、先に確かめる。
-    /// </remarks>
-    private static string? WhyUnreadable(string path)
-    {
-        try
-        {
-            using var probe = new FileStream(
-                path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-                                   or ArgumentException or NotSupportedException
-                                   or PathTooLongException)
-        {
-            return ex.Message;
         }
     }
 
@@ -450,7 +427,6 @@ internal static class ZipArchiveWriter
     /// <param name="oldPath">変更前の書庫内パス。区切りは <c>/</c>、末尾に区切りは付けない。</param>
     /// <param name="newPath">変更後の書庫内パス。</param>
     /// <param name="isFolder">フォルダなら true。配下のエントリもまとめて付け替える。</param>
-    /// <param name="compressionLevel">詰め直すときの圧縮の強さ。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <remarks>
@@ -471,25 +447,22 @@ internal static class ZipArchiveWriter
         string oldPath,
         string newPath,
         bool isFolder,
-        CompressionLevel compressionLevel,
         IProgress<int>? progress,
         CancellationToken cancellationToken)
         => Move(archivePath, [new PathChange(oldPath, newPath, isFolder)],
-                compressionLevel, progress, cancellationToken);
+                progress, cancellationToken);
 
     /// <summary>
     /// 書庫内の項目をまとめて別の場所へ移す (#43)。名前の変更もこの一種として扱う。
     /// </summary>
     /// <param name="archivePath">書庫ファイルのパス。</param>
     /// <param name="changes">付け替える書庫内パスの組。</param>
-    /// <param name="compressionLevel">詰め直すときの圧縮の強さ。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <inheritdoc cref="Rename" path="/remarks"/>
     public static RenameResult Move(
         string archivePath,
         IReadOnlyList<PathChange> changes,
-        CompressionLevel compressionLevel,
         IProgress<int>? progress,
         CancellationToken cancellationToken)
     {
@@ -552,7 +525,8 @@ internal static class ZipArchiveWriter
                     {
                         zip.Add(
                             new ZipUpdate.FileSource(holding, cancellationToken),
-                            ZipUpdate.NewEntry(newName, compressionLevel, stamp));
+                            ZipUpdate.NewEntry(
+                                newName, CompressionChoice.Probe(holding).Method, stamp));
                     }
 
                     renamed++;

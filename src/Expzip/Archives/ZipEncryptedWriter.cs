@@ -37,7 +37,6 @@ internal static class ZipEncryptedWriter
         string destinationFolder,
         bool replaceExisting,
         string password,
-        CompressionLevel compressionLevel,
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -54,7 +53,7 @@ internal static class ZipEncryptedWriter
         var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         var result = Rewrite(
-            archivePath, password, compressionLevel, cancellationToken,
+            archivePath, password, cancellationToken,
             keep: name =>
             {
                 // 同じ名前が来る場合、置き換えるなら古い方を落とす
@@ -138,7 +137,7 @@ internal static class ZipEncryptedWriter
         var deleted = 0;
 
         var result = Rewrite(
-            archivePath, password, CompressionLevel.Optimal, cancellationToken,
+            archivePath, password, cancellationToken,
             keep: name =>
             {
                 if (!ZipArchiveWriter.ShouldDelete(name, fileEntryNames, folderPaths))
@@ -158,14 +157,13 @@ internal static class ZipEncryptedWriter
         string archivePath,
         IReadOnlyList<PathChange> changes,
         string password,
-        CompressionLevel compressionLevel,
         IProgress<int>? progress,
         CancellationToken cancellationToken)
     {
         var renamed = 0;
 
         var result = Rewrite(
-            archivePath, password, compressionLevel, cancellationToken,
+            archivePath, password, cancellationToken,
             keep: name =>
             {
                 if (ZipArchiveWriter.MapAny(name, changes) is not { } mapped)
@@ -190,7 +188,7 @@ internal static class ZipEncryptedWriter
         var taken = false;
 
         var result = Rewrite(
-            archivePath, password, CompressionLevel.Optimal, CancellationToken.None,
+            archivePath, password, CancellationToken.None,
             keep: name =>
             {
                 // 同じ名前のフォルダが既にあるか、その配下に何かあるか
@@ -222,14 +220,13 @@ internal static class ZipEncryptedWriter
         string archivePath,
         string? oldPassword,
         string? newPassword,
-        CompressionLevel compressionLevel,
         IProgress<int>? progress,
         CancellationToken cancellationToken)
     {
         var done = 0;
 
         return Rewrite(
-            archivePath, oldPassword, compressionLevel, cancellationToken,
+            archivePath, oldPassword, cancellationToken,
             keep: name =>
             {
                 progress?.Report(++done);
@@ -251,7 +248,6 @@ internal static class ZipEncryptedWriter
     private static bool Rewrite(
         string archivePath,
         string? password,
-        CompressionLevel compressionLevel,
         CancellationToken cancellationToken,
         Func<string, string?> keep,
         Action<EncryptedZipWriter>? append = null,
@@ -269,7 +265,6 @@ internal static class ZipEncryptedWriter
             using (var stream = File.Create(temp))
             using (var output = new ZipOutputStream(stream))
             {
-                output.SetLevel(ToSharpLevel(compressionLevel));
                 output.Password = outgoing;
                 output.UseZip64 = UseZip64.Dynamic;
 
@@ -291,9 +286,10 @@ internal static class ZipEncryptedWriter
                     }
 
                     // 残すエントリも一度復号して暗号化し直す。SharpZipLib には
-                    // 暗号化されたままのデータを移す手立てが無い
+                    // 暗号化されたままのデータを移す手立てが無い。
+                    // 圧縮するかどうかは元の書庫での扱いを引き継ぐ (#38)
                     using var content = source.GetInputStream(entry);
-                    writer.WriteFile(name, content, entry.DateTime);
+                    writer.WriteFile(name, content, entry.DateTime, entry.CompressionMethod);
                 }
 
                 append?.Invoke(writer);
@@ -323,7 +319,9 @@ internal static class ZipEncryptedWriter
             output.CloseEntry();
         }
 
-        public void WriteFile(string entryName, Stream content, DateTime lastWriteTime)
+        public void WriteFile(
+            string entryName, Stream content, DateTime lastWriteTime,
+            CompressionMethod method = CompressionMethod.Deflated)
         {
             output.PutNextEntry(new ZipEntry(entryName)
             {
@@ -333,7 +331,7 @@ internal static class ZipEncryptedWriter
                 // AES の印だけが付いた書庫になってしまう
                 AESKeySize = encrypt ? AesKeySize : 0,
                 IsUnicodeText = true,
-                CompressionMethod = CompressionMethod.Deflated,
+                CompressionMethod = method,
             });
 
             content.CopyTo(output);
@@ -348,15 +346,6 @@ internal static class ZipEncryptedWriter
             Password = password,
             StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
         };
-
-    /// <summary>圧縮の強さを SharpZipLib の 0〜9 に読み替える。</summary>
-    private static int ToSharpLevel(CompressionLevel level) => level switch
-    {
-        CompressionLevel.NoCompression => 0,
-        CompressionLevel.Fastest => 1,
-        CompressionLevel.SmallestSize => 9,
-        _ => 6,
-    };
 
     /// <summary>元ファイルの更新日時。読めない場合は現在時刻。</summary>
     private static DateTime ReadLastWriteTime(string path)
