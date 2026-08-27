@@ -64,7 +64,10 @@ internal static class ArchiveExtractor
         string? zoneIdentifier = null,
         string? basePath = null,
         string? password = null)
-        => format != ArchiveFormat.Zip
+        => format == ArchiveFormat.Nsis
+            ? NsisExtractor.Extract(archivePath, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+            : format != ArchiveFormat.Zip
             ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : password is null

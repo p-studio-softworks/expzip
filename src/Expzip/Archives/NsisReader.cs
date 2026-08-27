@@ -102,6 +102,39 @@ internal static class NsisReader
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var layout = ReadLayout(path, cancellationToken);
+        var builder = new ArchiveTreeBuilder(path);
+        var done = 0;
+
+        foreach (var file in layout.Files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            builder.AddFile(
+                ToArchivePath(file.Name),
+                length: 0,
+                compressedLength: file.StoredLength,
+                compressedLengthKnown: true,
+                lastWriteTime: default,
+                isEncrypted: false,
+                lengthKnown: false);
+
+            if (++done % 100 == 0)
+            {
+                progress?.Report(new OpenProgress(done, layout.Files.Count));
+            }
+        }
+
+        progress?.Report(new OpenProgress(done, done));
+
+        return builder.Build(path, ArchiveFormat.Nsis, totalCompressedLength: null,
+            isSelfExtracting: true);
+    }
+
+    /// <summary>組み立てを読む。一覧と取り出しで共通に使う。</summary>
+    /// <exception cref="InvalidDataException">NSIS として読めない場合。</exception>
+    public static NsisLayout ReadLayout(string path, CancellationToken cancellationToken = default)
+    {
         var head = FindHeader(path);
 
         if (head < 0)
@@ -109,8 +142,7 @@ internal static class NsisReader
             throw new InvalidDataException(Localization.Strings.NsisNotSupported);
         }
 
-        var header = ReadHeader(path, head);
-        var builder = new ArchiveTreeBuilder(path);
+        var (header, dataStart) = ReadHeader(path, head);
 
         var table = new (uint Offset, uint Count)[BlockCount];
 
@@ -140,7 +172,9 @@ internal static class NsisReader
 
         // 同じファイルが複数の分岐から取り出されることがある。中身の位置で畳む
         var seen = new HashSet<uint>();
-        var done = 0;
+        var files = new List<NsisFile>();
+
+        using var source = File.OpenRead(path);
 
         for (var i = 0u; i < entryCount; i++)
         {
@@ -175,29 +209,41 @@ internal static class NsisReader
                 continue;
             }
 
-            builder.AddFile(
-                ToArchivePath(name),
-                length: 0,
-                compressedLength: 0,
-                compressedLengthKnown: false,
-                lastWriteTime: default,
-                isEncrypted: false,
-                lengthKnown: false);
-
-            if (++done % 100 == 0)
-            {
-                progress?.Report(new OpenProgress(done, done));
-            }
+            files.Add(new NsisFile(name, dataAt, StoredLength(source, dataStart + dataAt)));
         }
 
-        progress?.Report(new OpenProgress(done, done));
-
-        return builder.Build(path, ArchiveFormat.Nsis, totalCompressedLength: 0,
-            isSelfExtracting: true);
+        return new NsisLayout(dataStart, files);
     }
 
-    /// <summary>先頭ヘッダの直後にある塊を展開する。</summary>
-    private static byte[] ReadHeader(string path, long head)
+    /// <summary>塊に入っている大きさ (圧縮後) を読む。読めない場合は 0。</summary>
+    /// <remarks>
+    /// 展開後の大きさは書いていないため、そちらは実際に展開するまで分からない。
+    /// 一覧のためだけに書庫を丸ごと展開するのは高くつく。
+    /// </remarks>
+    private static long StoredLength(Stream source, long at)
+    {
+        if (at < 0 || at + 4 > source.Length)
+        {
+            return 0;
+        }
+
+        try
+        {
+            source.Position = at;
+
+            Span<byte> lead = stackalloc byte[4];
+            source.ReadExactly(lead);
+
+            return BinaryPrimitives.ReadUInt32LittleEndian(lead) & 0x7FFFFFFF;
+        }
+        catch (Exception ex) when (ex is IOException or EndOfStreamException)
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>先頭ヘッダの直後にある塊を展開し、中身の領域の始まりも返す。</summary>
+    private static (byte[] Header, long DataStart) ReadHeader(string path, long head)
     {
         using var stream = File.OpenRead(path);
 
@@ -225,7 +271,7 @@ internal static class NsisReader
             // 無圧縮。読んだ4バイトは大きさそのもの
             var plain = new byte[headerSize];
             stream.ReadExactly(plain);
-            return plain;
+            return (plain, stream.Position);
         }
 
         if (blockSize > HeaderLimit)
@@ -252,7 +298,8 @@ internal static class NsisReader
             throw new InvalidDataException(Localization.Strings.NsisNotSupported, ex);
         }
 
-        return header;
+        // 中身の領域はヘッダの塊のすぐ後ろから始まる
+        return (header, head + FirstHeaderLength + 4 + blockSize);
     }
 
     /// <summary>NSIS の名前を書庫内のパスに直す。</summary>
@@ -260,6 +307,6 @@ internal static class NsisReader
     /// 取り出し先は <c>$INSTDIR\...</c> のように変数で始まる。区切りを揃え、
     /// 先頭の <c>$</c> はそのまま残す。どこへ入るはずのものかが分かるほうがよい。
     /// </remarks>
-    private static string ToArchivePath(string name)
+    public static string ToArchivePath(string name)
         => name.Replace('\\', '/').TrimStart('/');
 }
