@@ -43,8 +43,18 @@ internal sealed class ArchiveContents
     public bool UsesAes { get; init; }
 
     /// <summary>
+    /// 先頭に取り出すプログラムが付いた自己解凍書庫か (#32)。
+    /// </summary>
+    public bool IsSelfExtracting { get; init; }
+
+    /// <summary>
     /// 中身を書き換えられるかどうか。
     /// パスワード付きの書庫も書き換えられるが、作り直しになる (#20)。
     /// </summary>
-    public bool IsEditable => ArchiveFormats.IsEditable(Format);
+    /// <remarks>
+    /// 自己解凍書庫は読み取りのみ (#32)。書き換えは書庫の部分だけを作り直すことに
+    /// なるが、前に付いたプログラムは書庫の位置を自分の中に覚えていることがあり、
+    /// 書き換えると自己解凍できなくなる。壊す危険を冒す利点がない。
+    /// </remarks>
+    public bool IsEditable => ArchiveFormats.IsEditable(Format) && !IsSelfExtracting;
 }

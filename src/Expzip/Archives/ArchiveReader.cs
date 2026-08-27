@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace Expzip.Archives;
 
@@ -17,7 +17,8 @@ internal static class ArchiveReader
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        var format = ArchiveFormats.FromPath(path);
+        // 自己解凍書庫は名前が .exe なので、中身も見て判断する (#32)
+        var format = ArchiveFormats.Detect(path);
 
         return format switch
         {

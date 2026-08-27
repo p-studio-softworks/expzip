@@ -86,7 +86,8 @@ internal static class ArchiveExtractor
         // 展開先の正規化。これを基準に、書庫外へ書き出そうとするエントリを弾く
         var destinationRoot = Path.GetFullPath(destinationDirectory);
 
-        using var stream = File.OpenRead(archivePath);
+        // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
+        using var stream = ZipPrefix.Open(archivePath);
         using var zip = new ZipArchive(
             stream, ZipArchiveMode.Read, leaveOpen: false, ZipArchiveReader.EntryNameEncoding);
 

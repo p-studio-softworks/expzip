@@ -82,7 +82,8 @@ internal static class ZipArchiveReader
             ? ZipEncryption.CollectEncryptedNames(path)
             : null;
 
-        using var stream = File.OpenRead(path);
+        // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
+        using var stream = ZipPrefix.Open(path);
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false, EntryNameEncoding);
 
         var entries = zip.Entries;
@@ -124,7 +125,8 @@ internal static class ZipArchiveReader
             path, ArchiveFormat.Zip,
             hasEncryptedEntries: encryption.IsEncrypted,
             requiresPassword: encryption.IsEncrypted,
-            usesAes: encryption.UsesAes);
+            usesAes: encryption.UsesAes,
+            isSelfExtracting: ZipPrefix.HasPrefix(path));
     }
 
     /// <summary>

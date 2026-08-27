@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 using SharpCompress.Readers;
@@ -39,7 +39,58 @@ internal static class SharpArchiveAccess
     /// <see cref="IArchive"/> として開く。
     /// </summary>
     public static IArchive OpenSevenZip(string path, string? password = null)
-        => ArchiveFactory.OpenArchive(path, Options(password));
+        => ArchiveFactory.OpenArchive(OpenSevenZipStream(path), Options(password));
+
+    /// <summary>7z のしるし。自己解凍書庫の中で本体が始まる位置を探すのに使う (#32)。</summary>
+    private static ReadOnlySpan<byte> SevenZipSignature => [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C];
+
+    /// <summary>
+    /// 自己解凍部を読み飛ばして探す範囲。
+    /// </summary>
+    /// <remarks>
+    /// 実物の自己解凍部は数百KBで収まる。書庫全体を舐めると、大きな書庫で
+    /// 開くたびに何百MBも読むことになるため、頭の一定量だけを見る。
+    /// </remarks>
+    private const int SevenZipSearchLimit = 4 * 1024 * 1024;
+
+    /// <summary>
+    /// 7z 書庫の中身だけを見せる流れを開く。自己解凍書庫なら前の塊を隠す (#32)。
+    /// </summary>
+    public static Stream OpenSevenZipStream(string path)
+    {
+        var offset = SevenZipOffset(path);
+        var stream = File.OpenRead(path);
+
+        return offset > 0 ? new OffsetStream(stream, offset) : stream;
+    }
+
+    /// <summary>7z の本体が始まる位置を返す。ふつうの 7z では 0。</summary>
+    public static long SevenZipOffset(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+
+            var window = (int)Math.Min(stream.Length, SevenZipSearchLimit);
+
+            if (window < SevenZipSignature.Length)
+            {
+                return 0;
+            }
+
+            var buffer = new byte[window];
+            stream.ReadExactly(buffer);
+
+            // 先頭にあるなら、ふつうの 7z
+            var found = buffer.AsSpan().IndexOf(SevenZipSignature);
+            return found > 0 ? found : 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or EndOfStreamException)
+        {
+            return 0;
+        }
+    }
 
     /// <summary>
     /// tar 書庫を先頭から順に読む <see cref="IReader"/> を開く。

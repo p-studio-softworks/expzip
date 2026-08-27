@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace Expzip.Archives;
 
@@ -64,7 +64,9 @@ internal static class SharpArchiveReader
         progress?.Report(new OpenProgress(entries.Count, entries.Count));
 
         // エントリごとの内訳が無いので、書庫そのものの大きさを圧縮後の合計として出す
-        return builder.Build(path, ArchiveFormat.SevenZip, FileLength(path), encrypted);
+        return builder.Build(
+            path, ArchiveFormat.SevenZip, FileLength(path), encrypted,
+            isSelfExtracting: SharpArchiveAccess.SevenZipOffset(path) > 0);
     }
 
     private static ArchiveContents OpenTar(

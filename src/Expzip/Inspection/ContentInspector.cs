@@ -108,7 +108,8 @@ internal static class ContentInspector
 
         try
         {
-            zip = new SharpZipFile(context.ArchivePath)
+            // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
+            zip = new SharpZipFile(ZipPrefix.Open(context.ArchivePath), leaveOpen: false)
             {
                 Password = context.Password,
                 StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),

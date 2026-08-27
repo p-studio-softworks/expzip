@@ -122,6 +122,14 @@ internal static partial class Strings
     public static string LimitReadOnly(string format) => Pick(
         $" ({format} は読み取りのみに対応)", $" ({format} is read-only)");
 
+    /// <summary>自己解凍書庫であることの断り書き (#32)。</summary>
+    /// <remarks>
+    /// 形式名では言えない。ZIP そのものは書き換えられるが、前に取り出すプログラムが
+    /// 付いている状態では書き換えない、という話のため。
+    /// </remarks>
+    public static string LimitSelfExtracting => Pick(
+        " (自己解凍書庫 / 読み取りのみ)", " (self-extracting / read-only)");
+
     public static string EncryptedTooltip => Pick(
         "この項目はパスワードで保護されています。取り出すときにパスワードを尋ねます。",
         "This item is protected with a password. You will be asked for it when extracting.");
@@ -163,16 +171,22 @@ internal static partial class Strings
     public static string FormatUnknown => Pick("不明", "Unknown");
 
     /// <summary>「開く」ダイアログの絞り込み。</summary>
+    /// <remarks>
+    /// 自己解凍書庫 (#32) は名前が .exe なので、書庫ファイルの組にも入れる。
+    /// 書庫でない .exe を選んだ場合は、開いた時点で分かる。
+    /// </remarks>
     public static string OpenFilter => Pick(
-        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe"
         + "|ZIP書庫 (*.zip)|*.zip"
         + "|7z書庫 (*.7z)|*.7z"
         + "|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        + "|自己解凍書庫 (*.exe)|*.exe"
         + "|すべてのファイル (*.*)|*.*",
-        "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe"
         + "|ZIP archives (*.zip)|*.zip"
         + "|7z archives (*.7z)|*.7z"
         + "|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        + "|Self-extracting archives (*.exe)|*.exe"
         + "|All files (*.*)|*.*");
 
     public static string ZipFilter => Pick("ZIP書庫 (*.zip)|*.zip", "ZIP archives (*.zip)|*.zip");

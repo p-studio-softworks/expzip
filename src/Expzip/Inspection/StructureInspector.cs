@@ -98,7 +98,8 @@ internal static class StructureInspector
     {
         try
         {
-            using var zip = new SharpZipFile(context.ArchivePath)
+            // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
+            using var zip = new SharpZipFile(ZipPrefix.Open(context.ArchivePath), leaveOpen: false)
             {
                 StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
             };

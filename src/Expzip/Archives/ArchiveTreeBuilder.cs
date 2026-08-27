@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace Expzip.Archives;
 
@@ -101,13 +101,15 @@ internal sealed class ArchiveTreeBuilder
     /// <param name="hasEncryptedEntries">暗号化されたエントリを含むかどうか。</param>
     /// <param name="requiresPassword">中身の取り出しにパスワードが要るかどうか (#20)。</param>
     /// <param name="usesAes">AES で暗号化されているかどうか (#20)。</param>
+    /// <param name="isSelfExtracting">自己解凍書庫かどうか (#32)。</param>
     public ArchiveContents Build(
         string archivePath,
         ArchiveFormat format,
         long? totalCompressedLength = null,
         bool hasEncryptedEntries = false,
         bool requiresPassword = false,
-        bool usesAes = false)
+        bool usesAes = false,
+        bool isSelfExtracting = false)
     {
         SortRecursively(_root);
         MarkEncrypted(_root);
@@ -124,6 +126,7 @@ internal sealed class ArchiveTreeBuilder
             HasEncryptedEntries = hasEncryptedEntries,
             RequiresPassword = requiresPassword,
             UsesAes = usesAes,
+            IsSelfExtracting = isSelfExtracting,
         };
     }
 

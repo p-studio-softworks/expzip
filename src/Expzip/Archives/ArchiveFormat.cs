@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Expzip.Localization;
 
 namespace Expzip.Archives;
@@ -62,8 +62,51 @@ internal static class ArchiveFormats
         return ArchiveFormat.Unknown;
     }
 
-    /// <summary>書庫として開ける拡張子か。</summary>
-    public static bool IsArchive(string path) => FromPath(path) != ArchiveFormat.Unknown;
+    /// <summary>自己解凍書庫でありうる拡張子。</summary>
+    private const string Program = ".exe";
+
+    /// <summary>直前に中身を見たファイルと、その答え。</summary>
+    /// <remarks>
+    /// ドラッグ中の判定は動かすたびに何度も呼ばれる。同じファイルを繰り返し
+    /// 読みに行かないよう、1件だけ覚えておく。
+    /// </remarks>
+    private static (string Path, ArchiveFormat Format) _sniffed;
+
+    /// <summary>
+    /// 形式を判別する。名前で分からない場合は中身を見る (#32)。
+    /// </summary>
+    /// <remarks>
+    /// 自己解凍書庫は拡張子が <c>.exe</c> なので、名前だけでは書庫と分からない。
+    /// かといって <c>.exe</c> をすべて書庫扱いにはできないため、
+    /// <c>.exe</c> のときだけ末尾に終端レコードがあるかを見る。
+    /// </remarks>
+    public static ArchiveFormat Detect(string path)
+    {
+        var byName = FromPath(path);
+
+        if (byName != ArchiveFormat.Unknown
+            || !path.EndsWith(Program, StringComparison.OrdinalIgnoreCase))
+        {
+            return byName;
+        }
+
+        if (string.Equals(_sniffed.Path, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return _sniffed.Format;
+        }
+
+        var format = ZipPrefix.LooksLikeZip(path)
+            ? ArchiveFormat.Zip
+            : SharpArchiveAccess.SevenZipOffset(path) > 0
+                ? ArchiveFormat.SevenZip
+                : ArchiveFormat.Unknown;
+
+        _sniffed = (path, format);
+        return format;
+    }
+
+    /// <summary>書庫として開けるファイルか。中身も見る (#32)。</summary>
+    public static bool IsArchive(string path) => Detect(path) != ArchiveFormat.Unknown;
 
     /// <summary>
     /// 中身を書き換えられる形式か。

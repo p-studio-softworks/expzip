@@ -1414,8 +1414,15 @@ public partial class MainWindow : Window
             return contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted;
         }
 
-        return contents.IsEditable
-            ? string.Empty
+        if (contents.IsEditable)
+        {
+            return string.Empty;
+        }
+
+        // 自己解凍書庫は形式名では言えない。ZIP そのものは書き換えられるが、
+        // 前に取り出すプログラムが付いている状態では書き換えない (#32)
+        return contents.IsSelfExtracting
+            ? Strings.LimitSelfExtracting
             : Strings.LimitReadOnly(ArchiveFormats.DisplayName(contents.Format));
     }
 
@@ -1652,6 +1659,10 @@ public partial class MainWindow : Window
         => e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
 
     /// <summary>開ける書庫として扱う拡張子か (#19)。</summary>
+    /// <remarks>
+    /// 自己解凍書庫は名前が .exe なので、中身も見て判断する (#32)。
+    /// ドラッグ中に何度も呼ばれるが、同じファイルの答えは覚えてある。
+    /// </remarks>
     private static bool IsArchiveFile(string path)
         => File.Exists(path) && ArchiveFormats.IsArchive(path);
 

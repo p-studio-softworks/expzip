@@ -267,8 +267,12 @@ internal static class ZipEncryption
     /// 判定器 (#13) を渡す。こうしておかないと、従来の日本語書庫で名前が食い違い、
     /// 取り出す対象を引き当てられなくなる。
     /// </remarks>
+    /// <remarks>
+    /// 自己解凍書庫は先頭にプログラムが付いている。その分を隠した流れを渡す (#32)。
+    /// 流れで開いた場合、閉じるときに元のファイルも一緒に閉じさせる。
+    /// </remarks>
     private static SharpZipFile OpenSharp(string path, string? password = null)
-        => new(path)
+        => new(ZipPrefix.Open(path), leaveOpen: false)
         {
             Password = password,
             StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
