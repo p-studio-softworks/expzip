@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Expzip.Archives;
 using ICSharpCode.SharpZipLib.Zip;
 
@@ -142,11 +142,23 @@ internal static class StructureInspector
     }
 
     /// <summary>取り出せない圧縮方式で入っているエントリを拾う (#54)。</summary>
+    /// <remarks>
+    /// 使っているライブラリが扱えないだけの方式もある (LZMA、PPMd、Deflate64 など)。
+    /// それらは開き直せば読めるため、指摘しない。読めないものだけを挙げる (#66)。
+    /// </remarks>
     private static void CheckCompressionMethods(InspectionContext context, SharpZipFile zip)
     {
+        using var fallback = new ZipMethodFallback(context.ArchivePath);
+
         foreach (ZipEntry entry in zip)
         {
             if (!entry.IsFile || entry.CanDecompress)
+            {
+                continue;
+            }
+
+            using var opened = fallback.TryOpen(entry.Name);
+            if (opened is not null)
             {
                 continue;
             }

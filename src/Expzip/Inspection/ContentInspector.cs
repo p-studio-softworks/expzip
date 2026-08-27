@@ -1,5 +1,6 @@
-using System.IO;
+﻿using System.IO;
 using Expzip.Archives;
+using Expzip.Localization;
 using ICSharpCode.SharpZipLib.Checksum;
 using ICSharpCode.SharpZipLib.Zip;
 using SharpCompress.Archives;
@@ -120,6 +121,9 @@ internal static class ContentInspector
             return;
         }
 
+        // 標準の実装が復号できない方式のエントリ用 (#66)。要るまで開かない
+        using var fallback = new ZipMethodFallback(context.ArchivePath);
+
         using (zip)
         {
             foreach (ZipEntry entry in zip)
@@ -147,8 +151,15 @@ internal static class ContentInspector
                     continue;
                 }
 
+                // SharpZipLib が扱えない方式 (LZMA、PPMd、Deflate64 など) は
+                // 開き直して読む。読めれば CRC まで確かめられるので、
+                // 「検査できなかった」ではなく本当の判定を出せる (#66)
                 Read(context, pass, name, size, ExpectedCrc(entry),
-                    () => zip.GetInputStream(entry));
+                    entry.CanDecompress
+                        ? () => zip.GetInputStream(entry)
+                        : () => fallback.TryOpen(entry.Name)
+                                ?? throw new NotSupportedException(
+                                    Strings.UnsupportedCompressionMethod));
             }
         }
     }

@@ -1026,6 +1026,11 @@ internal static partial class Strings
 
     public static string Stopping => Pick("中断しています…", "Stopping…");
 
+    /// <summary>知らない圧縮方式で取り出せなかったことを知らせる (#66)。</summary>
+    public static string UnsupportedCompressionMethod => Pick(
+        "この圧縮方式には対応していません",
+        "This compression method is not supported.");
+
     /// <summary>外での書き換えに追随できなかったことを知らせる (#64)。</summary>
     public static string ReloadFailed(string name, string reason) => Pick(
         $"{name} を読み直せませんでした ({reason})。表示は書き換えられる前のままです",

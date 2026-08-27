@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.IO.Compression;
+using Expzip.Localization;
 
 namespace Expzip.Archives;
 
@@ -89,6 +90,9 @@ internal static class ArchiveExtractor
         using var zip = new ZipArchive(
             stream, ZipArchiveMode.Read, leaveOpen: false, ZipArchiveReader.EntryNameEncoding);
 
+        // 標準の実装が復号できない方式のエントリ用 (#66)。要るまで開かない
+        using var fallback = new ZipMethodFallback(archivePath);
+
         var targets = zip.Entries
             .Where(e => !e.FullName.EndsWith('/') && !e.FullName.EndsWith('\\'))
             .Where(e => sourceNames is null || sourceNames.Contains(e.FullName))
@@ -148,7 +152,7 @@ internal static class ArchiveExtractor
                     Directory.CreateDirectory(directory);
                 }
 
-                using (var source = entry.Open())
+                using (var source = OpenEntryContent(entry, fallback))
                 using (var destination = new FileStream(
                     target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
@@ -176,8 +180,12 @@ internal static class ArchiveExtractor
                                        or ArgumentException or NotSupportedException
                                        or PathTooLongException or InvalidDataException)
             {
+                // 読めなかった分の書きかけを残さない。中身が途中までのファイルは、
+                // 見た目が正常なだけに何も残らないより悪い (#66)
+                TryDelete(target);
+
                 // 1件の失敗で全体を止めない。まとめて報告する
-                failed.Add((entry.FullName, ex.Message));
+                failed.Add((entry.FullName, Describe(ex)));
             }
 
             doneBytes += entry.Length;
@@ -191,6 +199,41 @@ internal static class ArchiveExtractor
 
         return new ExtractResult(extracted, skipped, rejected, failed, cancelled);
     }
+
+    /// <summary>
+    /// エントリの中身を読む流れを開く。
+    /// 標準の実装が扱えない圧縮方式は SharpCompress に回す (#66)。
+    /// </summary>
+    private static Stream OpenEntryContent(ZipArchiveEntry entry, ZipMethodFallback fallback)
+    {
+        try
+        {
+            return entry.Open();
+        }
+        catch (Exception ex) when (ZipMethodFallback.MayHelp(ex))
+        {
+            var source = fallback.TryOpen(entry.FullName);
+
+            // 開き直しても読めなければ、元の失敗として報告する
+            if (source is null)
+            {
+                throw;
+            }
+
+            return source;
+        }
+    }
+
+    /// <summary>失敗の理由を、利用者に読める文にする (#66)。</summary>
+    /// <remarks>
+    /// ライブラリの文言は英語で出てくる。言語の切り替え (#23) から漏れるため、
+    /// 心当たりのあるものは自前の文に置き換える。
+    /// </remarks>
+    private static string Describe(Exception ex)
+        => ex is InvalidDataException or NotSupportedException
+           && ex.Message.Contains("compress", StringComparison.OrdinalIgnoreCase)
+            ? Strings.UnsupportedCompressionMethod
+            : ex.Message;
 
     /// <summary>
     /// 書庫内パスの先頭から、指定のフォルダを取り除く。
