@@ -97,6 +97,11 @@
                     開くたびに走らせると開く速さが中身の大きさに引きずられる
                 -->
                 <Button x:Name="InspectButton" Click="InspectButton_Click" IsEnabled="False" />
+                <!--
+                    ファイルの分割 (#59)。書庫でなくても分けられるので、
+                    書庫を開いていなくても押せる
+                -->
+                <Button x:Name="SplitButton" Click="SplitButton_Click" />
                 <Separator />
                 <!--
                     設定 (#23)。いまは言語だけ。設定ファイルを開かずに変えられる

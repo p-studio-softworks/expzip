@@ -32,6 +32,16 @@
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      分割した断片をつなぎ直す小さな Win32 実行ファイル (#59)。受け取った人が
+      Expzip を持っていなくても元に戻せるよう、断片といっしょに書き出す。
+      出来上がり (4.6KB) をリポジトリに置いてあるため、Expzip を建てるのに
+      C のツールチェーンは要らない。ソースと建て直し方は tools/joiner にある。
+    -->
+    <EmbeddedResource Include="Resources\joiner-x86.exe" LogicalName="Expzip.Resources.joiner-x86.exe" />
+  </ItemGroup>
+
   <!--
     発行設定は Properties/PublishProfiles/win-x64.pubxml にある。
     ここに RuntimeIdentifier を書くと通常のビルドまで RID 固有になり

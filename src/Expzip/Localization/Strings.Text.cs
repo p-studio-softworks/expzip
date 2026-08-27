@@ -912,6 +912,98 @@ internal static partial class Strings
         _ => string.Empty,
     };
 
+    // ------------------------------------------------------------------ ファイルの分割 (#59)
+
+    public static string Split => Pick("分割", "Split");
+
+    public static string SplitTooltip => Pick(
+        "大きなファイルを決まった大きさに分ける。つなぎ直すプログラムも一緒に作る",
+        "Split a large file into fixed-size pieces, with a program to put them back together");
+
+    public static string SplitTitle => Pick("ファイルの分割", "Split a file");
+
+    public static string SplitSourceLabel => Pick("分けるもの", "File");
+
+    public static string SplitDestinationLabel => Pick("置き場", "Put pieces in");
+
+    public static string SplitSizeLabel => Pick("1つの大きさ", "Piece size");
+
+    public static string SplitBrowse => Pick("参照", "Browse");
+
+    public static string SplitStart => Pick("分割", "Split");
+
+    public static string SplitCancel => Pick("キャンセル", "Cancel");
+
+    public static string SplitUnitKilobytes => "KB";
+
+    public static string SplitUnitMegabytes => "MB";
+
+    public static string SplitUnitGigabytes => "GB";
+
+    public static string SplitSourceTitle => Pick(
+        "分けるファイルを選択", "Choose the file to split");
+
+    public static string SplitDestinationTitle => Pick(
+        "断片の置き場を選択", "Choose where to put the pieces");
+
+    public static string SplitAnyFile => Pick(
+        "すべてのファイル|*.*", "All files|*.*");
+
+    public static string SplitSourceMissing => Pick(
+        "分けるファイルを選んでください。", "Choose the file you want to split.");
+
+    public static string SplitDestinationMissing => Pick(
+        "断片の置き場を選んでください。", "Choose where the pieces should go.");
+
+    public static string SplitTooSmall(long minimum) => Pick(
+        $"1つの大きさは {minimum / 1024:N0} KB 以上にしてください。",
+        $"Each piece must be at least {minimum / 1024:N0} KB.");
+
+    /// <summary>分割しても 1 つにしかならないときの断り。</summary>
+    public static string SplitNotNeeded => Pick(
+        "分割の必要はありません。1つの大きさが元のファイルより大きくなっています。",
+        "No need to split: each piece would be larger than the file itself.");
+
+    public static string SplitPreview(int parts) => Pick(
+        $"{parts:N0} 個の断片と、つなぎ直すプログラムを1つ作ります。元のファイルは残ります。",
+        $"This makes {parts:N0} {Plural(parts, "piece", "pieces")} plus one program to put "
+        + "them back together. The original file is left alone.");
+
+    public static string Splitting(string name) => Pick(
+        $"分割中: {name}", $"Splitting: {name}");
+
+    public static string SplitCancelledStatus => Pick(
+        "分割を中断しました", "Splitting was stopped");
+
+    public static string SplitDoneStatus(int parts) => Pick(
+        $"{parts:N0} 個に分割しました",
+        $"Split into {parts:N0} {Plural(parts, "piece", "pieces")}");
+
+    public static string SplitDone(int parts, string joiner, string destination) => Pick(
+        $"{parts:N0} 個に分割しました。{Environment.NewLine}{Environment.NewLine}"
+        + $"置き場: {destination}{Environment.NewLine}{Environment.NewLine}"
+        + $"元に戻すときは、断片をすべて同じ場所に置いて「{joiner}」を実行してください。"
+        + $"中身が元と同じであることも確かめます。{Environment.NewLine}"
+        + "7-Zip など他のソフトでもつなげられる形にしてあります。",
+        $"Split into {parts:N0} {Plural(parts, "piece", "pieces")}."
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + $"Location: {destination}{Environment.NewLine}{Environment.NewLine}"
+        + $"To put it back together, keep every piece in one folder and run \"{joiner}\". "
+        + $"It checks that the result matches the original.{Environment.NewLine}"
+        + "The pieces are in the usual format, so other tools such as 7-Zip can join them too.");
+
+    public static string SplitCancelled => Pick(
+        "分割を中断しました。書きかけの断片は削除しました。",
+        "Splitting was stopped. The half-written pieces were deleted.");
+
+    public static string SplitFailed(string reason) => Pick(
+        $"分割できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"The file could not be split.{Environment.NewLine}{Environment.NewLine}{reason}");
+
+    public static string SplitSourceShrank => Pick(
+        "分割中に元のファイルが読めなくなりました。",
+        "The file became unreadable while it was being split.");
+
     // ------------------------------------------------------------------ 共通
 
     /// <summary>一覧に添える箇条書きの印。</summary>

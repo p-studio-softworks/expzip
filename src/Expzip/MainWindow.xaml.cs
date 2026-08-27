@@ -15,6 +15,7 @@ using Expzip.Archives;
 using Expzip.Configuration;
 using Expzip.Inspection;
 using Expzip.Localization;
+using Expzip.Splitting;
 using Expzip.Ui;
 using Microsoft.Win32;
 
@@ -3300,6 +3301,86 @@ public partial class MainWindow : Window
         EntryList.ScrollIntoView(row);
     }
 
+
+    // ------------------------------------------------------------------ ファイルの分割 (#59)
+
+    private async void SplitButton_Click(object sender, RoutedEventArgs e)
+        => await SplitFileAsync();
+
+    /// <summary>
+    /// 大きなファイルを決まった大きさに分ける (#59)。
+    /// </summary>
+    /// <remarks>
+    /// 既定の対象はいま開いている書庫だが、書庫でなくても分けられる。
+    /// そのため書庫を開いていなくても使える。
+    /// </remarks>
+    private async Task SplitFileAsync()
+    {
+        var dialog = new SplitDialog(this, Contents?.FilePath, _settings.SplitChunkSize);
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var source = dialog.SourcePath;
+        var destination = dialog.DestinationDirectory;
+        var chunk = dialog.ChunkSize;
+
+        // 選んだ大きさは次回も使う
+        _settings.SplitChunkSize = chunk;
+        SettingsStore.TrySave(_settings);
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var progress = new Progress<SplitProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Total == 0 ? 0 : p.Done * 100.0 / p.Total;
+            StatusMessage.Text = Strings.Splitting(p.CurrentName);
+        });
+
+        try
+        {
+            var result = await Task.Run(() => FileSplitter.Split(
+                source, destination, chunk, progress, cancellation.Token));
+
+            if (result.Cancelled)
+            {
+                StatusMessage.Text = Strings.SplitCancelledStatus;
+                MessageBox.Show(
+                    this, Strings.SplitCancelled, AppName,
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            StatusMessage.Text = Strings.SplitDoneStatus(result.Parts);
+            MessageBox.Show(
+                this,
+                Strings.SplitDone(result.Parts, result.JoinerName, destination),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or NotSupportedException or ArgumentException)
+        {
+            MessageBox.Show(
+                this, Strings.SplitFailed(ex.Message), AppName,
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            // 処理中に閉じられていた場合は、後始末が済んだこの時点で閉じる
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+    }
+
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
         if (_cancellation is null)
@@ -3477,6 +3558,9 @@ public partial class MainWindow : Window
         // パスワードを扱えるのは ZIP だけ (#63)
         PasswordButton.IsEnabled = !busy && Contents is { IsEditable: true };
         InspectButton.IsEnabled = !busy && Contents is not null;
+
+        // 分割は書庫でなくても使えるので、書庫の有無では出し入れしない
+        SplitButton.IsEnabled = !busy;
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;
 
@@ -3958,6 +4042,8 @@ public partial class MainWindow : Window
         PasswordButton.ToolTip = Strings.PasswordTooltip;
         InspectButton.Content = Strings.Inspect;
         InspectButton.ToolTip = Strings.InspectTooltip;
+        SplitButton.Content = Strings.Split;
+        SplitButton.ToolTip = Strings.SplitTooltip;
         SettingsButton.ToolTip = Strings.SettingsTooltip;
 
         // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。
