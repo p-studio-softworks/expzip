@@ -1,5 +1,9 @@
 ﻿using System.IO;
 using System.IO.Compression;
+using ICSharpCode.SharpZipLib.Zip;
+
+// 標準ライブラリにも同じ名前の型があるため、こちら側の名前をはっきりさせる
+using SharpZipFile = ICSharpCode.SharpZipLib.Zip.ZipFile;
 
 namespace Expzip.Archives;
 
@@ -91,7 +95,6 @@ internal static class ZipArchiveWriter
     {
         var plan = BuildPlan(sourcePaths, destinationFolder);
         var totalBytes = plan.Sum(static p => p.Length);
-        long doneBytes = 0;
 
         var added = 0;
         var replaced = 0;
@@ -99,89 +102,152 @@ internal static class ZipArchiveWriter
         var failed = new List<(string, string)>();
         var cancelled = false;
 
-        var temp = archivePath + TempSuffix;
+        // 実際に中身が読まれるのは CommitUpdate の最中。進み具合もそこで動く
+        long readBytes = 0;
+        long reportedAt = 0;
 
-        try
+        using var zip = ZipUpdate.Open(archivePath);
+        zip.BeginUpdate();
+
+        foreach (var item in plan)
         {
-            File.Copy(archivePath, temp, overwrite: true);
-
-            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Update))
+            if (cancellationToken.IsCancellationRequested)
             {
-                foreach (var item in plan)
+                cancelled = true;
+                break;
+            }
+
+            var found = zip.FindEntry(item.EntryName, ignoreCase: false);
+
+            if (found >= 0)
+            {
+                if (!replaceExisting)
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        cancelled = true;
-                        break;
-                    }
-
-                    try
-                    {
-                        var existing = zip.GetEntry(item.EntryName);
-                        if (existing is not null)
-                        {
-                            if (!replaceExisting)
-                            {
-                                skipped++;
-                                doneBytes += item.Length;
-                                continue;
-                            }
-
-                            existing.Delete();
-                            replaced++;
-                        }
-                        else
-                        {
-                            added++;
-                        }
-
-                        if (item.IsDirectory)
-                        {
-                            // 空のフォルダも構造として残す
-                            zip.CreateEntry(item.EntryName);
-                        }
-                        else
-                        {
-                            var entry = zip.CreateEntry(item.EntryName, compressionLevel);
-                            entry.LastWriteTime = ReadLastWriteTime(item.SourcePath);
-
-                            using var source = File.OpenRead(item.SourcePath);
-                            using var destination = entry.Open();
-                            CancellableCopy.Copy(source, destination, cancellationToken);
-                        }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        cancelled = true;
-                        break;
-                    }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-                                               or ArgumentException or NotSupportedException
-                                               or PathTooLongException)
-                    {
-                        // 1件の失敗で全体を止めない。まとめて報告する
-                        failed.Add((item.SourcePath, ex.Message));
-                    }
-
-                    doneBytes += item.Length;
-                    progress?.Report(new AddProgress(doneBytes, totalBytes, item.EntryName));
+                    skipped++;
+                    continue;
                 }
+
+                zip.Delete(zip[found]);
             }
 
-            if (cancelled)
+            if (item.IsDirectory)
             {
-                // 中断したときは差し替えない。元の書庫はそのまま
-                return new AddResult(0, 0, 0, failed, Cancelled: true);
+                // 空のフォルダも構造として残す
+                zip.AddDirectory(item.EntryName.TrimEnd('/'));
+                added++;
+                continue;
             }
 
-            File.Move(temp, archivePath, overwrite: true);
+            // 読めないファイルはここで弾く。書き出しが始まってから失敗すると
+            // まとめて取りやめになり、他の分まで巻き添えになる
+            if (WhyUnreadable(item.SourcePath) is { } reason)
+            {
+                failed.Add((item.SourcePath, reason));
+                continue;
+            }
+
+            var name = item.EntryName;
+
+            zip.Add(
+                new ZipUpdate.FileSource(item.SourcePath, cancellationToken, read =>
+                {
+                    readBytes += read;
+
+                    // 読むたびに知らせると細かすぎる。1MB ごとに間引く
+                    if (readBytes - reportedAt < ProgressStep && readBytes < totalBytes)
+                    {
+                        return;
+                    }
+
+                    reportedAt = readBytes;
+                    progress?.Report(new AddProgress(readBytes, totalBytes, name));
+                }),
+                ZipUpdate.NewEntry(name, compressionLevel, ReadLastWriteTime(item.SourcePath)));
+
+            if (found >= 0)
+            {
+                replaced++;
+            }
+            else
+            {
+                added++;
+            }
         }
-        finally
+
+        if (cancelled || !TryCommit(zip, cancellationToken))
         {
-            TryDelete(temp);
+            return new AddResult(0, 0, 0, failed, Cancelled: true);
         }
 
         return new AddResult(added, replaced, skipped, failed, Cancelled: false);
+    }
+
+    /// <summary>経過を知らせる間隔。1回の読み取りごとに出すと細かすぎる。</summary>
+    private const long ProgressStep = 1024 * 1024;
+
+    /// <summary>
+    /// 書き換えを確定する。中断されたら取りやめる。
+    /// </summary>
+    /// <remarks>
+    /// 中身を読むのは <c>CommitUpdate</c> の最中で、そこに割り込む口は無い。
+    /// 読み取りの側 (<see cref="ZipUpdate.FileSource"/>) が中断を投げると
+    /// ここに届く。SharpZipLib は別のファイルへ書いてから差し替えるため、
+    /// 取りやめても元の書庫はそのまま残る。
+    /// </remarks>
+    /// <returns>確定できた場合は true。中断された場合は false。</returns>
+    private static bool TryCommit(SharpZipFile zip, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            TryAbort(zip);
+            return false;
+        }
+
+        try
+        {
+            zip.CommitUpdate();
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            TryAbort(zip);
+            return false;
+        }
+    }
+
+    private static void TryAbort(SharpZipFile zip)
+    {
+        try
+        {
+            zip.AbortUpdate();
+        }
+        catch (Exception ex) when (ex is ZipException or IOException or InvalidOperationException)
+        {
+            // 既に片付いている場合もある。取りやめの失敗で例外を重ねない
+        }
+    }
+
+    /// <summary>
+    /// このファイルを読めない理由。読めるなら <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 書き出しが始まってから読めないと分かると、その回の書き換えがまるごと
+    /// 取りやめになる。1件の失敗で他を巻き添えにしないよう、先に確かめる。
+    /// </remarks>
+    private static string? WhyUnreadable(string path)
+    {
+        try
+        {
+            using var probe = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or ArgumentException or NotSupportedException
+                                   or PathTooLongException)
+        {
+            return ex.Message;
+        }
     }
 
     /// <summary>
@@ -207,38 +273,24 @@ internal static class ZipArchiveWriter
     public static bool CreateFolder(string archivePath, string folderPath)
     {
         var entryName = ArchivePath.Normalize(folderPath) + "/";
-        var temp = archivePath + TempSuffix;
+        using var zip = ZipUpdate.Open(archivePath);
 
-        try
+        // 同名のエントリだけでなく配下の有無も見る。中身のあるフォルダは
+        // フォルダ自身のエントリを持たないことがあり、それを見落とすと
+        // 既にあるフォルダに二重の印を付けてしまう
+        var taken = zip.Cast<ZipEntry>().Any(
+            e => ArchivePath.Normalize(e.Name)
+                .StartsWith(entryName, StringComparison.OrdinalIgnoreCase));
+
+        if (taken)
         {
-            File.Copy(archivePath, temp, overwrite: true);
-
-            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Update))
-            {
-                // 同名のエントリだけでなく配下の有無も見る。中身のあるフォルダは
-                // フォルダ自身のエントリを持たないことがあり、それを見落とすと
-                // 既にあるフォルダに二重の印を付けてしまう。
-                var taken = zip.Entries.Any(
-                    e => ArchivePath.Normalize(e.FullName)
-                        .StartsWith(entryName, StringComparison.OrdinalIgnoreCase));
-
-                if (taken)
-                {
-                    return false;
-                }
-
-                // フォルダのエントリは中身を持たない。圧縮の強さは効かないため指定しない
-                var entry = zip.CreateEntry(entryName);
-                entry.LastWriteTime = DateTimeOffset.Now;
-            }
-
-            File.Move(temp, archivePath, overwrite: true);
-            return true;
+            return false;
         }
-        finally
-        {
-            TryDelete(temp);
-        }
+
+        zip.BeginUpdate();
+        zip.AddDirectory(entryName.TrimEnd('/'));
+        zip.CommitUpdate();
+        return true;
     }
 
     /// <summary>
@@ -266,43 +318,31 @@ internal static class ZipArchiveWriter
         IReadOnlyList<string> folderPaths,
         CancellationToken cancellationToken)
     {
-        var temp = archivePath + TempSuffix;
         var deleted = 0;
 
-        try
+        using var zip = ZipUpdate.Open(archivePath);
+
+        // Delete するとコレクションが変わるので、先に対象を確定させる
+        var targets = zip.Cast<ZipEntry>()
+            .Where(e => ShouldDelete(e.Name, fileEntryNames, folderPaths))
+            .ToList();
+
+        if (cancellationToken.IsCancellationRequested)
         {
-            File.Copy(archivePath, temp, overwrite: true);
-
-            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Update))
-            {
-                // Delete するとコレクションが変わるので、先に対象を確定させる
-                var targets = zip.Entries
-                    .Where(e => ShouldDelete(e.FullName, fileEntryNames, folderPaths))
-                    .ToList();
-
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return new DeleteResult(0, Cancelled: true);
-                }
-
-                foreach (var entry in targets)
-                {
-                    entry.Delete();
-                    deleted++;
-                }
-            }
-
-            if (cancellationToken.IsCancellationRequested)
-            {
-                // 書き換えは済んでいるが差し替えていないので、元の書庫は元のまま
-                return new DeleteResult(0, Cancelled: true);
-            }
-
-            File.Move(temp, archivePath, overwrite: true);
+            return new DeleteResult(0, Cancelled: true);
         }
-        finally
+
+        zip.BeginUpdate();
+
+        foreach (var entry in targets)
         {
-            TryDelete(temp);
+            zip.Delete(entry);
+            deleted++;
+        }
+
+        if (!TryCommit(zip, cancellationToken))
+        {
+            return new DeleteResult(0, Cancelled: true);
         }
 
         return new DeleteResult(deleted, Cancelled: false);
@@ -387,19 +427,19 @@ internal static class ZipArchiveWriter
     }
 
     /// <summary>更新日時を読む。読めない場合は現在時刻を使う。</summary>
-    private static DateTimeOffset ReadLastWriteTime(string path)
+    private static DateTime ReadLastWriteTime(string path)
     {
         try
         {
             var value = File.GetLastWriteTime(path);
 
             // ZIPの日時は1980年以降しか表現できない
-            return value.Year < 1980 ? DateTimeOffset.Now : new DateTimeOffset(value);
+            return value.Year < 1980 ? DateTime.Now : value;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentOutOfRangeException)
         {
-            return DateTimeOffset.Now;
+            return DateTime.Now;
         }
     }
 
@@ -453,21 +493,22 @@ internal static class ZipArchiveWriter
         IProgress<int>? progress,
         CancellationToken cancellationToken)
     {
-        var temp = archivePath + TempSuffix;
         var renamed = 0;
+        var carried = new List<(string NewName, string TempPath, DateTime Stamp)>();
 
         try
         {
-            File.Copy(archivePath, temp, overwrite: true);
-
-            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Update))
+            using (var zip = ZipUpdate.Open(archivePath))
             {
-                // 付け替える対象を先に確定させる。作成と削除でコレクションが変わるため
-                var targets = zip.Entries
-                    .Select(e => (Entry: e, NewName: MapAny(e.FullName, changes)))
+                // 付け替える対象を先に確定させる
+                var targets = zip.Cast<ZipEntry>()
+                    .Select(e => (Entry: e, NewName: MapAny(e.Name, changes)))
                     .Where(static x => x.NewName is not null)
                     .ToList();
 
+                // 名前を変えるものの中身だけ、いったん外へ取り出す。
+                // 書き換えの最中に同じ書庫から読むのは避けたいため。
+                // 対象外のエントリには触らないので、そのまま写される
                 foreach (var (entry, newName) in targets)
                 {
                     if (cancellationToken.IsCancellationRequested)
@@ -475,34 +516,68 @@ internal static class ZipArchiveWriter
                         return new RenameResult(0, Cancelled: true);
                     }
 
-                    var created = zip.CreateEntry(newName!, compressionLevel);
-                    CopyTimestamp(entry, created);
-
-                    // フォルダそのものを表すエントリは中身を持たない
-                    if (!newName!.EndsWith('/'))
+                    if (newName!.EndsWith('/'))
                     {
-                        using var source = entry.Open();
-                        using var destination = created.Open();
+                        // フォルダそのものを表すエントリは中身を持たない
+                        carried.Add((newName, string.Empty, entry.DateTime));
+                        continue;
+                    }
+
+                    var holding = Path.GetTempFileName();
+
+                    using (var source = zip.GetInputStream(entry))
+                    using (var destination = new FileStream(
+                               holding, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
                         CancellableCopy.Copy(source, destination, cancellationToken);
                     }
 
-                    entry.Delete();
+                    carried.Add((newName, holding, entry.DateTime));
+                }
+
+                zip.BeginUpdate();
+
+                foreach (var (entry, _) in targets)
+                {
+                    zip.Delete(entry);
+                }
+
+                foreach (var (newName, holding, stamp) in carried)
+                {
+                    if (holding.Length == 0)
+                    {
+                        zip.AddDirectory(newName.TrimEnd('/'));
+                    }
+                    else
+                    {
+                        zip.Add(
+                            new ZipUpdate.FileSource(holding, cancellationToken),
+                            ZipUpdate.NewEntry(newName, compressionLevel, stamp));
+                    }
+
                     renamed++;
                     progress?.Report(renamed);
                 }
-            }
 
-            if (cancellationToken.IsCancellationRequested)
-            {
-                // 作業用ファイルは書き換わっているが、差し替えていないので元の書庫は無事
-                return new RenameResult(0, Cancelled: true);
+                if (!TryCommit(zip, cancellationToken))
+                {
+                    return new RenameResult(0, Cancelled: true);
+                }
             }
-
-            File.Move(temp, archivePath, overwrite: true);
+        }
+        catch (OperationCanceledException)
+        {
+            return new RenameResult(0, Cancelled: true);
         }
         finally
         {
-            TryDelete(temp);
+            foreach (var (_, holding, _) in carried)
+            {
+                if (holding.Length > 0)
+                {
+                    TryDelete(holding);
+                }
+            }
         }
 
         return new RenameResult(renamed, Cancelled: false);
@@ -544,21 +619,6 @@ internal static class ZipArchiveWriter
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// 更新日時を引き継ぐ。書庫によってはZIPで表せない日付が入っていることがあり、
-    /// その場合は読み書きのどちらかで例外になる。名前の変更自体は成立するので無視する。
-    /// </summary>
-    private static void CopyTimestamp(ZipArchiveEntry from, ZipArchiveEntry to)
-    {
-        try
-        {
-            to.LastWriteTime = from.LastWriteTime;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-        }
     }
 
     internal static void TryDelete(string path)

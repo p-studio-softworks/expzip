@@ -162,9 +162,7 @@ internal static partial class Strings
     public static string CompressionLevelLabel(CompressionLevel level) => level switch
     {
         CompressionLevel.NoCompression => Pick("格納のみ", "Store only"),
-        CompressionLevel.Fastest => Pick("高速", "Fastest"),
-        CompressionLevel.SmallestSize => Pick("最大圧縮", "Smallest"),
-        _ => Pick("標準", "Normal"),
+        _ => Pick("圧縮する", "Compress"),
     };
 
     // ------------------------------------------------------------------ 書庫の形式 (#19)

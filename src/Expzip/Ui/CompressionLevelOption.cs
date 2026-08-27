@@ -13,13 +13,19 @@ internal sealed record CompressionLevelOption(CompressionLevel Level)
     /// </summary>
     public string Label => Strings.CompressionLevelLabel(Level);
 
-    /// <summary>選べる圧縮方式。強さの弱い順に並べる。</summary>
+    /// <summary>
+    /// 選べる圧縮方式。
+    /// </summary>
+    /// <remarks>
+    /// <b>2つだけにしてある</b> (#38)。書き換えに使う SharpZipLib は deflate の段階を
+    /// 渡せず、そもそも段階を上げてもほとんど縮まないため。8MB の検体での実測は
+    /// 「高速」146KB / 「標準」72.0KB / 「最大圧縮」72.2KB で、**最大圧縮は標準と
+    /// ほぼ同じ**だった。使い分けられない選択肢を並べても迷わせるだけになる。
+    /// </remarks>
     public static IReadOnlyList<CompressionLevelOption> All { get; } =
     [
         new(CompressionLevel.NoCompression),
-        new(CompressionLevel.Fastest),
         new(CompressionLevel.Optimal),
-        new(CompressionLevel.SmallestSize),
     ];
 
     /// <summary>既定の圧縮方式。</summary>
