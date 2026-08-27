@@ -66,3 +66,7 @@ $RECYCLE.BIN/
 # 連結プログラムの建て直しで出るもの (同梱するのは src/Expzip/Resources のほう)
 tools/joiner/joiner-x86.exe
 tools/joiner/*.obj
+
+# ただし同梱するほうは追いかける。上の *.exe に巻き込まれると、
+# クローンしただけでは建てられなくなる (#59)
+!src/Expzip/Resources/joiner-x86.exe
