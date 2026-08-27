@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO;
 using Expzip.Archives;
 using Expzip.Localization;
@@ -49,6 +49,70 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
 
     /// <summary>書庫ファイルのパス。同じ書庫を二重に開かないための照合に使う。</summary>
     public string FilePath => _contents.FilePath;
+
+    // -------------------------------------------------------------- 外での書き換えを見つける (#64)
+
+    /// <summary>読み込んだ時点の書庫ファイルの状態。</summary>
+    private FileStamp _read;
+
+    /// <summary>前回の巡回で見たファイルの状態。書き込みの途中かどうかの判断に使う。</summary>
+    private FileStamp _seen;
+
+    /// <summary>
+    /// 外で書き換わったが、まだ読み直していないかどうか。
+    /// 見ていないタブの書庫が変わった場合に立て、そのタブへ戻ったときに読み直す。
+    /// </summary>
+    public bool NeedsReload { get; set; }
+
+    /// <summary>いま画面に出している中身が、どの状態のファイルから来たかを控える。</summary>
+    /// <param name="stamp">読み込みを始める直前に読んだファイルの状態。</param>
+    public void MarkRead(FileStamp stamp)
+    {
+        _read = stamp;
+        _seen = stamp;
+        NeedsReload = false;
+    }
+
+    /// <summary>
+    /// 見つけた書き換えに対して読み直しを試みたことを記録する。
+    /// 読み直しに失敗しても、同じ書き換えで何度も試さないようにするため。
+    /// </summary>
+    public void MarkAttempted() => _read = _seen;
+
+    /// <summary>書庫ファイルが外で書き換えられ、書き込みが落ち着いたなら true。</summary>
+    /// <param name="current">いまのファイルの状態。読めなかった場合は既定値。</param>
+    /// <remarks>
+    /// <para>
+    /// 変化を見つけてすぐに読み直すと、書き込みの途中の書庫を読んでしまう。
+    /// 大きな書庫の書き換えは数秒かかり、その間は壊れた書庫にしか見えない。
+    /// 2回続けて同じ状態が見えたときだけ「落ち着いた」とみなす。
+    /// </para>
+    /// <para>
+    /// ファイルを読めない場合 (消えている、掴めない) は何もしない。今出している
+    /// 中身をそのまま残すほうが、空の画面に切り替えるより手掛かりが多い。
+    /// </para>
+    /// <para>
+    /// ファイルを見に行くのは呼ぶ側の仕事にしてある。ネットワーク上の書庫では
+    /// 状態を1つ読むだけでも待たされることがあり、画面を動かす筋で読むと
+    /// そのたびに窓が固まるため (#39, #64)。
+    /// </para>
+    /// </remarks>
+    public bool DetectExternalChange(FileStamp current)
+    {
+        if (current == default || current == _read)
+        {
+            _seen = current;
+            return false;
+        }
+
+        if (current != _seen)
+        {
+            _seen = current;
+            return false;
+        }
+
+        return true;
+    }
 
     /// <summary>閉じるボタンの説明。見出しの中にあるため、束縛で言語を切り替える (#23)。</summary>
     public string CloseTooltip => Strings.CloseTabTooltip;

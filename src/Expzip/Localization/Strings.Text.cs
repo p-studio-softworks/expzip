@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using Expzip.Archives;
 using Expzip.Inspection;
 
@@ -33,10 +33,6 @@ internal static partial class Strings
     public static string AddTooltip => Pick(
         "ファイルを書庫に追加する。一覧にドラッグしても追加できる",
         "Add files to the archive. Dragging them onto the list works too.");
-
-    public static string Refresh => Pick("更新", "Refresh");
-
-    public static string RefreshTooltip => Pick("書庫を読み直す", "Reload the archive");
 
     public static string Password => Pick("パスワード", "Password");
 
@@ -88,6 +84,9 @@ internal static partial class Strings
     public static string MenuDelete => Pick("削除", "Delete");
 
     public static string MenuNewFolder => Pick("新しいフォルダ", "New folder");
+
+    /// <summary>書庫を読み直す (#64)。エクスプローラーと同じ文言にする。</summary>
+    public static string MenuRefresh => Pick("最新の情報に更新", "Refresh");
 
     // ------------------------------------------------------------------ ステータスバー
 
@@ -1026,6 +1025,16 @@ internal static partial class Strings
         $"{Environment.NewLine}  and {count:N0} more");
 
     public static string Stopping => Pick("中断しています…", "Stopping…");
+
+    /// <summary>外での書き換えに追随できなかったことを知らせる (#64)。</summary>
+    public static string ReloadFailed(string name, string reason) => Pick(
+        $"{name} を読み直せませんでした ({reason})。表示は書き換えられる前のままです",
+        $"Could not reload {name} ({reason}). The list still shows the earlier contents.");
+
+    /// <summary>外で書き換わった書庫を読み直したことを知らせる (#64)。</summary>
+    public static string ReloadedAfterExternalChange(string name) => Pick(
+        $"{name} が外で書き換えられたため、最新の内容に更新しました",
+        $"{name} changed outside Expzip, so the list was refreshed.");
 
     public static string RecoveredFromError => Pick(
         "処理を中断しました", "The operation was stopped");

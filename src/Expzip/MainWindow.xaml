@@ -81,7 +81,10 @@
                 <Button x:Name="ExtractButton" Click="ExtractButton_Click" IsEnabled="False" />
                 <Button x:Name="AddButton"     Click="AddButton_Click"     IsEnabled="False" />
                 <Separator />
-                <Button x:Name="RefreshButton" Click="RefreshButton_Click" IsEnabled="False" />
+                <!--
+                    更新ボタンは置かない (#64)。外で書庫が書き換わったら自分で読み直す。
+                    念のための読み直しは F5 と右クリックメニューに残してある
+                -->
                 <!-- 書庫のパスワードを付ける・変える・外す (#63) -->
                 <Button x:Name="PasswordButton" Click="PasswordButton_Click" IsEnabled="False" />
                 <Separator />
@@ -352,6 +355,14 @@
                             <MenuItem x:Name="NewFolderMenuItem"
                                       InputGestureText="Ctrl+Shift+N"
                                       Click="NewFolderMenuItem_Click" />
+                            <Separator />
+                            <!--
+                                書庫を読み直す (#64)。ふだんは自分で読み直すので要らないが、
+                                エクスプローラーと同じくここと F5 に残す
+                            -->
+                            <MenuItem x:Name="RefreshMenuItem"
+                                      InputGestureText="F5"
+                                      Click="RefreshMenuItem_Click" />
                         </ContextMenu>
                     </ListView.ContextMenu>
                     <ListView.Resources>

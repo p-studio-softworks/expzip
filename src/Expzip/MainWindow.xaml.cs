@@ -107,6 +107,12 @@ public partial class MainWindow : Window
     /// <summary>編集中のファイルが書き換わっていないか見に行く巡回。</summary>
     private DispatcherTimer? _editWatch;
 
+    /// <summary>開いている書庫が外で書き換わっていないか見に行く巡回 (#64)。</summary>
+    private DispatcherTimer? _archiveWatch;
+
+    /// <summary>巡回が前の回を追い越さないための印。遅い場所では1回が1秒を超える。</summary>
+    private bool _watchingArchives;
+
     /// <summary>反映するかどうかを尋ねている最中。巡回が重ならないようにする。</summary>
     private bool _askingAboutEdit;
 
@@ -240,7 +246,11 @@ public partial class MainWindow : Window
         await OpenInTabAsync(dialog.FileName);
     }
 
-    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshMenuItem_Click(object sender, RoutedEventArgs e)
+        => await ReloadArchiveAsync();
+
+    /// <summary>いま見ている書庫を読み直す (#64)。</summary>
+    private async Task ReloadArchiveAsync()
     {
         if (Contents is not null)
         {
@@ -253,19 +263,25 @@ public partial class MainWindow : Window
     /// <param name="path">書庫ファイルのパス。</param>
     /// <param name="restorePath">読み込み後に表示したい書庫内フォルダのパス。</param>
     /// <param name="inNewTab">別のタブとして開くかどうか (#22)。</param>
+    /// <param name="quiet">
+    /// 利用者が頼んでいない読み直しかどうか (#64)。真のときは、失敗や注意を
+    /// ダイアログではなくステータスバーに出す。頼んでいない操作で手が止まるため。
+    /// </param>
+    /// <returns>読み込めた場合は true。</returns>
     /// <remarks>
     /// 読み込みは別スレッドで行う。同期で読むと、大きな書庫やネットワーク上の
     /// 書庫でウィンドウが応答しなくなり、中断もできない (#39)。
     /// 読み込み中は今開いている書庫の表示をそのまま残し、成功した時点で差し替える。
     /// 中断や失敗のたびに画面が空になるのは、開き直しの操作で不便なため。
     /// </remarks>
-    private async Task OpenArchiveAsync(string path, string? restorePath = null, bool inNewTab = false)
+    private async Task<bool> OpenArchiveAsync(
+        string path, string? restorePath = null, bool inNewTab = false, bool quiet = false)
     {
         // 他の処理の最中は受け付けない。ツールバーは SetBusy で止めているが、
         // 最近使った書庫のメニューやコマンドライン起動など別の入口もある。
         if (_cancellation is not null)
         {
-            return;
+            return false;
         }
 
         // 同じ書庫を読み直すときは、ツリーで開いていたフォルダを覚えておく。
@@ -282,6 +298,10 @@ public partial class MainWindow : Window
         _cancellation = cancellation;
         SetBusy(true);
 
+        // 読み始める前に控える (#64)。読んだあとに控えると、読んでいる最中の
+        // 書き換えを「読み込み済み」と取り違え、古い中身を出したままになる
+        var stamp = FileStamp.Read(path);
+
         var fileName = Path.GetFileName(path);
         var progress = new Progress<OpenProgress>(p =>
         {
@@ -297,17 +317,25 @@ public partial class MainWindow : Window
         catch (OperationCanceledException)
         {
             StatusMessage.Text = Strings.ReadCancelled;
-            return;
+            return false;
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
+            // 頼まれていない読み直しでは、いま出している中身をそのまま残す。
+            // 外のアプリが書き換えている途中なら、次に変わったときにまた試せる
+            if (quiet)
+            {
+                StatusMessage.Text = Strings.ReloadFailed(Path.GetFileName(path), ex.Message);
+                return false;
+            }
+
             MessageBox.Show(
                 this,
                 Strings.OpenArchiveFailed(path, ex.Message),
                 AppName,
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
-            return;
+            return false;
         }
         finally
         {
@@ -324,7 +352,7 @@ public partial class MainWindow : Window
         // 閉じる途中なら画面を作り直さない
         if (_closeWhenIdle)
         {
-            return;
+            return false;
         }
 
         RememberRecent(path);
@@ -344,6 +372,9 @@ public partial class MainWindow : Window
             Tab.Contents = contents;
         }
 
+        Tab!.MarkRead(stamp);
+        StartArchiveWatch();
+
         var target = restorePath is null ? contents.Root : FindFolder(contents.Root, restorePath) ?? contents.Root;
         CurrentFolder = target;
 
@@ -353,7 +384,7 @@ public partial class MainWindow : Window
 
         // 中身を取り出せないものが混じっている場合は、開いた時点で知らせる (#19)。
         // ZIP はパスワードを入れれば取り出せるため、ここでは黙っている (#20)
-        if (contents.HasEncryptedEntries && !contents.RequiresPassword)
+        if (contents.HasEncryptedEntries && !contents.RequiresPassword && !quiet)
         {
             MessageBox.Show(
                 this,
@@ -370,11 +401,10 @@ public partial class MainWindow : Window
         SuspiciousWarningText.Text = Strings.SuspiciousCount(contents.SuspiciousCount);
         TotalSizeInfo.Text = Strings.TotalSize(
             contents.TotalLength, contents.TotalCompressedLength);
+
+        return true;
     }
 
-    // ------------------------------------------------------------------ 圧縮方式
-
-    /// <summary>いま選ばれている圧縮の強さ (#11)。</summary>
     // ------------------------------------------------------------------ 最近使った書庫
 
     /// <summary>履歴に残す件数。</summary>
@@ -512,6 +542,9 @@ public partial class MainWindow : Window
 
         // フォルダの作成は選択と関係なく、何もない場所を押したときも使える (#50)
         NewFolderMenuItem.IsEnabled = CanEdit;
+
+        // 読み直しは選んでいるかどうかに関わらず使える (#64)
+        RefreshMenuItem.IsEnabled = Contents is not null && _cancellation is null;
     }
 
     private async void NewFolderMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1143,6 +1176,15 @@ public partial class MainWindow : Window
             return;
         }
 
+        // F5 で書庫を読み直す (#64)。ふだんは自分で読み直すので要らないが、
+        // エクスプローラーと同じ操作を残しておく
+        if (e.Key == Key.F5 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            e.Handled = true;
+            _ = ReloadArchiveAsync();
+            return;
+        }
+
         // Ctrl+Tab で次のタブ、Ctrl+Shift+Tab で前のタブ
         if (e.Key is Key.Tab && (Keyboard.Modifiers & ModifierKeys.Control) != 0 && _tabs.Count > 1)
         {
@@ -1182,7 +1224,6 @@ public partial class MainWindow : Window
         var contents = tab.Contents;
 
         FolderTree.ItemsSource = new[] { contents.Root };
-        RefreshButton.IsEnabled = true;
         ExtractButton.IsEnabled = true;
         InspectButton.IsEnabled = true;
 
@@ -1196,6 +1237,22 @@ public partial class MainWindow : Window
         RestoreSelection(tab);
 
         StatusMessage.Text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
+
+        // 見ていない間に外で書き換えられていたら、ここで読み直す (#64)
+        if (tab.NeedsReload && _cancellation is null)
+        {
+            var name = tab.Title;
+            tab.NeedsReload = false;
+
+            _ = Dispatcher.InvokeAsync(async () =>
+            {
+                if (await OpenArchiveAsync(tab.FilePath, tab.CurrentFolder.FullPath, quiet: true)
+                    && ReferenceEquals(Tab, tab))
+                {
+                    StatusMessage.Text = Strings.ReloadedAfterExternalChange(name);
+                }
+            });
+        }
     }
 
     /// <summary>タブに戻ったときに、前に選んでいた項目を選び直す。</summary>
@@ -1236,12 +1293,14 @@ public partial class MainWindow : Window
         EmptyStateMessage.Visibility = Visibility.Visible;
         EmptyStateMessage.Text = Strings.NoArchiveOpen;
 
-        RefreshButton.IsEnabled = false;
         ExtractButton.IsEnabled = false;
         InspectButton.IsEnabled = false;
         AddButton.IsEnabled = false;
         PasswordButton.IsEnabled = false;
         UpdateTitle(null);
+
+        // 書庫を1つも開いていないなら見張るものが無い (#64)
+        _archiveWatch?.Stop();
     }
 
     private void ArchiveTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1916,6 +1975,120 @@ public partial class MainWindow : Window
         {
             into.Add(child.FullPath);
             CollectPaths(child, into);
+        }
+    }
+
+    // ------------------------------------------------------------------ 外での書き換えに追随する (#64)
+
+    /// <summary>書庫を見に行く間隔。編集中のファイルの巡回 (#16) と合わせる。</summary>
+    private static readonly TimeSpan ArchiveWatchInterval = TimeSpan.FromSeconds(1);
+
+    /// <summary>開いている書庫の見張りを動かす。書庫を1つも開いていなければ止める。</summary>
+    private void StartArchiveWatch()
+    {
+        if (_tabs.Count == 0)
+        {
+            _archiveWatch?.Stop();
+            return;
+        }
+
+        if (_archiveWatch is null)
+        {
+            _archiveWatch = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = ArchiveWatchInterval,
+            };
+            _archiveWatch.Tick += ArchiveWatch_Tick;
+        }
+
+        _archiveWatch.Start();
+    }
+
+    /// <summary>いま書庫を見に行ってよい状態かどうか。</summary>
+    /// <remarks>
+    /// 他の処理の最中は見送る。次の巡回で拾える。自分で書き換えている最中に
+    /// 読み直すと、書き込みの途中を読むことになる。
+    /// </remarks>
+    private bool CanWatchNow()
+        => _cancellation is null && !_askingAboutEdit && !_closeWhenIdle
+           && _editingRow is null && !_draggingOut;
+
+    /// <summary>
+    /// 開いている書庫が外で書き換えられていないか見に行き、変わっていれば読み直す (#64)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 他のアプリで書庫を書き換えたあと、こちらの一覧が古いままだと、
+    /// 無いファイルを開こうとしたり、消えたはずのファイルを取り出したりしてしまう。
+    /// 尋ねずに読み直すのは、一覧を最新にするだけで失うものが無いため。
+    /// </para>
+    /// <para>
+    /// 見ていないタブは印だけ付けて、そのタブへ移ったときに読み直す。裏で読み直すと、
+    /// 見ている書庫の表示が別の書庫の読み込みで置き換わってしまう。
+    /// </para>
+    /// </remarks>
+    private async void ArchiveWatch_Tick(object? sender, EventArgs e)
+    {
+        if (_watchingArchives || !CanWatchNow())
+        {
+            return;
+        }
+
+        ArchiveTab? active = null;
+        _watchingArchives = true;
+
+        try
+        {
+            // ファイルを見に行くのは別スレッドで。ネットワーク上の書庫では
+            // 状態を1つ読むだけでも待たされることがあり、画面が固まる (#39)
+            var tabs = _tabs.ToArray();
+            var stamps = await Task.Run(
+                () => Array.ConvertAll(tabs, static t => FileStamp.Read(t.FilePath)));
+
+            // 見に行っている間に何かが始まっていたら、次の巡回に回す
+            if (!CanWatchNow())
+            {
+                return;
+            }
+
+            for (var i = 0; i < tabs.Length; i++)
+            {
+                var tab = tabs[i];
+
+                if (!_tabs.Contains(tab) || !tab.DetectExternalChange(stamps[i]))
+                {
+                    continue;
+                }
+
+                // 読み直しに失敗しても、同じ書き換えで毎秒やり直さないようにする
+                tab.MarkAttempted();
+
+                if (ReferenceEquals(tab, Tab))
+                {
+                    active = tab;
+                }
+                else
+                {
+                    tab.NeedsReload = true;
+                }
+            }
+        }
+        finally
+        {
+            _watchingArchives = false;
+        }
+
+        if (active is null)
+        {
+            return;
+        }
+
+        var name = active.Title;
+
+        if (await OpenArchiveAsync(active.FilePath, CurrentFolder?.FullPath, quiet: true)
+            && ReferenceEquals(Tab, active))
+        {
+            StatusMessage.Text = Strings.ReloadedAfterExternalChange(name);
         }
     }
 
@@ -3524,7 +3697,6 @@ public partial class MainWindow : Window
         NewTabButton.IsEnabled = !busy;
         ExtractButton.IsEnabled = !busy && Contents is not null;
         AddButton.IsEnabled = !busy && Contents is { IsEditable: true };
-        RefreshButton.IsEnabled = !busy && Contents is not null;
 
         // パスワードを扱えるのは ZIP だけ (#63)
         PasswordButton.IsEnabled = !busy && Contents is { IsEditable: true };
@@ -4000,8 +4172,6 @@ public partial class MainWindow : Window
         ExtractButton.ToolTip = Strings.ExtractTooltip;
         AddButton.Content = Strings.Add;
         AddButton.ToolTip = Strings.AddTooltip;
-        RefreshButton.Content = Strings.Refresh;
-        RefreshButton.ToolTip = Strings.RefreshTooltip;
         PasswordButton.Content = Strings.Password;
         PasswordButton.ToolTip = Strings.PasswordTooltip;
         InspectButton.Content = Strings.Inspect;
@@ -4038,6 +4208,7 @@ public partial class MainWindow : Window
         RenameMenuItem.Header = Strings.MenuRename;
         DeleteMenuItem.Header = Strings.MenuDelete;
         NewFolderMenuItem.Header = Strings.MenuNewFolder;
+        RefreshMenuItem.Header = Strings.MenuRefresh;
         TreeNewFolderMenuItem.Header = Strings.MenuNewFolder;
 
         // ツリーと一覧の両方から使い回している説明 (#36、#20)

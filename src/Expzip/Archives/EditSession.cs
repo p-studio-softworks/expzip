@@ -1,23 +1,14 @@
-using System.IO;
-
-namespace Expzip.Archives;
+﻿namespace Expzip.Archives;
 
 /// <summary>
 /// 書庫内の1ファイルを外部のアプリで編集している間の状態 (#16)。
 /// </summary>
 /// <remarks>
-/// 取り出した一時ファイルが書き換わったかどうかは、更新日時と大きさの組で見る。
-/// <see cref="FileSystemWatcher"/> を使わないのは、保存の仕方がアプリによって
-/// 大きく違うため。その場で書き換えるアプリもあれば、別名で書いてから置き換える
-/// アプリもあり、後者では対象のファイルが一度消えて作り直される。パスを定期的に
-/// 見に行くほうが、どちらの作法でも取りこぼさない。
+/// 取り出した一時ファイルが書き換わったかどうかは <see cref="FileStamp"/> で見る。
 /// </remarks>
 internal sealed class EditSession
 {
-    /// <summary>取り出した一時ファイルの状態。ファイルが無い場合は既定値。</summary>
-    private readonly record struct Stamp(DateTime LastWriteUtc, long Length);
-
-    private Stamp _applied;
+    private FileStamp _applied;
 
     public EditSession(string archivePath, ArchiveEntry entry, string tempPath, string destinationFolder)
     {
@@ -27,7 +18,7 @@ internal sealed class EditSession
         Name = entry.Name;
         TempPath = tempPath;
         DestinationFolder = destinationFolder;
-        _applied = Read(tempPath);
+        _applied = FileStamp.Read(tempPath);
     }
 
     /// <summary>編集の対象が入っている書庫。</summary>
@@ -64,7 +55,7 @@ internal sealed class EditSession
     /// </remarks>
     public bool DetectChange()
     {
-        var current = Read(TempPath);
+        var current = FileStamp.Read(TempPath);
 
         if (current == default || current == _applied)
         {
@@ -79,20 +70,7 @@ internal sealed class EditSession
     /// <summary>書庫への反映が済んだことを記録する。</summary>
     public void MarkApplied()
     {
-        _applied = Read(TempPath);
+        _applied = FileStamp.Read(TempPath);
         HasPendingChanges = false;
-    }
-
-    private static Stamp Read(string path)
-    {
-        try
-        {
-            var info = new FileInfo(path);
-            return info.Exists ? new Stamp(info.LastWriteTimeUtc, info.Length) : default;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return default;
-        }
     }
 }
