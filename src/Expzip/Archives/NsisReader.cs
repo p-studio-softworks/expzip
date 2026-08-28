@@ -52,6 +52,12 @@ internal static class NsisReader
     /// <summary>ファイルを取り出す命令の番号。</summary>
     private const uint ExtractFile = 20;
 
+    /// <summary>
+    /// フォルダを作る命令の番号。引数の2つ目が 0 でなければ、
+    /// そこを以後の置き場所にする (NSIS の <c>SetOutPath</c>)。
+    /// </summary>
+    private const uint CreateDirectory = 11;
+
     /// <summary>塊の位置表の要素数。</summary>
     private const int BlockCount = 8;
 
@@ -171,8 +177,14 @@ internal static class NsisReader
         var unicode = pool.Length > 3 && pool[1] == 0 && pool[3] == 0;
         var strings = new NsisStrings(pool, unicode);
 
-        // 同じファイルが複数の分岐から取り出されることがある。中身の位置で畳む
-        var seen = new HashSet<uint>();
+        // 同じファイルが複数の分岐から取り出されることがある。名前と位置の組で畳む。
+        // 位置だけで畳むと、同じ中身を別の名前で置く指示を取りこぼす (実測で確認)
+        var seen = new HashSet<(string Name, uint DataOffset)>();
+
+        // いまの置き場所。取り出す命令は<b>ファイル名しか持たない</b>ことがあり、
+        // どこへ置くかは直前までの SetOutPath で決まる。追わないと、
+        // 階層のすべてが根に並んでしまう (実測: 2,991件が 2,749件に潰れた)
+        var outDirectory = string.Empty;
         var files = new List<NsisFile>();
 
         using var source = File.OpenRead(path);
@@ -190,6 +202,18 @@ internal static class NsisReader
 
             var code = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan((int)at));
 
+            if (code == CreateDirectory)
+            {
+                // 2つ目の引数が 0 でなければ、ここを以後の置き場所にする
+                if (BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan((int)at + 8)) != 0)
+                {
+                    outDirectory = strings.Read(
+                        BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan((int)at + 4)));
+                }
+
+                continue;
+            }
+
             if (code != ExtractFile)
             {
                 continue;
@@ -198,14 +222,9 @@ internal static class NsisReader
             var nameAt = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan((int)at + 8));
             var dataAt = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan((int)at + 12));
 
-            if (!seen.Add(dataAt))
-            {
-                continue;
-            }
+            var name = Combine(outDirectory, strings.Read(nameAt));
 
-            var name = strings.Read(nameAt);
-
-            if (name.Length == 0)
+            if (name.Length == 0 || !seen.Add((name, dataAt)))
             {
                 continue;
             }
@@ -402,6 +421,17 @@ internal static class NsisReader
                && entriesAt + ((long)entryCount * EntryLength) == stringsAt
                && stringsAt <= header.Length;
     }
+
+    /// <summary>取り出す命令の名前に、いまの置き場所を添える。</summary>
+    /// <remarks>
+    /// 名前に区切りが入っていれば、それだけで場所が決まっている。
+    /// ファイル名だけのときに置き場所を前に付ける。
+    /// </remarks>
+    private static string Combine(string directory, string name)
+        => name.Length == 0 || directory.Length == 0
+           || name.Contains('\\') || name.Contains('/')
+            ? name
+            : directory + '\\' + name;
 
     /// <summary>NSIS の名前を書庫内のパスに直す。</summary>
     /// <remarks>

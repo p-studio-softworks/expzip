@@ -44,13 +44,17 @@ internal sealed class NsisStrings
     /// <summary>
     /// 番号で決まっている変数の名前。NSIS の <c>exehead/vars.h</c> の並び。
     /// </summary>
+    /// <remarks>
+    /// ここに挙げるのは<b>実物で確かめられた分だけ</b>。この先にも内部用の変数が
+    /// あるが、名前を確かめられていないので番号のまま出す。間違った名前を出すより
+    /// 「何番の変数か」が分かるほうがよい。7-Zip も同じ番号を番号のまま出す。
+    /// </remarks>
     private static readonly string[] Variables =
     [
         "$0", "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8", "$9",
         "$R0", "$R1", "$R2", "$R3", "$R4", "$R5", "$R6", "$R7", "$R8", "$R9",
         "$CMDLINE", "$INSTDIR", "$OUTDIR", "$EXEDIR", "$LANGUAGE",
         "$TEMP", "$PLUGINSDIR", "$EXEPATH", "$EXEFILE", "$HWNDPARENT",
-        "$_CLICK", "$_OUTDIR",
     ];
 
     private readonly byte[] _pool;
