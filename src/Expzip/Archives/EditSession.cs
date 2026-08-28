@@ -5,8 +5,9 @@
 /// </summary>
 /// <remarks>
 /// 取り出した一時ファイルが書き換わったかどうかは <see cref="FileStamp"/> で見る。
+/// 書庫の中の書庫 (#30) も仕組みは同じなので、<see cref="NestSession"/> の土台にもなる。
 /// </remarks>
-internal sealed class EditSession
+internal class EditSession
 {
     private FileStamp _applied;
 

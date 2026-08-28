@@ -275,7 +275,8 @@ public partial class MainWindow : Window
     /// 中断や失敗のたびに画面が空になるのは、開き直しの操作で不便なため。
     /// </remarks>
     private async Task<bool> OpenArchiveAsync(
-        string path, string? restorePath = null, bool inNewTab = false, bool quiet = false)
+        string path, string? restorePath = null, bool inNewTab = false, bool quiet = false,
+        NestSession? nest = null)
     {
         // 他の処理の最中は受け付けない。ツールバーは SetBusy で止めているが、
         // 最近使った書庫のメニューやコマンドライン起動など別の入口もある。
@@ -365,7 +366,7 @@ public partial class MainWindow : Window
         // 新しいタブで開くか、いまのタブを差し替えるか (#22)
         if (inNewTab || Tab is null)
         {
-            AddTab(new ArchiveTab(contents));
+            AddTab(new ArchiveTab(contents) { Nest = nest });
         }
         else
         {
@@ -1227,9 +1228,10 @@ public partial class MainWindow : Window
         ExtractButton.IsEnabled = true;
         InspectButton.IsEnabled = true;
 
-        // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
-        AddButton.IsEnabled = contents.IsEditable;
-        PasswordButton.IsEnabled = contents.IsEditable;
+        // 7z と tar は読み取りのみ。書庫の中の書庫もいまは読み取りのみ (#19, #30)。
+        // 書き換える操作は出さない
+        AddButton.IsEnabled = contents.IsEditable && tab.Nest is null;
+        PasswordButton.IsEnabled = contents.IsEditable && tab.Nest is null;
         UpdateTitle(tab.Title);
 
         SelectInTree(tab.CurrentFolder);
@@ -1407,11 +1409,17 @@ public partial class MainWindow : Window
     }
 
     /// <summary>書庫にできることの断り書き。件数の後ろに添える。</summary>
-    private static string DescribeLimits(ArchiveContents contents)
+    private string DescribeLimits(ArchiveContents contents)
     {
         if (contents.RequiresPassword)
         {
             return contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted;
+        }
+
+        // 書庫の中の書庫は、形式が ZIP でも書き換えさせない (#30)
+        if (Tab?.Nest is not null)
+        {
+            return Strings.LimitNested;
         }
 
         if (contents.IsEditable)
@@ -1495,10 +1503,17 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// いま書き換えの操作を受け付けられるか (#19)。
+    /// いま開いている書庫を書き換えられるか (#19)。
     /// 7z と tar は読み取りのみなので、追加・削除・名前の変更・移動は行わせない。
     /// </summary>
-    private bool CanEdit => Contents is { IsEditable: true } && _cancellation is null;
+    /// <remarks>
+    /// 書庫の中の書庫も、いまのところ読み取りのみ (#30)。親書庫へ戻す道がまだ無く、
+    /// 書き換えさせるとタブを閉じた時点で変更が消えるため。
+    /// </remarks>
+    private bool ContentsEditable => Contents is { IsEditable: true } && Tab?.Nest is null;
+
+    /// <summary>いま書き換えの操作を受け付けられるか。処理中は受け付けない。</summary>
+    private bool CanEdit => ContentsEditable && _cancellation is null;
 
     /// <summary>操作の対象にできる選択行。</summary>
     private List<EntryRow> SelectedRowsForEdit()
@@ -1805,6 +1820,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 書庫の中の書庫も、いまは受け取れない (#30)
+        if (Tab?.Nest is not null)
+        {
+            MessageBox.Show(
+                this,
+                Strings.NestedIsReadOnly,
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         // 7z と tar は読み取りのみ。落とされたものを黙って捨てない (#19)
         if (!Contents.IsEditable)
         {
@@ -2105,9 +2130,32 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 保存されたら書き戻す (#16)
 
+    /// <summary>書庫の中の書庫を、専用のタブで開く (#30)。</summary>
+    /// <remarks>
+    /// 親書庫との繋がりはタブに持たせる。いまは中を見るところまでで、書き換えた
+    /// 結果を親書庫へ戻すのは次の段階 (仕様書 12.2)。
+    /// </remarks>
+    private async Task OpenNestedAsync(ArchiveEntry entry, string target, string parentPath)
+    {
+        var nest = new NestSession(parentPath, entry, target, ParentFolderOf(entry.FullPath));
+
+        if (await OpenArchiveAsync(target, inNewTab: true, nest: nest))
+        {
+            StatusMessage.Text = Strings.OpenedNested(
+                entry.FullPath, Path.GetFileName(parentPath));
+        }
+    }
+
     /// <summary>取り出したファイルを見張り始める。保存されたら書庫へ反映するか尋ねる。</summary>
     private void StartEditing(ArchiveEntry entry, string target, string directory)
     {
+        // 書庫の中の書庫へは、まだ書き戻せない (#30)
+        if (Tab?.Nest is not null)
+        {
+            StatusMessage.Text = Strings.OpenedReadOnlyNested(entry.Name);
+            return;
+        }
+
         // 書き戻せない形式では見張らない。尋ねても応えられない (#19)
         if (Contents is not { IsEditable: true })
         {
@@ -2860,11 +2908,15 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 取り出しの前に控える。取り出しの間に選んでいるタブが変わっても、
+        // 繋がりの相手を取り違えないようにするため (#30)
+        var parentPath = Contents.FilePath;
+
         string directory;
         string target;
         try
         {
-            directory = workspace.DirectoryFor(Contents.FilePath);
+            directory = workspace.DirectoryFor(parentPath);
             target = Path.GetFullPath(Path.Combine(directory, relative));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
@@ -2884,12 +2936,28 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 中身が書庫なら、外のアプリには渡さず自分で開く (#30)。
+        // 既に開いているならそのタブへ移る。取り出し直すと、そのタブが見ている
+        // 書庫を下から差し替えることになる
+        var nested = ArchiveFormats.FromPath(entry.Name) != ArchiveFormat.Unknown;
+
+        if (nested && TrySwitchToOpenArchive(target))
+        {
+            return;
+        }
+
         // 同じファイルを開き直したときは取り出し直さない。開いたままのアプリに
         // 掴まれていると上書きできないうえ、大きなファイルでは待ち時間も無駄になる。
         var reusable = TryGetLength(target) == entry.Length;
 
         if (!reusable && !await ExtractForViewingAsync(entry, directory, target))
         {
+            return;
+        }
+
+        if (nested)
+        {
+            await OpenNestedAsync(entry, target, parentPath);
             return;
         }
 
@@ -3707,10 +3775,10 @@ public partial class MainWindow : Window
         OpenButton.IsEnabled = !busy;
         NewTabButton.IsEnabled = !busy;
         ExtractButton.IsEnabled = !busy && Contents is not null;
-        AddButton.IsEnabled = !busy && Contents is { IsEditable: true };
+        AddButton.IsEnabled = !busy && ContentsEditable;
 
         // パスワードを扱えるのは ZIP だけ (#63)
-        PasswordButton.IsEnabled = !busy && Contents is { IsEditable: true };
+        PasswordButton.IsEnabled = !busy && ContentsEditable;
         InspectButton.IsEnabled = !busy && Contents is not null;
 
         // 分割は書庫でなくても使えるので、書庫の有無では出し入れしない

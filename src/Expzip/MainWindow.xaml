@@ -159,6 +159,15 @@
                             <TabPanel IsItemsHost="True" />
                         </ControlTemplate>
                     </TabControl.Template>
+                    <TabControl.ItemContainerStyle>
+                        <!--
+                            タブの名前を支援技術に伝える。既定では型名がそのまま
+                            読み上げられ、どの書庫のタブか分からない
+                        -->
+                        <Style TargetType="TabItem">
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+                        </Style>
+                    </TabControl.ItemContainerStyle>
                     <TabControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type ui:ArchiveTab}">
                     <StackPanel Orientation="Horizontal" ToolTip="{Binding FilePath}">

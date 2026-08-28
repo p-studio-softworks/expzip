@@ -130,6 +130,10 @@ internal static partial class Strings
     public static string LimitSelfExtracting => Pick(
         " (自己解凍書庫 / 読み取りのみ)", " (self-extracting / read-only)");
 
+    /// <summary>書庫の中の書庫であることの断り書き (#30)。</summary>
+    public static string LimitNested => Pick(
+        " (書庫の中の書庫 / 読み取りのみ)", " (archive inside an archive / read-only)");
+
     public static string EncryptedTooltip => Pick(
         "この項目はパスワードで保護されています。取り出すときにパスワードを尋ねます。",
         "This item is protected with a password. You will be asked for it when extracting.");
@@ -456,6 +460,22 @@ internal static partial class Strings
     public static string OpenedWatching(string name) => Pick(
         $"{name} を開きました。保存すると書庫へ反映するか尋ねます",
         $"Opened {name}. When you save it, you will be asked whether to put it back.");
+
+    // ------------------------------------------------------------------ 書庫の中の書庫 (#30)
+
+    public static string OpenedNested(string entryPath, string parentName) => Pick(
+        $"{parentName} の中の {entryPath} を新しいタブで開きました (いまは読み取りのみ)",
+        $"Opened {entryPath} from {parentName} in a new tab (read-only for now)");
+
+    public static string NestedIsReadOnly => Pick(
+        "書庫の中の書庫は、いまのところ読み取りのみです。"
+        + "中を見ることはできますが、書き換えて親の書庫へ戻すことはまだできません。",
+        "An archive inside an archive is read-only for now. "
+        + "You can look inside it, but changes cannot be put back into the parent archive yet.");
+
+    public static string OpenedReadOnlyNested(string name) => Pick(
+        $"{name} を開きました (書庫の中の書庫は読み取りのみのため、書き換えても戻りません)",
+        $"Opened {name} (an archive inside an archive is read-only, so changes will not go back)");
 
     public static string ConfirmApplyEdit(string entryPath) => Pick(
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"

@@ -50,6 +50,12 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// <summary>書庫ファイルのパス。同じ書庫を二重に開かないための照合に使う。</summary>
     public string FilePath => _contents.FilePath;
 
+    /// <summary>
+    /// 親書庫の中の書庫を開いているタブなら、その繋がり (#30)。
+    /// ふつうに開いたタブでは <see langword="null"/>。
+    /// </summary>
+    public NestSession? Nest { get; init; }
+
     // -------------------------------------------------------------- 外での書き換えを見つける (#64)
 
     /// <summary>読み込んだ時点の書庫ファイルの状態。</summary>
