@@ -48,6 +48,23 @@ internal sealed class ArchiveContents
     public bool IsSelfExtracting { get; init; }
 
     /// <summary>
+    /// 分割された書庫の断片を繋いで開いているか (#61)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 書き換えると断片に切り直すことになり、元の分割の大きさも分からない。
+    /// 読み取りのみにする。
+    /// </para>
+    /// <para>
+    /// パスだけで決まるので、形式ごとの読む側に持ち回らせない。ただし判定は
+    /// ファイルを見に行くため、一度だけ数えて覚えておく。
+    /// </para>
+    /// </remarks>
+    public bool IsSplit => _split ??= SplitVolumes.IsFirstVolume(FilePath);
+
+    private bool? _split;
+
+    /// <summary>
     /// 中身を書き換えられるかどうか。
     /// パスワード付きの書庫も書き換えられるが、作り直しになる (#20)。
     /// </summary>
@@ -56,5 +73,6 @@ internal sealed class ArchiveContents
     /// なるが、前に付いたプログラムは書庫の位置を自分の中に覚えていることがあり、
     /// 書き換えると自己解凍できなくなる。壊す危険を冒す利点がない。
     /// </remarks>
-    public bool IsEditable => ArchiveFormats.IsEditable(Format) && !IsSelfExtracting;
+    public bool IsEditable
+        => ArchiveFormats.IsEditable(Format) && !IsSelfExtracting && !IsSplit;
 }

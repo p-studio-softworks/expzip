@@ -108,7 +108,7 @@ internal static class SharpArchiveExtractor
         string archivePath, IReadOnlySet<string>? sourceNames, ExtractState state,
         CancellationToken cancellationToken)
     {
-        using var stream = File.OpenRead(archivePath);
+        using var stream = ArchiveFile.OpenRead(archivePath);
         using var reader = SharpArchiveAccess.OpenTarReader(stream);
 
         try

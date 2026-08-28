@@ -130,6 +130,16 @@ internal static partial class Strings
     public static string LimitSelfExtracting => Pick(
         " (自己解凍書庫 / 読み取りのみ)", " (self-extracting / read-only)");
 
+    /// <summary>分割された書庫であることの断り書き (#61)。</summary>
+    public static string LimitSplit(int count) => Pick(
+        $" (分割された書庫 / {count:N0} 個の断片 / 読み取りのみ)",
+        $" (split archive / {count:N0} volumes / read-only)");
+
+    /// <summary>断片が揃っていない場合 (#61)。</summary>
+    public static string SplitVolumeMissing(string name) => Pick(
+        $"分割された書庫の断片が揃っていません。{name} が見つかりません。",
+        $"The split archive is incomplete. {name} is missing.");
+
     /// <summary>書庫の中の書庫であることの断り書き (#30)。</summary>
     public static string LimitInside(string parentName) => Pick(
         $" ({parentName} の中)", $" (inside {parentName})");
@@ -185,17 +195,19 @@ internal static partial class Strings
     /// 書庫でない .exe を選んだ場合は、開いた時点で分かる。
     /// </remarks>
     public static string OpenFilter => Pick(
-        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe"
+        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001"
         + "|ZIP書庫 (*.zip)|*.zip"
         + "|7z書庫 (*.7z)|*.7z"
         + "|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
         + "|自己解凍書庫 (*.exe)|*.exe"
+        + "|分割された書庫 (*.001)|*.001"
         + "|すべてのファイル (*.*)|*.*",
-        "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe"
+        "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001"
         + "|ZIP archives (*.zip)|*.zip"
         + "|7z archives (*.7z)|*.7z"
         + "|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
         + "|Self-extracting archives (*.exe)|*.exe"
+        + "|Split archives (*.001)|*.001"
         + "|All files (*.*)|*.*");
 
     public static string ZipFilter => Pick("ZIP書庫 (*.zip)|*.zip", "ZIP archives (*.zip)|*.zip");

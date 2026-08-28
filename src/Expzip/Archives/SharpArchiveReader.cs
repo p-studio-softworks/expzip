@@ -74,7 +74,7 @@ internal static class SharpArchiveReader
     {
         var builder = new ArchiveTreeBuilder(path);
 
-        using var stream = File.OpenRead(path);
+        using var stream = ArchiveFile.OpenRead(path);
         using var reader = SharpArchiveAccess.OpenTarReader(stream);
 
         // tar は中央の索引を持たないため、総数は最後まで読むまで分からない。

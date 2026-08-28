@@ -87,20 +87,37 @@ internal static class ArchiveFormats
     {
         var byName = FromPath(path);
 
+        // 分割された書庫は、番号を外した名前で見る (#61)。`foo.zip.001` のように
+        // 元の名前が残っていれば、それだけで分かる
+        if (byName == ArchiveFormat.Unknown && SplitVolumes.IsFirstVolume(path))
+        {
+            var stripped = FromPath(path[..^4]);
+
+            return stripped != ArchiveFormat.Unknown ? stripped : Sniff(path);
+        }
+
         if (byName != ArchiveFormat.Unknown
             || !path.EndsWith(Program, StringComparison.OrdinalIgnoreCase))
         {
             return byName;
         }
 
+        return Sniff(path);
+    }
+
+    /// <summary>中身を見て形式を決める。</summary>
+    /// <remarks>
+    /// NSIS が先。しるしが DEADBEEF + NullsoftInst と具体的なのに対し、ZIP の
+    /// 見分けは「末尾に終端レコードがある」だけ。NSIS の中身に ZIP が入っていると、
+    /// そちらを拾って中身をまるごと取り違える (実測で確認)。
+    /// </remarks>
+    private static ArchiveFormat Sniff(string path)
+    {
         if (string.Equals(_sniffed.Path, path, StringComparison.OrdinalIgnoreCase))
         {
             return _sniffed.Format;
         }
 
-        // NSIS が先。しるしが DEADBEEF + NullsoftInst と具体的なのに対し、
-        // ZIP の見分けは「末尾に終端レコードがある」だけ。NSIS の中身に ZIP が
-        // 入っていると、そちらを拾って中身をまるごと取り違える (実測で確認)
         var format = NsisReader.IsNsis(path)
             ? ArchiveFormat.Nsis
             : ZipPrefix.LooksLikeZip(path)

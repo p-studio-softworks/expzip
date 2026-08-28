@@ -1482,6 +1482,13 @@ public partial class MainWindow : Window
             return contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted;
         }
 
+        // 分割された書庫は、断片が何個あるかまで出す (#61)。揃っていないと
+        // 開けないため、開けている時点で全部そろっている
+        if (contents.IsSplit)
+        {
+            return Strings.LimitSplit(SplitVolumes.Count(contents.FilePath));
+        }
+
         // 書庫の中の書庫では、どこの中を見ているのかを添える (#30)
         if (Tab?.Nest is { } nest)
         {

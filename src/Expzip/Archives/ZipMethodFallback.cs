@@ -171,8 +171,9 @@ internal sealed class ZipMethodFallback(string archivePath, string? password = n
 
         try
         {
+            // 分割された書庫でも同じ道を通れるよう、流れにしてから渡す (#61)
             _archive = ArchiveFactory.OpenArchive(
-                archivePath, SharpArchiveAccess.Options(password));
+                ArchiveFile.OpenRead(archivePath), SharpArchiveAccess.Options(password));
 
             // 同じ名前のエントリが複数ある細工された書庫では、先に出てきたものを使う。
             // 標準の実装が一覧に出すのも先頭のエントリのため、見えているものと揃う

@@ -176,7 +176,7 @@ internal static class ContentInspector
             }
             else
             {
-                file = File.OpenRead(context.ArchivePath);
+                file = ArchiveFile.OpenRead(context.ArchivePath);
                 reader = SharpArchiveAccess.OpenTarReader(file);
             }
 

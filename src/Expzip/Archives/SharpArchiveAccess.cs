@@ -59,7 +59,7 @@ internal static class SharpArchiveAccess
     public static Stream OpenSevenZipStream(string path)
     {
         var offset = SevenZipOffset(path);
-        var stream = File.OpenRead(path);
+        var stream = ArchiveFile.OpenRead(path);
 
         return offset > 0 ? new OffsetStream(stream, offset) : stream;
     }
@@ -69,7 +69,7 @@ internal static class SharpArchiveAccess
     {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = ArchiveFile.OpenRead(path);
 
             var window = (int)Math.Min(stream.Length, SevenZipSearchLimit);
 

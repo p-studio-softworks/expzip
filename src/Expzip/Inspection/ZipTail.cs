@@ -1,5 +1,6 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO;
+using Expzip.Archives;
 
 namespace Expzip.Inspection;
 
@@ -33,7 +34,7 @@ internal static class ZipTail
     {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = ArchiveFile.OpenRead(path);
 
             var length = stream.Length;
             if (length < RecordLength)

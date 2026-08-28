@@ -88,7 +88,7 @@ internal static class NsisReader
     {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = ArchiveFile.OpenRead(path);
 
             var window = (int)Math.Min(stream.Length, SearchLimit);
 
@@ -201,7 +201,7 @@ internal static class NsisReader
         var outDirectory = string.Empty;
         var files = new List<NsisFile>();
 
-        using var source = File.OpenRead(path);
+        using var source = ArchiveFile.OpenRead(path);
 
         for (var i = 0u; i < entryCount; i++)
         {
@@ -308,7 +308,7 @@ internal static class NsisReader
     /// </remarks>
     private static HeaderRead ReadHeader(string path, long head)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = ArchiveFile.OpenRead(path);
 
         stream.Position = head;
 

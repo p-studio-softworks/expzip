@@ -56,7 +56,7 @@ internal static class ZipPrefix
     {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = ArchiveFile.OpenRead(path);
             return Detect(stream);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
@@ -74,7 +74,7 @@ internal static class ZipPrefix
     public static Stream Open(string path)
     {
         var offset = Detect(path);
-        var stream = File.OpenRead(path);
+        var stream = ArchiveFile.OpenRead(path);
 
         return offset > 0 ? new OffsetStream(stream, offset) : stream;
     }
@@ -90,7 +90,7 @@ internal static class ZipPrefix
     {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = ArchiveFile.OpenRead(path);
 
             if (stream.Length < 4)
             {
@@ -120,7 +120,7 @@ internal static class ZipPrefix
     {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = ArchiveFile.OpenRead(path);
 
             var length = stream.Length;
 

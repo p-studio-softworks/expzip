@@ -41,7 +41,7 @@ internal static class NsisExtractor
             .Where(f => sourceNames is null || sourceNames.Contains(NsisReader.ToArchivePath(f.Name)))
             .ToList();
 
-        using var source = File.OpenRead(archivePath);
+        using var source = ArchiveFile.OpenRead(archivePath);
 
         if (layout.IsSolid)
         {
