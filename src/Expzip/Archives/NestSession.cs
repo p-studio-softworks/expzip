@@ -17,4 +17,17 @@
 /// </remarks>
 internal sealed class NestSession(
     string parentPath, ArchiveEntry entry, string tempPath, string destinationFolder)
-    : EditSession(parentPath, entry, tempPath, destinationFolder);
+    : EditSession(parentPath, entry, tempPath, destinationFolder)
+{
+    /// <summary>親書庫のタブが先に閉じられたか (#30)。</summary>
+    /// <remarks>
+    /// こうなると親書庫への上書き保存はできない。開いているタブが無いと、
+    /// パスワードが要るかどうかも分からないまま書き込むことになるため。
+    /// 以降は「名前を付けて保存」だけを出し、タブを閉じるときも終了するときも
+    /// 親への反映は尋ねない (仕様書 12.2)。
+    /// </remarks>
+    public bool Orphaned { get; private set; }
+
+    /// <summary>親書庫のタブが閉じられたことを記録する。</summary>
+    public void Orphan() => Orphaned = true;
+}

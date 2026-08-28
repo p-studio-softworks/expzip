@@ -473,6 +473,27 @@ internal static partial class Strings
         "書き換えた内容を親の書庫へ書き戻します (Ctrl+S)",
         "Put the changes back into the parent archive (Ctrl+S)");
 
+    public static string SaveAs => Pick("名前を付けて保存", "Save as");
+
+    public static string SaveAsTooltip => Pick(
+        "親の書庫のタブが閉じられているため、別のファイルとして保存します (Ctrl+S)",
+        "The parent archive's tab has been closed, so save this as a separate file (Ctrl+S)");
+
+    public static string SaveAsDialogTitle => Pick(
+        "中の書庫に名前を付けて保存", "Save the inner archive as");
+
+    /// <summary>親のタブが閉じられ、上書き保存ができなくなったときの知らせ (#30)。</summary>
+    public static string NestOrphaned(string name, string parentName) => Pick(
+        $"{parentName} のタブが閉じられたため、{name} は名前を付けて保存のみになりました",
+        $"The tab for {parentName} was closed, so {name} can only be saved as a separate file");
+
+    public static string NestSavedAs(string path) => Pick(
+        $"{path} に保存しました", $"Saved to {path}");
+
+    public static string NestSaveAsFailed(string path, string reason) => Pick(
+        $"{path} に保存できませんでした。{Environment.NewLine}{reason}",
+        $"Could not save to {path}.{Environment.NewLine}{reason}");
+
     public static string ConfirmApplyNest(string entryPath, string parentName) => Pick(
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
         + $"書き換えられています。{parentName} に反映しますか?{Environment.NewLine}{Environment.NewLine}"

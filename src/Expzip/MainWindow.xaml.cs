@@ -1243,6 +1243,7 @@ public partial class MainWindow : Window
         // 保存は書庫の中の書庫でだけ意味がある (#30)
         SaveButton.Visibility = tab.Nest is null ? Visibility.Collapsed : Visibility.Visible;
         SaveButton.IsEnabled = tab.Nest is not null;
+        ShowSaveLabel(tab.Nest);
         UpdateTitle(tab.Title);
 
         SelectInTree(tab.CurrentFolder);
@@ -1373,7 +1374,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (tab.Nest is { } nest)
+        // 親のタブが閉じられている場合は尋ねない。戻す先が無いのに尋ねても
+        // 応えられない (仕様書 12.2)
+        if (tab.Nest is { Orphaned: false } nest)
         {
             nest.DetectChange();
 
@@ -1424,6 +1427,10 @@ public partial class MainWindow : Window
         // 同じ書庫は1つのタブでしか開けないので、他のタブの分を巻き込まない
         _passwords.Remove(tab.FilePath);
 
+        // 閉じた書庫を親にしていたタブは、以降は上書き保存できない (#30)。
+        // 知らせは画面を作り直したあとに出す。先に出すと件数で上書きされる
+        var orphaned = MarkOrphans(tab.FilePath);
+
         _switchingTab = true;
         try
         {
@@ -1440,6 +1447,11 @@ public partial class MainWindow : Window
         }
 
         ShowActiveTab();
+
+        if (orphaned is not null)
+        {
+            StatusMessage.Text = orphaned;
+        }
     }
 
     /// <summary>同じ書庫を開いているタブがあれば、それを選ぶ。</summary>
@@ -2218,6 +2230,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 親のタブが閉じられていると上書き保存はできない。別のファイルとして残す
+        if (nest.Orphaned)
+        {
+            SaveNestAs(nest);
+            return;
+        }
+
         nest.DetectChange();
 
         if (!nest.HasPendingChanges)
@@ -2231,6 +2250,83 @@ public partial class MainWindow : Window
             StatusMessage.Text = Strings.NestApplied(
                 nest.EntryPath, Path.GetFileName(nest.ArchivePath));
         }
+    }
+
+    /// <summary>保存ボタンの見出しを、上書きできるかどうかで選ぶ (#30)。</summary>
+    private void ShowSaveLabel(NestSession? nest)
+    {
+        var orphaned = nest is { Orphaned: true };
+        SaveButton.Content = orphaned ? Strings.SaveAs : Strings.Save;
+        SaveButton.ToolTip = orphaned ? Strings.SaveAsTooltip : Strings.SaveTooltip;
+    }
+
+    /// <summary>閉じた書庫を親にしているタブに、上書き保存できなくなったことを伝える (#30)。</summary>
+    /// <returns>伝えるべき知らせ。対象が無ければ <see langword="null"/>。</returns>
+    private string? MarkOrphans(string closedPath)
+    {
+        string? notice = null;
+
+        foreach (var other in _tabs)
+        {
+            if (other.Nest is not { Orphaned: false } nest
+                || !string.Equals(nest.ArchivePath, closedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            nest.Orphan();
+            notice = Strings.NestOrphaned(other.Title, Path.GetFileName(closedPath));
+        }
+
+        return notice;
+    }
+
+    /// <summary>中の書庫を、別のファイルとして保存する (#30)。</summary>
+    /// <remarks>
+    /// 親のタブが閉じられていると上書き保存はできない。取り出した一時ファイルは
+    /// アプリを終えると消えるため、残す手立てとしてこれだけは出しておく。
+    /// </remarks>
+    private void SaveNestAs(NestSession nest)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = Strings.SaveAsDialogTitle,
+            Filter = Strings.ZipFilter,
+            FileName = nest.Name,
+            AddExtension = true,
+            OverwritePrompt = true,
+        };
+
+        var directory = Path.GetDirectoryName(nest.ArchivePath);
+
+        if (!string.IsNullOrEmpty(directory))
+        {
+            dialog.InitialDirectory = directory;
+        }
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            File.Copy(nest.TempPath, dialog.FileName, overwrite: true);
+            TempWorkspace.ClearReadOnly(dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or ArgumentException or NotSupportedException)
+        {
+            MessageBox.Show(
+                this,
+                Strings.NestSaveAsFailed(dialog.FileName, ex.Message),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // 書き出した先は親書庫ではないため、未反映のままにしておく理由が無い
+        nest.MarkApplied();
+        StatusMessage.Text = Strings.NestSavedAs(dialog.FileName);
     }
 
     /// <summary>中の書庫を親書庫へ書き戻し、親のタブを読み直させる (#30)。</summary>
@@ -2446,7 +2542,7 @@ public partial class MainWindow : Window
 
         foreach (var tab in _tabs)
         {
-            if (tab.Nest is { } nest)
+            if (tab.Nest is { Orphaned: false } nest)
             {
                 nest.DetectChange();
 
@@ -2531,7 +2627,7 @@ public partial class MainWindow : Window
     {
         for (var i = _tabs.Count - 1; i >= 0; i--)
         {
-            if (_tabs[i].Nest is not { } nest)
+            if (_tabs[i].Nest is not { Orphaned: false } nest)
             {
                 continue;
             }
@@ -4424,8 +4520,7 @@ public partial class MainWindow : Window
         AddButton.ToolTip = Strings.AddTooltip;
         PasswordButton.Content = Strings.Password;
         PasswordButton.ToolTip = Strings.PasswordTooltip;
-        SaveButton.Content = Strings.Save;
-        SaveButton.ToolTip = Strings.SaveTooltip;
+        ShowSaveLabel(Tab?.Nest);
         InspectButton.Content = Strings.Inspect;
         InspectButton.ToolTip = Strings.InspectTooltip;
         SplitButton.Content = Strings.Split;
