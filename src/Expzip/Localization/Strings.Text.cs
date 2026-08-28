@@ -212,6 +212,62 @@ internal static partial class Strings
 
     public static string ZipFilter => Pick("ZIP書庫 (*.zip)|*.zip", "ZIP archives (*.zip)|*.zip");
 
+    // ------------------------------------------------------------------ 自己解凍書庫の作成 (#29)
+
+    public static string Sfx => Pick("自己解凍", "Self-extract");
+
+    public static string SfxTooltip => Pick(
+        "取り出すプログラムを付けた実行ファイルとして書き出します。"
+        + "受け取った人は Expzip が無くても取り出せます。",
+        "Write the archive as an executable with an extractor attached, "
+        + "so the recipient can unpack it without Expzip.");
+
+    public static string SfxDialogTitle => Pick(
+        "自己解凍書庫として保存", "Save as a self-extracting archive");
+
+    public static string SfxFilter => Pick(
+        "自己解凍書庫 (*.exe)|*.exe", "Self-extracting archives (*.exe)|*.exe");
+
+    public static string SfxCreating => Pick(
+        "自己解凍書庫を作っています…", "Creating the self-extracting archive...");
+
+    public static string SfxDone(string path, long length) => Pick(
+        $"{path} を作りました ({length:N0} バイト)",
+        $"Created {path} ({length:N0} bytes)");
+
+    public static string SfxSameFile => Pick(
+        "元の書庫と同じ場所には書き出せません。",
+        "It cannot be written over the archive it is made from.");
+
+    public static string SfxCancelled => Pick(
+        "自己解凍書庫の作成を取りやめました", "Stopped creating the self-extracting archive");
+
+    public static string SfxFailed(string path, string reason) => Pick(
+        $"{path} を作れませんでした。{Environment.NewLine}{reason}",
+        $"Could not create {path}.{Environment.NewLine}{reason}");
+
+    /// <summary>自己解凍書庫にできない理由 (#29)。作る前に断る。</summary>
+    public static string SfxRejected(SfxRejection reason) => reason switch
+    {
+        SfxRejection.NotZip => Pick(
+            "自己解凍書庫にできるのは ZIP だけです。",
+            "Only ZIP archives can be made self-extracting."),
+        SfxRejection.AlreadySelfExtracting => Pick(
+            "この書庫はすでに自己解凍書庫です。",
+            "This archive is already self-extracting."),
+        SfxRejection.Encrypted => Pick(
+            "パスワードの掛かった書庫は自己解凍書庫にできません。"
+            + "取り出すプログラムに復号を持たせると大きくなりすぎるためです。",
+            "A password-protected archive cannot be made self-extracting: "
+            + "carrying the decryption code would make the extractor too large."),
+        SfxRejection.TooMany => Pick(
+            "この書庫は件数が多すぎて、自己解凍書庫にできません。",
+            "This archive has too many entries to be made self-extracting."),
+        _ => Pick(
+            "この書庫は大きすぎて、自己解凍書庫にできません。",
+            "This archive is too large to be made self-extracting."),
+    };
+
     public static string AllFilesFilter => Pick(
         "すべてのファイル (*.*)|*.*", "All files (*.*)|*.*");
 

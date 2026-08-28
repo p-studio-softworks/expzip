@@ -1,4 +1,4 @@
-# === .NET ビルド成果物 ===
+﻿# === .NET ビルド成果物 ===
 [Bb]in/
 [Oo]bj/
 [Dd]ebug/
@@ -67,6 +67,11 @@ $RECYCLE.BIN/
 tools/joiner/joiner-x86.exe
 tools/joiner/*.obj
 
+# 自己解凍書庫の取り出し部の建て直しで出るもの (#29)
+tools/sfx/sfx-x86.exe
+tools/sfx/*.obj
+
 # ただし同梱するほうは追いかける。上の *.exe に巻き込まれると、
-# クローンしただけでは建てられなくなる (#59)
+# クローンしただけでは建てられなくなる (#59, #29)
 !src/Expzip/Resources/joiner-x86.exe
+!src/Expzip/Resources/sfx-x86.exe

@@ -1235,6 +1235,7 @@ public partial class MainWindow : Window
         FolderTree.ItemsSource = new[] { contents.Root };
         ExtractButton.IsEnabled = true;
         InspectButton.IsEnabled = true;
+        SfxButton.IsEnabled = true;
 
         // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
         AddButton.IsEnabled = contents.IsEditable;
@@ -1313,6 +1314,7 @@ public partial class MainWindow : Window
 
         ExtractButton.IsEnabled = false;
         InspectButton.IsEnabled = false;
+        SfxButton.IsEnabled = false;
         AddButton.IsEnabled = false;
         PasswordButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
@@ -2648,6 +2650,104 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    // ------------------------------------------------------------------ 自己解凍書庫の作成 (#29)
+
+    private async void SfxButton_Click(object sender, RoutedEventArgs e)
+        => await CreateSfxAsync();
+
+    /// <summary>いま開いている書庫を、自己解凍書庫として書き出す (#29)。</summary>
+    /// <remarks>
+    /// 取り出すプログラムの後ろに書庫をそのまま繋ぐだけ。詳しくは仕様書 5.7節。
+    /// </remarks>
+    private async Task CreateSfxAsync()
+    {
+        if (Contents is not { } contents || _cancellation is not null)
+        {
+            return;
+        }
+
+        // 作ってから動かないと分かるのがいちばん困る。先に断る
+        if (SfxWriter.Reject(contents) is { } reason)
+        {
+            MessageBox.Show(
+                this,
+                Strings.SfxRejected(reason),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = Strings.SfxDialogTitle,
+            Filter = Strings.SfxFilter,
+            DefaultExt = SfxWriter.Extension,
+            AddExtension = true,
+            FileName = Path.GetFileNameWithoutExtension(contents.FilePath) + SfxWriter.Extension,
+            OverwritePrompt = true,
+        };
+
+        var directory = Path.GetDirectoryName(contents.FilePath);
+
+        if (!string.IsNullOrEmpty(directory))
+        {
+            dialog.InitialDirectory = directory;
+        }
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        // 元の書庫そのものに書き込ませない。読みながら書くことになる
+        if (string.Equals(dialog.FileName, contents.FilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                this,
+                Strings.SfxFailed(dialog.FileName, Strings.SfxSameFile),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var archivePath = contents.FilePath;
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+        StatusMessage.Text = Strings.SfxCreating;
+
+        try
+        {
+            await Task.Run(
+                () => SfxWriter.Create(archivePath, dialog.FileName, cancellation.Token),
+                cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage.Text = Strings.SfxCancelled;
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or InvalidOperationException or NotSupportedException)
+        {
+            MessageBox.Show(
+                this,
+                Strings.SfxFailed(dialog.FileName, ex.Message),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+        }
+
+        // 書庫に付いていた出所の印は、書き出したものにも引き継ぐ (#12 と同じ考え方)。
+        // 出所の分からないものから作った実行ファイルを、素性の確かなものに見せない
+        MarkOfTheWeb.TryApply(dialog.FileName, MarkOfTheWeb.TryRead(archivePath));
+
+        StatusMessage.Text = Strings.SfxDone(dialog.FileName, TryGetLength(dialog.FileName));
     }
 
     // ------------------------------------------------------------------ ドラッグアウト (#17)
@@ -4057,6 +4157,10 @@ public partial class MainWindow : Window
 
         // 分割は書庫でなくても使えるので、書庫の有無では出し入れしない
         SplitButton.IsEnabled = !busy;
+
+        // 自己解凍書庫にできない書庫でも押せるようにしておく (#29)。
+        // 理由は押したときに言う。押せない理由が画面から読み取れないため
+        SfxButton.IsEnabled = !busy && Contents is not null;
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;
 
@@ -4532,6 +4636,8 @@ public partial class MainWindow : Window
         InspectButton.ToolTip = Strings.InspectTooltip;
         SplitButton.Content = Strings.Split;
         SplitButton.ToolTip = Strings.SplitTooltip;
+        SfxButton.Content = Strings.Sfx;
+        SfxButton.ToolTip = Strings.SfxTooltip;
         SettingsButton.ToolTip = Strings.SettingsTooltip;
 
         // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。

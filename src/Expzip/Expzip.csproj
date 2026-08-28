@@ -40,6 +40,13 @@
       C のツールチェーンは要らない。ソースと建て直し方は tools/joiner にある。
     -->
     <EmbeddedResource Include="Resources\joiner-x86.exe" LogicalName="Expzip.Resources.joiner-x86.exe" />
+
+    <!--
+      自己解凍書庫の取り出し部 (#29)。この後ろに ZIP をそのまま繋いで配る。
+      伸長器を内蔵しているため連結プログラムより大きいが、それでも 8.5KB。
+      ソースと建て直し方は tools/sfx にある。
+    -->
+    <EmbeddedResource Include="Resources\sfx-x86.exe" LogicalName="Expzip.Resources.sfx-x86.exe" />
   </ItemGroup>
 
   <!--

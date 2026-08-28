@@ -104,6 +104,11 @@
                     書庫を開いていなくても押せる
                 -->
                 <Button x:Name="SplitButton" Click="SplitButton_Click" />
+                <!--
+                    自己解凍書庫として書き出す (#29)。取り出すプログラムを前に付けた
+                    実行ファイルにする。受け取った人は Expzip が無くても取り出せる
+                -->
+                <Button x:Name="SfxButton" Click="SfxButton_Click" IsEnabled="False" />
                 <Separator />
                 <!--
                     設定 (#23)。いまは言語だけ。設定ファイルを開かずに変えられる
