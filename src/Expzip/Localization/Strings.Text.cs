@@ -131,8 +131,8 @@ internal static partial class Strings
         " (自己解凍書庫 / 読み取りのみ)", " (self-extracting / read-only)");
 
     /// <summary>書庫の中の書庫であることの断り書き (#30)。</summary>
-    public static string LimitNested => Pick(
-        " (書庫の中の書庫 / 読み取りのみ)", " (archive inside an archive / read-only)");
+    public static string LimitInside(string parentName) => Pick(
+        $" ({parentName} の中)", $" (inside {parentName})");
 
     public static string EncryptedTooltip => Pick(
         "この項目はパスワードで保護されています。取り出すときにパスワードを尋ねます。",
@@ -464,18 +464,46 @@ internal static partial class Strings
     // ------------------------------------------------------------------ 書庫の中の書庫 (#30)
 
     public static string OpenedNested(string entryPath, string parentName) => Pick(
-        $"{parentName} の中の {entryPath} を新しいタブで開きました (いまは読み取りのみ)",
-        $"Opened {entryPath} from {parentName} in a new tab (read-only for now)");
+        $"{parentName} の中の {entryPath} を新しいタブで開きました",
+        $"Opened {entryPath} from {parentName} in a new tab");
 
-    public static string NestedIsReadOnly => Pick(
-        "書庫の中の書庫は、いまのところ読み取りのみです。"
-        + "中を見ることはできますが、書き換えて親の書庫へ戻すことはまだできません。",
-        "An archive inside an archive is read-only for now. "
-        + "You can look inside it, but changes cannot be put back into the parent archive yet.");
+    public static string Save => Pick("保存", "Save");
 
-    public static string OpenedReadOnlyNested(string name) => Pick(
-        $"{name} を開きました (書庫の中の書庫は読み取りのみのため、書き換えても戻りません)",
-        $"Opened {name} (an archive inside an archive is read-only, so changes will not go back)");
+    public static string SaveTooltip => Pick(
+        "書き換えた内容を親の書庫へ書き戻します (Ctrl+S)",
+        "Put the changes back into the parent archive (Ctrl+S)");
+
+    public static string ConfirmApplyNest(string entryPath, string parentName) => Pick(
+        $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
+        + $"書き換えられています。{parentName} に反映しますか?{Environment.NewLine}{Environment.NewLine}"
+        + "「いいえ」を選ぶと、書き換えた内容は失われます。",
+        $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
+        + $"This has been changed. Put it back into {parentName}?{Environment.NewLine}{Environment.NewLine}"
+        + "Choosing No discards the changes.");
+
+    public static string NestApplied(string entryPath, string parentName) => Pick(
+        $"{entryPath} を {parentName} に反映しました",
+        $"Put {entryPath} back into {parentName}");
+
+    public static string NestNoChanges => Pick(
+        "書き換えられていないため、反映するものはありません",
+        "Nothing to put back - it has not been changed");
+
+    /// <summary>親書庫のタブが先に閉じられていた場合 (#30)。</summary>
+    /// <remarks>
+    /// 開いているタブが無いと、パスワードが要るかどうかも分からないまま
+    /// 書き込むことになる。仕様書 12.2 でも、親を先に閉じた場合は上書き保存
+    /// できないと決めてある。
+    /// </remarks>
+    public static string NestParentClosed(string parentName) => Pick(
+        $"{parentName} のタブが閉じられているため、書き戻せません。"
+        + $"{parentName} を開き直してから、もう一度保存してください。",
+        $"The tab for {parentName} has been closed, so the changes cannot be put back. "
+        + $"Open {parentName} again and save once more.");
+
+    public static string ReloadedAfterNestApply(string name) => Pick(
+        $"中の書庫を書き戻したため、{name} を読み直しました",
+        $"Reloaded {name} after putting the inner archive back");
 
     public static string ConfirmApplyEdit(string entryPath) => Pick(
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"

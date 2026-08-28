@@ -1171,9 +1171,17 @@ public partial class MainWindow : Window
 
             if (Tab is { } tab)
             {
-                CloseTab(tab);
+                _ = CloseTabAsync(tab);
             }
 
+            return;
+        }
+
+        // Ctrl+S で、中の書庫を親へ書き戻す (#30)
+        if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            _ = SaveNestAsync();
             return;
         }
 
@@ -1228,10 +1236,13 @@ public partial class MainWindow : Window
         ExtractButton.IsEnabled = true;
         InspectButton.IsEnabled = true;
 
-        // 7z と tar は読み取りのみ。書庫の中の書庫もいまは読み取りのみ (#19, #30)。
-        // 書き換える操作は出さない
-        AddButton.IsEnabled = contents.IsEditable && tab.Nest is null;
-        PasswordButton.IsEnabled = contents.IsEditable && tab.Nest is null;
+        // 7z と tar は読み取りのみ。書き換える操作は出さない (#19)
+        AddButton.IsEnabled = contents.IsEditable;
+        PasswordButton.IsEnabled = contents.IsEditable;
+
+        // 保存は書庫の中の書庫でだけ意味がある (#30)
+        SaveButton.Visibility = tab.Nest is null ? Visibility.Collapsed : Visibility.Visible;
+        SaveButton.IsEnabled = tab.Nest is not null;
         UpdateTitle(tab.Title);
 
         SelectInTree(tab.CurrentFolder);
@@ -1244,14 +1255,18 @@ public partial class MainWindow : Window
         if (tab.NeedsReload && _cancellation is null)
         {
             var name = tab.Title;
+            var fromNest = tab.ReloadFromNest;
             tab.NeedsReload = false;
+            tab.ReloadFromNest = false;
 
             _ = Dispatcher.InvokeAsync(async () =>
             {
                 if (await OpenArchiveAsync(tab.FilePath, tab.CurrentFolder.FullPath, quiet: true)
                     && ReferenceEquals(Tab, tab))
                 {
-                    StatusMessage.Text = Strings.ReloadedAfterExternalChange(name);
+                    StatusMessage.Text = fromNest
+                        ? Strings.ReloadedAfterNestApply(name)
+                        : Strings.ReloadedAfterExternalChange(name);
                 }
             });
         }
@@ -1299,6 +1314,8 @@ public partial class MainWindow : Window
         InspectButton.IsEnabled = false;
         AddButton.IsEnabled = false;
         PasswordButton.IsEnabled = false;
+        SaveButton.IsEnabled = false;
+        SaveButton.Visibility = Visibility.Collapsed;
         UpdateTitle(null);
 
         // 書庫を1つも開いていないなら見張るものが無い (#64)
@@ -1336,7 +1353,7 @@ public partial class MainWindow : Window
             && FindAncestor<TabItem>(source)?.DataContext is ArchiveTab tab)
         {
             e.Handled = true;
-            CloseTab(tab);
+            _ = CloseTabAsync(tab);
         }
     }
 
@@ -1344,8 +1361,45 @@ public partial class MainWindow : Window
     {
         if ((sender as FrameworkElement)?.DataContext is ArchiveTab tab)
         {
-            CloseTab(tab);
+            _ = CloseTabAsync(tab);
         }
+    }
+
+    /// <summary>タブを閉じる。中の書庫に未反映の変更があれば尋ねる (#30)。</summary>
+    private async Task CloseTabAsync(ArchiveTab tab)
+    {
+        if (_cancellation is not null)
+        {
+            return;
+        }
+
+        if (tab.Nest is { } nest)
+        {
+            nest.DetectChange();
+
+            if (nest.HasPendingChanges)
+            {
+                var answer = MessageBox.Show(
+                    this,
+                    Strings.ConfirmApplyNest(
+                        nest.EntryPath, Path.GetFileName(nest.ArchivePath)),
+                    AppName, MessageBoxButton.YesNoCancel, MessageBoxImage.Question,
+                    MessageBoxResult.Yes);
+
+                if (answer == MessageBoxResult.Cancel)
+                {
+                    return;
+                }
+
+                // 反映できなかったときは閉じない。理由が見えないまま変更が消える
+                if (answer == MessageBoxResult.Yes && !await ApplyNestAsync(nest))
+                {
+                    return;
+                }
+            }
+        }
+
+        CloseTab(tab);
     }
 
     /// <summary>タブを閉じる。最後の1つを閉じたら、書庫を開いていない状態に戻す。</summary>
@@ -1416,10 +1470,10 @@ public partial class MainWindow : Window
             return contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted;
         }
 
-        // 書庫の中の書庫は、形式が ZIP でも書き換えさせない (#30)
-        if (Tab?.Nest is not null)
+        // 書庫の中の書庫では、どこの中を見ているのかを添える (#30)
+        if (Tab?.Nest is { } nest)
         {
-            return Strings.LimitNested;
+            return Strings.LimitInside(Path.GetFileName(nest.ArchivePath));
         }
 
         if (contents.IsEditable)
@@ -1479,26 +1533,40 @@ public partial class MainWindow : Window
     /// <returns>取り消された場合は false。</returns>
     private bool TryGetPassword(out string? password)
     {
-        password = null;
-
         if (Contents is null)
         {
+            password = null;
             return true;
         }
 
+        return TryGetPassword(Contents.FilePath, out password);
+    }
+
+    /// <summary>書庫を指定して、書き込みに使うパスワードを引く。</summary>
+    /// <remarks>
+    /// 要否は開いているタブから見る。閉じている書庫については分からないため、
+    /// パスワードが要るかどうかも確かめずに書き込むことはしない (#30)。
+    /// </remarks>
+    private bool TryGetPassword(string archivePath, out string? password)
+    {
+        password = null;
+
         // 一度入れたもの、または「新規作成」で決めたものがあればそれを使う
-        if (_passwords.TryGetValue(Contents.FilePath, out var known))
+        if (_passwords.TryGetValue(archivePath, out var known))
         {
             password = known;
             return true;
         }
 
-        if (!Contents.RequiresPassword)
+        var open = _tabs.FirstOrDefault(
+            t => string.Equals(t.FilePath, archivePath, StringComparison.OrdinalIgnoreCase));
+
+        if (open is null || !open.Contents.RequiresPassword)
         {
             return true;
         }
 
-        password = EnsurePassword(Contents.FilePath);
+        password = EnsurePassword(archivePath);
         return password is not null;
     }
 
@@ -1507,10 +1575,10 @@ public partial class MainWindow : Window
     /// 7z と tar は読み取りのみなので、追加・削除・名前の変更・移動は行わせない。
     /// </summary>
     /// <remarks>
-    /// 書庫の中の書庫も、いまのところ読み取りのみ (#30)。親書庫へ戻す道がまだ無く、
-    /// 書き換えさせるとタブを閉じた時点で変更が消えるため。
+    /// 書庫の中の書庫も書き換えられる (#30)。書き換えた結果は一時ファイルに入り、
+    /// 保存したときかタブを閉じるときに親書庫へ戻す。
     /// </remarks>
-    private bool ContentsEditable => Contents is { IsEditable: true } && Tab?.Nest is null;
+    private bool ContentsEditable => Contents is { IsEditable: true };
 
     /// <summary>いま書き換えの操作を受け付けられるか。処理中は受け付けない。</summary>
     private bool CanEdit => ContentsEditable && _cancellation is null;
@@ -1816,16 +1884,6 @@ public partial class MainWindow : Window
             MessageBox.Show(
                 this,
                 Strings.NoArchiveToAddTo,
-                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        // 書庫の中の書庫も、いまは受け取れない (#30)
-        if (Tab?.Nest is not null)
-        {
-            MessageBox.Show(
-                this,
-                Strings.NestedIsReadOnly,
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -2146,16 +2204,70 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>取り出したファイルを見張り始める。保存されたら書庫へ反映するか尋ねる。</summary>
-    private void StartEditing(ArchiveEntry entry, string target, string directory)
+    private void SaveButton_Click(object sender, RoutedEventArgs e) => _ = SaveNestAsync();
+
+    /// <summary>中の書庫の変更を、親の書庫へ書き戻す (#30)。</summary>
+    /// <remarks>
+    /// ふだんの書き換えはその場で書庫に入るため、Expzip には保存という操作が無い。
+    /// 中の書庫だけは一時ファイルの上で書き換わるので、親へ戻す操作が要る。
+    /// </remarks>
+    private async Task SaveNestAsync()
     {
-        // 書庫の中の書庫へは、まだ書き戻せない (#30)
-        if (Tab?.Nest is not null)
+        if (Tab?.Nest is not { } nest || _cancellation is not null)
         {
-            StatusMessage.Text = Strings.OpenedReadOnlyNested(entry.Name);
             return;
         }
 
+        nest.DetectChange();
+
+        if (!nest.HasPendingChanges)
+        {
+            StatusMessage.Text = Strings.NestNoChanges;
+            return;
+        }
+
+        if (await ApplyNestAsync(nest))
+        {
+            StatusMessage.Text = Strings.NestApplied(
+                nest.EntryPath, Path.GetFileName(nest.ArchivePath));
+        }
+    }
+
+    /// <summary>中の書庫を親書庫へ書き戻し、親のタブを読み直させる (#30)。</summary>
+    /// <returns>書き戻せた場合は true。</returns>
+    private async Task<bool> ApplyNestAsync(NestSession nest)
+    {
+        var parent = _tabs.FirstOrDefault(
+            t => string.Equals(t.FilePath, nest.ArchivePath, StringComparison.OrdinalIgnoreCase));
+
+        // 親のタブが閉じられていると、パスワードが要るかどうかも分からないまま
+        // 書き込むことになる。仕様書 12.2 でも、親を先に閉じた場合は上書き保存を
+        // しないと決めてある
+        if (parent is null)
+        {
+            MessageBox.Show(
+                this,
+                Strings.NestParentClosed(Path.GetFileName(nest.ArchivePath)),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        if (!await ApplyEditAsync(nest))
+        {
+            return false;
+        }
+
+        // 親の中身は変わっている。次にそのタブを見るときに読み直す。
+        // 親自身が中の書庫なら、その一時ファイルが変わったことになり、
+        // さらに上へ戻す必要があることも同じ仕掛けで拾える
+        parent.NeedsReload = true;
+        parent.ReloadFromNest = true;
+        return true;
+    }
+
+    /// <summary>取り出したファイルを見張り始める。保存されたら書庫へ反映するか尋ねる。</summary>
+    private void StartEditing(ArchiveEntry entry, string target, string directory)
+    {
         // 書き戻せない形式では見張らない。尋ねても応えられない (#19)
         if (Contents is not { IsEditable: true })
         {
@@ -2228,7 +2340,9 @@ public partial class MainWindow : Window
     /// <returns>書き戻せた場合は true。</returns>
     private async Task<bool> ApplyEditAsync(EditSession session)
     {
-        if (_cancellation is not null || !TryGetPassword(out var password))
+        // 見ているタブではなく、書き戻す先の書庫から引く。開いたときと違うタブを
+        // 見ている状態で保存されることがあり、そのときに取り違える (#16, #30)
+        if (_cancellation is not null || !TryGetPassword(session.ArchivePath, out var password))
         {
             return false;
         }
@@ -2326,14 +2440,34 @@ public partial class MainWindow : Window
     /// <returns>そのまま閉じてよい場合は true。</returns>
     private bool ConfirmPendingEdits()
     {
+        // 中の書庫が書き換わったかどうかは、その場で見れば分かる。書き換えたのは
+        // Expzip 自身なので、外のアプリのように見張り続ける必要がない (#30)
+        var nests = new List<NestSession>();
+
+        foreach (var tab in _tabs)
+        {
+            if (tab.Nest is { } nest)
+            {
+                nest.DetectChange();
+
+                if (nest.HasPendingChanges)
+                {
+                    nests.Add(nest);
+                }
+            }
+        }
+
         var pending = _edits.Where(static s => s.HasPendingChanges).ToList();
-        if (pending.Count == 0)
+
+        if (pending.Count == 0 && nests.Count == 0)
         {
             return true;
         }
 
         var names = string.Join(
-            Environment.NewLine, pending.Select(static s => Strings.Bullet + s.EntryPath));
+            Environment.NewLine,
+            pending.Select(static s => Strings.Bullet + s.EntryPath)
+                .Concat(nests.Select(static n => Strings.Bullet + n.EntryPath)));
         var answer = MessageBox.Show(
             this,
             Strings.ConfirmPendingEdits(names),
@@ -2347,7 +2481,7 @@ public partial class MainWindow : Window
         if (answer == MessageBoxResult.No)
         {
             // 破棄して閉じる。以降は聞き直さない
-            foreach (var session in pending)
+            foreach (var session in pending.Concat<EditSession>(nests))
             {
                 session.MarkApplied();
             }
@@ -2373,8 +2507,44 @@ public partial class MainWindow : Window
             }
         }
 
+        // 中の書庫を親へ戻すと、その親の一時ファイルも変わる。何段でも上まで
+        // 順に戻す必要があるため、一覧を作り置きせず、そのつど探し直す (#30)
+        while (InnermostPendingNest() is { } nest)
+        {
+            if (!await ApplyNestAsync(nest))
+            {
+                _closingAfterSave = false;
+                return;
+            }
+        }
+
         _closingAfterSave = false;
         Close();
+    }
+
+    /// <summary>まだ親へ戻していない中の書庫のうち、いちばん内側のもの (#30)。</summary>
+    /// <remarks>
+    /// 中の書庫のタブは必ず親のタブより後に開かれるため、後ろから探せば
+    /// 内側から順に見つかる。内側から戻さないと、外側へ戻す中身が古くなる。
+    /// </remarks>
+    private NestSession? InnermostPendingNest()
+    {
+        for (var i = _tabs.Count - 1; i >= 0; i--)
+        {
+            if (_tabs[i].Nest is not { } nest)
+            {
+                continue;
+            }
+
+            nest.DetectChange();
+
+            if (nest.HasPendingChanges)
+            {
+                return nest;
+            }
+        }
+
+        return null;
     }
 
     // ------------------------------------------------------------------ ドラッグアウト (#17)
@@ -3779,6 +3949,7 @@ public partial class MainWindow : Window
 
         // パスワードを扱えるのは ZIP だけ (#63)
         PasswordButton.IsEnabled = !busy && ContentsEditable;
+        SaveButton.IsEnabled = !busy && Tab?.Nest is not null;
         InspectButton.IsEnabled = !busy && Contents is not null;
 
         // 分割は書庫でなくても使えるので、書庫の有無では出し入れしない
@@ -4253,6 +4424,8 @@ public partial class MainWindow : Window
         AddButton.ToolTip = Strings.AddTooltip;
         PasswordButton.Content = Strings.Password;
         PasswordButton.ToolTip = Strings.PasswordTooltip;
+        SaveButton.Content = Strings.Save;
+        SaveButton.ToolTip = Strings.SaveTooltip;
         InspectButton.Content = Strings.Inspect;
         InspectButton.ToolTip = Strings.InspectTooltip;
         SplitButton.Content = Strings.Split;

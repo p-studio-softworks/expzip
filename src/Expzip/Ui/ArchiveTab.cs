@@ -70,6 +70,13 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// </summary>
     public bool NeedsReload { get; set; }
 
+    /// <summary>
+    /// 読み直しの理由が「中の書庫を書き戻したから」かどうか (#30)。
+    /// 外で書き換えられた場合と案内を分けるために覚える。自分で書いたものを
+    /// 「外で書き換えられました」と知らせるのは嘘になる。
+    /// </summary>
+    public bool ReloadFromNest { get; set; }
+
     /// <summary>いま画面に出している中身が、どの状態のファイルから来たかを控える。</summary>
     /// <param name="stamp">読み込みを始める直前に読んだファイルの状態。</param>
     public void MarkRead(FileStamp stamp)
