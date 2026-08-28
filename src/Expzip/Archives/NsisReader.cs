@@ -58,6 +58,20 @@ internal static class NsisReader
     /// </summary>
     private const uint CreateDirectory = 11;
 
+    /// <summary>
+    /// 削除用のプログラムを書き出す命令の番号 (NSIS の <c>WriteUninstaller</c>)。
+    /// </summary>
+    /// <remarks>
+    /// <b>いまは拾っていない。</b>引数の並びは取り出す命令とずれていて、1つ目が名前、
+    /// 2つ目が位置 (実物で確認)。ただしここに入っているのは素のデータで、実際の
+    /// 削除用プログラムはインストーラー自身と組み合わせて作られる。そのまま出しても
+    /// 動くものにはならない。
+    /// 試しに拾ってみたところ、1つの書庫で件数が合う代わりに、5つの書庫で
+    /// 7-Zip より多く出てしまった (分岐ごとに同じ命令が現れるため)。
+    /// 一覧の忠実さを損なうので入れていない。
+    /// </remarks>
+    private const uint WriteUninstaller = 62;
+
     /// <summary>塊の位置表の要素数。</summary>
     private const int BlockCount = 8;
 
@@ -237,9 +251,7 @@ internal static class NsisReader
         }
 
         return new NsisLayout(
-            read.DataStart, files,
-            read.Solid ? read.Properties : [],
-            read.Header.Length);
+            read.DataStart, files, read.Properties, read.Header.Length, read.Solid);
     }
 
     /// <summary>塊に入っている大きさ (圧縮後) を読む。読めない場合は 0。</summary>
@@ -351,12 +363,50 @@ internal static class NsisReader
             }
             catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
             {
-                // まとめ圧縮の書庫はここへ来る。読み直す
+                // deflate ではなかった。LZMA として読み直す
                 _ = ex;
+            }
+
+            // 塊ごとの圧縮でも LZMA のことがある。塊の頭に5バイトの設定が入る
+            var lzma = ReadBlockLzma(payload, headerSize);
+
+            if (lzma is not null)
+            {
+                return new HeaderRead(
+                    lzma, body + 4 + blockSize, false, payload[..LzmaPropertyLength]);
             }
         }
 
         return ReadSolid(stream, body, headerSize);
+    }
+
+    /// <summary>LZMA の設定の長さ。</summary>
+    private const int LzmaPropertyLength = 5;
+
+    /// <summary>塊ごとの LZMA として展開してみる。読めなければ null。</summary>
+    private static byte[]? ReadBlockLzma(byte[] payload, uint headerSize)
+    {
+        if (payload.Length <= LzmaPropertyLength)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var source = new MemoryStream(payload, LzmaPropertyLength,
+                payload.Length - LzmaPropertyLength);
+            using var lzma = SharpCompress.Compressors.LZMA.LzmaStream.Create(
+                payload[..LzmaPropertyLength], source, leaveOpen: true);
+
+            var header = new byte[headerSize];
+            lzma.ReadExactly(header);
+
+            return Looks(header) ? header : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     /// <summary>まとめ圧縮として読み直す。</summary>

@@ -19,7 +19,11 @@ internal readonly record struct NsisFile(string Name, uint DataOffset, long Stor
 /// </param>
 /// <param name="Files">取り出されるファイル。中身の位置で畳んである。</param>
 /// <param name="Properties">
-/// まとめ圧縮の LZMA の設定 (5バイト)。まとめ圧縮でなければ空。
+/// LZMA の設定 (5バイト)。LZMA を使っていなければ空。
+/// </param>
+/// <param name="Solid">
+/// まとめ圧縮かどうか。塊ごとの圧縮でも LZMA のことがあるため、
+/// 設定の有無だけでは決まらない。
 /// </param>
 /// <param name="HeaderLength">
 /// まとめ圧縮のとき、展開の流れの先頭に入っているヘッダの長さ。
@@ -29,7 +33,8 @@ internal sealed record NsisLayout(
     long DataStart,
     IReadOnlyList<NsisFile> Files,
     byte[] Properties,
-    long HeaderLength)
+    long HeaderLength,
+    bool Solid)
 {
     /// <summary>まとめ圧縮 (ソリッド) かどうか。</summary>
     /// <remarks>
@@ -37,7 +42,7 @@ internal sealed record NsisLayout(
     /// 5番目のファイルを取り出すには前の4つを展開して読み飛ばす必要がある。
     /// 7z (#19) と同じ性質。
     /// </remarks>
-    public bool IsSolid => Properties.Length > 0;
+    public bool IsSolid => Solid;
 
     /// <summary>
     /// 中身の領域を頭から読める流れを開く。
@@ -96,11 +101,27 @@ internal sealed record NsisLayout(
 
         var value = BinaryPrimitives.ReadUInt32LittleEndian(lead);
         var stored = value & 0x7FFFFFFF;
-        var slice = new BoundedStream(source, stored);
 
-        return (value & 0x80000000) != 0
-            ? new DeflateStream(slice, CompressionMode.Decompress)
-            : slice;
+        // 圧縮されていない塊は、そのまま読ませる
+        if ((value & 0x80000000) == 0)
+        {
+            return new BoundedStream(source, stored);
+        }
+
+        // LZMA の場合、塊の頭に5バイトの設定が入っている
+        if (Properties.Length > 0)
+        {
+            var properties = new byte[Properties.Length];
+            source.ReadExactly(properties);
+
+            return SharpCompress.Compressors.LZMA.LzmaStream.Create(
+                properties,
+                new BoundedStream(source, stored - properties.Length),
+                leaveOpen: false);
+        }
+
+        return new DeflateStream(
+            new BoundedStream(source, stored), CompressionMode.Decompress);
     }
 
     /// <summary>
