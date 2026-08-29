@@ -134,7 +134,7 @@ internal static class RuleEstimator
                     continue;
                 }
 
-                var kind = ToKind(Read(item, "kind"));
+                var kind = RuleWords.ToKind(Read(item, "kind"));
 
                 if (kind is null)
                 {
@@ -143,7 +143,7 @@ internal static class RuleEstimator
                 }
 
                 var rule = ArchiveRule.TryCreate(
-                    kind.Value, ToScope(Read(item, "scope")), Read(item, "value"),
+                    kind.Value, RuleWords.ToScope(Read(item, "scope")), Read(item, "value"),
                     Read(item, "description"), Read(item, "evidence"));
 
                 if (rule is null)
@@ -165,24 +165,6 @@ internal static class RuleEstimator
             ? value.GetString() ?? string.Empty
             : string.Empty;
 
-    private static RuleKind? ToKind(string text) => text.Trim().ToLowerInvariant() switch
-    {
-        "required_entry" => RuleKind.RequiredEntry,
-        "required_folder" => RuleKind.RequiredFolder,
-        "forbidden_extension" => RuleKind.ForbiddenExtension,
-        "forbidden_name" => RuleKind.ForbiddenName,
-        "name_pattern" => RuleKind.NamePattern,
-        _ => null,
-    };
-
-    /// <summary>当てはめる先。読み取れなければ、いちばん広いものにする。</summary>
-    private static RuleScope ToScope(string text) => text.Trim().ToLowerInvariant() switch
-    {
-        "root" => RuleScope.Root,
-        "folders" => RuleScope.Folders,
-        "files" => RuleScope.Files,
-        _ => RuleScope.All,
-    };
 }
 
 /// <summary>推定した結果 (#25)。</summary>

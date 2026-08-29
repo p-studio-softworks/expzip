@@ -1,4 +1,5 @@
 ﻿using System.IO.Compression;
+using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Inspection;
 
@@ -645,9 +646,11 @@ internal static partial class Strings
 
     public static string RuleIntro(string archiveName) => Pick(
         $"{archiveName} を「お手本」として、この書庫の作り方の決まりを AI に読み取らせます。"
-        + "読み取った決まりは、あとで別の書庫に当てて違反を探すのに使います。",
+        + "読み取った決まりは、使うものを選び、直してから保存します。"
+        + "保存した決まりは、あとで別の書庫に当てて違反を探すのに使います。",
         $"Treat {archiveName} as the model archive and let the AI read off the rules "
-        + "behind how it is put together. Those rules can then be applied to another archive.");
+        + "behind how it is put together. Pick the ones to keep, edit them, then save. "
+        + "Saved rules can later be applied to another archive.");
 
     public static string RuleSendLabel => Pick("送るもの", "What gets sent");
 
@@ -705,15 +708,125 @@ internal static partial class Strings
     /// <summary>これは提案であって、確かめた結果ではない (仕様書 11.5節)。</summary>
     public static string RuleProposalNotice => Pick(
         "これは AI が読み取った提案です。お手本の中身しか見ていないため、"
-        + "本当の決まりとは違うことがあります。中身の確認と手直しは次の段で入れます (#26)。",
+        + "本当の決まりとは違うことがあります。"
+        + "使うものを選び、値も説明も直せます。人が足すこともできます。"
+        + "保存するまでは何も残りません。",
         "These are the AI's proposals. It has seen only this archive, "
-        + "so they may not match the real rules. Reviewing and editing them comes next (#26).");
+        + "so they may not match the real rules. "
+        + "Choose which to keep, edit the value and the wording, or add your own. "
+        + "Nothing is stored until you save.");
 
     public static string RuleUnreadable => Pick(
         "AI の答えを決まりの形として読み取れませんでした。"
         + "模型を変えるか、もう一度試してください。",
         "The AI's answer could not be read as a set of rules. "
         + "Try again, or try a different model.");
+
+    // ------------------------------------------------ 確かめて直す (#26)
+
+    public static string RuleColumnUse => Pick("使う", "Use");
+
+    public static string RuleColumnSource => Pick("出どころ", "From");
+
+    /// <summary>いま開いている書庫に当てるとどうなるか (#26)。</summary>
+    public static string RuleColumnVerdict => Pick("この書庫では", "In this archive");
+
+    public static string RuleSourceAi => Pick("AI", "AI");
+
+    public static string RuleSourceHand => Pick("自分", "You");
+
+    public static string RuleHolds => Pick("守られている", "Holds");
+
+    public static string RuleBreaks(int count) => Pick(
+        $"{count:N0} 件が外れる", $"{count:N0} do not match");
+
+    public static string RuleMissing => Pick("見つからない", "Not found");
+
+    /// <summary>当てる先が1つも無い。守られているとは言えない (#26)。</summary>
+    public static string RuleNothingToCheck => Pick("当てる先が無い", "Nothing to check");
+
+    public static string RuleAdd => Pick("足す", "Add");
+
+    public static string RuleEdit => Pick("直す", "Edit");
+
+    public static string RuleRemove => Pick("消す", "Remove");
+
+    public static string RuleSave => Pick("保存する", "Save");
+
+    public static string RuleLoaded(int count, string from) => from.Length == 0
+        ? Pick($"保存されていた決まり {count} 件を読み込みました。",
+            $"Loaded {count} saved rule(s).")
+        : Pick($"保存されていた決まり {count} 件を読み込みました (お手本: {from})。",
+            $"Loaded {count} saved rule(s) (learned from {from}).");
+
+    public static string RuleAlreadyHad => Pick(
+        "すでにあるものは足していません。", " Ones already listed were not added again.");
+
+    public static string RuleAdded => Pick("決まりを足しました。", "Added the rule.");
+
+    public static string RuleEdited => Pick("決まりを直しました。", "Edited the rule.");
+
+    public static string RuleRemoved => Pick("決まりを消しました。", "Removed the rule.");
+
+    public static string RuleSaved(int total, int used) => Pick(
+        $"決まり {total:N0} 件を保存しました (使うのは {used:N0} 件)。",
+        $"Saved {total:N0} rule(s); {used:N0} of them are in use.");
+
+    /// <summary>保存した決まりのうち、実際に使うもの。ステータスバーに出す。</summary>
+    public static string RuleKept(int used) => Pick(
+        $"決まりを保存しました (使うのは {used:N0} 件)",
+        $"Saved the rules; {used:N0} in use");
+
+    public static string RuleCleared => Pick(
+        "保存されていた決まりを消しました。", "Removed the saved rules.");
+
+    public static string RuleSaveFailed => Pick(
+        "決まりを保存できませんでした。exe と同じフォルダに書き込めない場所のようです。",
+        "Could not save the rules. The folder holding the exe appears not to be writable.");
+
+    // ------------------------------------------------ 決まりを1つ入れる・直す (#26)
+
+    public static string RuleEditTitle => Pick("決まりを入れる", "Enter a rule");
+
+    public static string RuleEditIntro => Pick(
+        "決まりを1つ入れます。入れながら、いま開いている書庫に当てた結果を下に出します。",
+        "Enter one rule. As you type, the result of applying it to the open archive "
+        + "is shown below.");
+
+    public static string RuleEditOk => Pick("決める", "Use this");
+
+    /// <summary>値が何を指すかは種類で変わる。その場で言い換える (#26)。</summary>
+    public static string RuleValueHint(RuleKind kind) => kind switch
+    {
+        RuleKind.RequiredEntry => Pick(
+            "必ずある名前を入れてください (例: README.txt)。",
+            "Enter a name that must exist (for example README.txt)."),
+        RuleKind.RequiredFolder => Pick(
+            "必ずあるフォルダの名前を入れてください (例: docs)。",
+            "Enter a folder name that must exist (for example docs)."),
+        RuleKind.ForbiddenExtension => Pick(
+            "含めない拡張子を入れてください (例: .tmp)。「.」は無くても構いません。",
+            "Enter an extension that must not appear (for example .tmp). "
+            + "The leading dot is optional."),
+        RuleKind.ForbiddenName => Pick(
+            "含めない名前を入れてください (例: Thumbs.db)。",
+            "Enter a name that must not appear (for example Thumbs.db)."),
+        _ => Pick(
+            "名前の形を正規表現で入れてください (例: \\d{8}_.+)。"
+            + "前後の ^ と $ は無くても、端から端まで見ます。",
+            "Enter the name pattern as a regular expression (for example \\d{8}_.+). "
+            + "It is matched end to end even without ^ and $."),
+    };
+
+    public static string RuleNeedsValue => Pick(
+        "値を入れてください。", "Enter a value.");
+
+    public static string RuleBadPattern => Pick(
+        "正規表現として使えないか、何にでも当てはまります。",
+        "That is not a usable regular expression, or it matches anything.");
+
+    public static string RuleHereIs(string verdict) => Pick(
+        $"いま開いている書庫では: {verdict}", $"In the open archive: {verdict}");
 
     public static string RuleColumnKind => Pick("種類", "Kind");
 

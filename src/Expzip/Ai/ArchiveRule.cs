@@ -25,6 +25,13 @@ namespace Expzip.Ai;
 internal sealed record ArchiveRule(
     RuleKind Kind, RuleScope Scope, string Value, string Description, string Evidence)
 {
+    /// <summary>この決まりを最後に決めたのは誰か (#26)。</summary>
+    /// <remarks>
+    /// AI が挙げたものと、人が入れた・直したものを見分けられるようにする。
+    /// **提案であることを画面で明示する**ために要る (仕様書 11.5節)。
+    /// </remarks>
+    public RuleSource Source { get; init; } = RuleSource.Ai;
+
     /// <summary>当てはめるときに使う正規表現。<see cref="RuleKind.NamePattern"/> のみ。</summary>
     /// <remarks>
     /// 組み立ては1回だけにする。当てるたびに作り直すと、項目数の分だけ掛かる。
@@ -40,6 +47,10 @@ internal sealed record ArchiveRule(
         RuleKind.ForbiddenName => Strings.RuleKindForbiddenName,
         _ => Strings.RuleKindNamePattern,
     };
+
+    /// <summary>出どころの名前。画面に出す。</summary>
+    public string SourceText
+        => Source == RuleSource.Ai ? Strings.RuleSourceAi : Strings.RuleSourceHand;
 
     /// <summary>当てはめる先の名前。画面に出す。</summary>
     public string ScopeText => Scope switch
@@ -61,7 +72,8 @@ internal sealed record ArchiveRule(
     /// </para>
     /// </remarks>
     public static ArchiveRule? TryCreate(
-        RuleKind kind, RuleScope scope, string value, string description, string evidence)
+        RuleKind kind, RuleScope scope, string value, string description, string evidence,
+        RuleSource source = RuleSource.Ai)
     {
         var text = value.Trim();
 
@@ -76,7 +88,10 @@ internal sealed record ArchiveRule(
             text = "." + text.TrimStart('*').TrimStart('.');
         }
 
-        var rule = new ArchiveRule(kind, scope, text, description.Trim(), evidence.Trim());
+        var rule = new ArchiveRule(kind, scope, text, description.Trim(), evidence.Trim())
+        {
+            Source = source,
+        };
 
         if (kind != RuleKind.NamePattern)
         {
@@ -139,6 +154,16 @@ internal sealed record ArchiveRule(
     }
 }
 
+/// <summary>その決まりを最後に決めたのは誰か (#26)。</summary>
+internal enum RuleSource
+{
+    /// <summary>AI が挙げた。</summary>
+    Ai,
+
+    /// <summary>人が入れた、または直した。</summary>
+    Hand,
+}
+
 /// <summary>決まりの種類 (#25)。</summary>
 internal enum RuleKind
 {
@@ -172,4 +197,52 @@ internal enum RuleScope
 
     /// <summary>すべての項目。</summary>
     All,
+}
+
+/// <summary>種類と当てる先を、言葉と行き来させる (#25、#26)。</summary>
+/// <remarks>
+/// **AI に頼むときと、ファイルに残すときで同じ言葉を使う。**別々に持つと、
+/// 片方だけ増やしたときに、読めるのに保存できない決まりができてしまう。
+/// ファイルは利用者が直接開いて直せる形にしてあるので、言葉は短く読めるものにする。
+/// </remarks>
+internal static class RuleWords
+{
+    /// <summary>言葉から種類へ。知らない言葉なら <see langword="null"/>。</summary>
+    public static RuleKind? ToKind(string? text) => text?.Trim().ToLowerInvariant() switch
+    {
+        "required_entry" => RuleKind.RequiredEntry,
+        "required_folder" => RuleKind.RequiredFolder,
+        "forbidden_extension" => RuleKind.ForbiddenExtension,
+        "forbidden_name" => RuleKind.ForbiddenName,
+        "name_pattern" => RuleKind.NamePattern,
+        _ => null,
+    };
+
+    /// <summary>種類から言葉へ。</summary>
+    public static string FromKind(RuleKind kind) => kind switch
+    {
+        RuleKind.RequiredEntry => "required_entry",
+        RuleKind.RequiredFolder => "required_folder",
+        RuleKind.ForbiddenExtension => "forbidden_extension",
+        RuleKind.ForbiddenName => "forbidden_name",
+        _ => "name_pattern",
+    };
+
+    /// <summary>言葉から当てる先へ。読み取れなければ、いちばん広いものにする。</summary>
+    public static RuleScope ToScope(string? text) => text?.Trim().ToLowerInvariant() switch
+    {
+        "root" => RuleScope.Root,
+        "folders" => RuleScope.Folders,
+        "files" => RuleScope.Files,
+        _ => RuleScope.All,
+    };
+
+    /// <summary>当てる先から言葉へ。</summary>
+    public static string FromScope(RuleScope scope) => scope switch
+    {
+        RuleScope.Root => "root",
+        RuleScope.Folders => "folders",
+        RuleScope.Files => "files",
+        _ => "all",
+    };
 }

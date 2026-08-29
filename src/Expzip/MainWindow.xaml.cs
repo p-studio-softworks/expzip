@@ -4668,9 +4668,9 @@ public partial class MainWindow : Window
         var dialog = new RuleLearnDialog(this, CurrentAiOptions, tab.Contents);
         dialog.ShowDialog();
 
-        if (dialog.Rules.Count > 0)
+        if (dialog.SavedCount > 0)
         {
-            StatusMessage.Text = Strings.RuleFound(dialog.Rules.Count);
+            StatusMessage.Text = Strings.RuleKept(dialog.SavedCount);
         }
     }
 
