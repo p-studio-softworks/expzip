@@ -537,6 +537,96 @@ internal static partial class Strings
 
     public static string Save => Pick("保存", "Save");
 
+    // ------------------------------------------------------------------ AI 連携の設定 (#24)
+
+    public static string AiSettingsMenu => Pick("AI連携の設定…", "AI settings...");
+
+    public static string AiDialogTitle => Pick("AI連携の設定", "AI settings");
+
+    public static string AiIntro => Pick(
+        "書庫の作り方をAIに見てもらうための繋ぎ先です。"
+        + "繋ぎ先はこのアプリでは決めません。使いたいところを自分で選んでください。",
+        "Where to reach the AI that reviews how an archive is put together. "
+        + "This app does not pick the provider - choose the one you want to use.");
+
+    public static string AiPresetLabel => Pick("繋ぎ先", "Provider");
+
+    public static string AiPresetCustom => Pick("自分で入れる", "Enter it myself");
+
+    public static string AiPresetGoogle => Pick("Google (Gemini)", "Google (Gemini)");
+
+    public static string AiPresetOpenAi => Pick("OpenAI", "OpenAI");
+
+    public static string AiPresetAnthropic => Pick("Anthropic (Claude)", "Anthropic (Claude)");
+
+    public static string AiPresetLocal => Pick(
+        "この PC の中 (Ollama など)", "On this PC (Ollama and the like)");
+
+    public static string AiEndpointLabel => Pick("入口のURL", "Endpoint URL");
+
+    public static string AiModelLabel => Pick("模型の名前", "Model name");
+
+    public static string AiKeyLabel => Pick("APIキー", "API key");
+
+    /// <summary>模型の名前を候補で用意しない理由を、その場で断る (#24)。</summary>
+    public static string AiModelHint => Pick(
+        "模型の名前は移り変わるため、候補は用意していません。"
+        + "使いたいところの案内で、いま使える名前を確かめて入れてください。"
+        + "この PC の中で動かす道具では、APIキーは要らないことがあります。",
+        "Model names change over time, so no list is offered here. "
+        + "Check the provider's own documentation for a name that works today. "
+        + "Tools running on this PC often need no API key at all.");
+
+    /// <summary>送るものと鍵の置き場。隠さずダイアログに出す (#24)。</summary>
+    public static string AiPrivacyNotice => Pick(
+        "送るのは書庫の中の名前とフォルダ構成だけで、ファイルの中身は送りません。"
+        + "それでも名前から中身が分かることはあります。"
+        + "無料枠は入力が提供元の製品改善に使われることがあります (有料枠では使われないのが通例です)。"
+        + "APIキーはこの PC のこの利用者だけが戻せる形で保存します。"
+        + "設定ごと別の PC へ持って行くと読めなくなり、入れ直しになります。",
+        "Only the names and folder structure inside the archive are sent - never file contents. "
+        + "Even so, a name can reveal what a file is. "
+        + "Free tiers may use what you send to improve the provider's products (paid tiers usually do not). "
+        + "The API key is stored so that only this user on this PC can read it back; "
+        + "carrying the settings to another PC means entering it again.");
+
+    public static string AiCancel => Pick("キャンセル", "Cancel");
+
+    public static string AiTest => Pick("繋がるか試す", "Test the connection");
+
+    public static string AiTesting => Pick("試しています…", "Testing...");
+
+    public static string AiIncomplete => Pick(
+        "入口のURLと模型の名前を入れてください。",
+        "Enter the endpoint URL and the model name.");
+
+    public static string AiBadEndpoint => Pick(
+        "入口のURLが正しくありません。http:// か https:// で始まる場所を入れてください。",
+        "That is not a usable endpoint URL. It should start with http:// or https://.");
+
+    public static string AiNoModel => Pick(
+        "模型の名前を入れてください。", "Enter the model name.");
+
+    public static string AiReachable(string model) => Pick(
+        $"繋がりました。{model} が使えます。",
+        $"Connected. {model} is available.");
+
+    public static string AiRefused(int status, string reason) => Pick(
+        $"繋がりましたが断られました (HTTP {status})。{Environment.NewLine}{reason}",
+        $"Reached it, but the request was refused (HTTP {status}).{Environment.NewLine}{reason}");
+
+    public static string AiTimedOut => Pick(
+        "応答がありませんでした。URLと、この PC から外へ出られるかを確かめてください。",
+        "No response. Check the URL, and whether this PC can reach the outside.");
+
+    public static string AiSaved => Pick("AI連携の設定を保存しました", "Saved the AI settings");
+
+    public static string AiKeyLost => Pick(
+        "保存されていたAPIキーを戻せませんでした。"
+        + "別の PC か別の利用者で保存されたものです。入れ直してください。",
+        "The saved API key could not be read back. "
+        + "It was saved by another user or on another PC. Please enter it again.");
+
     public static string SaveTooltip => Pick(
         "書き換えた内容を親の書庫へ書き戻します (Ctrl+S)",
         "Put the changes back into the parent archive (Ctrl+S)");

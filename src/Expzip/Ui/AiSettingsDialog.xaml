@@ -1,0 +1,75 @@
+﻿<Window x:Class="Expzip.Ui.AiSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="620"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!--
+        AI 連携の設定 (#24)。繋ぎ先はアプリが決めず、利用者が選ぶ。
+        話す形は OpenAI 互換だけ (#35)。文言はすべて ApplyLanguage が入れる (#23)
+    -->
+    <StackPanel Margin="16">
+        <TextBlock x:Name="IntroText" TextWrapping="Wrap" Margin="0,0,0,14" />
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="PresetLabel" Grid.Row="0" Grid.Column="0"
+                       VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox x:Name="PresetCombo" Grid.Row="0" Grid.Column="1"
+                      SelectionChanged="Preset_Changed" />
+
+            <TextBlock x:Name="EndpointLabel" Grid.Row="1" Grid.Column="0"
+                       VerticalAlignment="Center" Margin="0,10,10,0" />
+            <TextBox x:Name="EndpointBox" Grid.Row="1" Grid.Column="1"
+                     Margin="0,10,0,0" Padding="4,3"
+                     VerticalContentAlignment="Center" TextChanged="Input_Changed" />
+
+            <TextBlock x:Name="ModelLabel" Grid.Row="2" Grid.Column="0"
+                       VerticalAlignment="Center" Margin="0,10,10,0" />
+            <TextBox x:Name="ModelBox" Grid.Row="2" Grid.Column="1"
+                     Margin="0,10,0,0" Padding="4,3"
+                     VerticalContentAlignment="Center" TextChanged="Input_Changed" />
+
+            <TextBlock x:Name="KeyLabel" Grid.Row="3" Grid.Column="0"
+                       VerticalAlignment="Center" Margin="0,10,10,0" />
+            <PasswordBox x:Name="KeyBox" Grid.Row="3" Grid.Column="1"
+                         Margin="0,10,0,0" Padding="4,3"
+                         VerticalContentAlignment="Center"
+                         PasswordChanged="Input_Changed" />
+        </Grid>
+
+        <!-- 模型の名前は移り変わる。決め打ちで用意せず、断りだけ添える -->
+        <TextBlock x:Name="HintText" Margin="0,10,0,0" TextWrapping="Wrap"
+                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+
+        <!-- 送るものと、鍵の置き場についての断り。隠さずここに出す -->
+        <TextBlock x:Name="PrivacyText" Margin="0,12,0,0" TextWrapping="Wrap"
+                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+
+        <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="TestButton" Width="120" Height="26" Margin="0,0,8,0"
+                    Click="TestButton_Click" />
+            <Button x:Name="SaveButton" Width="96" Height="26" Margin="0,0,8,0"
+                    IsDefault="True" Click="SaveButton_Click" />
+            <Button x:Name="CancelButton" Width="96" Height="26"
+                    IsCancel="True" Click="CancelButton_Click" />
+        </StackPanel>
+    </StackPanel>
+</Window>

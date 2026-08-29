@@ -1,4 +1,4 @@
-using Expzip.Localization;
+﻿using Expzip.Localization;
 
 namespace Expzip.Configuration;
 
@@ -49,4 +49,20 @@ internal sealed class AppSettings
     /// 同じ人は同じ大きさで分けることが多い。既定は 100MB とする。
     /// </remarks>
     public long SplitChunkSize { get; set; } = 100L * 1024 * 1024;
+
+    /// <summary>AI の入口 (#24)。OpenAI 互換の場所を入れる (#35)。</summary>
+    public string AiEndpoint { get; set; } = string.Empty;
+
+    /// <summary>使う模型の名前 (#24)。</summary>
+    public string AiModel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// APIキー。**そのままではなく、その利用者だけが戻せる形で持つ** (#24)。
+    /// </summary>
+    /// <remarks>
+    /// この設定ファイルは exe と同じフォルダに、人が読める形で置いてある。
+    /// 鍵をそのまま書くと、ファイルを手に入れた人が誰でも使えてしまう。
+    /// 別の PC や別の利用者では戻せない。読めなかったときは入れ直してもらう。
+    /// </remarks>
+    public string AiApiKeyProtected { get; set; } = string.Empty;
 }

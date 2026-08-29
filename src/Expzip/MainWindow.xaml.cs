@@ -11,6 +11,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Configuration;
 using Expzip.Inspection;
@@ -4592,6 +4593,55 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    // ------------------------------------------------------------------ AI 連携の設定 (#24)
+
+    /// <summary>いま設定されている AI の繋ぎ先。</summary>
+    /// <remarks>
+    /// 鍵は保存された形から戻す。別の PC や別の利用者では戻せないため、
+    /// その場合は空として扱い、入れ直してもらう。
+    /// </remarks>
+    private AiOptions CurrentAiOptions => new(
+        _settings.AiEndpoint,
+        _settings.AiModel,
+        DataProtection.Unprotect(_settings.AiApiKeyProtected) ?? string.Empty);
+
+    /// <summary>AI の機能を出してよいか (#24)。</summary>
+    /// <remarks>
+    /// 繋ぎ先が揃っていなければ、フェーズ4の機能は画面に出さない。
+    /// 押せるのに何も起きない口を作らないため (仕様書 11.4節)。
+    /// </remarks>
+    private bool AiConfigured => CurrentAiOptions.IsConfigured;
+
+    private void AiSettingsItem_Click(object sender, RoutedEventArgs e)
+    {
+        var saved = _settings.AiApiKeyProtected;
+        var options = CurrentAiOptions;
+
+        // 鍵が保存されているのに戻せなかったときは、黙って空にせず理由を言う
+        if (saved.Length > 0 && options.ApiKey.Length == 0)
+        {
+            MessageBox.Show(
+                this, Strings.AiKeyLost, AppName,
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        var dialog = new AiSettingsDialog(this, options);
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var entered = dialog.Options;
+        _settings.AiEndpoint = entered.Endpoint;
+        _settings.AiModel = entered.Model;
+        _settings.AiApiKeyProtected = entered.ApiKey.Length == 0
+            ? string.Empty
+            : DataProtection.Protect(entered.ApiKey) ?? string.Empty;
+
+        SettingsStore.TrySave(_settings);
+        StatusMessage.Text = Strings.AiSaved;
+    }
+
     /// <summary>言語を選び直す。設定に残し、その場で画面を貼り替える。</summary>
     private void LanguageItem_Click(object sender, RoutedEventArgs e)
     {
@@ -4639,6 +4689,7 @@ public partial class MainWindow : Window
         SfxButton.Content = Strings.Sfx;
         SfxButton.ToolTip = Strings.SfxTooltip;
         SettingsButton.ToolTip = Strings.SettingsTooltip;
+        AiSettingsItem.Header = Strings.AiSettingsMenu;
 
         // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。
         // 説明と同じ文言を名前にしておく

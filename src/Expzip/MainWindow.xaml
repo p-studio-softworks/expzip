@@ -127,6 +127,9 @@
                                 <MenuItem x:Name="LanguageEnglishItem" IsCheckable="True"
                                           Tag="en" Click="LanguageItem_Click" />
                             </MenuItem>
+                            <Separator />
+                            <!-- AI 連携の繋ぎ先 (#24)。設定していなければ機能を出さない -->
+                            <MenuItem x:Name="AiSettingsItem" Click="AiSettingsItem_Click" />
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
