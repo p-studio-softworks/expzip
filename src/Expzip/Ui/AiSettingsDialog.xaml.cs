@@ -15,13 +15,13 @@ namespace Expzip.Ui;
 /// 同じ形の入口を持つため、この3つを埋めればどこへでも繋がる。
 /// </para>
 /// <para>
-/// **模型の名前は決め打ちで用意しない。**名前は移り変わるもので、古い名前を
-/// 候補として並べておくと、動かない設定を勧めることになる。入口だけを候補にする。
+/// **モデル名は決め打ちで用意しない。**名前は移り変わるもので、古い名前を
+/// 候補として並べておくと、動かない設定を勧めることになる。接続先だけを候補にする。
 /// </para>
 /// </remarks>
 public partial class AiSettingsDialog : Window
 {
-    /// <summary>入口の候補。名前と場所だけ。模型の名前は入れない。</summary>
+    /// <summary>接続先の候補。場所だけ。モデル名は入れない。</summary>
     private static readonly (string Key, string Endpoint)[] Presets =
     [
         ("google", "https://generativelanguage.googleapis.com/v1beta/openai/"),
@@ -42,10 +42,11 @@ public partial class AiSettingsDialog : Window
         ModelBox.Text = options.Model;
         KeyBox.Password = options.ApiKey;
 
+        // 手動設定は使うことが少ないので、いちばん後ろに置く
         PresetCombo.ItemsSource = new[]
         {
-            Strings.AiPresetCustom, Strings.AiPresetGoogle, Strings.AiPresetOpenAi,
-            Strings.AiPresetAnthropic, Strings.AiPresetLocal,
+            Strings.AiPresetGoogle, Strings.AiPresetOpenAi, Strings.AiPresetAnthropic,
+            Strings.AiPresetLocal, Strings.AiPresetCustom,
         };
 
         PresetCombo.SelectedIndex = IndexOf(options.Endpoint);
@@ -61,7 +62,7 @@ public partial class AiSettingsDialog : Window
     internal AiOptions Options => new(
         EndpointBox.Text.Trim(), ModelBox.Text.Trim(), KeyBox.Password);
 
-    /// <summary>入口から候補の番号を引く。合うものが無ければ「自分で入れる」。</summary>
+    /// <summary>URL から候補の番号を引く。合うものが無ければ「手動設定」。</summary>
     private static int IndexOf(string endpoint)
     {
         var text = endpoint.Trim().TrimEnd('/');
@@ -71,11 +72,11 @@ public partial class AiSettingsDialog : Window
             if (string.Equals(Presets[i].Endpoint.TrimEnd('/'), text,
                     StringComparison.OrdinalIgnoreCase))
             {
-                return i + 1;
+                return i;
             }
         }
 
-        return 0;
+        return Presets.Length;
     }
 
     private void ApplyLanguage()
@@ -86,7 +87,6 @@ public partial class AiSettingsDialog : Window
         EndpointLabel.Text = Strings.AiEndpointLabel;
         ModelLabel.Text = Strings.AiModelLabel;
         KeyLabel.Text = Strings.AiKeyLabel;
-        HintText.Text = Strings.AiModelHint;
         PrivacyText.Text = Strings.AiPrivacyNotice;
         TestButton.Content = Strings.AiTest;
         SaveButton.Content = Strings.Save;
@@ -95,13 +95,15 @@ public partial class AiSettingsDialog : Window
 
     private void Preset_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        if (!_ready || PresetCombo.SelectedIndex <= 0)
+        // 手動設定を選んだときは、いま入っているものをそのままにする
+        if (!_ready || PresetCombo.SelectedIndex < 0
+            || PresetCombo.SelectedIndex >= Presets.Length)
         {
             return;
         }
 
-        // 入口だけを入れる。模型の名前と鍵はそのまま残す
-        EndpointBox.Text = Presets[PresetCombo.SelectedIndex - 1].Endpoint;
+        // 接続先だけを入れる。モデル名と鍵はそのまま残す
+        EndpointBox.Text = Presets[PresetCombo.SelectedIndex].Endpoint;
     }
 
     private void Input_Changed(object sender, RoutedEventArgs e)
@@ -111,7 +113,7 @@ public partial class AiSettingsDialog : Window
             return;
         }
 
-        // 入口を手で書き換えたら、候補の選びを合わせ直す
+        // URL を手で書き換えたら、候補の選びを合わせ直す
         if (ReferenceEquals(sender, EndpointBox))
         {
             var index = IndexOf(EndpointBox.Text);
@@ -124,17 +126,18 @@ public partial class AiSettingsDialog : Window
             }
         }
 
+        // 入力が変われば、前の結果はもう当てにならない
+        ResultText.Text = string.Empty;
         ShowReady();
     }
 
-    /// <summary>いまの入力で繋げる形になっているかを出す。</summary>
+    /// <summary>いまの入力で接続できる形になっているかを、ボタンの押せる押せないで出す。</summary>
+    /// <remarks>
+    /// **ここで結果の文は触らない。**接続テストの結果を出した直後にも呼ばれるため、
+    /// ここで消すと、出したばかりの結果が読む前に消える。
+    /// </remarks>
     private void ShowReady()
-    {
-        var ready = Options.IsConfigured;
-        TestButton.IsEnabled = ready && _testing is null;
-        ResultText.Text = ready ? string.Empty : Strings.AiIncomplete;
-        ResultText.Foreground = SystemColors.GrayTextBrush;
-    }
+        => TestButton.IsEnabled = Options.IsConfigured && _testing is null;
 
     private async void TestButton_Click(object sender, RoutedEventArgs e)
     {

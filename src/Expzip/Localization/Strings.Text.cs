@@ -545,14 +545,14 @@ internal static partial class Strings
     public static string AiDialogTitle => Pick("AI連携の設定", "AI settings");
 
     public static string AiIntro => Pick(
-        "書庫の作り方をAIに見てもらうための繋ぎ先です。"
-        + "繋ぎ先はこのアプリでは決めません。使いたいところを自分で選んでください。",
+        "書庫の作り方をAIに見てもらうための接続先です。"
+        + "接続先はこのアプリでは決めません。使いたいところを自分で選んでください。",
         "Where to reach the AI that reviews how an archive is put together. "
         + "This app does not pick the provider - choose the one you want to use.");
 
-    public static string AiPresetLabel => Pick("繋ぎ先", "Provider");
+    public static string AiPresetLabel => Pick("接続先", "Provider");
 
-    public static string AiPresetCustom => Pick("自分で入れる", "Enter it myself");
+    public static string AiPresetCustom => Pick("手動設定", "Manual");
 
     public static string AiPresetGoogle => Pick("Google (Gemini)", "Google (Gemini)");
 
@@ -560,60 +560,44 @@ internal static partial class Strings
 
     public static string AiPresetAnthropic => Pick("Anthropic (Claude)", "Anthropic (Claude)");
 
-    public static string AiPresetLocal => Pick(
-        "この PC の中 (Ollama など)", "On this PC (Ollama and the like)");
+    public static string AiPresetLocal => Pick("ローカル", "Local");
 
-    public static string AiEndpointLabel => Pick("入口のURL", "Endpoint URL");
+    public static string AiEndpointLabel => Pick("URL", "URL");
 
-    public static string AiModelLabel => Pick("模型の名前", "Model name");
+    public static string AiModelLabel => Pick("モデル名", "Model");
 
     public static string AiKeyLabel => Pick("APIキー", "API key");
 
-    /// <summary>模型の名前を候補で用意しない理由を、その場で断る (#24)。</summary>
-    public static string AiModelHint => Pick(
-        "模型の名前は移り変わるため、候補は用意していません。"
-        + "使いたいところの案内で、いま使える名前を確かめて入れてください。"
-        + "この PC の中で動かす道具では、APIキーは要らないことがあります。",
-        "Model names change over time, so no list is offered here. "
-        + "Check the provider's own documentation for a name that works today. "
-        + "Tools running on this PC often need no API key at all.");
-
     /// <summary>送るものと鍵の置き場。隠さずダイアログに出す (#24)。</summary>
     public static string AiPrivacyNotice => Pick(
-        "送るのは書庫の中の名前とフォルダ構成だけで、ファイルの中身は送りません。"
-        + "それでも名前から中身が分かることはあります。"
-        + "無料枠は入力が提供元の製品改善に使われることがあります (有料枠では使われないのが通例です)。"
-        + "APIキーはこの PC のこの利用者だけが戻せる形で保存します。"
-        + "設定ごと別の PC へ持って行くと読めなくなり、入れ直しになります。",
-        "Only the names and folder structure inside the archive are sent - never file contents. "
-        + "Even so, a name can reveal what a file is. "
-        + "Free tiers may use what you send to improve the provider's products (paid tiers usually do not). "
-        + "The API key is stored so that only this user on this PC can read it back; "
-        + "carrying the settings to another PC means entering it again.");
+        "ファイルの中身は送信しませんが、ファイル名とフォルダ構成を送信します。"
+        + "無料枠では送信したものが提供元の製品改善に使用される可能性がありますのでご注意ください。"
+        + "入力したAPIキーは本アプリケーションと同ディレクトリに保存されますが、"
+        + "移動した場合には無効になります。",
+        "File contents are never sent, but file names and the folder structure are. "
+        + "On a free tier, what you send may be used to improve the provider's products. "
+        + "The API key you enter is stored in the same directory as this application, "
+        + "and stops working if it is moved elsewhere.");
 
     public static string AiCancel => Pick("キャンセル", "Cancel");
 
-    public static string AiTest => Pick("繋がるか試す", "Test the connection");
+    public static string AiTest => Pick("接続テスト", "Test connection");
 
     public static string AiTesting => Pick("試しています…", "Testing...");
 
-    public static string AiIncomplete => Pick(
-        "入口のURLと模型の名前を入れてください。",
-        "Enter the endpoint URL and the model name.");
-
     public static string AiBadEndpoint => Pick(
-        "入口のURLが正しくありません。http:// か https:// で始まる場所を入れてください。",
-        "That is not a usable endpoint URL. It should start with http:// or https://.");
+        "URLが正しくありません。http:// か https:// で始まるURLを入れてください。",
+        "That is not a usable URL. It should start with http:// or https://.");
 
     public static string AiNoModel => Pick(
-        "模型の名前を入れてください。", "Enter the model name.");
+        "モデル名を入れてください。", "Enter the model name.");
 
     public static string AiReachable(string model) => Pick(
-        $"繋がりました。{model} が使えます。",
+        $"接続できました。{model} が使えます。",
         $"Connected. {model} is available.");
 
     public static string AiRefused(int status, string reason) => Pick(
-        $"繋がりましたが断られました (HTTP {status})。{Environment.NewLine}{reason}",
+        $"接続できましたが断られました (HTTP {status})。{Environment.NewLine}{reason}",
         $"Reached it, but the request was refused (HTTP {status}).{Environment.NewLine}{reason}");
 
     public static string AiTimedOut => Pick(
@@ -638,7 +622,7 @@ internal static partial class Strings
         "お手本からルールを学ぶ…", "Learn rules from this archive...");
 
     public static string RuleNeedsAi => Pick(
-        "先に「AI連携の設定…」で繋ぎ先を入れてください。",
+        "先に「AI連携の設定…」で接続先を入れてください。",
         "Set up the connection under AI settings... first.");
 
     public static string RuleDialogTitle => Pick(
@@ -718,7 +702,7 @@ internal static partial class Strings
 
     public static string RuleUnreadable => Pick(
         "AI の答えを決まりの形として読み取れませんでした。"
-        + "模型を変えるか、もう一度試してください。",
+        + "モデルを変えるか、もう一度試してください。",
         "The AI's answer could not be read as a set of rules. "
         + "Try again, or try a different model.");
 

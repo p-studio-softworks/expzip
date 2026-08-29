@@ -53,12 +53,8 @@
                          PasswordChanged="Input_Changed" />
         </Grid>
 
-        <!-- 模型の名前は移り変わる。決め打ちで用意せず、断りだけ添える -->
-        <TextBlock x:Name="HintText" Margin="0,10,0,0" TextWrapping="Wrap"
-                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
-
         <!-- 送るものと、鍵の置き場についての断り。隠さずここに出す -->
-        <TextBlock x:Name="PrivacyText" Margin="0,12,0,0" TextWrapping="Wrap"
+        <TextBlock x:Name="PrivacyText" Margin="0,14,0,0" TextWrapping="Wrap"
                    Foreground="{x:Static SystemColors.GrayTextBrush}" />
 
         <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap" />
