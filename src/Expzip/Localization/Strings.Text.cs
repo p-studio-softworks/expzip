@@ -647,9 +647,10 @@ internal static partial class Strings
             $"{bytes:N0} bytes in total. This is sent exactly as shown. "
             + $"{omitted:N0} names are left out because there are too many.");
 
+    /// <summary>送るものの断り。AI連携の設定と同じ書きぶりにする (#24)。</summary>
     public static string RulePrivacyShort => Pick(
-        "送るのは名前とフォルダの形だけです。ファイルの中身は送りません。",
-        "Only names and folder structure are sent. File contents are not.");
+        "ファイルの中身は送信しませんが、ファイル名とフォルダ構成を送信します。",
+        "File contents are never sent, but file names and the folder structure are.");
 
     public static string RuleSend => Pick("送って読み取る", "Send and read the rules");
 

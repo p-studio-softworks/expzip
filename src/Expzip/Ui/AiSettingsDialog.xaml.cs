@@ -95,14 +95,22 @@ public partial class AiSettingsDialog : Window
 
     private void Preset_Changed(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        // 手動設定を選んだときは、いま入っているものをそのままにする
-        if (!_ready || PresetCombo.SelectedIndex < 0
-            || PresetCombo.SelectedIndex >= Presets.Length)
+        if (!_ready || PresetCombo.SelectedIndex < 0)
         {
             return;
         }
 
-        // 接続先だけを入れる。モデル名と鍵はそのまま残す
+        // 手動設定は「一から入れ直す」という選び。前の中身は残さない。
+        // 選んだだけでは保存されないので、間違えて選んでもキャンセルで元に戻る
+        if (PresetCombo.SelectedIndex >= Presets.Length)
+        {
+            EndpointBox.Text = string.Empty;
+            ModelBox.Text = string.Empty;
+            KeyBox.Password = string.Empty;
+            return;
+        }
+
+        // 決まった接続先を選んだときは URL だけを入れる。モデル名と鍵はそのまま残す
         EndpointBox.Text = Presets[PresetCombo.SelectedIndex].Endpoint;
     }
 
