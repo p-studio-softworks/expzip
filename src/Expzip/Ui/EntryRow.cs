@@ -35,6 +35,16 @@ internal sealed class EntryRow : INotifyPropertyChanged
     /// <summary>塗りつぶしの警告三角。小さく表示しても輪郭線より目に留まる。</summary>
     private const string GlyphWarning = "\uE814";
 
+    /// <summary>
+    /// 旗 (#27)。決まりに合っていない項目に付ける。
+    /// </summary>
+    /// <remarks>
+    /// **危険を知らせる警告三角とは別の形にする。**決まりに合っていないことは
+    /// 危ないことではなく、「取り決めから外れている」というだけ。同じ形にすると、
+    /// 中身が怪しい書庫と、名前の付け方が違うだけの書庫が同じ顔になる。
+    /// </remarks>
+    private const string GlyphFlag = "\uE7C1";
+
     private bool _isEditing;
     private string _editName = string.Empty;
 
@@ -103,6 +113,20 @@ internal sealed class EntryRow : INotifyPropertyChanged
     public string WarningGlyph => GlyphWarning;
 
     public string? WarningTooltip => IsPathSuspicious ? Strings.SuspiciousPathTooltip : null;
+
+    /// <summary>
+    /// 保存した決まりに合っていない項目かどうか (#27)。
+    /// </summary>
+    /// <remarks>
+    /// 決まりは書庫の外にあり、項目自身は自分が合っているかを知らない。
+    /// 一覧を組み立てるときに当てた結果 (<see cref="RuleAudit"/>) を渡す。
+    /// </remarks>
+    public bool BreaksRules { get; init; }
+
+    /// <summary>どの決まりに合っていないか。行に添える説明。</summary>
+    public string? RuleTooltip { get; init; }
+
+    public string FlagGlyph => GlyphFlag;
 
     /// <summary>言語が変わったことを行に伝える (#23)。</summary>
     public void NotifyLanguageChanged() => Notify(nameof(WarningTooltip));

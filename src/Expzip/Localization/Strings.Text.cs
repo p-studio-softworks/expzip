@@ -769,6 +769,63 @@ internal static partial class Strings
         "決まりを保存できませんでした。exe と同じフォルダに書き込めない場所のようです。",
         "Could not save the rules. The folder holding the exe appears not to be writable.");
 
+    // ------------------------------------------------ 決まりに合っているか見る (#27)
+
+    public static string RuleAuditMenu => Pick(
+        "決まりに合っているか見る…", "Check against the rules...");
+
+    public static string RuleNoneSaved => Pick(
+        "決まりが保存されていません。先に「お手本からルールを学ぶ…」で決めてください。",
+        "No rules are saved yet. Set them under \"Learn rules from this archive...\" first.");
+
+    public static string RuleAuditTitle(string archiveName) => Pick(
+        $"決まりに合っているか - {archiveName}",
+        $"Rule check - {archiveName}");
+
+    public static string RuleAuditClean => Pick(
+        "決まりに合っていない項目は見つかりませんでした",
+        "Nothing conflicts with the rules");
+
+    /// <summary>合っていない項目の数と、そもそも無かったものの数 (#27)。</summary>
+    /// <remarks>
+    /// **無かったものは一覧に印を付けられない。**指させる項目が無いため、
+    /// 数だけでも別に言う。印が付かないことを「問題なし」と読ませない。
+    /// </remarks>
+    public static string RuleAuditFound(int broken, int missing) => missing == 0
+        ? Pick($"決まりに合っていない項目が {broken:N0} 件あります",
+            $"{broken:N0} item(s) conflict with the rules")
+        : broken == 0
+            ? Pick($"あるはずのものが {missing:N0} 件ありません",
+                $"{missing:N0} required item(s) are missing")
+            : Pick($"決まりに合っていない項目が {broken:N0} 件、"
+                + $"あるはずのものが {missing:N0} 件ありません",
+                $"{broken:N0} item(s) conflict with the rules, "
+                + $"and {missing:N0} required item(s) are missing");
+
+    public static string RuleAuditSource(int rules, string from, DateTimeOffset at) =>
+        from.Length == 0
+            ? Pick($"決まり {rules:N0} 件を当てました。",
+                $"Applied {rules:N0} rule(s).")
+            : Pick($"決まり {rules:N0} 件を当てました "
+                + $"(お手本: {from}、{at.LocalDateTime:yyyy/MM/dd HH:mm})。",
+                $"Applied {rules:N0} rule(s) "
+                + $"(learned from {from} on {at.LocalDateTime:yyyy/MM/dd HH:mm}).");
+
+    /// <summary>多すぎて出し切れなかったときだけ出す (#27)。</summary>
+    public static string RuleAuditTrimmed(int count) => Pick(
+        $"ほか {count:N0} 件は多すぎるため並べていません。決まりを絞るか、直してから見直してください。",
+        $"{count:N0} more are not listed because there are too many. "
+        + "Narrow the rules or fix these first.");
+
+    public static string RuleAuditColumnTarget => Pick("対象", "Item");
+
+    public static string RuleAuditColumnRule => Pick("決まり", "Rule");
+
+    /// <summary>一覧の旗に添える説明 (#27)。</summary>
+    public static string RuleBreaksTooltip(string rules) => Pick(
+        $"決まりに合っていません:{Environment.NewLine}{rules}",
+        $"Does not match the rules:{Environment.NewLine}{rules}");
+
     // ------------------------------------------------ 決まりを1つ入れる・直す (#26)
 
     public static string RuleEditTitle => Pick("決まりを入れる", "Enter a rule");

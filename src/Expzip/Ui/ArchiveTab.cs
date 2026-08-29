@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.IO;
+using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Localization;
 
@@ -24,11 +25,25 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
         set
         {
             _contents = value;
+
+            // 中身が変われば、当てた結果はもう当てにならない (#27)
+            Audit = null;
+            AuditDone = false;
+
             Notify(nameof(Contents));
             Notify(nameof(Title));
             Notify(nameof(FilePath));
         }
     }
+
+    /// <summary>
+    /// 保存した決まりをこの書庫に当てた結果 (#27)。決まりが無ければ
+    /// <see langword="null"/>。
+    /// </summary>
+    public RuleAudit? Audit { get; set; }
+
+    /// <summary>もう当ててあるか。決まりが無くて <c>null</c> の場合と区別する。</summary>
+    public bool AuditDone { get; set; }
 
     /// <summary>一覧に出している書庫内フォルダ。</summary>
     public ArchiveFolder CurrentFolder { get; set; } = contents.Root;

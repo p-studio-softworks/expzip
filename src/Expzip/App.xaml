@@ -1,4 +1,4 @@
-<Application x:Class="Expzip.App"
+﻿<Application x:Class="Expzip.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Expzip"
@@ -20,5 +20,12 @@
             検査結果の「問題なし」にも同じ緑を使う (#57)
         -->
         <SolidColorBrush x:Key="EncryptedBrush" Color="#107C10" />
+        <!--
+            保存した決まりに合っていない項目の色 (#27)。
+            危険を表す赤とは別の色にする。決まりから外れていることは危ないことではなく、
+            「取り決めと違う」というだけ。同じ色にすると、中身が怪しい書庫と、
+            名前の付け方が違うだけの書庫が同じ顔になる
+        -->
+        <SolidColorBrush x:Key="RuleBreakBrush" Color="#6B4FBB" />
     </Application.Resources>
 </Application>

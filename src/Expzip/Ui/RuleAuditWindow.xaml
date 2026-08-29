@@ -1,0 +1,105 @@
+﻿<Window x:Class="Expzip.Ui.RuleAuditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="920" Height="560"
+        MinWidth="520" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!--
+        決まりに合っているかの結果 (#27)。上に要約、下に「種類 / 対象 / 決まり」の一覧。
+        検査結果の窓 (#57) と同じ作りにしてある。別窓にして、開いたまま一覧を
+        触れるようにする。行を選ぶと本体側でその項目に飛ぶ。
+        文言はすべて ApplyLanguage が入れる (#23)
+    -->
+    <DockPanel>
+
+        <Border DockPanel.Dock="Top"
+                Background="{x:Static SystemColors.ControlLightLightBrush}"
+                BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Margin="16,12">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="HeadlineGlyph"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="16"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0" />
+                    <TextBlock x:Name="Headline"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <!-- どの決まりを、いつ、どの書庫から作ったものを当てたか -->
+                <TextBlock x:Name="SourceLine"
+                           Margin="24,6,0,0"
+                           TextWrapping="Wrap"
+                           Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                <!-- 多すぎて出し切れなかったときだけ出す -->
+                <TextBlock x:Name="TrimmedLine"
+                           Margin="24,6,0,0"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed"
+                           Foreground="{StaticResource CautionBrush}" />
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="16,10,16,12">
+            <Button x:Name="CloseButton"
+                    HorizontalAlignment="Right"
+                    Width="96" Height="26"
+                    IsCancel="True"
+                    Click="CloseButton_Click" />
+        </Border>
+
+        <!-- 行を選ぶと、本体側でその項目に飛ぶ -->
+        <ListView x:Name="FindingList"
+                  BorderThickness="0"
+                  SelectionMode="Single"
+                  SelectionChanged="FindingList_SelectionChanged"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListView.Resources>
+                <Style TargetType="GridViewColumnHeader">
+                    <Setter Property="HorizontalContentAlignment" Value="Left" />
+                    <Setter Property="Padding" Value="6,2" />
+                </Style>
+
+                <DataTemplate x:Key="KindCell">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Glyph}"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Foreground="{Binding Accent}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,6,0" />
+                        <TextBlock Text="{Binding KindText}"
+                                   Foreground="{Binding Accent}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </DataTemplate>
+
+                <!-- 列に収まらない長さになりやすいので、全体は説明で見せる -->
+                <DataTemplate x:Key="TargetCell">
+                    <TextBlock Text="{Binding Target}" ToolTip="{Binding Target}" />
+                </DataTemplate>
+                <DataTemplate x:Key="MessageCell">
+                    <TextBlock Text="{Binding Message}" ToolTip="{Binding Message}" />
+                </DataTemplate>
+            </ListView.Resources>
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn x:Name="KindColumn" Width="150"
+                                    CellTemplate="{StaticResource KindCell}" />
+                    <GridViewColumn x:Name="TargetColumn" Width="330"
+                                    CellTemplate="{StaticResource TargetCell}" />
+                    <GridViewColumn x:Name="MessageColumn" Width="380"
+                                    CellTemplate="{StaticResource MessageCell}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </DockPanel>
+</Window>

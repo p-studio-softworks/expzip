@@ -1,0 +1,211 @@
+﻿using System.IO;
+using System.Windows;
+using System.Windows.Media;
+using Expzip.Ai;
+using Expzip.Localization;
+
+namespace Expzip.Ui;
+
+/// <summary>
+/// 保存した決まりを書庫に当てた結果を1枚にまとめて出す窓 (#27、仕様書 11.3節の4)。
+/// </summary>
+/// <remarks>
+/// <para>
+/// 一覧には旗を立てるが、**旗は見ているフォルダの中しか出ない**。深いところに
+/// あるものは、そこへ行くまで気付けない。ここに全部を並べ、行を選ぶと本体側で
+/// その項目へ飛ぶ。
+/// </para>
+/// <para>
+/// **「必ずある」はずのものが無い場合は、指させる項目が無い。**一覧には印を
+/// 付けられないため、ここでだけ出す。印が付かないことを「問題なし」と
+/// 読ませないための場所でもある。
+/// </para>
+/// <para>
+/// 検査結果の窓 (#57) と同じ作りにしてある。別窓にして、開いたまま一覧を
+/// 触れるようにする。閉じないと先へ進めないダイアログでは用を成さない。
+/// </para>
+/// </remarks>
+// WPF が作る相方の宣言に合わせて public にしてある。決まりの型は internal の
+// ままにしたいので、それらを受け渡す口だけ internal にする
+public partial class RuleAuditWindow : Window
+{
+    /// <summary>旗。一覧に立てるものと同じ形にする。</summary>
+    private const string GlyphFlag = "\uE7C1";
+
+    /// <summary>丸に。「必ずある」はずのものが無いことを表す。</summary>
+    private const string GlyphMissing = "\uE814";
+
+    /// <summary>チェック。合っていないものが無かったことを表す。</summary>
+    private const string GlyphClean = "\uE73E";
+
+    /// <summary>
+    /// 一度に並べる上限。
+    /// </summary>
+    /// <remarks>
+    /// 拡張子ひとつの決まりが数千件に当たることがある。全部並べても読めないうえ、
+    /// 窓が固まる。切ったことは要約に書く。黙って切ると、直したのに減らない、
+    /// という読み違いを生む。
+    /// </remarks>
+    private const int MaxRows = 500;
+
+    private readonly Action<string> _jump;
+
+    private RuleAudit _audit;
+
+    /// <summary>一覧を作り直している最中か。作り直しの拍子に飛ばないための印。</summary>
+    private bool _rebuilding;
+
+    /// <param name="owner">本体の窓。閉じると一緒に閉じる。</param>
+    /// <param name="audit">出す結果。</param>
+    /// <param name="archivePath">当てた書庫。飛び先のタブを決めるのに使う。</param>
+    /// <param name="jump">行が選ばれたときに、書庫内のパスを渡す先。</param>
+    internal RuleAuditWindow(
+        Window owner, RuleAudit audit, string archivePath, Action<string> jump)
+    {
+        InitializeComponent();
+
+        _audit = audit;
+        _jump = jump;
+        ArchivePath = archivePath;
+        Owner = owner;
+
+        ApplyLanguage();
+    }
+
+    /// <summary>いま出している結果の書庫。飛び先のタブを決めるのに使う。</summary>
+    internal string ArchivePath { get; private set; }
+
+    /// <summary>新しい結果に差し替える。窓は開いたままにする。</summary>
+    internal void ShowAudit(RuleAudit audit, string archivePath)
+    {
+        _audit = audit;
+        ArchivePath = archivePath;
+        ApplyLanguage();
+        Activate();
+    }
+
+    /// <summary>文字をいまの言語で入れ直す (#23)。</summary>
+    internal void ApplyLanguage()
+    {
+        Title = Strings.RuleAuditTitle(Path.GetFileName(ArchivePath));
+        CloseButton.Content = Strings.InspectionClose;
+        KindColumn.Header = Strings.RuleColumnKind;
+        TargetColumn.Header = Strings.RuleAuditColumnTarget;
+        MessageColumn.Header = Strings.RuleAuditColumnRule;
+
+        BuildSummary();
+        BuildRows();
+    }
+
+    private void BuildSummary()
+    {
+        var clean = _audit.Clean;
+
+        HeadlineGlyph.Text = clean ? GlyphClean : GlyphFlag;
+        HeadlineGlyph.Foreground = clean
+            ? new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10))
+            : (Brush)FindResource("RuleBreakBrush");
+
+        Headline.Text = clean
+            ? Strings.RuleAuditClean
+            : Strings.RuleAuditFound(_audit.BrokenCount, _audit.Unmet.Count);
+
+        SourceLine.Text = Strings.RuleAuditSource(
+            _audit.RuleCount, _audit.LearnedFrom, _audit.LearnedAt);
+    }
+
+    private void BuildRows()
+    {
+        _rebuilding = true;
+
+        var rows = new List<Row>();
+
+        // 「必ずある」はずのものが無いほうを先に出す。指させる項目が無く、
+        // 一覧の旗では気付けないため
+        foreach (var rule in _audit.Unmet)
+        {
+            rows.Add(new Row
+            {
+                Glyph = GlyphMissing,
+                Accent = (Brush)FindResource("CautionBrush"),
+                KindText = Strings.RuleMissing,
+                Target = rule.Value,
+                Message = Describe(rule),
+            });
+        }
+
+        foreach (var (path, rules) in _audit.Broken.OrderBy(
+            static p => p.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (rows.Count >= MaxRows)
+            {
+                break;
+            }
+
+            rows.Add(new Row
+            {
+                Glyph = GlyphFlag,
+                Accent = (Brush)FindResource("RuleBreakBrush"),
+                KindText = rules[0].KindText,
+                Target = path,
+                Message = string.Join(" / ", rules.Select(Describe)),
+                Path = path,
+            });
+        }
+
+        var trimmed = _audit.Unmet.Count + _audit.Broken.Count - rows.Count;
+        TrimmedLine.Text = Strings.RuleAuditTrimmed(trimmed);
+        TrimmedLine.Visibility = trimmed > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (rows.Count == 0)
+        {
+            rows.Add(new Row
+            {
+                Glyph = GlyphClean,
+                Accent = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10)),
+                KindText = string.Empty,
+                Target = string.Empty,
+                Message = Strings.RuleAuditClean,
+            });
+        }
+
+        FindingList.ItemsSource = rows;
+        _rebuilding = false;
+    }
+
+    /// <summary>決まりを一言で書く。AI が説明を書いていなければ、種類と値で書く。</summary>
+    private static string Describe(ArchiveRule rule)
+        => rule.Description.Length > 0
+            ? rule.Description
+            : $"{rule.KindText}: {rule.Value}";
+
+    private void FindingList_SelectionChanged(
+        object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_rebuilding || FindingList.SelectedItem is not Row { Path: { } path })
+        {
+            return;
+        }
+
+        _jump(path);
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>一覧の1行。</summary>
+    private sealed class Row
+    {
+        public required string Glyph { get; init; }
+
+        public required Brush Accent { get; init; }
+
+        public required string KindText { get; init; }
+
+        public required string Target { get; init; }
+
+        public required string Message { get; init; }
+
+        /// <summary>飛び先の書庫内パス。飛べない行では <see langword="null"/>。</summary>
+        public string? Path { get; init; }
+    }
+}

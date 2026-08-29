@@ -382,7 +382,7 @@ public partial class MainWindow : Window
 
         ShowActiveTab();
 
-        StatusMessage.Text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
+        StatusMessage.Text = DescribeArchive(contents, Tab?.Audit);
 
         // 中身を取り出せないものが混じっている場合は、開いた時点で知らせる (#19)。
         // ZIP はパスワードを入れれば取り出せるため、ここでは黙っている (#20)
@@ -1248,11 +1248,14 @@ public partial class MainWindow : Window
         ShowSaveLabel(tab.Nest);
         UpdateTitle(tab.Title);
 
+        // 旗を立てるには、一覧を作る前に当ててある必要がある (#27)
+        EnsureAudit(tab);
+
         SelectInTree(tab.CurrentFolder);
         Navigate(tab.CurrentFolder);
         RestoreSelection(tab);
 
-        StatusMessage.Text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
+        StatusMessage.Text = DescribeArchive(contents, tab.Audit);
 
         // 見ていない間に外で書き換えられていたら、ここで読み直す (#64)
         if (tab.NeedsReload && _cancellation is null)
@@ -3759,6 +3762,9 @@ public partial class MainWindow : Window
     /// <summary>検査結果の窓。1つだけ開き、次の検査では中身を差し替える (#57)。</summary>
     private InspectionWindow? _inspection;
 
+    /// <summary>決まりに合っているかの結果を出している窓 (#27)。</summary>
+    private RuleAuditWindow? _ruleAudit;
+
     private async void InspectButton_Click(object sender, RoutedEventArgs e)
         => await InspectArchiveAsync();
 
@@ -3857,9 +3863,28 @@ public partial class MainWindow : Window
     /// </remarks>
     private void JumpToFinding(string entryPath)
     {
+        if (_inspection is { } inspection)
+        {
+            JumpTo(inspection.ArchivePath, entryPath);
+        }
+    }
+
+    /// <summary>
+    /// 決まりに合っていない行から、その項目へ飛ぶ (#27)。
+    /// </summary>
+    private void JumpToRulePath(string entryPath)
+    {
+        if (_ruleAudit is { } window)
+        {
+            JumpTo(window.ArchivePath, entryPath);
+        }
+    }
+
+    /// <summary>その書庫のタブへ切り替え、書庫内のパスの項目を選んだ状態にする。</summary>
+    private void JumpTo(string archivePath, string entryPath)
+    {
         if (_cancellation is not null
-            || _inspection is not { } inspection
-            || !TrySwitchToOpenArchive(inspection.ArchivePath)
+            || !TrySwitchToOpenArchive(archivePath)
             || Contents is not { } contents)
         {
             return;
@@ -4183,14 +4208,35 @@ public partial class MainWindow : Window
         // 一つ上へはツリーか BackSpace で移動する (#46)
         var rows = new List<EntryRow>(folder.Folders.Count + folder.Files.Count);
 
+        // 保存した決まりに合っていない項目に旗を立てる (#27)。決まりが無ければ何も付かない
+        var audit = Tab?.Audit;
+
         foreach (var child in folder.Folders)
         {
-            rows.Add(new EntryRow { Name = child.Name, Kind = EntryRowKind.Folder, Folder = child });
+            var breaks = audit?.Breaks(child.FullPath);
+
+            rows.Add(new EntryRow
+            {
+                Name = child.Name,
+                Kind = EntryRowKind.Folder,
+                Folder = child,
+                BreaksRules = breaks is not null,
+                RuleTooltip = DescribeBreaks(breaks),
+            });
         }
 
         foreach (var file in folder.Files)
         {
-            rows.Add(new EntryRow { Name = file.Name, Kind = EntryRowKind.File, Entry = file });
+            var breaks = audit?.Breaks(file.FullPath);
+
+            rows.Add(new EntryRow
+            {
+                Name = file.Name,
+                Kind = EntryRowKind.File,
+                Entry = file,
+                BreaksRules = breaks is not null,
+                RuleTooltip = DescribeBreaks(breaks),
+            });
         }
 
         EntryList.ItemsSource = ApplySort(rows);
@@ -4588,11 +4634,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        // AI の機能は、繋ぎ先が揃っていて書庫が開いているときだけ押せる (#25)
+        // AI の機能は、接続先が揃っていて書庫が開いているときだけ押せる (#25)
         RuleLearnItem.IsEnabled = AiConfigured && Tab is not null;
         RuleLearnItem.ToolTip = AiConfigured
             ? Tab is null ? Strings.NoArchiveOpen : null
             : Strings.RuleNeedsAi;
+
+        // 当てはめるほうは AI を使わない。決まりと書庫があれば押せる (#27)
+        RuleAuditItem.IsEnabled = Tab is not null && RuleStore.Exists;
+        RuleAuditItem.ToolTip = RuleStore.Exists
+            ? Tab is null ? Strings.NoArchiveOpen : null
+            : Strings.RuleNoneSaved;
 
         menu.PlacementTarget = SettingsButton;
         menu.Placement = PlacementMode.Bottom;
@@ -4668,10 +4720,107 @@ public partial class MainWindow : Window
         var dialog = new RuleLearnDialog(this, CurrentAiOptions, tab.Contents);
         dialog.ShowDialog();
 
+        // 決まりが変わったかもしれない。当て直す (#27)
+        ForgetAudits();
+        EnsureAudit(tab);
+        Navigate(tab.CurrentFolder);
+
         if (dialog.SavedCount > 0)
         {
             StatusMessage.Text = Strings.RuleKept(dialog.SavedCount);
         }
+    }
+
+    // ------------------------------------------------------ 決まりに合っているか見る (#27)
+
+    /// <summary>
+    /// 保存した決まりを、まだ当てていなければ当てる。
+    /// </summary>
+    /// <remarks>
+    /// タブごとに1度だけでよい。書庫を読み直すか、決まりを保存し直すまでは
+    /// 結果が変わらないため。切り替えのたびに数千件へ当て直さない。
+    /// </remarks>
+    private static void EnsureAudit(ArchiveTab tab)
+    {
+        if (tab.AuditDone)
+        {
+            return;
+        }
+
+        tab.Audit = RuleAudit.FromStore(tab.Contents);
+        tab.AuditDone = true;
+    }
+
+    /// <summary>当てた結果をすべて捨てる。決まりが変わったときに呼ぶ。</summary>
+    private void ForgetAudits()
+    {
+        foreach (var tab in _tabs)
+        {
+            tab.Audit = null;
+            tab.AuditDone = false;
+        }
+    }
+
+    /// <summary>
+    /// ステータスバーに出す、開いている書庫の要約。
+    /// </summary>
+    /// <remarks>
+    /// **旗は見ているフォルダの中しか出ない** (#27)。深いところにあるものは
+    /// そこへ行くまで気付けないので、数だけはここで言う。件数のほうも残す。
+    /// 決まりの話だけにすると、書庫そのものの大きさが読めなくなる。
+    /// </remarks>
+    private string DescribeArchive(ArchiveContents contents, RuleAudit? audit)
+    {
+        var counted = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
+
+        return audit is { Clean: false }
+            ? counted + " / " + Strings.RuleAuditFound(audit.BrokenCount, audit.Unmet.Count)
+            : counted;
+    }
+
+    /// <summary>その項目が破っている決まりを、行に添える一言にする。</summary>
+    private static string? DescribeBreaks(IReadOnlyList<ArchiveRule>? rules)
+        => rules is null || rules.Count == 0
+            ? null
+            : Strings.RuleBreaksTooltip(string.Join(
+                Environment.NewLine,
+                rules.Select(static rule => rule.Description.Length > 0
+                    ? rule.Description
+                    : $"{rule.KindText}: {rule.Value}")));
+
+    /// <summary>保存した決まりを、いま見ている書庫に当てて結果を出す (#27)。</summary>
+    /// <remarks>
+    /// **押されたときは当て直す。**別の窓で決まりを直しているかもしれないし、
+    /// 設定ファイルを手で書き換えていることもある。
+    /// </remarks>
+    private void RuleAuditItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (Tab is not { } tab)
+        {
+            return;
+        }
+
+        tab.Audit = null;
+        tab.AuditDone = false;
+        EnsureAudit(tab);
+        Navigate(tab.CurrentFolder);
+
+        if (tab.Audit is not { } audit)
+        {
+            StatusMessage.Text = Strings.RuleNoneSaved;
+            return;
+        }
+
+        if (_ruleAudit is { } opened)
+        {
+            opened.ShowAudit(audit, tab.FilePath);
+            return;
+        }
+
+        var window = new RuleAuditWindow(this, audit, tab.FilePath, JumpToRulePath);
+        window.Closed += (_, _) => _ruleAudit = null;
+        _ruleAudit = window;
+        window.Show();
     }
 
     /// <summary>言語を選び直す。設定に残し、その場で画面を貼り替える。</summary>
@@ -4723,6 +4872,7 @@ public partial class MainWindow : Window
         SettingsButton.ToolTip = Strings.SettingsTooltip;
         AiSettingsItem.Header = Strings.AiSettingsMenu;
         RuleLearnItem.Header = Strings.RuleMenu;
+        RuleAuditItem.Header = Strings.RuleAuditMenu;
 
         // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。
         // 説明と同じ文言を名前にしておく
@@ -4779,6 +4929,7 @@ public partial class MainWindow : Window
 
         // 検査結果は文言ではなく事柄の種類で持っているため、開いたままでも入れ替わる (#57)
         _inspection?.ApplyLanguage();
+        _ruleAudit?.ApplyLanguage();
 
         // 処理中はその経過を消さない。終われば次の表示で切り替わる
         if (_cancellation is null)
@@ -4812,7 +4963,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        StatusMessage.Text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
+        StatusMessage.Text = DescribeArchive(contents, Tab?.Audit);
         TotalSizeInfo.Text = Strings.TotalSize(
             contents.TotalLength, contents.TotalCompressedLength);
         SuspiciousWarningText.Text = Strings.SuspiciousCount(contents.SuspiciousCount);

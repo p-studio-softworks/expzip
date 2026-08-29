@@ -137,6 +137,12 @@
                             -->
                             <MenuItem x:Name="RuleLearnItem" Click="RuleLearnItem_Click"
                                       ToolTipService.ShowOnDisabled="True" />
+                            <!--
+                                保存した決まりを、いま見ている書庫に当てて出す (#27)。
+                                こちらは AI を使わないので、繋ぎ先が無くても押せる
+                            -->
+                            <MenuItem x:Name="RuleAuditItem" Click="RuleAuditItem_Click"
+                                      ToolTipService.ShowOnDisabled="True" />
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
@@ -302,6 +308,11 @@
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        <!--
+                            節の名前。入れておかないと、支援技術には束ねている型の名前
+                            (Expzip.Archives.ArchiveFolder) がそのまま読まれる
+                        -->
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
                     </Style>
                 </TreeView.ItemContainerStyle>
                 <TreeView.Resources>
@@ -431,6 +442,19 @@
 
                         <DataTemplate x:Key="NameCell">
                             <StackPanel Orientation="Horizontal">
+                                <!--
+                                    保存した決まりに合っていない項目に旗を立てる (#27)。
+                                    危険を知らせる警告三角とは形も色も変える。
+                                    決まりから外れていることは、危ないこととは違う
+                                -->
+                                <TextBlock Text="{Binding FlagGlyph}"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="12"
+                                           Foreground="{StaticResource RuleBreakBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,4,0"
+                                           ToolTip="{Binding RuleTooltip}"
+                                           Visibility="{Binding BreaksRules, Converter={StaticResource BoolToVisibility}}" />
                                 <!-- パスが通常ではない項目に警告を添える (#36) -->
                                 <TextBlock Text="{Binding WarningGlyph}"
                                            FontFamily="Segoe MDL2 Assets"
