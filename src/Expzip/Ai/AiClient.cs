@@ -16,7 +16,8 @@ namespace Expzip.Ai;
 /// </para>
 /// <para>
 /// 送るのはファイル名とフォルダ構成だけで、ファイルの中身は一切送らない
-/// (仕様書 11.4節、確定方針)。ここでは繋がるかどうかを確かめるところまでを持つ。
+/// (仕様書 11.4節、確定方針)。何を送るかを決めるのはここではなく、
+/// <see cref="ArchiveDigest"/> と <see cref="RuleEstimator"/> (#25)。
 /// </para>
 /// </remarks>
 internal static class AiClient
@@ -26,6 +27,9 @@ internal static class AiClient
 
     /// <summary>繋がるか確かめるときの待ち時間。</summary>
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+
+    /// <summary>尋ねるときの待ち時間。読んで考える分だけ長くとる (#25)。</summary>
+    private static readonly TimeSpan Thinking = TimeSpan.FromMinutes(2);
 
     /// <summary>送り出す形。日本語をそのまま載せる。</summary>
     /// <remarks>
@@ -75,27 +79,92 @@ internal static class AiClient
     public static async Task<AiTestResult> TestAsync(
         AiOptions options, CancellationToken cancellationToken = default)
     {
-        if (ToRequestUri(options.Endpoint) is not { } uri)
+        if (Refuse(options) is { } refusal)
         {
-            return new AiTestResult(false, Strings.AiBadEndpoint);
+            return new AiTestResult(false, refusal);
         }
 
-        if (string.IsNullOrWhiteSpace(options.Model))
+        var sent = await SendAsync(options, Body(options, "ping", null, 1), Patience,
+            cancellationToken);
+
+        return sent.Ok
+            ? new AiTestResult(true, Strings.AiReachable(options.Model))
+            : new AiTestResult(false, sent.Message);
+    }
+
+    /// <summary>尋ねて、返ってきた文章を受け取る (#25)。</summary>
+    /// <remarks>
+    /// <para>
+    /// **答えの形は指定しない。**OpenAI 互換の入口には答えを JSON に縛る指定
+    /// (<c>response_format</c>) があるが、**受け付ける先と受け付けない先がある**。
+    /// 繋ぎ先を利用者が選ぶ建て付けなので、一部でしか通らない指定を送ると、
+    /// 選んだ先によっては断られる。頼み方で JSON を書かせ、返ってきたものを
+    /// こちら側で緩く読む (<see cref="RuleEstimator"/>)。
+    /// </para>
+    /// <para>
+    /// 待ち時間は繋がるか試すときより長くとる。名前を並べて渡すため、
+    /// 読んで考える分だけ掛かる。
+    /// </para>
+    /// </remarks>
+    public static async Task<AiAnswer> AskAsync(
+        AiOptions options, string instruction, string question, int limit,
+        CancellationToken cancellationToken = default)
+    {
+        if (Refuse(options) is { } refusal)
         {
-            return new AiTestResult(false, Strings.AiNoModel);
+            return new AiAnswer(false, string.Empty, refusal);
         }
 
-        var payload = JsonSerializer.Serialize(
-            new
-            {
-                model = options.Model,
-                messages = new[] { new { role = "user", content = "ping" } },
-                max_tokens = 1,
-            },
-            Wire);
+        var sent = await SendAsync(options, Body(options, question, instruction, limit),
+            Thinking, cancellationToken);
 
-        using var client = new HttpClient { Timeout = Patience };
-        using var request = new HttpRequestMessage(HttpMethod.Post, uri)
+        if (!sent.Ok)
+        {
+            return new AiAnswer(false, string.Empty, sent.Message);
+        }
+
+        var said = Said(sent.Body);
+
+        return said.Length == 0
+            ? new AiAnswer(false, string.Empty, Strings.AiEmptyAnswer)
+            : new AiAnswer(true, said, string.Empty);
+    }
+
+    /// <summary>繋ぎ先が揃っていない理由。揃っていれば <see langword="null"/>。</summary>
+    private static string? Refuse(AiOptions options)
+    {
+        if (ToRequestUri(options.Endpoint) is null)
+        {
+            return Strings.AiBadEndpoint;
+        }
+
+        return string.IsNullOrWhiteSpace(options.Model) ? Strings.AiNoModel : null;
+    }
+
+    /// <summary>送り出す中身を組み立てる。</summary>
+    private static string Body(AiOptions options, string question, string? instruction, int limit)
+    {
+        var messages = new List<object>();
+
+        if (instruction is not null)
+        {
+            messages.Add(new { role = "system", content = instruction });
+        }
+
+        messages.Add(new { role = "user", content = question });
+
+        return JsonSerializer.Serialize(
+            new { model = options.Model, messages, max_tokens = limit }, Wire);
+    }
+
+    /// <summary>実際に送る。繋ぎ先とのやり取りは、ここ1箇所だけで行う。</summary>
+    private static async Task<(bool Ok, string Body, string Message)> SendAsync(
+        AiOptions options, string payload, TimeSpan patience,
+        CancellationToken cancellationToken)
+    {
+        using var client = new HttpClient { Timeout = patience };
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, ToRequestUri(options.Endpoint))
         {
             Content = new StringContent(payload, Encoding.UTF8, "application/json"),
         };
@@ -111,18 +180,43 @@ internal static class AiClient
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
             return response.IsSuccessStatusCode
-                ? new AiTestResult(true, Strings.AiReachable(options.Model))
-                : new AiTestResult(false, Strings.AiRefused((int)response.StatusCode, Explain(body)));
+                ? (true, body, string.Empty)
+                : (false, body,
+                    Strings.AiRefused((int)response.StatusCode, Explain(body)));
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new AiTestResult(false, Strings.AiTimedOut);
+            return (false, string.Empty, Strings.AiTimedOut);
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
                                    or UriFormatException)
         {
-            return new AiTestResult(false, ex.Message);
+            return (false, string.Empty, ex.Message);
         }
+    }
+
+    /// <summary>返ってきた本文から、AI が言ったことを取り出す。</summary>
+    private static string Said(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+
+            if (document.RootElement.TryGetProperty("choices", out var choices)
+                && choices.ValueKind == JsonValueKind.Array
+                && choices.GetArrayLength() > 0
+                && choices[0].TryGetProperty("message", out var message)
+                && message.TryGetProperty("content", out var content)
+                && content.ValueKind == JsonValueKind.String)
+            {
+                return content.GetString()?.Trim() ?? string.Empty;
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return string.Empty;
     }
 
     /// <summary>返ってきた本文から、人に見せる一文を取り出す。</summary>
@@ -178,3 +272,9 @@ internal sealed record AiOptions(string Endpoint, string Model, string ApiKey)
 /// <param name="Reachable">繋がったか。</param>
 /// <param name="Message">人に見せる一文。</param>
 internal readonly record struct AiTestResult(bool Reachable, string Message);
+
+/// <summary>尋ねた答え (#25)。</summary>
+/// <param name="Ok">答えが返ってきたか。</param>
+/// <param name="Text">AI が言ったこと。</param>
+/// <param name="Message">返ってこなかったときに、人に見せる一文。</param>
+internal readonly record struct AiAnswer(bool Ok, string Text, string Message);

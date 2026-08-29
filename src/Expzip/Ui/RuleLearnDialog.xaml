@@ -1,0 +1,68 @@
+﻿<Window x:Class="Expzip.Ui.RuleLearnDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="780"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!--
+        お手本書庫からルールを学ぶ (#25)。送る前に、送るものをそのまま見せる。
+        文言はすべて ApplyLanguage が入れる (#23)
+    -->
+    <StackPanel Margin="16">
+        <TextBlock x:Name="IntroText" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+        <TextBlock x:Name="SendLabel" FontWeight="SemiBold" Margin="0,0,0,4" />
+
+        <!--
+            外へ出す前に、出すものをそのまま置く。畳んだ要約ではなく現物を見せる。
+            等幅にするのは、フォルダの深さが揃って見えるため
+        -->
+        <TextBox x:Name="PayloadBox" Height="200" IsReadOnly="True"
+                 FontFamily="Consolas, MS Gothic" FontSize="12"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 TextWrapping="NoWrap" />
+
+        <TextBlock x:Name="PayloadText" Margin="0,6,0,0" TextWrapping="Wrap"
+                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+
+        <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap" />
+
+        <!-- 読み取れた決まり。読み取るまでは場所を取らない -->
+        <ListView x:Name="RuleList" Height="200" Margin="0,8,0,0"
+                  Visibility="Collapsed"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn x:Name="KindColumn" Width="120"
+                                    DisplayMemberBinding="{Binding KindText}" />
+                    <GridViewColumn x:Name="ScopeColumn" Width="120"
+                                    DisplayMemberBinding="{Binding ScopeText}" />
+                    <GridViewColumn x:Name="ValueColumn" Width="150"
+                                    DisplayMemberBinding="{Binding Value}" />
+                    <GridViewColumn x:Name="DescriptionColumn" Width="230"
+                                    DisplayMemberBinding="{Binding Description}" />
+                    <GridViewColumn x:Name="EvidenceColumn" Width="180"
+                                    DisplayMemberBinding="{Binding Evidence}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <!-- 提案であって確かめた結果ではない、と断る (仕様書 11.5節) -->
+        <TextBlock x:Name="NoticeText" Margin="0,10,0,0" TextWrapping="Wrap"
+                   Visibility="Collapsed"
+                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="SendButton" Width="160" Height="26" Margin="0,0,8,0"
+                    IsDefault="True" Click="SendButton_Click" />
+            <Button x:Name="CloseButton" Width="96" Height="26"
+                    IsCancel="True" Click="CloseButton_Click" />
+        </StackPanel>
+    </StackPanel>
+</Window>

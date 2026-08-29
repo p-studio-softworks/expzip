@@ -627,6 +627,245 @@ internal static partial class Strings
         "The saved API key could not be read back. "
         + "It was saved by another user or on another PC. Please enter it again.");
 
+    public static string AiEmptyAnswer => Pick(
+        "AI から中身のある答えが返りませんでした。もう一度試してください。",
+        "The AI returned an empty answer. Please try again.");
+
+    // ------------------------------------------------------------ お手本からのルール推定 (#25)
+
+    public static string RuleMenu => Pick(
+        "お手本からルールを学ぶ…", "Learn rules from this archive...");
+
+    public static string RuleNeedsAi => Pick(
+        "先に「AI連携の設定…」で繋ぎ先を入れてください。",
+        "Set up the connection under AI settings... first.");
+
+    public static string RuleDialogTitle => Pick(
+        "お手本からルールを学ぶ", "Learn rules from this archive");
+
+    public static string RuleIntro(string archiveName) => Pick(
+        $"{archiveName} を「お手本」として、この書庫の作り方の決まりを AI に読み取らせます。"
+        + "読み取った決まりは、あとで別の書庫に当てて違反を探すのに使います。",
+        $"Treat {archiveName} as the model archive and let the AI read off the rules "
+        + "behind how it is put together. Those rules can then be applied to another archive.");
+
+    public static string RuleSendLabel => Pick("送るもの", "What gets sent");
+
+    /// <summary>送る前に、送る量と端折った数をそのまま出す (#25)。</summary>
+    public static string RulePayload(int bytes, int omitted) => omitted == 0
+        ? Pick($"全部で {bytes:N0} バイトです。これがそのまま送られます。",
+            $"{bytes:N0} bytes in total. This is sent exactly as shown.")
+        : Pick($"全部で {bytes:N0} バイトです。これがそのまま送られます。"
+            + $"名前 {omitted:N0} 個は多すぎるため送りません。",
+            $"{bytes:N0} bytes in total. This is sent exactly as shown. "
+            + $"{omitted:N0} names are left out because there are too many.");
+
+    public static string RulePrivacyShort => Pick(
+        "送るのは名前とフォルダの形だけです。ファイルの中身は送りません。",
+        "Only names and folder structure are sent. File contents are not.");
+
+    public static string RuleSend => Pick("送って読み取る", "Send and read the rules");
+
+    public static string RuleSending => Pick("読み取っています…", "Reading...");
+
+    public static string RuleClose => Pick("閉じる", "Close");
+
+    public static string RuleFound(int count) => Pick(
+        $"決まりを {count} 件読み取りました。", $"Read off {count} rule(s).");
+
+    public static string RuleNoneFound => Pick(
+        "決まりらしいものは見つかりませんでした。"
+        + "お手本の項目が少ないと、読み取れることがありません。",
+        "No rules could be read off. "
+        + "There may be too few entries in the model archive to see a pattern.");
+
+    /// <summary>採らなかった候補の内訳。黙って減らすと、数が合わない理由が分からない。</summary>
+    public static string RuleDropped(int rejected, int unusable)
+    {
+        var parts = new List<string>();
+
+        if (rejected > 0)
+        {
+            parts.Add(Pick($"お手本自身が満たさないものを {rejected} 件",
+                $"{rejected} that the model archive itself does not satisfy"));
+        }
+
+        if (unusable > 0)
+        {
+            parts.Add(Pick($"形として読み取れないものを {unusable} 件",
+                $"{unusable} that could not be read as a rule"));
+        }
+
+        return parts.Count == 0
+            ? string.Empty
+            : Pick(string.Join("、", parts) + "外しました。",
+                "Left out " + string.Join(" and ", parts) + ".");
+    }
+
+    /// <summary>これは提案であって、確かめた結果ではない (仕様書 11.5節)。</summary>
+    public static string RuleProposalNotice => Pick(
+        "これは AI が読み取った提案です。お手本の中身しか見ていないため、"
+        + "本当の決まりとは違うことがあります。中身の確認と手直しは次の段で入れます (#26)。",
+        "These are the AI's proposals. It has seen only this archive, "
+        + "so they may not match the real rules. Reviewing and editing them comes next (#26).");
+
+    public static string RuleUnreadable => Pick(
+        "AI の答えを決まりの形として読み取れませんでした。"
+        + "模型を変えるか、もう一度試してください。",
+        "The AI's answer could not be read as a set of rules. "
+        + "Try again, or try a different model.");
+
+    public static string RuleColumnKind => Pick("種類", "Kind");
+
+    public static string RuleColumnScope => Pick("どこに", "Where");
+
+    public static string RuleColumnValue => Pick("値", "Value");
+
+    public static string RuleColumnDescription => Pick("説明", "What it says");
+
+    public static string RuleColumnEvidence => Pick("根拠", "Why");
+
+    public static string RuleKindRequiredEntry => Pick("必ずある", "Must exist");
+
+    public static string RuleKindRequiredFolder => Pick("必ずあるフォルダ", "Folder must exist");
+
+    public static string RuleKindForbiddenExtension => Pick("含めない拡張子", "Extension not allowed");
+
+    public static string RuleKindForbiddenName => Pick("含めない名前", "Name not allowed");
+
+    public static string RuleKindNamePattern => Pick("名前の形", "Name pattern");
+
+    public static string RuleScopeRoot => Pick("ルート直下", "Directly under the root");
+
+    public static string RuleScopeFolders => Pick("すべてのフォルダ", "Every folder");
+
+    public static string RuleScopeFiles => Pick("すべてのファイル", "Every file");
+
+    public static string RuleScopeAll => Pick("すべての項目", "Every entry");
+
+    // -------------------------------------------------- 送る中身 (#25)。そのまま画面にも出す
+
+    public static string RuleDigestArchive(string name) => Pick(
+        $"書庫: {name}", $"Archive: {name}");
+
+    public static string RuleDigestCounts(int files, int folders) => Pick(
+        $"ファイル {files:N0} 個、フォルダ {folders:N0} 個",
+        $"{files:N0} file(s), {folders:N0} folder(s)");
+
+    public static string RuleDigestFolders(int count) => Pick(
+        $"## フォルダ ({count:N0} 個)", $"## Folders ({count:N0})");
+
+    public static string RuleDigestNoFolders => Pick(
+        "(フォルダは無い)", "(none)");
+
+    public static string RuleDigestMoreFolders(int count) => Pick(
+        $"(ほか {count:N0} 個は送らない)", $"({count:N0} more not sent)");
+
+    public static string RuleDigestExtensions => Pick(
+        "## 拡張子ごとのファイル数 (端折らない)",
+        "## File count per extension (complete)");
+
+    public static string RuleDigestNoExtension => Pick("(拡張子なし)", "(no extension)");
+
+    public static string RuleDigestRoot(int count) => Pick(
+        $"## ルート直下のファイル ({count:N0} 個)",
+        $"## Files directly under the root ({count:N0})");
+
+    public static string RuleDigestNoRootFiles => Pick(
+        "(ルート直下にファイルは無い)", "(none)");
+
+    public static string RuleDigestMoreFiles(int count) => Pick(
+        $"(ほか {count:N0} 個は送らない)", $"({count:N0} more not sent)");
+
+    public static string RuleDigestSamples(int perFolder) => Pick(
+        $"## 各フォルダのファイル名 (フォルダごとに最大 {perFolder} 個)",
+        $"## File names per folder (at most {perFolder} per folder)");
+
+    public static string RuleDigestMoreHere(int count) => Pick(
+        $"…ほか {count:N0} 個", $"...and {count:N0} more");
+
+    public static string RuleDigestOmitted(int count) => Pick(
+        $"※ 名前 {count:N0} 個は多すぎるため送っていない。"
+        + "ここに出ていない名前を根拠にしないこと。",
+        $"Note: {count:N0} names are not included because there are too many. "
+        + "Do not base any rule on names that are not shown here.");
+
+    /// <summary>AI への頼み方 (#25)。答えられる形をあらかじめ絞る。</summary>
+    /// <remarks>
+    /// **画面の言語で頼む。**説明と根拠は AI が書くため、頼んだ言語で返ってくる。
+    /// 日本語で使っている人に英語の説明を並べても読まれない。
+    /// </remarks>
+    public static string RulePromptSystem => Pick(
+        RulePromptJapanese, RulePromptEnglish);
+
+    private const string RulePromptJapanese = """
+        あなたは書庫 (ZIP など) の作り方を読み取る手伝いをします。
+        これから、ある書庫のフォルダ構成とファイル名の一覧を渡します。
+        ファイルの中身はありません。名前と構成だけです。
+
+        その並びから読み取れる「この書庫の作り方の決まり」を挙げてください。
+        次の JSON だけを返してください。前後に説明を書かないでください。
+
+        {"rules":[{"kind":"...","scope":"...","value":"...","description":"...","evidence":"..."}]}
+
+        kind は次のいずれかです。
+        - required_entry: この名前のものが必ずある。value は名前
+        - required_folder: このフォルダが必ずある。value はフォルダ名
+        - forbidden_extension: この拡張子を含めない。value は ".tmp" のような拡張子
+        - forbidden_name: この名前のものを含めない。value は名前
+        - name_pattern: 名前がこの形をしている。value は .NET の正規表現
+
+        scope は次のいずれかです。
+        - root: ルート直下だけ
+        - folders: すべてのフォルダ
+        - files: すべてのファイル
+        - all: すべての項目
+
+        description には、その決まりを日本語の一文で書いてください。
+        evidence には、一覧のどこからそう読み取ったかを短く書いてください。
+
+        守ってほしいこと:
+        - 一覧に出ている名前だけを根拠にしてください
+        - 一覧は端折られていることがあります。「ほか N 個は送らない」と書いてあれば、そこは見えていません
+        - 確かでないものは挙げないでください。多くても8件までにしてください
+        - name_pattern は、一覧にあるその範囲の名前すべてに当てはまるものだけにしてください
+        - 何にでも当てはまる正規表現 (".*" など) は挙げないでください
+        """;
+
+    private const string RulePromptEnglish = """
+        You help read off how an archive (ZIP and the like) is put together.
+        You will be given the folder structure and file names of one archive.
+        There are no file contents - only names and structure.
+
+        List the rules behind how this archive is put together.
+        Return only the following JSON. Do not write anything before or after it.
+
+        {"rules":[{"kind":"...","scope":"...","value":"...","description":"...","evidence":"..."}]}
+
+        kind must be one of:
+        - required_entry: an entry with this name must exist. value is the name
+        - required_folder: this folder must exist. value is the folder name
+        - forbidden_extension: this extension must not appear. value is like ".tmp"
+        - forbidden_name: an entry with this name must not appear. value is the name
+        - name_pattern: names have this shape. value is a .NET regular expression
+
+        scope must be one of:
+        - root: only directly under the root
+        - folders: every folder
+        - files: every file
+        - all: every entry
+
+        Write description as one English sentence stating the rule.
+        Write evidence as a short note on where in the listing you read it.
+
+        Rules to follow:
+        - Base every rule only on names that appear in the listing
+        - The listing may be trimmed. Where it says "N more not sent", you cannot see those
+        - Do not list anything you are unsure of. At most 8 rules
+        - A name_pattern must match every name in its scope that appears in the listing
+        - Do not list a regular expression that matches anything (such as ".*")
+        """;
+
     public static string SaveTooltip => Pick(
         "書き換えた内容を親の書庫へ書き戻します (Ctrl+S)",
         "Put the changes back into the parent archive (Ctrl+S)");

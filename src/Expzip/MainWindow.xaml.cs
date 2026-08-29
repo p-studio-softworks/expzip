@@ -4588,6 +4588,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        // AI の機能は、繋ぎ先が揃っていて書庫が開いているときだけ押せる (#25)
+        RuleLearnItem.IsEnabled = AiConfigured && Tab is not null;
+        RuleLearnItem.ToolTip = AiConfigured
+            ? Tab is null ? Strings.NoArchiveOpen : null
+            : Strings.RuleNeedsAi;
+
         menu.PlacementTarget = SettingsButton;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
@@ -4642,6 +4648,32 @@ public partial class MainWindow : Window
         StatusMessage.Text = Strings.AiSaved;
     }
 
+    // ------------------------------------------------------------ お手本からのルール推定 (#25)
+
+    /// <summary>
+    /// いま見ている書庫をお手本として、作り方の決まりを読み取らせる (仕様書 11.3節)。
+    /// </summary>
+    /// <remarks>
+    /// **ここでは何も送らない。**送るかどうかはダイアログの中で、送るものを
+    /// 見せた上で決めてもらう。読み取った決まりを確かめて直せるようにするのと、
+    /// 別の書庫に当てて違反を探すのは、この先の段 (#26、#27)。
+    /// </remarks>
+    private void RuleLearnItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (Tab is not { } tab)
+        {
+            return;
+        }
+
+        var dialog = new RuleLearnDialog(this, CurrentAiOptions, tab.Contents);
+        dialog.ShowDialog();
+
+        if (dialog.Rules.Count > 0)
+        {
+            StatusMessage.Text = Strings.RuleFound(dialog.Rules.Count);
+        }
+    }
+
     /// <summary>言語を選び直す。設定に残し、その場で画面を貼り替える。</summary>
     private void LanguageItem_Click(object sender, RoutedEventArgs e)
     {
@@ -4690,6 +4722,7 @@ public partial class MainWindow : Window
         SfxButton.ToolTip = Strings.SfxTooltip;
         SettingsButton.ToolTip = Strings.SettingsTooltip;
         AiSettingsItem.Header = Strings.AiSettingsMenu;
+        RuleLearnItem.Header = Strings.RuleMenu;
 
         // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。
         // 説明と同じ文言を名前にしておく

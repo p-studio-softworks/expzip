@@ -130,6 +130,13 @@
                             <Separator />
                             <!-- AI 連携の繋ぎ先 (#24)。設定していなければ機能を出さない -->
                             <MenuItem x:Name="AiSettingsItem" Click="AiSettingsItem_Click" />
+                            <!--
+                                お手本からルールを学ぶ (#25)。繋ぎ先が未設定なら押せない
+                                (仕様書 11.4節)。灰色の項目が何なのか分からないままに
+                                ならないよう、押せないときも説明を出す
+                            -->
+                            <MenuItem x:Name="RuleLearnItem" Click="RuleLearnItem_Click"
+                                      ToolTipService.ShowOnDisabled="True" />
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
