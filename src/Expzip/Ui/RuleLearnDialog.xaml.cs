@@ -69,7 +69,8 @@ public partial class RuleLearnDialog : Window
         IntroText.Text = Strings.RuleIntro(Path.GetFileName(_sample.FilePath));
         SendLabel.Text = Strings.RuleSendLabel;
         PayloadText.Text = Strings.RulePrivacyShort + Environment.NewLine
-            + Strings.RulePayload(_digest.Bytes, _digest.Omitted);
+            + Strings.RulePayload(
+                _digest.Bytes, _digest.Omitted, ArchiveDigest.PerFolderLimit);
         NoticeText.Text = Strings.RuleProposalNotice;
         UseColumn.Header = Strings.RuleColumnUse;
         KindColumn.Header = Strings.RuleColumnKind;
@@ -80,6 +81,7 @@ public partial class RuleLearnDialog : Window
         SourceColumn.Header = Strings.RuleColumnSource;
         VerdictColumn.Header = Strings.RuleColumnVerdict;
         AddButton.Content = Strings.RuleAdd;
+        EditHint.Text = Strings.RuleEditHint;
         EditButton.Content = Strings.RuleEdit;
         RemoveButton.Content = Strings.RuleRemove;
         SendButton.Content = Strings.RuleSend;

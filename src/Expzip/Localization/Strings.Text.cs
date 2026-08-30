@@ -619,33 +619,38 @@ internal static partial class Strings
     // ------------------------------------------------------------ お手本からのルール推定 (#25)
 
     public static string RuleMenu => Pick(
-        "お手本からルールを学ぶ…", "Learn rules from this archive...");
+        "書庫の作り方を推定…", "Work out how this archive is built...");
 
     public static string RuleNeedsAi => Pick(
         "先に「AI連携の設定…」で接続先を入れてください。",
         "Set up the connection under AI settings... first.");
 
     public static string RuleDialogTitle => Pick(
-        "お手本からルールを学ぶ", "Learn rules from this archive");
+        "書庫の作り方を推定", "Work out how this archive is built");
 
     public static string RuleIntro(string archiveName) => Pick(
-        $"{archiveName} を「お手本」として、この書庫の作り方の決まりを AI に読み取らせます。"
-        + "読み取った決まりは、使うものを選び、直してから保存します。"
-        + "保存した決まりは、あとで別の書庫に当てて違反を探すのに使います。",
-        $"Treat {archiveName} as the model archive and let the AI read off the rules "
-        + "behind how it is put together. Pick the ones to keep, edit them, then save. "
-        + "Saved rules can later be applied to another archive.");
+        $"{archiveName} を「お手本」として、この書庫の作り方を推定します。",
+        $"Treat {archiveName} as the model archive and work out how it is built.");
 
-    public static string RuleSendLabel => Pick("送るもの", "What gets sent");
+    public static string RuleSendLabel => Pick("書庫詳細", "Archive details");
 
-    /// <summary>送る前に、送る量と端折った数をそのまま出す (#25)。</summary>
-    public static string RulePayload(int bytes, int omitted) => omitted == 0
+    /// <summary>
+    /// 送る前に、送る量と端折った数をそのまま出す (#25)。
+    /// </summary>
+    /// <remarks>
+    /// **効いた上限をそのまま書く** (#70)。「多すぎるため」とだけ書くと、書庫が
+    /// 大きすぎたように読める。実際に効くのはたいてい1フォルダあたりの上限のほうで、
+    /// 159ファイル・10KB の書庫でも端折りは起きる。
+    /// </remarks>
+    public static string RulePayload(int bytes, int omitted, int perFolder) => omitted == 0
         ? Pick($"全部で {bytes:N0} バイトです。これがそのまま送られます。",
             $"{bytes:N0} bytes in total. This is sent exactly as shown.")
         : Pick($"全部で {bytes:N0} バイトです。これがそのまま送られます。"
-            + $"名前 {omitted:N0} 個は多すぎるため送りません。",
+            + $"1つのフォルダからは最大 {perFolder} 個までにしているため、"
+            + $"名前 {omitted:N0} 個は送りません。",
             $"{bytes:N0} bytes in total. This is sent exactly as shown. "
-            + $"{omitted:N0} names are left out because there are too many.");
+            + $"At most {perFolder} names are taken from each folder, "
+            + $"so {omitted:N0} names are left out.");
 
     /// <summary>送るものの断り。AI連携の設定と同じ書きぶりにする (#24)。</summary>
     public static string RulePrivacyShort => Pick(
@@ -730,11 +735,24 @@ internal static partial class Strings
     /// <summary>当てる先が1つも無い。守られているとは言えない (#26)。</summary>
     public static string RuleNothingToCheck => Pick("当てる先が無い", "Nothing to check");
 
-    public static string RuleAdd => Pick("足す", "Add");
+    public static string RuleAdd => Pick("自分で足す", "Add my own");
 
     public static string RuleEdit => Pick("直す", "Edit");
 
     public static string RuleRemove => Pick("消す", "Remove");
+
+    /// <summary>
+    /// 3つの押しボタンが何のためのものかを、押す前に言う (#70)。
+    /// </summary>
+    /// <remarks>
+    /// 出どころの欄に「AI / 自分」とは出しているが、それは押したあとの話。
+    /// **お手本から読み取ったものとは別に、自分の決まりを持てる**ことが
+    /// 分かるようにする。
+    /// </remarks>
+    public static string RuleEditHint => Pick(
+        "お手本から読み取った決まりのほかに、自分の決まりを足せます。読み取った決まりも直せます。",
+        "Besides what was read off the model archive, you can add rules of your own. "
+        + "You can also edit the ones that were read off.");
 
     public static string RuleSave => Pick("保存する", "Save");
 
@@ -747,7 +765,8 @@ internal static partial class Strings
     public static string RuleAlreadyHad => Pick(
         "すでにあるものは足していません。", " Ones already listed were not added again.");
 
-    public static string RuleAdded => Pick("決まりを足しました。", "Added the rule.");
+    public static string RuleAdded => Pick(
+        "自分の決まりを足しました。", "Added a rule of your own.");
 
     public static string RuleEdited => Pick("決まりを直しました。", "Edited the rule.");
 
@@ -775,8 +794,9 @@ internal static partial class Strings
         "決まりに合っているか見る…", "Check against the rules...");
 
     public static string RuleNoneSaved => Pick(
-        "決まりが保存されていません。先に「お手本からルールを学ぶ…」で決めてください。",
-        "No rules are saved yet. Set them under \"Learn rules from this archive...\" first.");
+        "決まりが保存されていません。先に「書庫の作り方を推定…」で決めてください。",
+        "No rules are saved yet. "
+        + "Set them under \"Work out how this archive is built...\" first.");
 
     public static string RuleAuditTitle(string archiveName) => Pick(
         $"決まりに合っているか - {archiveName}",
@@ -1004,7 +1024,8 @@ internal static partial class Strings
 
     // ------------------------------------------------ 決まりを1つ入れる・直す (#26)
 
-    public static string RuleEditTitle => Pick("決まりを入れる", "Enter a rule");
+    public static string RuleEditTitle => Pick(
+        "決まりを自分で入れる", "Enter a rule of your own");
 
     public static string RuleEditIntro => Pick(
         "決まりを1つ入れます。入れながら、いま開いている書庫に当てた結果を下に出します。",
@@ -1115,10 +1136,12 @@ internal static partial class Strings
     public static string RuleDigestMoreHere(int count) => Pick(
         $"…ほか {count:N0} 個", $"...and {count:N0} more");
 
-    public static string RuleDigestOmitted(int count) => Pick(
-        $"※ 名前 {count:N0} 個は多すぎるため送っていない。"
+    public static string RuleDigestOmitted(int count, int perFolder, int total) => Pick(
+        $"※ 名前 {count:N0} 個は送っていない "
+        + $"(1フォルダあたり最大 {perFolder} 個、全体で最大 {total:N0} 個までのため)。"
         + "ここに出ていない名前を根拠にしないこと。",
-        $"Note: {count:N0} names are not included because there are too many. "
+        $"Note: {count:N0} names are not included "
+        + $"(at most {perFolder} per folder, {total:N0} in total). "
         + "Do not base any rule on names that are not shown here.");
 
     /// <summary>AI への頼み方 (#25)。答えられる形をあらかじめ絞る。</summary>

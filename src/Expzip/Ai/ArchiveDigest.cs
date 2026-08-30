@@ -56,6 +56,12 @@ internal sealed record ArchiveDigest(string Text, int Folders, int Files, int Om
     /// <summary>ルートより下で、1つのフォルダから出すファイル名の数。</summary>
     private const int PerFolder = 5;
 
+    /// <summary>1つのフォルダから出す数。端折った理由を画面に出すのに使う (#70)。</summary>
+    public static int PerFolderLimit => PerFolder;
+
+    /// <summary>出すファイル名の合計。端折った理由を画面に出すのに使う (#70)。</summary>
+    public static int TotalLimit => MaxFiles;
+
     /// <summary>実際に送るバイト数。</summary>
     public int Bytes => Encoding.UTF8.GetByteCount(Text);
 
@@ -180,7 +186,7 @@ internal sealed record ArchiveDigest(string Text, int Folders, int Files, int Om
         if (omitted > 0)
         {
             builder.Append('\n');
-            builder.Append(Strings.RuleDigestOmitted(omitted));
+            builder.Append(Strings.RuleDigestOmitted(omitted, PerFolder, MaxFiles));
             builder.Append('\n');
         }
 
