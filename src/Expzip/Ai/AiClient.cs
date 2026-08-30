@@ -195,24 +195,45 @@ internal static class AiClient
         }
     }
 
+    /// <summary>
+    /// 答えの根を取り出す。
+    /// </summary>
+    /// <remarks>
+    /// **配列で包んで返す提供元がある** (#69)。Google は断るときに
+    /// <c>[{"error": {...}}]</c> の形で返すことがある。根がそのまま配列だと、
+    /// 中の名前を引こうとした時点で例外になる。包まれていれば中の最初のものを見る。
+    /// </remarks>
+    private static JsonElement Root(JsonDocument document)
+    {
+        var root = document.RootElement;
+
+        return root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0
+            ? root[0]
+            : root;
+    }
+
     /// <summary>返ってきた本文から、AI が言ったことを取り出す。</summary>
     private static string Said(string body)
     {
         try
         {
             using var document = JsonDocument.Parse(body);
+            var root = Root(document);
 
-            if (document.RootElement.TryGetProperty("choices", out var choices)
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("choices", out var choices)
                 && choices.ValueKind == JsonValueKind.Array
                 && choices.GetArrayLength() > 0
+                && choices[0].ValueKind == JsonValueKind.Object
                 && choices[0].TryGetProperty("message", out var message)
+                && message.ValueKind == JsonValueKind.Object
                 && message.TryGetProperty("content", out var content)
                 && content.ValueKind == JsonValueKind.String)
             {
                 return content.GetString()?.Trim() ?? string.Empty;
             }
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
         }
 
@@ -222,6 +243,7 @@ internal static class AiClient
     /// <summary>返ってきた本文から、人に見せる一文を取り出す。</summary>
     /// <remarks>
     /// 提供元によって形が違うが、たいてい <c>error.message</c> に入っている。
+    /// 配列で包まれていることもある (#69)。
     /// 見つからなければ本文の頭を切って出す。黙って「失敗しました」とだけ言うより、
     /// 相手の言い分を見せるほうが直しようがある。
     /// </remarks>
@@ -230,22 +252,25 @@ internal static class AiClient
         try
         {
             using var document = JsonDocument.Parse(body);
+            var root = Root(document);
 
-            if (document.RootElement.TryGetProperty("error", out var error))
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("error", out var error))
             {
                 if (error.ValueKind == JsonValueKind.String)
                 {
                     return error.GetString() ?? string.Empty;
                 }
 
-                if (error.TryGetProperty("message", out var message)
+                if (error.ValueKind == JsonValueKind.Object
+                    && error.TryGetProperty("message", out var message)
                     && message.ValueKind == JsonValueKind.String)
                 {
                     return message.GetString() ?? string.Empty;
                 }
             }
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
         }
 
