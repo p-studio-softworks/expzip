@@ -48,11 +48,16 @@
         </Border>
 
         <Border DockPanel.Dock="Bottom" Padding="16,10,16,12">
-            <Button x:Name="CloseButton"
-                    HorizontalAlignment="Right"
-                    Width="96" Height="26"
-                    IsCancel="True"
-                    Click="CloseButton_Click" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <!-- 見つけた先で直せるようにする (#28) -->
+                <Button x:Name="FixButton"
+                        Width="180" Height="26" Margin="0,0,8,0"
+                        Click="FixButton_Click" />
+                <Button x:Name="CloseButton"
+                        Width="96" Height="26"
+                        IsCancel="True"
+                        Click="CloseButton_Click" />
+            </StackPanel>
         </Border>
 
         <!-- 行を選ぶと、本体側でその項目に飛ぶ -->
@@ -62,6 +67,16 @@
                   SelectionChanged="FindingList_SelectionChanged"
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling">
+            <!--
+                行の名前。入れておかないと、支援技術には束ねている型の名前が
+                そのまま読まれる
+            -->
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="AutomationProperties.Name"
+                            Value="{Binding Target}" />
+                </Style>
+            </ListView.ItemContainerStyle>
             <ListView.Resources>
                 <Style TargetType="GridViewColumnHeader">
                     <Setter Property="HorizontalContentAlignment" Value="Left" />

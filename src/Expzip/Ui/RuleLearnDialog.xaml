@@ -51,6 +51,16 @@
                   MouseDoubleClick="RuleList_MouseDoubleClick"
                   SelectionChanged="RuleList_SelectionChanged"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto">
+            <!--
+                行の名前。入れておかないと、支援技術には束ねている型の名前が
+                そのまま読まれる
+            -->
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="AutomationProperties.Name"
+                            Value="{Binding Description}" />
+                </Style>
+            </ListView.ItemContainerStyle>
             <ListView.View>
                 <GridView>
                     <!-- 外した決まりは、保存しても当てない -->

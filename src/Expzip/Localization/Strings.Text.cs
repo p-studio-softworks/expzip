@@ -826,6 +826,182 @@ internal static partial class Strings
         $"決まりに合っていません:{Environment.NewLine}{rules}",
         $"Does not match the rules:{Environment.NewLine}{rules}");
 
+    // ------------------------------------------------ 決まりに合わせて直す (#28)
+
+    public static string RuleFixMenu => Pick(
+        "決まりに合わせて直す…", "Fix to match the rules...");
+
+    public static string RuleFixTitle(string archiveName) => Pick(
+        $"決まりに合わせて直す - {archiveName}",
+        $"Fix to match the rules - {archiveName}");
+
+    /// <summary>何をする画面かと、勝手には直さないことを断る (#28)。</summary>
+    public static string RuleFixIntro => Pick(
+        "決まりに合っていない項目の直し方です。"
+        + "はじめは1つも選ばれていません。直すものを選び、"
+        + "「直す」を押すと、もう一度確かめてから書庫を書き換えます。"
+        + "書き換えは取り消せません。",
+        "Here is how each conflicting item could be fixed. "
+        + "Nothing is selected to begin with. Choose what to fix, press Apply, "
+        + "and the archive is rewritten after one more confirmation. "
+        + "The rewrite cannot be undone.");
+
+    public static string RuleFixReadOnly(string format) => Pick(
+        $"この書庫 ({format}) は読み取りのみのため、直せません。中身は見られます。",
+        $"This archive ({format}) is read-only, so it cannot be fixed here.");
+
+    public static string RuleFixAll => Pick("すべて選ぶ", "Select all");
+
+    public static string RuleFixNone => Pick("すべて外す", "Clear all");
+
+    public static string RuleFixAskNames => Pick(
+        "AIに名前の案を出させる", "Ask the AI for names");
+
+    public static string RuleFixApply => Pick("直す", "Apply");
+
+    public static string RuleFixColumnKind => Pick("直し方", "Fix");
+
+    public static string RuleFixColumnNewName => Pick("新しい名前", "New name");
+
+    public static string RuleFixColumnVerdict => Pick("直すとどうなるか", "What happens");
+
+    public static string RuleFixRemove => Pick("取り除く", "Remove");
+
+    public static string RuleFixRename => Pick("名前を変える", "Rename");
+
+    public static string RuleFixManual => Pick("手で直す", "By hand");
+
+    public static string RuleFixWillRemove => Pick(
+        "書庫から取り除きます", "Removed from the archive");
+
+    public static string RuleFixWillFix => Pick(
+        "この名前で決まりに合います", "This name matches the rules");
+
+    /// <summary>書庫の中をいじっても直らないもの (#28)。</summary>
+    public static string RuleFixByHand => Pick(
+        "足りないものは、ここでは足せません", "Missing items cannot be added here");
+
+    public static string RuleFixNeedsName => Pick(
+        "新しい名前を入れてください", "Enter a new name");
+
+    public static string RuleFixBadName => Pick(
+        "ファイル名に使えない字が入っています", "That name contains characters that cannot be used");
+
+    public static string RuleFixSameName => Pick(
+        "いまの名前と同じです", "That is the current name");
+
+    public static string RuleFixStillBroken(string pattern) => Pick(
+        $"まだ決まりの形 ({pattern}) に合っていません",
+        $"Still does not match the pattern ({pattern})");
+
+    public static string RuleFixWouldBreak(string value) => Pick(
+        $"その名前は別の決まり ({value}) に引っ掛かります",
+        $"That name runs into another rule ({value})");
+
+    public static string RuleFixTaken => Pick(
+        "同じ場所に、その名前のものが既にあります",
+        "Something with that name already exists here");
+
+    public static string RuleFixNothingChosen => Pick(
+        "直すものが選ばれていません", "Nothing selected");
+
+    public static string RuleFixChosen(int removing, int renaming) => removing == 0
+        ? Pick($"{renaming:N0} 件の名前を変えます", $"Renaming {renaming:N0}")
+        : renaming == 0
+            ? Pick($"{removing:N0} 件を取り除きます", $"Removing {removing:N0}")
+            : Pick($"{removing:N0} 件を取り除き、{renaming:N0} 件の名前を変えます",
+                $"Removing {removing:N0}, renaming {renaming:N0}");
+
+    /// <summary>直す前の最後の確かめ。取り消せないことを言う (#28)。</summary>
+    public static string RuleFixConfirm(
+        int removing, int renaming, string preview, string more) => Pick(
+        $"次のとおり書庫を書き換えます。{Environment.NewLine}{Environment.NewLine}"
+        + $"{preview}{more}{Environment.NewLine}{Environment.NewLine}"
+        + $"取り除く: {removing:N0} 件 / 名前を変える: {renaming:N0} 件{Environment.NewLine}"
+        + "この書き換えは取り消せません。進めますか?",
+        $"The archive will be rewritten as follows.{Environment.NewLine}{Environment.NewLine}"
+        + $"{preview}{more}{Environment.NewLine}{Environment.NewLine}"
+        + $"Removing: {removing:N0} / Renaming: {renaming:N0}{Environment.NewLine}"
+        + "This cannot be undone. Proceed?");
+
+    public static string RuleFixWorking => Pick("直しています…", "Fixing...");
+
+    public static string RuleFixDone(int removed, int renamed) => Pick(
+        $"直しました (取り除いた: {removed:N0} 件 / 名前を変えた: {renamed:N0} 件)",
+        $"Done: removed {removed:N0}, renamed {renamed:N0}");
+
+    public static string RuleFixCancelled => Pick(
+        "直すのを中断しました", "The fix was stopped");
+
+    public static string RuleFixFailed(string reason) => Pick(
+        $"書庫を書き換えられませんでした。{Environment.NewLine}{reason}",
+        $"The archive could not be rewritten.{Environment.NewLine}{reason}");
+
+    public static string RuleFixNothingToName => Pick(
+        "名前を変える項目がありません。", "There is nothing to rename.");
+
+    public static string RuleFixNamed(int filled, int refused) => refused == 0
+        ? Pick($"{filled:N0} 件に名前を入れました。", $"Filled in {filled:N0} name(s).")
+        : Pick($"{filled:N0} 件に名前を入れました。"
+            + $"決まりに合わない案 {refused:N0} 件は採りませんでした。",
+            $"Filled in {filled:N0} name(s). "
+            + $"{refused:N0} suggestion(s) did not match the rules and were dropped.");
+
+    public static string RuleNameFolder => Pick("フォルダ", "folder");
+
+    public static string RuleNameFile => Pick("ファイル", "file");
+
+    public static string RuleNameBanned(string values) => Pick(
+        $"次の名前・拡張子は使えません: {values}",
+        $"These names and extensions must not be used: {values}");
+
+    /// <summary>名前の案を頼むときの言い方 (#28)。</summary>
+    /// <remarks>
+    /// **送るのはいまの名前と、満たすべき形だけ**。ファイルの中身は送らない。
+    /// 出てきた案はこちら側で確かめてから入れる。
+    /// </remarks>
+    public static string RuleNamePrompt => Pick(RuleNameJapanese, RuleNameEnglish);
+
+    private const string RuleNameJapanese = """
+        書庫の中の名前を、決まった形に合うように付け直します。
+
+        1行に1つ、タブ区切りで次の順に渡します。
+        いまの書庫内パス、フォルダかファイルか、満たすべき正規表現、その決まりの説明
+
+        それぞれについて、新しい名前を1つ考えてください。
+        次の JSON だけを返してください。前後に説明を書かないでください。
+
+        {"names":[{"path":"いまの書庫内パス","name":"新しい名前"}]}
+
+        守ってほしいこと:
+        - name は名前だけにしてください。フォルダの区切り (/) を含めないでください
+        - 渡した正規表現に、端から端まで当てはまる名前にしてください
+        - もとの名前の意味をできるだけ残してください
+        - 分からない部分を作り話で埋めないでください。日付が要る形なら、名前から読み取れるものを使い、読み取れなければその項目は返さないでください
+        - ファイルの拡張子は変えないでください
+        """;
+
+    private const string RuleNameEnglish = """
+        You rename entries inside an archive so that they match a required shape.
+
+        One item per line, tab separated, in this order:
+        current path in the archive, whether it is a folder or a file,
+        the regular expression it must match, and what that rule says.
+
+        Propose one new name for each.
+        Return only the following JSON. Do not write anything before or after it.
+
+        {"names":[{"path":"current path","name":"new name"}]}
+
+        Rules to follow:
+        - name must be a name only. Do not include a path separator (/)
+        - The name must match the given regular expression end to end
+        - Keep as much of the original meaning as you can
+        - Do not invent details you cannot know. If a date is required, use one you can
+          read from the name; if you cannot, leave that item out
+        - Do not change a file's extension
+        """;
+
     // ------------------------------------------------ 決まりを1つ入れる・直す (#26)
 
     public static string RuleEditTitle => Pick("決まりを入れる", "Enter a rule");
