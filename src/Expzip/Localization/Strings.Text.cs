@@ -663,10 +663,10 @@ internal static partial class Strings
     public static string RuleClose => Pick("閉じる", "Close");
 
     public static string RuleFound(int count) => Pick(
-        $"決まりを {count} 件読み取りました。", $"Read off {count} rule(s).");
+        $"ルールを {count} 件読み取りました。", $"Read off {count} rule(s).");
 
     public static string RuleNoneFound => Pick(
-        "決まりらしいものは見つかりませんでした。"
+        "ルールらしいものは見つかりませんでした。"
         + "お手本の項目が少ないと、読み取れることがありません。",
         "No rules could be read off. "
         + "There may be too few entries in the model archive to see a pattern.");
@@ -697,7 +697,7 @@ internal static partial class Strings
     /// <summary>これは提案であって、確かめた結果ではない (仕様書 11.5節)。</summary>
     public static string RuleProposalNotice => Pick(
         "これは AI が読み取った提案です。お手本の中身しか見ていないため、"
-        + "本当の決まりとは違うことがあります。"
+        + "本当のルールとは違うことがあります。"
         + "使うものを選び、値も説明も直せます。人が足すこともできます。"
         + "保存するまでは何も残りません。",
         "These are the AI's proposals. It has seen only this archive, "
@@ -706,7 +706,7 @@ internal static partial class Strings
         + "Nothing is stored until you save.");
 
     public static string RuleUnreadable => Pick(
-        "AI の答えを決まりの形として読み取れませんでした。"
+        "AI の答えをルールの形として読み取れませんでした。"
         + "モデルを変えるか、もう一度試してください。",
         "The AI's answer could not be read as a set of rules. "
         + "Try again, or try a different model.");
@@ -737,46 +737,46 @@ internal static partial class Strings
     public static string RuleSave => Pick("保存する", "Save");
 
     public static string RuleLoaded(int count, string from) => from.Length == 0
-        ? Pick($"保存されていた決まり {count} 件を読み込みました。",
+        ? Pick($"保存されていたルール {count} 件を読み込みました。",
             $"Loaded {count} saved rule(s).")
-        : Pick($"保存されていた決まり {count} 件を読み込みました (お手本: {from})。",
+        : Pick($"保存されていたルール {count} 件を読み込みました (お手本: {from})。",
             $"Loaded {count} saved rule(s) (learned from {from}).");
 
     public static string RuleAlreadyHad => Pick(
         "すでにあるものは足していません。", " Ones already listed were not added again.");
 
     public static string RuleSaved(int total, int used) => Pick(
-        $"決まり {total:N0} 件を保存しました (使うのは {used:N0} 件)。",
+        $"ルール {total:N0} 件を保存しました (使うのは {used:N0} 件)。",
         $"Saved {total:N0} rule(s); {used:N0} of them are in use.");
 
-    /// <summary>保存した決まりのうち、実際に使うもの。ステータスバーに出す。</summary>
+    /// <summary>保存したルールのうち、実際に使うもの。ステータスバーに出す。</summary>
     public static string RuleKept(int used) => Pick(
-        $"決まりを保存しました (使うのは {used:N0} 件)",
+        $"ルールを保存しました (使うのは {used:N0} 件)",
         $"Saved the rules; {used:N0} in use");
 
     public static string RuleCleared => Pick(
-        "保存されていた決まりを消しました。", "Removed the saved rules.");
+        "保存されていたルールを消しました。", "Removed the saved rules.");
 
     public static string RuleSaveFailed => Pick(
-        "決まりを保存できませんでした。exe と同じフォルダに書き込めない場所のようです。",
+        "ルールを保存できませんでした。exe と同じフォルダに書き込めない場所のようです。",
         "Could not save the rules. The folder holding the exe appears not to be writable.");
 
-    // ------------------------------------------------ 決まりに合っているか見る (#27)
+    // ------------------------------------------------ ルールに合っているか見る (#27)
 
     public static string RuleAuditMenu => Pick(
-        "決まりに合っているか見る…", "Check against the rules...");
+        "ルールに合っているか見る…", "Check against the rules...");
 
     public static string RuleNoneSaved => Pick(
-        "決まりが保存されていません。先に「書庫の作り方を推定…」で決めてください。",
+        "ルールが保存されていません。先に「書庫の作り方を推定…」で決めてください。",
         "No rules are saved yet. "
         + "Set them under \"Work out how this archive is built...\" first.");
 
     public static string RuleAuditTitle(string archiveName) => Pick(
-        $"決まりに合っているか - {archiveName}",
+        $"ルールに合っているか - {archiveName}",
         $"Rule check - {archiveName}");
 
     public static string RuleAuditClean => Pick(
-        "決まりに合っていない項目は見つかりませんでした",
+        "ルールに合っていない項目は見つかりませんでした",
         "Nothing conflicts with the rules");
 
     /// <summary>合っていない項目の数と、そもそも無かったものの数 (#27)。</summary>
@@ -785,52 +785,52 @@ internal static partial class Strings
     /// 数だけでも別に言う。印が付かないことを「問題なし」と読ませない。
     /// </remarks>
     public static string RuleAuditFound(int broken, int missing) => missing == 0
-        ? Pick($"決まりに合っていない項目が {broken:N0} 件あります",
+        ? Pick($"ルールに合っていない項目が {broken:N0} 件あります",
             $"{broken:N0} item(s) conflict with the rules")
         : broken == 0
             ? Pick($"あるはずのものが {missing:N0} 件ありません",
                 $"{missing:N0} required item(s) are missing")
-            : Pick($"決まりに合っていない項目が {broken:N0} 件、"
+            : Pick($"ルールに合っていない項目が {broken:N0} 件、"
                 + $"あるはずのものが {missing:N0} 件ありません",
                 $"{broken:N0} item(s) conflict with the rules, "
                 + $"and {missing:N0} required item(s) are missing");
 
     public static string RuleAuditSource(int rules, string from, DateTimeOffset at) =>
         from.Length == 0
-            ? Pick($"決まり {rules:N0} 件を当てました。",
+            ? Pick($"ルール {rules:N0} 件を当てました。",
                 $"Applied {rules:N0} rule(s).")
-            : Pick($"決まり {rules:N0} 件を当てました "
+            : Pick($"ルール {rules:N0} 件を当てました "
                 + $"(お手本: {from}、{at.LocalDateTime:yyyy/MM/dd HH:mm})。",
                 $"Applied {rules:N0} rule(s) "
                 + $"(learned from {from} on {at.LocalDateTime:yyyy/MM/dd HH:mm}).");
 
     /// <summary>多すぎて出し切れなかったときだけ出す (#27)。</summary>
     public static string RuleAuditTrimmed(int count) => Pick(
-        $"ほか {count:N0} 件は多すぎるため並べていません。決まりを絞るか、直してから見直してください。",
+        $"ほか {count:N0} 件は多すぎるため並べていません。ルールを絞るか、直してから見直してください。",
         $"{count:N0} more are not listed because there are too many. "
         + "Narrow the rules or fix these first.");
 
     public static string RuleAuditColumnTarget => Pick("対象", "Item");
 
-    public static string RuleAuditColumnRule => Pick("決まり", "Rule");
+    public static string RuleAuditColumnRule => Pick("ルール", "Rule");
 
     /// <summary>一覧の旗に添える説明 (#27)。</summary>
     public static string RuleBreaksTooltip(string rules) => Pick(
-        $"決まりに合っていません:{Environment.NewLine}{rules}",
+        $"ルールに合っていません:{Environment.NewLine}{rules}",
         $"Does not match the rules:{Environment.NewLine}{rules}");
 
-    // ------------------------------------------------ 決まりに合わせて直す (#28)
+    // ------------------------------------------------ ルールに合わせて直す (#28)
 
     public static string RuleFixMenu => Pick(
-        "決まりに合わせて直す…", "Fix to match the rules...");
+        "ルールに合わせて直す…", "Fix to match the rules...");
 
     public static string RuleFixTitle(string archiveName) => Pick(
-        $"決まりに合わせて直す - {archiveName}",
+        $"ルールに合わせて直す - {archiveName}",
         $"Fix to match the rules - {archiveName}");
 
     /// <summary>何をする画面かと、勝手には直さないことを断る (#28)。</summary>
     public static string RuleFixIntro => Pick(
-        "決まりに合っていない項目の直し方です。"
+        "ルールに合っていない項目の直し方です。"
         + "はじめは1つも選ばれていません。直すものを選び、"
         + "「直す」を押すと、もう一度確かめてから書庫を書き換えます。"
         + "書き換えは取り消せません。",
@@ -868,7 +868,7 @@ internal static partial class Strings
         "書庫から取り除きます", "Removed from the archive");
 
     public static string RuleFixWillFix => Pick(
-        "この名前で決まりに合います", "This name matches the rules");
+        "この名前でルールに合います", "This name matches the rules");
 
     /// <summary>書庫の中をいじっても直らないもの (#28)。</summary>
     public static string RuleFixByHand => Pick(
@@ -884,11 +884,11 @@ internal static partial class Strings
         "いまの名前と同じです", "That is the current name");
 
     public static string RuleFixStillBroken(string pattern) => Pick(
-        $"まだ決まりの形 ({pattern}) に合っていません",
+        $"まだルールの形 ({pattern}) に合っていません",
         $"Still does not match the pattern ({pattern})");
 
     public static string RuleFixWouldBreak(string value) => Pick(
-        $"その名前は別の決まり ({value}) に引っ掛かります",
+        $"その名前は別のルール ({value}) に引っ掛かります",
         $"That name runs into another rule ({value})");
 
     public static string RuleFixTaken => Pick(
@@ -936,7 +936,7 @@ internal static partial class Strings
     public static string RuleFixNamed(int filled, int refused) => refused == 0
         ? Pick($"{filled:N0} 件に名前を入れました。", $"Filled in {filled:N0} name(s).")
         : Pick($"{filled:N0} 件に名前を入れました。"
-            + $"決まりに合わない案 {refused:N0} 件は採りませんでした。",
+            + $"ルールに合わない案 {refused:N0} 件は採りませんでした。",
             $"Filled in {filled:N0} name(s). "
             + $"{refused:N0} suggestion(s) did not match the rules and were dropped.");
 
@@ -959,7 +959,7 @@ internal static partial class Strings
         書庫の中の名前を、決まった形に合うように付け直します。
 
         1行に1つ、タブ区切りで次の順に渡します。
-        いまの書庫内パス、フォルダかファイルか、満たすべき正規表現、その決まりの説明
+        いまの書庫内パス、フォルダかファイルか、満たすべき正規表現、そのルールの説明
 
         それぞれについて、新しい名前を1つ考えてください。
         次の JSON だけを返してください。前後に説明を書かないでください。
@@ -1085,7 +1085,7 @@ internal static partial class Strings
         これから、ある書庫のフォルダ構成とファイル名の一覧を渡します。
         ファイルの中身はありません。名前と構成だけです。
 
-        その並びから読み取れる「この書庫の作り方の決まり」を挙げてください。
+        その並びから読み取れる「この書庫の作り方のルール」を挙げてください。
         次の JSON だけを返してください。前後に説明を書かないでください。
 
         {"rules":[{"kind":"...","scope":"...","value":"...","description":"...","evidence":"..."}]}
@@ -1103,7 +1103,7 @@ internal static partial class Strings
         - files: すべてのファイル
         - all: すべての項目
 
-        description には、その決まりを日本語の一文で書いてください。
+        description には、そのルールを日本語の一文で書いてください。
         evidence には、一覧のどこからそう読み取ったかを短く書いてください。
 
         守ってほしいこと:
