@@ -34,24 +34,9 @@
 
         <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap" />
 
-        <!-- 決まりを人が足す・直す・消す (#26)。何のためのものかを添える (#70) -->
-        <StackPanel x:Name="EditButtons" Orientation="Horizontal" Margin="0,10,0,0"
-                    Visibility="Collapsed">
-            <Button x:Name="AddButton" Width="110" Height="24" Margin="0,0,8,0"
-                    Click="AddButton_Click" />
-            <Button x:Name="EditButton" Width="96" Height="24" Margin="0,0,8,0"
-                    Click="EditButton_Click" />
-            <Button x:Name="RemoveButton" Width="96" Height="24" Margin="0,0,10,0"
-                    Click="RemoveButton_Click" />
-            <TextBlock x:Name="EditHint" VerticalAlignment="Center" TextWrapping="Wrap"
-                       Foreground="{x:Static SystemColors.GrayTextBrush}" />
-        </StackPanel>
-
         <!-- 読み取れた決まり。1件も無いうちは場所を取らない -->
         <ListView x:Name="RuleList" Height="220" Margin="0,8,0,0"
                   Visibility="Collapsed"
-                  MouseDoubleClick="RuleList_MouseDoubleClick"
-                  SelectionChanged="RuleList_SelectionChanged"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto">
             <!--
                 行の名前。入れておかないと、支援技術には束ねている型の名前が

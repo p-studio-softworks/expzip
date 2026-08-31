@@ -1,7 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
 using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Localization;
@@ -18,9 +17,14 @@ namespace Expzip.Ui;
 /// 置いて、押すかどうかを利用者に決めてもらう。開いただけでは何も送らない。
 /// </para>
 /// <para>
-/// **読み取った決まりは、そのまま確定しない** (#26)。使うかどうかを1件ずつ選べ、
-/// 値も説明も直せ、人が足すこともできる。**AIの読み違いを人が正せることを必須**
-/// とする (仕様書 11.3節の3)。直した結果はその場で書庫に当てて出す。
+/// **読み取った決まりは、そのまま確定しない** (#26)。使うかどうかを1件ずつ選べる。
+/// **AIの読み違いを人が正せることを必須**とする (仕様書 11.3節の3)。ここでは
+/// 「採らない」という形で正す。
+/// </para>
+/// <para>
+/// 自分の決まりを足す・直す・消す口も一度は置いたが、**入力の仕方が分かりにくく、
+/// 誤った決まりを作らせてしまう**ため、いったん外した (#72)。作り直しは #71。
+/// ファイルを手で書けば自分の決まりは持てるので、その道は塞いでいない。
 /// </para>
 /// <para>
 /// **読み取っても、保存するまでは何も残らない。**すでに保存された決まりがあれば
@@ -80,10 +84,6 @@ public partial class RuleLearnDialog : Window
         EvidenceColumn.Header = Strings.RuleColumnEvidence;
         SourceColumn.Header = Strings.RuleColumnSource;
         VerdictColumn.Header = Strings.RuleColumnVerdict;
-        AddButton.Content = Strings.RuleAdd;
-        EditHint.Text = Strings.RuleEditHint;
-        EditButton.Content = Strings.RuleEdit;
-        RemoveButton.Content = Strings.RuleRemove;
         SendButton.Content = Strings.RuleSend;
         SaveButton.Content = Strings.RuleSave;
         CloseButton.Content = Strings.RuleClose;
@@ -180,73 +180,13 @@ public partial class RuleLearnDialog : Window
         => a.Kind == b.Kind && a.Scope == b.Scope
             && string.Equals(a.Value, b.Value, StringComparison.OrdinalIgnoreCase);
 
-    // ------------------------------------------------------------------ 人が直す (#26)
-
-    private void AddButton_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new RuleEditDialog(this, _sample, null);
-
-        if (dialog.ShowDialog() == true && dialog.Rule is { } rule)
-        {
-            _rows.Add(new RuleRow(rule, true, _sample));
-            RuleList.SelectedIndex = _rows.Count - 1;
-            ResultText.Text = Strings.RuleAdded;
-            ShowRows();
-        }
-    }
-
-    private void EditButton_Click(object sender, RoutedEventArgs e) => Edit();
-
-    private void RuleList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        => Edit();
-
-    private void Edit()
-    {
-        if (RuleList.SelectedItem is not RuleRow row)
-        {
-            return;
-        }
-
-        var dialog = new RuleEditDialog(this, _sample, row.Rule);
-
-        if (dialog.ShowDialog() == true && dialog.Rule is { } rule)
-        {
-            row.Replace(rule);
-            ResultText.Text = Strings.RuleEdited;
-        }
-    }
-
-    private void RemoveButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (RuleList.SelectedItem is not RuleRow row)
-        {
-            return;
-        }
-
-        _rows.Remove(row);
-        ResultText.Text = Strings.RuleRemoved;
-        ShowRows();
-    }
-
-    private void RuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        => ShowButtons();
-
-    /// <summary>一覧と編集の口を、中身に合わせて出し入れする。</summary>
+    /// <summary>一覧を、中身に合わせて出し入れする。</summary>
     private void ShowRows()
     {
         var any = _rows.Count > 0;
         RuleList.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
-        EditButtons.Visibility = Visibility.Visible;
         NoticeText.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         SaveButton.IsEnabled = any || RuleStore.Exists;
-        ShowButtons();
-    }
-
-    private void ShowButtons()
-    {
-        var picked = RuleList.SelectedItem is RuleRow;
-        EditButton.IsEnabled = picked;
-        RemoveButton.IsEnabled = picked;
     }
 
     // ------------------------------------------------------------------ 残す (#26)

@@ -1,5 +1,4 @@
 ﻿using System.IO.Compression;
-using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Inspection;
 
@@ -735,25 +734,6 @@ internal static partial class Strings
     /// <summary>当てる先が1つも無い。守られているとは言えない (#26)。</summary>
     public static string RuleNothingToCheck => Pick("当てる先が無い", "Nothing to check");
 
-    public static string RuleAdd => Pick("自分で足す", "Add my own");
-
-    public static string RuleEdit => Pick("直す", "Edit");
-
-    public static string RuleRemove => Pick("消す", "Remove");
-
-    /// <summary>
-    /// 3つの押しボタンが何のためのものかを、押す前に言う (#70)。
-    /// </summary>
-    /// <remarks>
-    /// 出どころの欄に「AI / 自分」とは出しているが、それは押したあとの話。
-    /// **お手本から読み取ったものとは別に、自分の決まりを持てる**ことが
-    /// 分かるようにする。
-    /// </remarks>
-    public static string RuleEditHint => Pick(
-        "お手本から読み取った決まりのほかに、自分の決まりを足せます。読み取った決まりも直せます。",
-        "Besides what was read off the model archive, you can add rules of your own. "
-        + "You can also edit the ones that were read off.");
-
     public static string RuleSave => Pick("保存する", "Save");
 
     public static string RuleLoaded(int count, string from) => from.Length == 0
@@ -764,13 +744,6 @@ internal static partial class Strings
 
     public static string RuleAlreadyHad => Pick(
         "すでにあるものは足していません。", " Ones already listed were not added again.");
-
-    public static string RuleAdded => Pick(
-        "自分の決まりを足しました。", "Added a rule of your own.");
-
-    public static string RuleEdited => Pick("決まりを直しました。", "Edited the rule.");
-
-    public static string RuleRemoved => Pick("決まりを消しました。", "Removed the rule.");
 
     public static string RuleSaved(int total, int used) => Pick(
         $"決まり {total:N0} 件を保存しました (使うのは {used:N0} 件)。",
@@ -1021,51 +994,6 @@ internal static partial class Strings
           read from the name; if you cannot, leave that item out
         - Do not change a file's extension
         """;
-
-    // ------------------------------------------------ 決まりを1つ入れる・直す (#26)
-
-    public static string RuleEditTitle => Pick(
-        "決まりを自分で入れる", "Enter a rule of your own");
-
-    public static string RuleEditIntro => Pick(
-        "決まりを1つ入れます。入れながら、いま開いている書庫に当てた結果を下に出します。",
-        "Enter one rule. As you type, the result of applying it to the open archive "
-        + "is shown below.");
-
-    public static string RuleEditOk => Pick("決める", "Use this");
-
-    /// <summary>値が何を指すかは種類で変わる。その場で言い換える (#26)。</summary>
-    public static string RuleValueHint(RuleKind kind) => kind switch
-    {
-        RuleKind.RequiredEntry => Pick(
-            "必ずある名前を入れてください (例: README.txt)。",
-            "Enter a name that must exist (for example README.txt)."),
-        RuleKind.RequiredFolder => Pick(
-            "必ずあるフォルダの名前を入れてください (例: docs)。",
-            "Enter a folder name that must exist (for example docs)."),
-        RuleKind.ForbiddenExtension => Pick(
-            "含めない拡張子を入れてください (例: .tmp)。「.」は無くても構いません。",
-            "Enter an extension that must not appear (for example .tmp). "
-            + "The leading dot is optional."),
-        RuleKind.ForbiddenName => Pick(
-            "含めない名前を入れてください (例: Thumbs.db)。",
-            "Enter a name that must not appear (for example Thumbs.db)."),
-        _ => Pick(
-            "名前の形を正規表現で入れてください (例: \\d{8}_.+)。"
-            + "前後の ^ と $ は無くても、端から端まで見ます。",
-            "Enter the name pattern as a regular expression (for example \\d{8}_.+). "
-            + "It is matched end to end even without ^ and $."),
-    };
-
-    public static string RuleNeedsValue => Pick(
-        "値を入れてください。", "Enter a value.");
-
-    public static string RuleBadPattern => Pick(
-        "正規表現として使えないか、何にでも当てはまります。",
-        "That is not a usable regular expression, or it matches anything.");
-
-    public static string RuleHereIs(string verdict) => Pick(
-        $"いま開いている書庫では: {verdict}", $"In the open archive: {verdict}");
 
     public static string RuleColumnKind => Pick("種類", "Kind");
 
