@@ -714,14 +714,18 @@ internal static partial class Strings
     }
 
     /// <summary>これは提案であって、確かめた結果ではない (仕様書 11.5節)。</summary>
+    /// <remarks>
+    /// **#72 で足す・直す・消す口を外したのに、この文だけ残っていた** (#77)。
+    /// いまできるのは「使う / 使わない」の選びだけ。無い機能を案内していた。
+    /// </remarks>
     public static string RuleProposalNotice => Pick(
         "これは AI が読み取った提案です。お手本の中身しか見ていないため、"
         + "本当のルールとは違うことがあります。"
-        + "使うものを選び、値も説明も直せます。人が足すこともできます。"
+        + "使うものを選んでください。外したものは、保存しても当てません。"
         + "保存するまでは何も残りません。",
         "These are the AI's proposals. It has seen only this archive, "
         + "so they may not match the real rules. "
-        + "Choose which to keep, edit the value and the wording, or add your own. "
+        + "Choose which ones to keep. Those you clear are not applied, even once saved. "
         + "Nothing is stored until you save.");
 
     public static string RuleUnreadable => Pick(

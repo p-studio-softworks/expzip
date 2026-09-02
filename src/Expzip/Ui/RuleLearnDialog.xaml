@@ -1,6 +1,7 @@
 ﻿<Window x:Class="Expzip.Ui.RuleLearnDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:Expzip.Ui"
         Width="1040"
         Height="620"
         MinWidth="700"
@@ -9,6 +10,14 @@
         ShowInTaskbar="False"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display">
+
+    <Window.Resources>
+        <!--
+            幅の決まっている列: 使う 48 + 種類 110 + どこに 110 + 出どころ 70
+            + この書庫では 110 = 448。縦スクロール棒と余白で 40 を見込む
+        -->
+        <ui:ShareWidth x:Key="Share" Fixed="488" />
+    </Window.Resources>
 
     <!--
         お手本書庫からルールを学び、人が確かめて直す (#25、#26)。
@@ -86,11 +95,24 @@
                                     DisplayMemberBinding="{Binding KindText}" />
                     <GridViewColumn x:Name="ScopeColumn" Width="110"
                                     DisplayMemberBinding="{Binding ScopeText}" />
-                    <GridViewColumn x:Name="ValueColumn" Width="140"
+                    <!--
+                        値・説明・根拠は中身が長い。**ここが読めないと質を判断
+                        できない**ので、窓を広げた分は3つで分け合う (#77)
+                    -->
+                    <GridViewColumn x:Name="ValueColumn"
+                                    Width="{Binding ActualWidth, ElementName=RuleList,
+                                                    Converter={StaticResource Share},
+                                                    ConverterParameter=0.30}"
                                     DisplayMemberBinding="{Binding Value}" />
-                    <GridViewColumn x:Name="DescriptionColumn" Width="220"
+                    <GridViewColumn x:Name="DescriptionColumn"
+                                    Width="{Binding ActualWidth, ElementName=RuleList,
+                                                    Converter={StaticResource Share},
+                                                    ConverterParameter=0.40}"
                                     DisplayMemberBinding="{Binding Description}" />
-                    <GridViewColumn x:Name="EvidenceColumn" Width="170"
+                    <GridViewColumn x:Name="EvidenceColumn"
+                                    Width="{Binding ActualWidth, ElementName=RuleList,
+                                                    Converter={StaticResource Share},
+                                                    ConverterParameter=0.30}"
                                     DisplayMemberBinding="{Binding Evidence}" />
                     <GridViewColumn x:Name="SourceColumn" Width="70"
                                     DisplayMemberBinding="{Binding SourceText}" />
