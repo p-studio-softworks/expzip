@@ -582,7 +582,13 @@ internal static partial class Strings
 
     public static string AiTest => Pick("接続テスト", "Test connection");
 
-    public static string AiTesting => Pick("試しています…", "Testing...");
+    /// <summary>
+    /// 試している間の表示。**経過した秒を出す** (#76)。
+    /// 待ち時間を延ばしたぶん、動いているのか固まったのかが分からなくなるため。
+    /// </summary>
+    public static string AiTesting(int seconds) => seconds <= 0
+        ? Pick("試しています…", "Testing...")
+        : Pick($"試しています… ({seconds} 秒)", $"Testing... ({seconds}s)");
 
     public static string AiBadEndpoint => Pick(
         "URLが正しくありません。http:// か https:// で始まるURLを入れてください。",
@@ -599,9 +605,19 @@ internal static partial class Strings
         $"接続できましたが断られました (HTTP {status})。{Environment.NewLine}{reason}",
         $"Reached it, but the request was refused (HTTP {status}).{Environment.NewLine}{reason}");
 
-    public static string AiTimedOut => Pick(
-        "応答がありませんでした。URLと、この PC から外へ出られるかを確かめてください。",
-        "No response. Check the URL, and whether this PC can reach the outside.");
+    /// <summary>
+    /// 待ち時間切れ。**繋がらなかったのとは違う** (#76)。
+    /// 相手には届いており、答えが返る前に上限に達しただけなので、
+    /// URLや通信経路を疑わせない。考えるモデルほど時間がかかる。
+    /// </summary>
+    public static string AiTimedOut(int seconds) => Pick(
+        $"{seconds} 秒待ちましたが、答えが返りませんでした。"
+        + $"{Environment.NewLine}"
+        + "混んでいるか、考える時間の長いモデルかもしれません。"
+        + "もう一度試すか、軽いモデルに変えてみてください。",
+        $"Waited {seconds}s with no answer.{Environment.NewLine}"
+        + "The service may be busy, or the model may take a long time to think. "
+        + "Try again, or switch to a lighter model.");
 
     public static string AiSaved => Pick("AI連携の設定を保存しました", "Saved the AI settings");
 
@@ -658,7 +674,10 @@ internal static partial class Strings
 
     public static string RuleSend => Pick("送って読み取る", "Send and read the rules");
 
-    public static string RuleSending => Pick("読み取っています…", "Reading...");
+    /// <summary>読み取っている間の表示。経過した秒を出す (#76)。</summary>
+    public static string RuleSending(int seconds) => seconds <= 0
+        ? Pick("読み取っています…", "Reading...")
+        : Pick($"読み取っています… ({seconds} 秒)", $"Reading... ({seconds}s)");
 
     public static string RuleClose => Pick("閉じる", "Close");
 

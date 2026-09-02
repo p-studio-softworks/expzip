@@ -130,12 +130,14 @@ public partial class RuleFixDialog : Window
         using var cancellation = new CancellationTokenSource();
         _asking = cancellation;
         NameButton.IsEnabled = false;
-        NameResult.Text = Strings.RuleSending;
 
         NamingResult result;
 
         try
         {
+            // 待つ間、秒を進める。考えるモデルは分単位かかる (#76)
+            using var ticker = new WaitTicker(Strings.RuleSending, t => NameResult.Text = t);
+
             result = await RuleNamer.SuggestAsync(
                 _options, [.. _rows.Select(static row => row.Fix)], _audit, _contents,
                 cancellation.Token);

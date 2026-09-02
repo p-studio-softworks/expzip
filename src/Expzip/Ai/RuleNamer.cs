@@ -27,7 +27,11 @@ namespace Expzip.Ai;
 internal static class RuleNamer
 {
     /// <summary>答えの長さの上限。</summary>
-    private const int AnswerLimit = 1500;
+    /// <remarks>
+    /// 考えてから答えるモデルは、考えた分もこの予算から引く (#76)。
+    /// 返すのは名前の一覧だけだが、考える余地を見込んで広くとる。
+    /// </remarks>
+    private const int AnswerLimit = 6000;
 
     /// <summary>一度に頼む数の上限。多いと当てずっぽうが増える。</summary>
     private const int MaxItems = 20;

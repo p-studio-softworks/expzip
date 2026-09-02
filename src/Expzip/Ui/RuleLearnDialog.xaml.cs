@@ -117,12 +117,14 @@ public partial class RuleLearnDialog : Window
         using var cancellation = new CancellationTokenSource();
         _asking = cancellation;
         SendButton.IsEnabled = false;
-        ResultText.Text = Strings.RuleSending;
 
         RuleEstimate estimate;
 
         try
         {
+            // 待つ間、秒を進める。考えるモデルは分単位かかる (#76)
+            using var ticker = new WaitTicker(Strings.RuleSending, t => ResultText.Text = t);
+
             estimate = await RuleEstimator.EstimateAsync(
                 _options, _sample, _digest, cancellation.Token);
         }

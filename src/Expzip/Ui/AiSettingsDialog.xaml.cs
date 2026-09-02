@@ -159,12 +159,14 @@ public partial class AiSettingsDialog : Window
         TestButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         ResultText.Foreground = SystemColors.GrayTextBrush;
-        ResultText.Text = Strings.AiTesting;
 
         AiTestResult result;
 
         try
         {
+            // 待つ間、秒を進める。考えるモデルは短いやり取りでも時間がかかる (#76)
+            using var ticker = new WaitTicker(Strings.AiTesting, t => ResultText.Text = t);
+
             result = await AiClient.TestAsync(Options, cancellation.Token);
         }
         finally

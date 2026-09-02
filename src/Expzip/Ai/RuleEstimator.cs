@@ -33,7 +33,12 @@ internal static class RuleEstimator
     private const int MaxRules = 8;
 
     /// <summary>答えの長さの上限。決まり8件を書くには十分。</summary>
-    private const int AnswerLimit = 2000;
+    /// <remarks>
+    /// **考えてから答えるモデルは、考えた分もこの予算から引く** (#76)。
+    /// 2000 では、考え終えた時点で尽きて答えが空になりうる。答え自体は
+    /// ルール数件分の JSON で足りるが、考える余地を見込んで広くとる。
+    /// </remarks>
+    private const int AnswerLimit = 8000;
 
     /// <summary>お手本から決まりを推定する。</summary>
     public static async Task<RuleEstimate> EstimateAsync(

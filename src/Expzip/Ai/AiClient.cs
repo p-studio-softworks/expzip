@@ -26,10 +26,26 @@ internal static class AiClient
     private const string Path = "chat/completions";
 
     /// <summary>繋がるか確かめるときの待ち時間。</summary>
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+    /// <remarks>
+    /// **考えてから答えるモデルは、短いやり取りでも時間がかかる** (#76)。
+    /// 30秒では `gemini-3.6-flash` が日によって間に合わず、繋がるのに
+    /// 繋がらないと言う状態になっていた。
+    /// </remarks>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// 繋がるか確かめるときに許す答えの長さ。
+    /// </summary>
+    /// <remarks>
+    /// **1 にしてはいけない** (#76)。考えてから答えるモデルは、考えた分も
+    /// この予算から引く。1 では考える前に尽き、答えが返らない。
+    /// 中身は見ないので短くてよいが、考える余地は残す。
+    /// </remarks>
+    private const int PingLimit = 16;
 
     /// <summary>尋ねるときの待ち時間。読んで考える分だけ長くとる (#25)。</summary>
-    private static readonly TimeSpan Thinking = TimeSpan.FromMinutes(2);
+    /// <remarks>2分では考えるモデルに足りなかった (#76)。</remarks>
+    private static readonly TimeSpan Thinking = TimeSpan.FromMinutes(5);
 
     /// <summary>送り出す形。日本語をそのまま載せる。</summary>
     /// <remarks>
@@ -84,7 +100,7 @@ internal static class AiClient
             return new AiTestResult(false, refusal);
         }
 
-        var sent = await SendAsync(options, Body(options, "ping", null, 1), Patience,
+        var sent = await SendAsync(options, Body(options, "ping", null, PingLimit), Patience,
             cancellationToken);
 
         return sent.Ok
@@ -186,7 +202,9 @@ internal static class AiClient
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return (false, string.Empty, Strings.AiTimedOut);
+            // 待ち時間切れ。**繋がらなかったのとは違う** (#76)。
+            // 相手には届いており、答えが返る前に上限に達しただけ
+            return (false, string.Empty, Strings.AiTimedOut((int)patience.TotalSeconds));
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
                                    or UriFormatException)
