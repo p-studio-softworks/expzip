@@ -187,6 +187,10 @@ public partial class RuleLearnDialog : Window
         RuleList.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         NoticeText.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         SaveButton.IsEnabled = any || RuleStore.Exists;
+
+        // 一覧の行は Collapsed でも * のままでは場所を取り続ける。高さも入れ替える。
+        // 読み取った後は一覧のほうが主役になるので、書庫詳細より広く取る (#75)
+        RuleRow.Height = any ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
     }
 
     // ------------------------------------------------------------------ 残す (#26)

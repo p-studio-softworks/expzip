@@ -2,8 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Width="1040"
-        SizeToContent="Height"
-        ResizeMode="NoResize"
+        Height="620"
+        MinWidth="700"
+        MinHeight="560"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         UseLayoutRounding="True"
@@ -14,28 +15,50 @@
         送る前に、送るものをそのまま見せる。
         文言はすべて ApplyLanguage が入れる (#23)
     -->
-    <StackPanel Margin="16">
-        <TextBlock x:Name="IntroText" TextWrapping="Wrap" Margin="0,0,0,12" />
 
-        <TextBlock x:Name="SendLabel" FontWeight="SemiBold" Margin="0,0,0,4" />
+    <!--
+        書庫詳細とルール一覧は、どちらも中身の量が書庫によって大きく変わる。
+        窓を広げた分だけ伸びるように、StackPanel ではなく Grid で組む (#75)
+    -->
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <!-- 書庫詳細。送る前はここだけが伸びる -->
+            <RowDefinition x:Name="PayloadRow" Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <!--
+                ルール一覧。読み取る前は 1件も無いので高さ 0 にしておく。
+                Collapsed にしても * のままでは場所を取り続けてしまうため、
+                ShowRows で高さも入れ替える
+            -->
+            <RowDefinition x:Name="RuleRow" Height="0" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="IntroText" Grid.Row="0" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+        <TextBlock x:Name="SendLabel" Grid.Row="1" FontWeight="SemiBold" Margin="0,0,0,4" />
 
         <!--
             外へ出す前に、出すものをそのまま置く。畳んだ要約ではなく現物を見せる。
             等幅にするのは、フォルダの深さが揃って見えるため
         -->
-        <TextBox x:Name="PayloadBox" Height="150" IsReadOnly="True"
+        <TextBox x:Name="PayloadBox" Grid.Row="2" MinHeight="120" IsReadOnly="True"
                  FontFamily="Consolas, MS Gothic" FontSize="12"
                  VerticalScrollBarVisibility="Auto"
                  HorizontalScrollBarVisibility="Auto"
                  TextWrapping="NoWrap" />
 
-        <TextBlock x:Name="PayloadText" Margin="0,6,0,0" TextWrapping="Wrap"
+        <TextBlock x:Name="PayloadText" Grid.Row="3" Margin="0,6,0,0" TextWrapping="Wrap"
                    Foreground="{x:Static SystemColors.GrayTextBrush}" />
 
-        <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap" />
+        <TextBlock x:Name="ResultText" Grid.Row="4" Margin="0,12,0,0" TextWrapping="Wrap" />
 
-        <!-- 読み取れた決まり。1件も無いうちは場所を取らない -->
-        <ListView x:Name="RuleList" Height="220" Margin="0,8,0,0"
+        <!-- 読み取れたルール。1件も無いうちは場所を取らない -->
+        <ListView x:Name="RuleList" Grid.Row="5" MinHeight="160" Margin="0,8,0,0"
                   Visibility="Collapsed"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto">
             <!--
@@ -50,7 +73,7 @@
             </ListView.ItemContainerStyle>
             <ListView.View>
                 <GridView>
-                    <!-- 外した決まりは、保存しても当てない -->
+                    <!-- 外したルールは、保存しても当てない -->
                     <GridViewColumn x:Name="UseColumn" Width="48">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
@@ -79,11 +102,12 @@
         </ListView>
 
         <!-- 提案であって確かめた結果ではない、と断る (仕様書 11.5節) -->
-        <TextBlock x:Name="NoticeText" Margin="0,10,0,0" TextWrapping="Wrap"
+        <TextBlock x:Name="NoticeText" Grid.Row="6" Margin="0,10,0,0" TextWrapping="Wrap"
                    Visibility="Collapsed"
                    Foreground="{x:Static SystemColors.GrayTextBrush}" />
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Grid.Row="7" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button x:Name="SendButton" Width="160" Height="26" Margin="0,0,8,0"
                     IsDefault="True" Click="SendButton_Click" />
             <Button x:Name="SaveButton" Width="120" Height="26" Margin="0,0,8,0"
@@ -91,5 +115,5 @@
             <Button x:Name="CloseButton" Width="96" Height="26"
                     IsCancel="True" Click="CloseButton_Click" />
         </StackPanel>
-    </StackPanel>
+    </Grid>
 </Window>
