@@ -37,29 +37,102 @@ internal static class RuleChecker
         IEnumerable<ArchiveRule> rules, ArchiveContents contents)
         => [.. rules.Select(rule => Check(rule, contents))];
 
-    /// <summary>「必ずある」を見る。無ければ違反だが、指させる場所は無い。</summary>
+    /// <summary>「必ずある」を見る。</summary>
+    /// <remarks>
+    /// <para>
+    /// **場所が指定されていれば、その場所ごとに見る** (#82)。
+    /// 「各サブライブラリに CHANGELOG.md を必ず置く」は、**どこか1つに
+    /// あれば済む話ではない。**5つのうち1つを消しても守られていることに
+    /// なっていた。ルールの説明が「各」と言っているのに、判定は
+    /// 「どこかに」だった。
+    /// </para>
+    /// <para>
+    /// 場所ごとに見ると、**足りない場所を指させる**ようにもなる。
+    /// 場所が無いときは、これまでどおり書庫のどこかにあればよい。
+    /// その場合は指させる場所が無いので、違反は空で返す。
+    /// </para>
+    /// </remarks>
     private static RuleResult Required(ArchiveRule rule, ArchiveContents contents, bool folderOnly)
     {
-        var deep = rule.Value.Contains('/');
-        var found = false;
-        var applied = 0;
+        var wanted = rule.Value.Trim('/');
 
-        // 場所が指定されていれば、ルート直下かどうかではなく場所で絞る (#81)
-        var rootOnly = rule.WherePattern is null && rule.Scope == RuleScope.Root;
-
-        Walk(contents.Root, rootOnly, (parent, path, name, isFolder) =>
+        if (rule.WherePattern is not null)
         {
-            if ((folderOnly && !isFolder) || !Here(rule, parent))
-            {
-                return;
-            }
+            var missing = new List<string>();
+            var places = 0;
 
-            // 場所に合う項目が1つも無ければ、あるべきかどうかを言えない
-            applied = 1;
-            found |= string.Equals(deep ? path : name, rule.Value.Trim('/'), Compare);
+            EachFolder(contents.Root, folder =>
+            {
+                if (!Here(rule, folder.FullPath))
+                {
+                    return;
+                }
+
+                places++;
+
+                if (!Holds(folder, wanted, folderOnly))
+                {
+                    missing.Add(folder.FullPath);
+                }
+            });
+
+            // 場所に合うフォルダが1つも無ければ、あるべきかどうかを言えない
+            return new RuleResult(rule, missing.Count == 0, missing, places);
+        }
+
+        var deep = wanted.Contains('/');
+        var found = false;
+
+        Walk(contents.Root, rule.Scope == RuleScope.Root, (_, path, name, isFolder) =>
+        {
+            if (!folderOnly || isFolder)
+            {
+                found |= string.Equals(deep ? path : name, wanted, Compare);
+            }
         });
 
-        return new RuleResult(rule, found, [], applied);
+        return new RuleResult(rule, found, [], 1);
+    }
+
+    /// <summary>そのフォルダの中に、その名前のものがあるか (#82)。</summary>
+    /// <remarks>
+    /// 値に <c>/</c> があれば、**その場所からの相対パス**として扱う。
+    /// 「各ライブラリの include/usb/ に…」のような、一段深いところも指せる。
+    /// </remarks>
+    private static bool Holds(ArchiveFolder folder, string wanted, bool folderOnly)
+    {
+        if (!wanted.Contains('/'))
+        {
+            return (!folderOnly
+                    && folder.Files.Any(f => string.Equals(f.Name, wanted, Compare)))
+                || folder.Folders.Any(f => string.Equals(f.Name, wanted, Compare));
+        }
+
+        var full = folder.FullPath.Length == 0
+            ? wanted
+            : folder.FullPath + "/" + wanted;
+        var hit = false;
+
+        Walk(folder, rootOnly: false, (_, path, _, isFolder) =>
+        {
+            if (!folderOnly || isFolder)
+            {
+                hit |= string.Equals(path, full, Compare);
+            }
+        });
+
+        return hit;
+    }
+
+    /// <summary>フォルダを、根も含めて全部たどる (#82)。</summary>
+    private static void EachFolder(ArchiveFolder root, Action<ArchiveFolder> visit)
+    {
+        visit(root);
+
+        foreach (var child in root.Folders)
+        {
+            EachFolder(child, visit);
+        }
     }
 
     /// <summary>「含めない」を見る。当たったものが違反。</summary>
