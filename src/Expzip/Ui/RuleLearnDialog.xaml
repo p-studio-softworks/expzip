@@ -78,6 +78,16 @@
                 <Style TargetType="ListViewItem">
                     <Setter Property="AutomationProperties.Name"
                             Value="{Binding Description}" />
+                    <!--
+                        採らなかった候補は薄く出す (#80)。見せはするが、
+                        使えるものと同じ顔で並べると取り違える
+                    -->
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanUse}" Value="False">
+                            <Setter Property="Foreground"
+                                    Value="{x:Static SystemColors.GrayTextBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
                 </Style>
             </ListView.ItemContainerStyle>
             <ListView.View>
@@ -86,7 +96,9 @@
                     <GridViewColumn x:Name="UseColumn" Width="48">
                         <GridViewColumn.CellTemplate>
                             <DataTemplate>
+                                <!-- 採らなかった候補は選べない (#80) -->
                                 <CheckBox IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                          IsEnabled="{Binding CanUse}"
                                           HorizontalAlignment="Center" />
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>

@@ -33,21 +33,41 @@ internal sealed class RuleRow : INotifyPropertyChanged
         Verdict = Judge(rule, sample);
     }
 
+    /// <summary>採らなかった候補の行を作る (#80)。</summary>
+    /// <remarks>
+    /// 使うことはできないが、**何が捨てられたのかは見せる。**数だけ知らせても、
+    /// AI が何を言ったのかは分からない。
+    /// </remarks>
+    public RuleRow(RuleDrop drop, ArchiveContents sample)
+    {
+        Rule = drop.Rule;
+        _enabled = false;
+        _sample = sample;
+        CanUse = false;
+        Verdict = drop.Reason == DropReason.Broken
+            ? Strings.RuleDropBroken
+            : Strings.RuleDropUnchecked;
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>この行の決まり。</summary>
     public ArchiveRule Rule { get; private set; }
 
-    /// <summary>この決まりを使うか。外したものは保存しても当てない。</summary>
+    /// <summary>このルールを使うか。外したものは保存しても当てない。</summary>
     public bool Enabled
     {
         get => _enabled;
         set
         {
-            _enabled = value;
+            // 採らなかった候補は使えない。見せるだけ (#80)
+            _enabled = value && CanUse;
             Notify(nameof(Enabled));
         }
     }
+
+    /// <summary>使う・使わないを選べる行か。採らなかった候補は選べない (#80)。</summary>
+    public bool CanUse { get; } = true;
 
     /// <summary>いま開いている書庫に当てた結果。</summary>
     public string Verdict { get; private set; }

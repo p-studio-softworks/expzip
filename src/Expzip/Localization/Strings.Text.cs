@@ -691,14 +691,25 @@ internal static partial class Strings
         + "There may be too few entries in the model archive to see a pattern.");
 
     /// <summary>採らなかった候補の内訳。黙って減らすと、数が合わない理由が分からない。</summary>
-    public static string RuleDropped(int rejected, int unusable)
+    /// <remarks>
+    /// **「破っている」と「確かめられない」は分けて数える** (#80)。前者は AI の
+    /// 読み違いだが、後者はこちらが評価できなかったということで、意味がまるで違う。
+    /// 混ぜて「お手本が満たさない」とだけ言うと、こちらの落ち度を相手のせいにする。
+    /// </remarks>
+    public static string RuleDropped(int broken, int unchecked_, int unusable)
     {
         var parts = new List<string>();
 
-        if (rejected > 0)
+        if (broken > 0)
         {
-            parts.Add(Pick($"お手本自身が満たさないものを {rejected} 件",
-                $"{rejected} that the model archive itself does not satisfy"));
+            parts.Add(Pick($"お手本自身が破っているものを {broken} 件",
+                $"{broken} that the model archive itself breaks"));
+        }
+
+        if (unchecked_ > 0)
+        {
+            parts.Add(Pick($"当てる先が無く確かめられないものを {unchecked_} 件",
+                $"{unchecked_} with nothing to check them against"));
         }
 
         if (unusable > 0)
@@ -756,6 +767,16 @@ internal static partial class Strings
 
     /// <summary>当てる先が1つも無い。守られているとは言えない (#26)。</summary>
     public static string RuleNothingToCheck => Pick("当てる先が無い", "Nothing to check");
+
+    /// <summary>採らなかった候補が、なぜ採られなかったか (#80)。</summary>
+    public static string RuleDropBroken => Pick("採らない (お手本が破る)", "Not taken (model breaks it)");
+
+    /// <summary>
+    /// 当てる先が無くて確かめられなかった。**AI の間違いとは限らない。**
+    /// 書けないことを値に押し込まれると、ここに来る。
+    /// </summary>
+    public static string RuleDropUnchecked
+        => Pick("採らない (確かめられない)", "Not taken (cannot be checked)");
 
     public static string RuleSave => Pick("保存する", "Save");
 

@@ -59,7 +59,7 @@ internal static class RuleEstimator
 
         if (!answer.Ok)
         {
-            return new RuleEstimate([], 0, 0, answer.Message);
+            return new RuleEstimate([], 0, [], answer.Message);
         }
 
         var read = Parse(answer.Text);
@@ -67,28 +67,36 @@ internal static class RuleEstimator
         // 「決まりは無い」と「答えを読み取れなかった」は別物。混ぜない
         if (!read.Understood)
         {
-            return new RuleEstimate([], 0, 0, Strings.RuleUnreadable);
+            return new RuleEstimate([], 0, [], Strings.RuleUnreadable);
         }
 
-        // お手本自身に当て直す。破っているもの、当てる先が無いものは採らない
+        // お手本自身に当て直す。破っているもの、当てる先が無いものは採らない。
+        // **どちらだったかは残す** (#80)。意味がまるで違うため
         var kept = new List<ArchiveRule>();
-        var rejected = 0;
+        var dropped = new List<RuleDrop>();
 
         foreach (var rule in read.Rules)
         {
             var result = RuleChecker.Check(rule, sample);
 
-            if (result.Satisfied && result.Applied > 0)
+            if (result.Applied == 0)
+            {
+                // 当てる先が無い。お手本が破っているのではなく、こちらが
+                // 確かめようがなかった。語彙で書けないことを AI が値に押し込むと、
+                // だいたいここに落ちる
+                dropped.Add(new RuleDrop(rule, DropReason.NothingToCheck));
+            }
+            else if (result.Satisfied)
             {
                 kept.Add(rule);
             }
             else
             {
-                rejected++;
+                dropped.Add(new RuleDrop(rule, DropReason.Broken));
             }
         }
 
-        return new RuleEstimate(kept, read.Unusable, rejected, string.Empty);
+        return new RuleEstimate(kept, read.Unusable, dropped, string.Empty);
     }
 
     /// <summary>返ってきた文章から決まりを読み取る。</summary>
@@ -182,13 +190,46 @@ internal static class RuleEstimator
 }
 
 /// <summary>推定した結果 (#25)。</summary>
-/// <param name="Rules">お手本に当て直しても通った決まり。</param>
+/// <param name="Rules">お手本に当て直しても通ったルール。</param>
 /// <param name="Unusable">形にならず読み取れなかった数。</param>
-/// <param name="Rejected">お手本自身が満たさず、採らなかった数。</param>
+/// <param name="Dropped">当て直して採らなかった候補と、その訳 (#80)。</param>
 /// <param name="Message">尋ねられなかったときに、人に見せる一文。</param>
 internal readonly record struct RuleEstimate(
-    IReadOnlyList<ArchiveRule> Rules, int Unusable, int Rejected, string Message)
+    IReadOnlyList<ArchiveRule> Rules, int Unusable, IReadOnlyList<RuleDrop> Dropped,
+    string Message)
 {
     /// <summary>尋ねて答えが返ってきたか。</summary>
     public bool Ok => Message.Length == 0;
+
+    /// <summary>採らなかった数。</summary>
+    public int Rejected => Dropped.Count;
+
+    /// <summary>お手本自身が破っていた数。AI の読み違い。</summary>
+    public int Broken => Dropped.Count(d => d.Reason == DropReason.Broken);
+
+    /// <summary>
+    /// 当てる先が無く、確かめようがなかった数。
+    /// </summary>
+    /// <remarks>
+    /// **これが多いときは、AI の間違いではなくこちらの語彙が足りていない** (#80)。
+    /// 書けないことを値に押し込まれると、当たる先が無くなってここに来る。
+    /// </remarks>
+    public int Unchecked => Dropped.Count(d => d.Reason == DropReason.NothingToCheck);
+}
+
+/// <summary>採らなかった候補と、その訳 (#80)。</summary>
+/// <remarks>
+/// 捨てた数だけ知らせても、何が捨てられたのかは分からない。**人が確かめるための
+/// 画面で、9件のうち8件を黙って捨てるのは筋が悪い。**中身も残して見せる。
+/// </remarks>
+internal readonly record struct RuleDrop(ArchiveRule Rule, DropReason Reason);
+
+/// <summary>採らなかった訳 (#80)。</summary>
+internal enum DropReason
+{
+    /// <summary>お手本自身が破っていた。</summary>
+    Broken,
+
+    /// <summary>当てる先が無く、確かめようがなかった。</summary>
+    NothingToCheck,
 }

@@ -167,7 +167,18 @@ public partial class RuleLearnDialog : Window
             added++;
         }
 
-        var dropped = Strings.RuleDropped(estimate.Rejected, estimate.Unusable);
+        // 採らなかった候補も並べる (#80)。使えないが、**何が捨てられたのかは見せる。**
+        // 数だけ知らせても、AI が何を言ったのかは分からない
+        foreach (var drop in estimate.Dropped)
+        {
+            if (!_rows.Any(row => Same(row.Rule, drop.Rule)))
+            {
+                _rows.Add(new RuleRow(drop, _sample));
+            }
+        }
+
+        var dropped = Strings.RuleDropped(
+            estimate.Broken, estimate.Unchecked, estimate.Unusable);
         var head = estimate.Rules.Count == 0
             ? Strings.RuleNoneFound
             : Strings.RuleFound(estimate.Rules.Count)
@@ -188,7 +199,9 @@ public partial class RuleLearnDialog : Window
         var any = _rows.Count > 0;
         RuleList.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         NoticeText.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
-        SaveButton.IsEnabled = any || RuleStore.Exists;
+
+        // 採らなかった候補しか無いなら、保存するものは無い (#80)
+        SaveButton.IsEnabled = _rows.Any(static row => row.CanUse) || RuleStore.Exists;
 
         // 一覧の行は Collapsed でも * のままでは場所を取り続ける。高さも入れ替える。
         // 読み取った後は一覧のほうが主役になるので、書庫詳細より広く取る (#75)
@@ -206,9 +219,13 @@ public partial class RuleLearnDialog : Window
     /// </remarks>
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_rows.Count == 0)
+        // 採らなかった候補は残さない (#80)。画面には出すが、確かめようのないものを
+        // ファイルに書いても害にしかならない
+        var usable = _rows.Where(static row => row.CanUse).ToList();
+
+        if (usable.Count == 0)
         {
-            // 1件も無い状態で保存するのは「決まりを無くす」ということ
+            // 1件も無い状態で保存するのは「ルールを無くす」ということ
             if (!RuleStore.TryDelete())
             {
                 ResultText.Text = Strings.RuleSaveFailed;
@@ -222,7 +239,7 @@ public partial class RuleLearnDialog : Window
 
         var book = new RuleBook(
             Path.GetFileName(_sample.FilePath), DateTimeOffset.Now,
-            [.. _rows.Select(static row => new RuleEntry(row.Rule, row.Enabled))]);
+            [.. usable.Select(static row => new RuleEntry(row.Rule, row.Enabled))]);
 
         if (!RuleStore.TrySave(book))
         {
@@ -231,7 +248,7 @@ public partial class RuleLearnDialog : Window
         }
 
         SavedCount = InUse.Count;
-        ResultText.Text = Strings.RuleSaved(_rows.Count, SavedCount);
+        ResultText.Text = Strings.RuleSaved(usable.Count, SavedCount);
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
