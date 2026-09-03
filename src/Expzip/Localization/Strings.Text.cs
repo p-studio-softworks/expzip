@@ -1041,7 +1041,18 @@ internal static partial class Strings
 
     public static string RuleColumnKind => Pick("種類", "Kind");
 
-    public static string RuleColumnScope => Pick("どこに", "Where");
+    /// <remarks>
+    /// **「どこに」から「対象」に変えた** (#81)。場所の列 (<see cref="RuleColumnPlace"/>)
+    /// を足したので、この列はフォルダかファイルかだけを言う。1つの見出しが
+    /// 2つの意味を持たないようにする。
+    /// </remarks>
+    public static string RuleColumnScope => Pick("対象", "Applies to");
+
+    /// <summary>当てる場所の列 (#81)。</summary>
+    public static string RuleColumnPlace => Pick("場所", "Where");
+
+    /// <summary>場所が決まっていないとき、その列に出す言葉 (#81)。</summary>
+    public static string RuleWhereAnywhere => Pick("書庫全体", "Whole archive");
 
     public static string RuleColumnValue => Pick("値", "Value");
 
@@ -1135,7 +1146,8 @@ internal static partial class Strings
 
         次の JSON だけを返してください。前後に説明を書かないでください。
 
-        {"rules":[{"kind":"...","scope":"...","value":"...","description":"...","evidence":"..."}]}
+        {"rules":[{"kind":"...","scope":"...","where":"...","value":"...",
+                   "description":"...","evidence":"..."}]}
 
         kind は次のいずれかです。
         - required_entry: この名前のものが必ずある。value は名前
@@ -1144,11 +1156,30 @@ internal static partial class Strings
         - forbidden_name: この名前のものを含めない。value は名前
         - name_pattern: 名前がこの形をしている。value は .NET の正規表現
 
-        scope は次のいずれかです。
+        scope は、何に当てるかです。次のいずれかです。
         - root: ルート直下だけ
-        - folders: すべてのフォルダ
-        - files: すべてのファイル
+        - folders: フォルダ
+        - files: ファイル
         - all: すべての項目
+
+        where は、どこに当てるかです。**対象を含むフォルダ**の書庫内パスに当てる
+        正規表現を書いてください。書庫全体に当てるなら省いてください。
+
+        **「どこに」と「どんな形か」を1本の正規表現に繋げないでください。**
+        繋げると、その形に合わない他の場所の項目まで違反になってしまいます。
+        必ず where と value に分けてください。
+
+        例: libraries 直下のフォルダ名が usb_host_ で始まる、と言いたいとき
+        {"kind":"name_pattern","scope":"folders","where":"^[^/]+/libraries$",
+         "value":"usb_host_[a-z0-9_]+","description":"...","evidence":"..."}
+
+        例: 包みフォルダの直下に library.json がある、と言いたいとき
+        {"kind":"required_entry","scope":"all","where":"^[^/]+$",
+         "value":"library.json","description":"...","evidence":"..."}
+
+        書庫全体が1つのフォルダに包まれていることがあります。その場合、
+        root は**包みフォルダそのもの**を指し、その中身は指しません。
+        包みの中を指すには where を使ってください。
 
         description には、そのルールを日本語の一文で書いてください。
         evidence には、一覧のどこからそう読み取ったかを短く書いてください。
@@ -1181,7 +1212,8 @@ internal static partial class Strings
 
         Return only the following JSON. Do not write anything before or after it.
 
-        {"rules":[{"kind":"...","scope":"...","value":"...","description":"...","evidence":"..."}]}
+        {"rules":[{"kind":"...","scope":"...","where":"...","value":"...",
+                   "description":"...","evidence":"..."}]}
 
         kind must be one of:
         - required_entry: an entry with this name must exist. value is the name
@@ -1190,11 +1222,31 @@ internal static partial class Strings
         - forbidden_name: an entry with this name must not appear. value is the name
         - name_pattern: names have this shape. value is a .NET regular expression
 
-        scope must be one of:
+        scope says what to apply it to. It must be one of:
         - root: only directly under the root
-        - folders: every folder
-        - files: every file
+        - folders: folders
+        - files: files
         - all: every entry
+
+        where says where to apply it: a regular expression matched against the
+        archive path of the **folder containing** the entry. Omit it to apply
+        the rule to the whole archive.
+
+        Do NOT join "where" and "what shape" into one regular expression.
+        Joined, entries elsewhere that do not fit that shape become violations.
+        Always split them into where and value.
+
+        Example: folder names directly under libraries start with usb_host_
+        {"kind":"name_pattern","scope":"folders","where":"^[^/]+/libraries$",
+         "value":"usb_host_[a-z0-9_]+","description":"...","evidence":"..."}
+
+        Example: library.json sits directly inside the wrapping folder
+        {"kind":"required_entry","scope":"all","where":"^[^/]+$",
+         "value":"library.json","description":"...","evidence":"..."}
+
+        An archive is sometimes wrapped in a single folder. Then root means
+        that wrapping folder itself, not what is inside it. Use where to
+        point inside the wrapper.
 
         Write description as one English sentence stating the rule.
         Write evidence as a short note on where in the listing you read it.

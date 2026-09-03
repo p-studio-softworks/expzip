@@ -38,6 +38,27 @@ internal sealed record ArchiveRule(
     /// </remarks>
     public Regex? Pattern { get; private init; }
 
+    /// <summary>
+    /// 当てる場所。項目を**含むフォルダ**の書庫内パスの形 (#81)。空なら書庫全体。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// **「どこに」と「どんな形か」を分けるために足した。**これが無いと、AI は
+    /// 両方を1本の正規表現に繋げて書く。実地では
+    /// <c>^[^/]+/libraries/usb_host_[a-z0-9_]+$</c> のようなものが返ってきた。
+    /// 繋がったままでは「全項目がこの形」としか読めず、libraries の外にある
+    /// 33 個のフォルダが違反になって捨てられていた。
+    /// </para>
+    /// <para>
+    /// 分ければ「<c>^[^/]+/libraries$</c> の中では、名前が
+    /// <c>usb_host_[a-z0-9_]+</c> の形」と読める。**当てる先がそこだけに絞られる。**
+    /// </para>
+    /// </remarks>
+    public string Where { get; private init; } = string.Empty;
+
+    /// <summary>場所の正規表現。<see cref="Where"/> が空なら <see langword="null"/>。</summary>
+    public Regex? WherePattern { get; private init; }
+
     /// <summary>種類の名前。画面に出す。</summary>
     public string KindText => Kind switch
     {
@@ -51,6 +72,9 @@ internal sealed record ArchiveRule(
     /// <summary>出どころの名前。画面に出す。</summary>
     public string SourceText
         => Source == RuleSource.Ai ? Strings.RuleSourceAi : Strings.RuleSourceHand;
+
+    /// <summary>当てる場所。画面に出す (#81)。決まっていなければ書庫全体。</summary>
+    public string WhereText => Where.Length == 0 ? Strings.RuleWhereAnywhere : Where;
 
     /// <summary>当てはめる先の名前。画面に出す。</summary>
     public string ScopeText => Scope switch
@@ -73,7 +97,7 @@ internal sealed record ArchiveRule(
     /// </remarks>
     public static ArchiveRule? TryCreate(
         RuleKind kind, RuleScope scope, string value, string description, string evidence,
-        RuleSource source = RuleSource.Ai)
+        RuleSource source = RuleSource.Ai, string where = "")
     {
         var text = value.Trim();
 
@@ -92,6 +116,19 @@ internal sealed record ArchiveRule(
         {
             Source = source,
         };
+
+        // 場所は任意。書いてあって組み立てられないなら、当てる先が定まらないので落とす
+        var place = where.Trim();
+
+        if (place.Length > 0)
+        {
+            if (TryCompile(place, rejectLoose: false) is not { } inside)
+            {
+                return null;
+            }
+
+            rule = rule with { Where = place, WherePattern = inside };
+        }
 
         if (kind != RuleKind.NamePattern)
         {
@@ -125,7 +162,12 @@ internal sealed record ArchiveRule(
     /// 何も見つからない。決まりとして並べると、確かめた気にさせるだけ害がある。
     /// </para>
     /// </remarks>
-    private static Regex? TryCompile(string pattern)
+    /// <param name="rejectLoose">
+    /// 何にでも当たるものを落とすか。**場所には掛けない** (#81)。名前の形と違い、
+    /// 場所が広いこと自体は誤りではない。書庫全体を指すなら空にすればよいので、
+    /// わざわざ広い形を書いてきた場合も、その通りに当てる。
+    /// </param>
+    private static Regex? TryCompile(string pattern, bool rejectLoose = true)
     {
         var text = pattern.StartsWith('^') ? pattern : "^" + pattern;
         text = text.EndsWith('$') ? text : text + "$";
@@ -151,9 +193,14 @@ internal sealed record ArchiveRule(
             }
         }
 
+        if (!rejectLoose)
+        {
+            return regex;
+        }
+
         try
         {
-            // 決まりとは呼べない名前。これに当たるなら、何にでも当たっている
+            // ルールとは呼べない名前。これに当たるなら、何にでも当たっている
             return regex.IsMatch(" zz ") ? null : regex;
         }
         catch (RegexMatchTimeoutException)

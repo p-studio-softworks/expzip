@@ -42,16 +42,24 @@ internal static class RuleChecker
     {
         var deep = rule.Value.Contains('/');
         var found = false;
+        var applied = 0;
 
-        Walk(contents.Root, rule.Scope == RuleScope.Root, (path, name, isFolder) =>
+        // 場所が指定されていれば、ルート直下かどうかではなく場所で絞る (#81)
+        var rootOnly = rule.WherePattern is null && rule.Scope == RuleScope.Root;
+
+        Walk(contents.Root, rootOnly, (parent, path, name, isFolder) =>
         {
-            if (!folderOnly || isFolder)
+            if ((folderOnly && !isFolder) || !Here(rule, parent))
             {
-                found |= string.Equals(deep ? path : name, rule.Value.Trim('/'), Compare);
+                return;
             }
+
+            // 場所に合う項目が1つも無ければ、あるべきかどうかを言えない
+            applied = 1;
+            found |= string.Equals(deep ? path : name, rule.Value.Trim('/'), Compare);
         });
 
-        return new RuleResult(rule, found, [], 1);
+        return new RuleResult(rule, found, [], applied);
     }
 
     /// <summary>「含めない」を見る。当たったものが違反。</summary>
@@ -61,10 +69,15 @@ internal static class RuleChecker
         var violations = new List<string>();
         var applied = 0;
 
-        Walk(contents.Root, rootOnly: false, (path, name, isFolder) =>
+        Walk(contents.Root, rootOnly: false, (parent, path, name, isFolder) =>
         {
             // 拡張子はファイルだけの話。フォルダ名に「.」が入っていても違反にしない
             if (isFolder && rule.Kind == RuleKind.ForbiddenExtension)
+            {
+                return;
+            }
+
+            if (!Here(rule, parent))
             {
                 return;
             }
@@ -91,10 +104,14 @@ internal static class RuleChecker
         var violations = new List<string>();
         var applied = 0;
 
-        Walk(contents.Root, rule.Scope == RuleScope.Root, (path, name, isFolder) =>
+        // 場所が指定されていれば、ルート直下かどうかではなく場所で絞る (#81)
+        var rootOnly = rule.WherePattern is null && rule.Scope == RuleScope.Root;
+
+        Walk(contents.Root, rootOnly, (parent, path, name, isFolder) =>
         {
             if ((rule.Scope == RuleScope.Folders && !isFolder)
-                || (rule.Scope == RuleScope.Files && isFolder))
+                || (rule.Scope == RuleScope.Files && isFolder)
+                || !Here(rule, parent))
             {
                 return;
             }
@@ -124,8 +141,12 @@ internal static class RuleChecker
         => string.Equals(name, rule.Value, Compare);
 
     /// <summary>書庫の中を1つずつ見る。ルートだけを見ることもできる。</summary>
+    /// <summary>
+    /// 書庫の中を歩く。<paramref name="visit"/> には**含むフォルダのパス**、
+    /// 項目のパス、名前、フォルダかどうかを渡す (#81)。
+    /// </summary>
     private static void Walk(
-        ArchiveFolder root, bool rootOnly, Action<string, string, bool> visit)
+        ArchiveFolder root, bool rootOnly, Action<string, string, string, bool> visit)
     {
         Step(root);
 
@@ -133,18 +154,40 @@ internal static class RuleChecker
         {
             foreach (var file in folder.Files)
             {
-                visit(file.FullPath, file.Name, false);
+                visit(folder.FullPath, file.FullPath, file.Name, false);
             }
 
             foreach (var child in folder.Folders)
             {
-                visit(child.FullPath, child.Name, true);
+                visit(folder.FullPath, child.FullPath, child.Name, true);
 
                 if (!rootOnly)
                 {
                     Step(child);
                 }
             }
+        }
+    }
+
+    /// <summary>その場所を当てる先とするか (#81)。場所が空なら書庫全体。</summary>
+    /// <remarks>
+    /// **AI は「どこに」と「どんな形か」を1本の正規表現に繋げて書く。**
+    /// 分けて受け取り、分けて当てる。時間切れは当てないほうへ倒す。
+    /// </remarks>
+    private static bool Here(ArchiveRule rule, string parent)
+    {
+        if (rule.WherePattern is not { } inside)
+        {
+            return true;
+        }
+
+        try
+        {
+            return inside.IsMatch(parent);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return false;
         }
     }
 }

@@ -79,6 +79,7 @@ public partial class RuleLearnDialog : Window
         UseColumn.Header = Strings.RuleColumnUse;
         KindColumn.Header = Strings.RuleColumnKind;
         ScopeColumn.Header = Strings.RuleColumnScope;
+        PlaceColumn.Header = Strings.RuleColumnPlace;
         ValueColumn.Header = Strings.RuleColumnValue;
         DescriptionColumn.Header = Strings.RuleColumnDescription;
         EvidenceColumn.Header = Strings.RuleColumnEvidence;

@@ -166,7 +166,8 @@ internal static class RuleEstimator
 
                 var rule = ArchiveRule.TryCreate(
                     kind.Value, RuleWords.ToScope(Read(item, "scope")), Read(item, "value"),
-                    Read(item, "description"), Read(item, "evidence"));
+                    Read(item, "description"), Read(item, "evidence"),
+                    where: Read(item, "where"));
 
                 if (rule is null)
                 {

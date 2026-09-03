@@ -29,7 +29,12 @@ internal static class RuleStore
     private const string FileName = "Expzip.rules.json";
 
     /// <summary>いまの形式の番号。読めない番号のものは読まない。</summary>
-    private const int Version = 1;
+    /// <remarks>
+    /// 2 で場所 (<c>where</c>) が加わった (#81)。**1 のファイルもそのまま読める。**
+    /// 場所は任意で、無ければ書庫全体に当てる。古い版で書かれたものは、
+    /// これまでどおりの意味になる。
+    /// </remarks>
+    private const int Version = 2;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -75,7 +80,8 @@ internal static class RuleStore
                 var rule = ArchiveRule.TryCreate(
                     kind, RuleWords.ToScope(row.Scope), row.Value ?? string.Empty,
                     row.Description ?? string.Empty, row.Evidence ?? string.Empty,
-                    row.Source == "hand" ? RuleSource.Hand : RuleSource.Ai);
+                    row.Source == "hand" ? RuleSource.Hand : RuleSource.Ai,
+                    row.Where ?? string.Empty);
 
                 if (rule is not null)
                 {
@@ -109,6 +115,7 @@ internal static class RuleStore
                 Value = entry.Rule.Value,
                 Description = entry.Rule.Description,
                 Evidence = entry.Rule.Evidence,
+                Where = entry.Rule.Where.Length == 0 ? null : entry.Rule.Where,
                 Source = entry.Rule.Source == RuleSource.Hand ? "hand" : "ai",
                 Enabled = entry.Enabled,
             })],
@@ -180,6 +187,9 @@ internal static class RuleStore
         public string? Description { get; set; }
 
         public string? Evidence { get; set; }
+
+        /// <summary>当てる場所。項目を含むフォルダのパスの形 (#81)。無ければ書庫全体。</summary>
+        public string? Where { get; set; }
 
         public string? Source { get; set; }
 
