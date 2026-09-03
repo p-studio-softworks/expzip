@@ -25,20 +25,29 @@ namespace Expzip.Ai;
 /// </remarks>
 internal static class RuleEstimator
 {
-    /// <summary>受け取る決まりの上限。</summary>
+    /// <summary>受け取るルールの上限。</summary>
     /// <remarks>
-    /// 多ければよいものではない。確かなものから数件で足りるし、あとで人が
-    /// 一つずつ見て直す (#26) ことを考えると、並べすぎると見られなくなる。
+    /// <para>
+    /// 当初は 8 にしていたが、**実地では少なすぎた** (#78)。121ファイルの書庫から
+    /// 5件しか得られず、その5件では書庫の間違いにほとんど気付けなかった。
+    /// ルールが少なければ、違反の見落としがそのぶん増える。
+    /// </para>
+    /// <para>
+    /// 並べすぎると人が見られなくなるのは変わらないが、**外すのは人にできて、
+    /// 挙がらなかったものを足すのは人にできない。**多めに出して選ばせる。
+    /// 頼み方 (<c>RulePromptSystem</c>) に書いた上限と揃えること。
+    /// </para>
     /// </remarks>
-    private const int MaxRules = 8;
+    private const int MaxRules = 20;
 
-    /// <summary>答えの長さの上限。決まり8件を書くには十分。</summary>
+    /// <summary>答えの長さの上限。</summary>
     /// <remarks>
     /// **考えてから答えるモデルは、考えた分もこの予算から引く** (#76)。
-    /// 2000 では、考え終えた時点で尽きて答えが空になりうる。答え自体は
-    /// ルール数件分の JSON で足りるが、考える余地を見込んで広くとる。
+    /// 2000 では、考え終えた時点で尽きて答えが空になりうる。
+    /// <see cref="MaxRules"/> を 20 に上げたぶん、答え自体も長くなる (#78)。
+    /// 日本語の説明と根拠が付くので、1件あたりを厚めに見込む。
     /// </remarks>
-    private const int AnswerLimit = 8000;
+    private const int AnswerLimit = 12000;
 
     /// <summary>お手本から決まりを推定する。</summary>
     public static async Task<RuleEstimate> EstimateAsync(

@@ -1108,7 +1108,10 @@ internal static partial class Strings
         これから、ある書庫のフォルダ構成とファイル名の一覧を渡します。
         ファイルの中身はありません。名前と構成だけです。
 
-        その並びから読み取れる「この書庫の作り方のルール」を挙げてください。
+        目的は、別の書庫を同じ作り方で作るための決まりを挙げることです。
+        この書庫を言い直すことではありません。次に別の中身で書庫を作る人が、
+        それを見て同じ形に揃えられるものを挙げてください。
+
         次の JSON だけを返してください。前後に説明を書かないでください。
 
         {"rules":[{"kind":"...","scope":"...","value":"...","description":"...","evidence":"..."}]}
@@ -1129,12 +1132,21 @@ internal static partial class Strings
         description には、そのルールを日本語の一文で書いてください。
         evidence には、一覧のどこからそう読み取ったかを短く書いてください。
 
+        探してほしいもの:
+        - 繰り返し現れる形。兄弟のフォルダに同じ顔ぶれのファイルが揃っている、など
+        - 置き場所の決まり。ある種類のものが、決まった場所にまとめられている
+        - 名前の付け方。日付、連番、接頭辞など、同じ形をしている名前の並び
+        - 無いもの。作業中の一時ファイルや、OSが作るファイルが含まれていない
+
         守ってほしいこと:
         - 一覧に出ている名前だけを根拠にしてください
         - 一覧は端折られていることがあります。「ほか N 個は送らない」と書いてあれば、そこは見えていません
-        - 確かでないものは挙げないでください。多くても8件までにしてください
+        - この書庫だけの固有の名前を、そのまま決まりにしないでください。
+          例:「Foo-main フォルダがある」は、次の書庫では名前が変わるので役に立ちません。
+          形が繰り返されているなら name_pattern で書いてください
         - name_pattern は、一覧にあるその範囲の名前すべてに当てはまるものだけにしてください
         - 何にでも当てはまる正規表現 (".*" など) は挙げないでください
+        - 数を絞らず、気付いたものを挙げてください。多くても20件までにしてください
         """;
 
     private const string RulePromptEnglish = """
@@ -1142,7 +1154,10 @@ internal static partial class Strings
         You will be given the folder structure and file names of one archive.
         There are no file contents - only names and structure.
 
-        List the rules behind how this archive is put together.
+        The goal is to list rules for building another archive the same way,
+        not to restate this one. List what someone packing different contents
+        next time could follow to arrive at the same shape.
+
         Return only the following JSON. Do not write anything before or after it.
 
         {"rules":[{"kind":"...","scope":"...","value":"...","description":"...","evidence":"..."}]}
@@ -1163,12 +1178,21 @@ internal static partial class Strings
         Write description as one English sentence stating the rule.
         Write evidence as a short note on where in the listing you read it.
 
+        What to look for:
+        - Shapes that repeat. Sibling folders holding the same set of files, and the like
+        - Where things live. A kind of file gathered in one settled place
+        - How names are formed. Dates, running numbers, prefixes - names of one shape
+        - What is absent. No scratch files, no files the OS leaves behind
+
         Rules to follow:
         - Base every rule only on names that appear in the listing
         - The listing may be trimmed. Where it says "N more not sent", you cannot see those
-        - Do not list anything you are unsure of. At most 8 rules
+        - Do not turn a name unique to this archive into a rule.
+          "There is a Foo-main folder" is useless next time, when that name differs.
+          If the shape repeats, write it as a name_pattern instead
         - A name_pattern must match every name in its scope that appears in the listing
         - Do not list a regular expression that matches anything (such as ".*")
+        - Do not hold back on count. List what you notice, up to 20 rules
         """;
 
     public static string SaveTooltip => Pick(
