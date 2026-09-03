@@ -109,9 +109,16 @@ internal sealed record ArchiveRule(
     /// 何秒も掛かることがある。後戻りしない書き方なら、その心配がない。
     /// </para>
     /// <para>
-    /// 先読みなど、後戻りしない書き方で扱えない記法もある。その場合は普通の
-    /// 書き方に落とすが、**1回の照合に 100ms の制限を掛ける**。制限に掛かった
-    /// ものは違反として扱わない (<see cref="RuleChecker"/>)。
+    /// 先読みや後方参照など、後戻りしない書き方で扱えない記法もある。その場合は
+    /// 普通の書き方に落とすが、**1回の照合に 100ms の制限を掛ける**。制限に
+    /// 掛かったものは違反として扱わない (<see cref="RuleChecker"/>)。
+    /// </para>
+    /// <para>
+    /// **落とすときの例外は1種類ではない** (#79)。書けない記法は
+    /// <see cref="ArgumentException"/> だが、後方参照のように「書けるが後戻り
+    /// しない書き方では扱えない」ものは <see cref="NotSupportedException"/> で来る。
+    /// 片方だけ受けていたため、後方参照を含む正規表現が返るとアプリの側まで
+    /// 例外が抜けていた。
     /// </para>
     /// <para>
     /// **何にでも当たる正規表現は落とす。**<c>.*</c> のようなものは、当てても
@@ -129,14 +136,16 @@ internal sealed record ArchiveRule(
         {
             regex = new Regex(text, RegexOptions.NonBacktracking | RegexOptions.CultureInvariant);
         }
-        catch (ArgumentException)
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
         {
+            // 後方参照 (\1 など) を含むと NotSupportedException になる。
+            // 書けない記法は ArgumentException とは別の型で来るので、両方受ける (#79)
             try
             {
                 regex = new Regex(
                     text, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
             }
-            catch (ArgumentException)
+            catch (Exception inner) when (inner is ArgumentException or NotSupportedException)
             {
                 return null;
             }
