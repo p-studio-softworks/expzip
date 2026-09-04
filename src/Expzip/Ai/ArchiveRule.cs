@@ -66,6 +66,7 @@ internal sealed record ArchiveRule(
         RuleKind.RequiredFolder => Strings.RuleKindRequiredFolder,
         RuleKind.ForbiddenExtension => Strings.RuleKindForbiddenExtension,
         RuleKind.ForbiddenName => Strings.RuleKindForbiddenName,
+        RuleKind.RequiredPattern => Strings.RuleKindRequiredPattern,
         _ => Strings.RuleKindNamePattern,
     };
 
@@ -130,7 +131,8 @@ internal sealed record ArchiveRule(
             rule = rule with { Where = place, WherePattern = inside };
         }
 
-        if (kind != RuleKind.NamePattern)
+        // 形を使う種類は、正規表現を組み立てておく (#83)
+        if (kind is not (RuleKind.NamePattern or RuleKind.RequiredPattern))
         {
             return rule;
         }
@@ -237,6 +239,15 @@ internal enum RuleKind
 
     /// <summary>名前がこの形をしている。</summary>
     NamePattern,
+
+    /// <summary>この形のものが必ずある (#83)。</summary>
+    /// <remarks>
+    /// <see cref="RequiredEntry"/> は名前しか取らない。「examples の各フォルダに
+    /// <c>.ino</c> が1つはある」のように、**名前が場所ごとに違うもの**は
+    /// 書けなかった。<see cref="NamePattern"/> は「その形**だけ**」を言うので、
+    /// 空のフォルダは素通りする。「1つはある」は別の種類が要る。
+    /// </remarks>
+    RequiredPattern,
 }
 
 /// <summary>決まりを当てはめる先 (#25)。</summary>
@@ -271,6 +282,7 @@ internal static class RuleWords
         "forbidden_extension" => RuleKind.ForbiddenExtension,
         "forbidden_name" => RuleKind.ForbiddenName,
         "name_pattern" => RuleKind.NamePattern,
+        "required_pattern" => RuleKind.RequiredPattern,
         _ => null,
     };
 
@@ -281,6 +293,7 @@ internal static class RuleWords
         RuleKind.RequiredFolder => "required_folder",
         RuleKind.ForbiddenExtension => "forbidden_extension",
         RuleKind.ForbiddenName => "forbidden_name",
+        RuleKind.RequiredPattern => "required_pattern",
         _ => "name_pattern",
     };
 

@@ -29,6 +29,7 @@ internal static class RuleChecker
         RuleKind.RequiredFolder => Required(rule, contents, folderOnly: true),
         RuleKind.ForbiddenExtension => Forbidden(rule, contents, Extension),
         RuleKind.ForbiddenName => Forbidden(rule, contents, Named),
+        RuleKind.RequiredPattern => RequiredShape(rule, contents),
         _ => Pattern(rule, contents),
     };
 
@@ -92,6 +93,76 @@ internal static class RuleChecker
         });
 
         return new RuleResult(rule, found, [], 1);
+    }
+
+    /// <summary>「この形のものが必ずある」を見る (#83)。</summary>
+    /// <remarks>
+    /// 「名前の形」は**その形だけ**であることを言う。1つも無ければ違反も無いので、
+    /// **空のフォルダは素通りする。**こちらは**1つ以上あること**を見る。
+    /// 場所ごとに見るのは <see cref="Required"/> と同じ。
+    /// </remarks>
+    private static RuleResult RequiredShape(ArchiveRule rule, ArchiveContents contents)
+    {
+        if (rule.Pattern is not { } shape)
+        {
+            return new RuleResult(rule, true, [], 0);
+        }
+
+        if (rule.WherePattern is not null)
+        {
+            var missing = new List<string>();
+            var places = 0;
+
+            EachFolder(contents.Root, folder =>
+            {
+                if (!Here(rule, folder.FullPath))
+                {
+                    return;
+                }
+
+                places++;
+
+                var shown = (rule.Scope != RuleScope.Folders
+                        && folder.Files.Any(f => Fits(shape, f.Name)))
+                    || (rule.Scope != RuleScope.Files
+                        && folder.Folders.Any(f => Fits(shape, f.Name)));
+
+                if (!shown)
+                {
+                    missing.Add(folder.FullPath);
+                }
+            });
+
+            return new RuleResult(rule, missing.Count == 0, missing, places);
+        }
+
+        var found = false;
+
+        Walk(contents.Root, rule.Scope == RuleScope.Root, (_, _, name, isFolder) =>
+        {
+            if ((rule.Scope == RuleScope.Folders && !isFolder)
+                || (rule.Scope == RuleScope.Files && isFolder))
+            {
+                return;
+            }
+
+            found |= Fits(shape, name);
+        });
+
+        return new RuleResult(rule, found, [], 1);
+    }
+
+    /// <summary>その形に当たるか。時間切れは当たらなかったほうへ倒す (#83)。</summary>
+    private static bool Fits(Regex shape, string name)
+    {
+        try
+        {
+            return shape.IsMatch(name);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return false;
+        }
     }
 
     /// <summary>そのフォルダの中に、その名前のものがあるか (#82)。</summary>

@@ -1051,6 +1051,12 @@ internal static partial class Strings
     /// <summary>当てる場所の列 (#81)。</summary>
     public static string RuleColumnPlace => Pick("場所", "Where");
 
+    /// <summary>
+    /// 「この形のものが必ずある」(#83)。「必ずある」は名前しか取らないので、
+    /// 名前が場所ごとに違うもの (examples の各フォルダの `.ino` など) が書けなかった。
+    /// </summary>
+    public static string RuleKindRequiredPattern => Pick("この形が必ずある", "A shape must exist");
+
     /// <summary>場所が決まっていないとき、その列に出す言葉 (#81)。</summary>
     public static string RuleWhereAnywhere => Pick("書庫全体", "Whole archive");
 
@@ -1155,6 +1161,17 @@ internal static partial class Strings
         - forbidden_extension: この拡張子を含めない。value は ".tmp" のような拡張子
         - forbidden_name: この名前のものを含めない。value は名前
         - name_pattern: 名前がこの形をしている。value は .NET の正規表現
+        - required_pattern: この形のものが必ず1つはある。value は .NET の正規表現
+
+        name_pattern と required_pattern は間違えやすいので気をつけてください。
+        - name_pattern は「**その形のものしか無い**」。1つも無い場所は素通りします
+        - required_pattern は「**その形のものが1つはある**」。空の場所は違反になります
+
+        例: examples の各フォルダに .ino が1つはあり、それ以外は置かない、と言いたいとき
+        {"kind":"required_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+         "value":".+\\.ino","description":"...","evidence":"..."}
+        {"kind":"name_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+         "value":".+\\.ino","description":"...","evidence":"..."}
 
         scope は、何に当てるかです。次のいずれかです。
         - root: ルート直下だけ
@@ -1221,6 +1238,18 @@ internal static partial class Strings
         - forbidden_extension: this extension must not appear. value is like ".tmp"
         - forbidden_name: an entry with this name must not appear. value is the name
         - name_pattern: names have this shape. value is a .NET regular expression
+        - required_pattern: at least one entry of this shape exists.
+          value is a .NET regular expression
+
+        These two are easy to confuse:
+        - name_pattern says "nothing but this shape". An empty place passes
+        - required_pattern says "at least one of this shape". An empty place fails
+
+        Example: every folder under examples holds one .ino and nothing else
+        {"kind":"required_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+         "value":".+\\.ino","description":"...","evidence":"..."}
+        {"kind":"name_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+         "value":".+\\.ino","description":"...","evidence":"..."}
 
         scope says what to apply it to. It must be one of:
         - root: only directly under the root
