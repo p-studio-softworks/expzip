@@ -50,9 +50,6 @@
         <Border DockPanel.Dock="Bottom" Padding="16,10,16,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <!-- 見つけた先で直せるようにする (#28) -->
-                <Button x:Name="FixButton"
-                        Width="180" Height="26" Margin="0,0,8,0"
-                        Click="FixButton_Click" />
                 <Button x:Name="CloseButton"
                         Width="96" Height="26"
                         IsCancel="True"

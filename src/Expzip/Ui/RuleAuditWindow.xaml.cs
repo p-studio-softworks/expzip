@@ -49,7 +49,6 @@ public partial class RuleAuditWindow : Window
     private const int MaxRows = 500;
 
     private readonly Action<string> _jump;
-    private readonly Action _fix;
 
     private RuleAudit _audit;
 
@@ -60,15 +59,13 @@ public partial class RuleAuditWindow : Window
     /// <param name="audit">出す結果。</param>
     /// <param name="archivePath">当てた書庫。飛び先のタブを決めるのに使う。</param>
     /// <param name="jump">行が選ばれたときに、書庫内のパスを渡す先。</param>
-    /// <param name="fix">「直す」が押されたときに呼ぶ先 (#28)。</param>
     internal RuleAuditWindow(
-        Window owner, RuleAudit audit, string archivePath, Action<string> jump, Action fix)
+        Window owner, RuleAudit audit, string archivePath, Action<string> jump)
     {
         InitializeComponent();
 
         _audit = audit;
         _jump = jump;
-        _fix = fix;
         ArchivePath = archivePath;
         Owner = owner;
 
@@ -92,10 +89,6 @@ public partial class RuleAuditWindow : Window
     {
         Title = Strings.RuleAuditTitle(Path.GetFileName(ArchivePath));
         CloseButton.Content = Strings.InspectionClose;
-        FixButton.Content = Strings.RuleFixMenu;
-
-        // 直せることが何も無ければ、押させない
-        FixButton.IsEnabled = !_audit.Clean;
         KindColumn.Header = Strings.RuleColumnKind;
         TargetColumn.Header = Strings.RuleAuditColumnTarget;
         MessageColumn.Header = Strings.RuleAuditColumnRule;
@@ -196,8 +189,6 @@ public partial class RuleAuditWindow : Window
 
         _jump(path);
     }
-
-    private void FixButton_Click(object sender, RoutedEventArgs e) => _fix();
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
