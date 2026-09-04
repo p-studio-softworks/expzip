@@ -4749,6 +4749,38 @@ public partial class MainWindow : Window
 
         tab.Audit = RuleAudit.FromStore(tab.Contents);
         tab.AuditDone = true;
+
+        // ツリーにも印を付ける (#87)
+        MarkTree(tab.Contents.Root, tab.Audit);
+    }
+
+    /// <summary>
+    /// ツリーのフォルダに、ルールに合っていない印を付ける (#87)。
+    /// </summary>
+    /// <remarks>
+    /// **配下に1つでもあれば、親にも印を付ける。**伝えないと、深いところの違反に
+    /// 気付くには開いて回るしかない。38個のフォルダを開いて回るのは現実的ではない。
+    /// </remarks>
+    /// <returns>このフォルダか、その配下に合っていない項目があるか。</returns>
+    private static bool MarkTree(ArchiveFolder folder, RuleAudit? audit)
+    {
+        var broken = false;
+
+        foreach (var child in folder.Folders)
+        {
+            // **短絡させない。**印は全部のフォルダに要る
+            broken |= MarkTree(child, audit);
+        }
+
+        if (audit is not null)
+        {
+            broken |= folder.Files.Any(file => audit.Breaks(file.FullPath) is not null);
+            broken |= folder.FullPath.Length > 0
+                && audit.Breaks(folder.FullPath) is not null;
+        }
+
+        folder.BreaksRules = broken;
+        return broken;
     }
 
     /// <summary>当てた結果をすべて捨てる。決まりが変わったときに呼ぶ。</summary>
@@ -4758,6 +4790,9 @@ public partial class MainWindow : Window
         {
             tab.Audit = null;
             tab.AuditDone = false;
+
+            // 印も落とす。当て直すまで、古い印を残さない (#87)
+            MarkTree(tab.Contents.Root, null);
         }
     }
 
@@ -4793,6 +4828,29 @@ public partial class MainWindow : Window
     /// **押されたときは当て直す。**別の窓で決まりを直しているかもしれないし、
     /// 設定ファイルを手で書き換えていることもある。
     /// </remarks>
+    /// <summary>
+    /// 「完了」から呼ぶ。読み直して当て直し、結果の窓を入れ替える (#87)。
+    /// </summary>
+    /// <remarks>
+    /// **ディスクから読み直す。**外の道具で直したかもしれないので、
+    /// 手元に持っている中身をそのまま当て直しても意味がない。
+    /// </remarks>
+    private async Task RecheckAsync()
+    {
+        if (Contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        ForgetAudits();
+        await ReloadArchiveAsync();
+
+        if (Tab is { Audit: { } audit } tab && _ruleAudit is { } window)
+        {
+            window.ShowAudit(audit, tab.FilePath);
+        }
+    }
+
     private void RuleAuditItem_Click(object sender, RoutedEventArgs e)
     {
         if (Tab is not { } tab)
@@ -4818,7 +4876,7 @@ public partial class MainWindow : Window
         }
 
         var window = new RuleAuditWindow(
-            this, audit, tab.FilePath, JumpToRulePath);
+            this, audit, tab.FilePath, JumpToRulePath, () => _ = RecheckAsync());
         window.Closed += (_, _) => _ruleAudit = null;
         _ruleAudit = window;
         window.Show();
@@ -4910,6 +4968,11 @@ public partial class MainWindow : Window
         if (Resources["SuspiciousPathTooltip"] is ToolTip { Content: TextBlock suspiciousText })
         {
             suspiciousText.Text = Strings.SuspiciousPathTooltip;
+        }
+
+        if (Resources["RuleBreakTooltip"] is ToolTip { Content: TextBlock breakText })
+        {
+            breakText.Text = Strings.RuleTreeBreakTooltip;
         }
 
         if (Resources["EncryptedTooltip"] is ToolTip { Content: TextBlock encryptedText })

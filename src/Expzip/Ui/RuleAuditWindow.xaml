@@ -49,7 +49,13 @@
 
         <Border DockPanel.Dock="Bottom" Padding="16,10,16,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <!-- 見つけた先で直せるようにする (#28) -->
+                <!--
+                    直したら押す (#87)。押すと**検査し直す。**
+                    直っていれば印が消え、直っていなければそう言う
+                -->
+                <Button x:Name="DoneButton"
+                        Width="180" Height="26" Margin="0,0,8,0"
+                        Click="DoneButton_Click" />
                 <Button x:Name="CloseButton"
                         Width="96" Height="26"
                         IsCancel="True"
@@ -80,6 +86,12 @@
                     <Setter Property="Padding" Value="6,2" />
                 </Style>
 
+                <!-- 自分で対処するものに印を付ける (#87) -->
+                <DataTemplate x:Key="HandleCell">
+                    <CheckBox IsChecked="{Binding Handled, Mode=TwoWay}"
+                              HorizontalAlignment="Center" />
+                </DataTemplate>
+
                 <DataTemplate x:Key="KindCell">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding Glyph}"
@@ -104,6 +116,9 @@
             </ListView.Resources>
             <ListView.View>
                 <GridView>
+                    <!-- 自分で対処するものに印を付ける (#87) -->
+                    <GridViewColumn x:Name="HandleColumn" Width="64"
+                                    CellTemplate="{StaticResource HandleCell}" />
                     <GridViewColumn x:Name="KindColumn" Width="150"
                                     CellTemplate="{StaticResource KindCell}" />
                     <GridViewColumn x:Name="TargetColumn" Width="330"

@@ -50,6 +50,15 @@ public partial class RuleAuditWindow : Window
 
     private readonly Action<string> _jump;
 
+    /// <summary>「完了」で呼ぶ先。書庫を読み直して当て直す (#87)。</summary>
+    private readonly Action _recheck;
+
+    /// <summary>自分で対処すると印を付けたもの。行の並べ直しをまたいで覚える。</summary>
+    private readonly HashSet<string> _handled = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>「完了」を押して、当て直しの結果を待っているか。</summary>
+    private bool _waiting;
+
     private RuleAudit _audit;
 
     /// <summary>一覧を作り直している最中か。作り直しの拍子に飛ばないための印。</summary>
@@ -59,13 +68,16 @@ public partial class RuleAuditWindow : Window
     /// <param name="audit">出す結果。</param>
     /// <param name="archivePath">当てた書庫。飛び先のタブを決めるのに使う。</param>
     /// <param name="jump">行が選ばれたときに、書庫内のパスを渡す先。</param>
+    /// <param name="recheck">「完了」が押されたときに呼ぶ先 (#87)。</param>
     internal RuleAuditWindow(
-        Window owner, RuleAudit audit, string archivePath, Action<string> jump)
+        Window owner, RuleAudit audit, string archivePath, Action<string> jump,
+        Action recheck)
     {
         InitializeComponent();
 
         _audit = audit;
         _jump = jump;
+        _recheck = recheck;
         ArchivePath = archivePath;
         Owner = owner;
 
@@ -89,6 +101,11 @@ public partial class RuleAuditWindow : Window
     {
         Title = Strings.RuleAuditTitle(Path.GetFileName(ArchivePath));
         CloseButton.Content = Strings.InspectionClose;
+        DoneButton.Content = Strings.RuleDone;
+        HandleColumn.Header = Strings.RuleColumnHandle;
+
+        // 合っていないものが何も無ければ、押しても言うことがない
+        DoneButton.IsEnabled = !_audit.Clean;
         KindColumn.Header = Strings.RuleColumnKind;
         TargetColumn.Header = Strings.RuleAuditColumnTarget;
         MessageColumn.Header = Strings.RuleAuditColumnRule;
@@ -126,6 +143,7 @@ public partial class RuleAuditWindow : Window
         {
             rows.Add(new Row
             {
+                Marks = _handled,
                 Glyph = GlyphMissing,
                 Accent = (Brush)FindResource("CautionBrush"),
                 KindText = Strings.RuleMissing,
@@ -144,6 +162,7 @@ public partial class RuleAuditWindow : Window
 
             rows.Add(new Row
             {
+                Marks = _handled,
                 Glyph = GlyphFlag,
                 Accent = (Brush)FindResource("RuleBreakBrush"),
                 KindText = rules[0].KindText,
@@ -161,6 +180,7 @@ public partial class RuleAuditWindow : Window
         {
             rows.Add(new Row
             {
+                Marks = _handled,
                 Glyph = GlyphClean,
                 Accent = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10)),
                 KindText = string.Empty,
@@ -169,8 +189,17 @@ public partial class RuleAuditWindow : Window
             });
         }
 
+        // 並べ直しても、付けた印は残す (#87)
+        foreach (var row in rows)
+        {
+            row.Handled = _handled.Contains(row.Target);
+        }
+
         FindingList.ItemsSource = rows;
         _rebuilding = false;
+
+        // 当て直しの結果を待っていたなら、ここで言う
+        TellWhatHappened();
     }
 
     /// <summary>決まりを一言で書く。AI が説明を書いていなければ、種類と値で書く。</summary>
@@ -190,11 +219,82 @@ public partial class RuleAuditWindow : Window
         _jump(path);
     }
 
+    /// <summary>
+    /// 直し終えたので、当て直す (#87)。
+    /// </summary>
+    /// <remarks>
+    /// **確かめずに印を消さない。**消してしまうと、直したつもりで直せていない
+    /// ことに気付けない。書庫を読み直して当て直し、その結果で言う。
+    /// </remarks>
+    private void DoneButton_Click(object sender, RoutedEventArgs e)
+    {
+        _waiting = true;
+        _recheck();
+    }
+
+    /// <summary>当て直したあとに、印を付けたものがどうなったかを言う。</summary>
+    private void TellWhatHappened()
+    {
+        if (!_waiting)
+        {
+            return;
+        }
+
+        _waiting = false;
+
+        if (_handled.Count == 0)
+        {
+            return;
+        }
+
+        // まだ残っているもの。印を付けたのに直っていない
+        var left = _handled.Count(Still);
+
+        // 直ったものは、もう覚えておく必要がない
+        _handled.RemoveWhere(target => !Still(target));
+
+        MessageBox.Show(
+            this,
+            left == 0 ? Strings.RuleDoneAll : Strings.RuleDoneLeft(left),
+            "Expzip", MessageBoxButton.OK,
+            left == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    }
+
+    /// <summary>その項目が、いまも合っていないままか。</summary>
+    private bool Still(string target)
+        => FindingList.ItemsSource is IEnumerable<Row> rows
+            && rows.Any(row => string.Equals(
+                row.Target, target, StringComparison.OrdinalIgnoreCase));
+
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>一覧の1行。</summary>
     private sealed class Row
     {
+        private bool _handled;
+
+        /// <summary>この行の印を覚えておく先。窓が持っている入れ物。</summary>
+        public required HashSet<string> Marks { get; init; }
+
+        /// <summary>自分で対処すると印を付けたか (#87)。</summary>
+        public bool Handled
+        {
+            get => _handled;
+            set
+            {
+                _handled = value;
+
+                if (value)
+                {
+                    Marks.Add(Target);
+                }
+                else
+                {
+                    Marks.Remove(Target);
+                }
+            }
+        }
+
         public required string Glyph { get; init; }
 
         public required Brush Accent { get; init; }

@@ -884,6 +884,36 @@ internal static partial class Strings
         $"ルールに合っていません:{Environment.NewLine}{rules}",
         $"Does not match the rules:{Environment.NewLine}{rules}");
 
+    /// <summary>自分で対処するものに印を付ける列 (#87)。</summary>
+    public static string RuleColumnHandle => Pick("直す", "Fix");
+
+    /// <summary>直し終えたときに押す (#87)。</summary>
+    public static string RuleDone => Pick("直したので確かめる", "I fixed them - check");
+
+    /// <summary>印を付けたものが全部直っていた (#87)。</summary>
+    public static string RuleDoneAll => Pick(
+        "直すことにした項目は、すべてルールに合うようになりました。",
+        "Everything you marked now matches the rules.");
+
+    /// <summary>
+    /// 印を付けたのに、まだ直っていないものがある (#87)。
+    /// **確かめずに印を消さない**ので、こう言える。
+    /// </summary>
+    public static string RuleDoneLeft(int count) => Pick(
+        $"直すことにした項目のうち、{count} 件はまだルールに合っていません。",
+        $"{count} of the items you marked still do not match the rules.");
+
+    /// <summary>
+    /// ツリーに出す印の説明 (#87)。**配下も含む**ことを言う。
+    /// </summary>
+    /// <remarks>
+    /// 印が付いているフォルダ自体に問題があるとは限らない。中のどこかにある、
+    /// という意味だと分からないと、開いても何も無いように見える。
+    /// </remarks>
+    public static string RuleTreeBreakTooltip => Pick(
+        "このフォルダか、この中のどこかに、ルールに合っていない項目があります。",
+        "Something here, or somewhere inside, does not match the rules.");
+
     public static string RuleColumnKind => Pick("種類", "Kind");
 
     /// <remarks>

@@ -35,6 +35,9 @@
         <ToolTip x:Key="EncryptedTooltip">
             <TextBlock TextWrapping="Wrap" />
         </ToolTip>
+        <ToolTip x:Key="RuleBreakTooltip">
+            <TextBlock TextWrapping="Wrap" />
+        </ToolTip>
 
         <!--
             名前の色。保護された項目だけ色を変える (#20)。
@@ -338,6 +341,20 @@
                     <HierarchicalDataTemplate DataType="{x:Type archives:ArchiveFolder}"
                                               ItemsSource="{Binding Folders}">
                         <StackPanel Orientation="Horizontal">
+                            <!--
+                                ルールに合っていない項目がある印 (#87)。
+                                **配下のどこかにあれば、ここにも出る。**
+                                でないと、開いて回らないと気付けない
+                            -->
+                            <TextBlock Text="&#xE7C1;"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="12"
+                                       Foreground="{StaticResource RuleBreakBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,4,0"
+                                       ToolTip="{StaticResource RuleBreakTooltip}"
+                                       Visibility="{Binding BreaksRules,
+                                                    Converter={StaticResource BoolToVisibility}}" />
                             <!-- パスが通常ではないフォルダに警告を添える (#36) -->
                             <TextBlock Text="&#xE814;"
                                        FontFamily="Segoe MDL2 Assets"
