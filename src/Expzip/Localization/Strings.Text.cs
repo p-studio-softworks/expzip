@@ -758,6 +758,27 @@ internal static partial class Strings
 
     public static string RuleSourceHand => Pick("自分", "You");
 
+    /// <summary>
+    /// AI が指した場所を、こちらで数え上げて補ったもの (#84)。
+    /// **AI が言っていないことを AI 名義にしない。**
+    /// </summary>
+    public static string RuleSourceFilled => Pick("補い", "Filled in");
+
+    /// <summary>補ったルールの説明。こちらが書くので、書きぶりは一定になる。</summary>
+    public static string RuleFilledSays(string name) => Pick(
+        $"この場所のフォルダには、いずれも {name} がある。",
+        $"Every folder in this place holds {name}.");
+
+    /// <summary>補った件数の知らせ。**AI が挙げた数と混ぜない** (#84)。</summary>
+    public static string RuleFilledCount(int count) => Pick(
+        $"うち {count} 件は、AI が指した場所を数え上げて補いました。",
+        $"{count} of them were filled in by counting the places the AI pointed at.");
+
+    /// <summary>補ったルールの根拠。**何個数えたかを出す。**</summary>
+    public static string RuleFilledSaw(int places) => Pick(
+        $"同じ場所の {places} 個すべてにある (数え上げ)",
+        $"present in all {places} of them (counted)");
+
     public static string RuleHolds => Pick("守られている", "Holds");
 
     public static string RuleBreaks(int count) => Pick(

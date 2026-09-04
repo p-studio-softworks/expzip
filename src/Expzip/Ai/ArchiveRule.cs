@@ -71,8 +71,12 @@ internal sealed record ArchiveRule(
     };
 
     /// <summary>出どころの名前。画面に出す。</summary>
-    public string SourceText
-        => Source == RuleSource.Ai ? Strings.RuleSourceAi : Strings.RuleSourceHand;
+    public string SourceText => Source switch
+    {
+        RuleSource.Hand => Strings.RuleSourceHand,
+        RuleSource.Filled => Strings.RuleSourceFilled,
+        _ => Strings.RuleSourceAi,
+    };
 
     /// <summary>当てる場所。画面に出す (#81)。決まっていなければ書庫全体。</summary>
     public string WhereText => Where.Length == 0 ? Strings.RuleWhereAnywhere : Where;
@@ -220,6 +224,16 @@ internal enum RuleSource
 
     /// <summary>人が入れた、または直した。</summary>
     Hand,
+
+    /// <summary>
+    /// AI が指した場所を、こちらで数え上げて補った (#84)。
+    /// </summary>
+    /// <remarks>
+    /// **AI が言っていないことを AI 名義にしない。**この機能はずっと
+    /// 「AI の提案と、こちらの検証を分けて見せる」ことで成り立っている。
+    /// 混ぜると、その線が一本崩れる。
+    /// </remarks>
+    Filled,
 }
 
 /// <summary>決まりの種類 (#25)。</summary>

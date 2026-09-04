@@ -185,7 +185,20 @@ public partial class RuleLearnDialog : Window
             : Strings.RuleFound(estimate.Rules.Count)
                 + (added == estimate.Rules.Count ? string.Empty : Strings.RuleAlreadyHad);
 
-        ResultText.Text = dropped.Length == 0 ? head : head + Environment.NewLine + dropped;
+        // 補った分は、AI が挙げた数と混ぜずに別の行で言う (#84)
+        var lines = new List<string> { head };
+
+        if (estimate.Filled > 0)
+        {
+            lines.Add(Strings.RuleFilledCount(estimate.Filled));
+        }
+
+        if (dropped.Length > 0)
+        {
+            lines.Add(dropped);
+        }
+
+        ResultText.Text = string.Join(Environment.NewLine, lines);
         ShowRows();
     }
 

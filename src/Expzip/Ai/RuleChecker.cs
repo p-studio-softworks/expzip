@@ -318,6 +318,9 @@ internal static class RuleChecker
     /// **AI は「どこに」と「どんな形か」を1本の正規表現に繋げて書く。**
     /// 分けて受け取り、分けて当てる。時間切れは当てないほうへ倒す。
     /// </remarks>
+    /// <summary>その場所に当たるか。数え上げ (#84) からも使う。</summary>
+    public static bool Inside(ArchiveRule rule, string path) => Here(rule, path);
+
     private static bool Here(ArchiveRule rule, string parent)
     {
         if (rule.WherePattern is not { } inside)

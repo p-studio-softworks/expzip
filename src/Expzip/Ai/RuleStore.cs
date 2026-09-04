@@ -80,7 +80,12 @@ internal static class RuleStore
                 var rule = ArchiveRule.TryCreate(
                     kind, RuleWords.ToScope(row.Scope), row.Value ?? string.Empty,
                     row.Description ?? string.Empty, row.Evidence ?? string.Empty,
-                    row.Source == "hand" ? RuleSource.Hand : RuleSource.Ai,
+                    row.Source switch
+                    {
+                        "hand" => RuleSource.Hand,
+                        "filled" => RuleSource.Filled,
+                        _ => RuleSource.Ai,
+                    },
                     row.Where ?? string.Empty);
 
                 if (rule is not null)
@@ -116,7 +121,12 @@ internal static class RuleStore
                 Description = entry.Rule.Description,
                 Evidence = entry.Rule.Evidence,
                 Where = entry.Rule.Where.Length == 0 ? null : entry.Rule.Where,
-                Source = entry.Rule.Source == RuleSource.Hand ? "hand" : "ai",
+                Source = entry.Rule.Source switch
+                {
+                    RuleSource.Hand => "hand",
+                    RuleSource.Filled => "filled",
+                    _ => "ai",
+                },
                 Enabled = entry.Enabled,
             })],
         };

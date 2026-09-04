@@ -96,6 +96,10 @@ internal static class RuleEstimator
             }
         }
 
+        // **AI が指した場所の中身は、こちらで数え上げて補う** (#84)。
+        // AI は代表例で済ませることがあり、それに気付く手立てが無い
+        kept.AddRange(RuleFiller.Fill(kept, sample));
+
         return new RuleEstimate(kept, read.Unusable, dropped, string.Empty);
     }
 
@@ -201,6 +205,9 @@ internal readonly record struct RuleEstimate(
 {
     /// <summary>尋ねて答えが返ってきたか。</summary>
     public bool Ok => Message.Length == 0;
+
+    /// <summary>数え上げて補った数 (#84)。</summary>
+    public int Filled => Rules.Count(r => r.Source == RuleSource.Filled);
 
     /// <summary>採らなかった数。</summary>
     public int Rejected => Dropped.Count;
