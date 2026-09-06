@@ -83,6 +83,15 @@
                     <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
                     <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
                 </DataTrigger>
+                <!--
+                    ルールに合っていない印 (#92)。ツリー (#88) と同じ地色にする。
+                    **同じことを2つの見た目で出さない。**旗と地色が混ざっていると、
+                    別の意味があるように見える
+                -->
+                <DataTrigger Binding="{Binding BreaksRules}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource RuleBreakBackBrush}" />
+                    <Setter Property="ToolTip" Value="{Binding RuleTooltip}" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="FolderNameText" TargetType="TextBlock">
@@ -575,18 +584,11 @@
                         <DataTemplate x:Key="NameCell">
                             <StackPanel Orientation="Horizontal">
                                 <!--
-                                    保存した決まりに合っていない項目に旗を立てる (#27)。
-                                    危険を知らせる警告三角とは形も色も変える。
-                                    決まりから外れていることは、危ないこととは違う
+                                    ルールに合っていない印は、名前の地色で出す
+                                    (#92、EntryNameText)。ツリーと同じ形にする。
+                                    旗と地色が混ざっていると、同じことなのに
+                                    2つの意味があるように見える
                                 -->
-                                <TextBlock Text="{Binding FlagGlyph}"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="12"
-                                           Foreground="{StaticResource RuleBreakBrush}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,4,0"
-                                           ToolTip="{Binding RuleTooltip}"
-                                           Visibility="{Binding BreaksRules, Converter={StaticResource BoolToVisibility}}" />
                                 <!-- パスが通常ではない項目に警告を添える (#36) -->
                                 <TextBlock Text="{Binding WarningGlyph}"
                                            FontFamily="Segoe MDL2 Assets"
@@ -615,11 +617,13 @@
                                 <!-- 通常は表示のみ。名前の変更中だけ入力欄に入れ替える (#15) -->
                                 <TextBlock Text="{Binding Name}"
                                            VerticalAlignment="Center"
+                                           Padding="3,0"
                                            Style="{StaticResource EntryNameText}"
                                            Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVisibility}}" />
+                                <!-- 名前と同じ余白にする。入れ替わった拍子に字が動かないように -->
                                 <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
                                          MinWidth="120"
-                                         Padding="1,0"
+                                         Padding="3,0"
                                          VerticalAlignment="Center"
                                          Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}"
                                          Loaded="RenameBox_Loaded"

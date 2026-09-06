@@ -4205,12 +4205,16 @@ public partial class MainWindow : Window
         // 一つ上へはツリーか BackSpace で移動する (#46)
         var rows = new List<EntryRow>(folder.Folders.Count + folder.Files.Count);
 
-        // 保存した決まりに合っていない項目に旗を立てる (#27)。決まりが無ければ何も付かない
+        // 保存した決まりに合っていない項目に印を付ける (#27)。決まりが無ければ何も付かない
         var audit = Tab?.Audit;
+
+        // 自分で対処すると印を付けたものだけに絞られていることがある (#88)。
+        // **ツリーと同じ絞りを掛ける。**同じ見た目の印 (#92) が、片方だけ出ていては読めない
+        var marks = Tab?.RuleMarks;
 
         foreach (var child in folder.Folders)
         {
-            var breaks = audit?.Breaks(child.FullPath);
+            var breaks = Marked(child.FullPath);
 
             rows.Add(new EntryRow
             {
@@ -4224,7 +4228,7 @@ public partial class MainWindow : Window
 
         foreach (var file in folder.Files)
         {
-            var breaks = audit?.Breaks(file.FullPath);
+            var breaks = Marked(file.FullPath);
 
             rows.Add(new EntryRow
             {
@@ -4235,6 +4239,9 @@ public partial class MainWindow : Window
                 RuleTooltip = DescribeBreaks(breaks),
             });
         }
+
+        IReadOnlyList<ArchiveRule>? Marked(string path)
+            => marks is not null && !marks.Contains(path) ? null : audit?.Breaks(path);
 
         EntryList.ItemsSource = ApplySort(rows);
         EmptyStateMessage.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -5151,6 +5158,12 @@ public partial class MainWindow : Window
 
         tab.RuleMarks = new HashSet<string>(window.Handled, StringComparer.OrdinalIgnoreCase);
         MarkTree(tab.Contents.Root, tab.Audit, tab.RuleMarks);
+
+        // 一覧の印も同じ絞りで出す (#92)。片方だけ残っていては読めない
+        if (ReferenceEquals(tab, Tab))
+        {
+            Navigate(tab.CurrentFolder);
+        }
     }
 
     private void RuleAuditItem_Click(object sender, RoutedEventArgs e)
