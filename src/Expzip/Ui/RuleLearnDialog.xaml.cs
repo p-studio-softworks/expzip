@@ -165,8 +165,9 @@ public partial class RuleLearnDialog : Window
 
         foreach (var rule in estimate.Rules)
         {
-            if (_rows.Any(row => Same(row.Rule, rule)))
+            if (_rows.FirstOrDefault(row => Same(row.Rule, rule)) is { } had)
             {
+                Reword(had, rule);
                 continue;
             }
 
@@ -208,10 +209,53 @@ public partial class RuleLearnDialog : Window
         ShowRows();
     }
 
-    /// <summary>同じ決まりかどうか。説明の書きぶりの違いは見ない。</summary>
+    /// <summary>
+    /// 同じ決まりかどうか。説明の書きぶりの違いは見ない。
+    /// </summary>
+    /// <remarks>
+    /// **当てる場所 (#81) も見る** (#96)。見ないと、
+    /// 「libraries の中では usb_host_*」と「examples の中では usb_host_*」が
+    /// 同じ決まりの扱いになり、後から来たほうが黙って捨てられる。
+    /// </remarks>
     private static bool Same(ArchiveRule a, ArchiveRule b)
         => a.Kind == b.Kind && a.Scope == b.Scope
-            && string.Equals(a.Value, b.Value, StringComparison.OrdinalIgnoreCase);
+            && string.Equals(a.Value, b.Value, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.Where, b.Where, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// すでに持っている決まりの**言い方だけ**を、読み取り直した文に入れ替える (#96)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 当て方 (種類・対象・場所・値) は同じなので、判定は変わらない。変わるのは
+    /// 読む文だけ。**入れ替えないと、こちらが言葉を直しても画面はいつまでも
+    /// 古い言い方のまま**になる。「包みフォルダ」を「書庫のルート」にした (#95) のに
+    /// 変わらなかったのは、これが理由。
+    /// </para>
+    /// <para>
+    /// **人が書いた説明は触らない。**自分で書いたものが、読み取り直しただけで
+    /// 書き換わってはいけない。
+    /// </para>
+    /// <para>
+    /// 使う・使わないの選びも触らない。外したものが読み取り直しで戻ってきては、
+    /// 外した意味が無い。
+    /// </para>
+    /// </remarks>
+    private static void Reword(RuleRow row, ArchiveRule fresh)
+    {
+        if (row.Rule.Source == RuleSource.Hand
+            || (string.Equals(row.Rule.Description, fresh.Description, StringComparison.Ordinal)
+                && string.Equals(row.Rule.Evidence, fresh.Evidence, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        row.Replace(row.Rule with
+        {
+            Description = fresh.Description,
+            Evidence = fresh.Evidence,
+        });
+    }
 
     /// <summary>一覧を、中身に合わせて出し入れする。</summary>
     private void ShowRows()
