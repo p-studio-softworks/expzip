@@ -544,9 +544,9 @@ internal static partial class Strings
     public static string AiDialogTitle => Pick("AI連携の設定", "AI settings");
 
     public static string AiIntro => Pick(
-        "書庫の作り方をAIに見てもらうための接続先です。"
+        "書庫のルールをAIに推定させる機能のAIの設定です。"
         + "接続先はこのアプリでは決めません。使いたいところを自分で選んでください。",
-        "Where to reach the AI that reviews how an archive is put together. "
+        "Settings for the AI that works out the rules of an archive. "
         + "This app does not pick the provider - choose the one you want to use.");
 
     public static string AiPresetLabel => Pick("接続先", "Provider");
@@ -569,11 +569,13 @@ internal static partial class Strings
 
     /// <summary>送るものと鍵の置き場。隠さずダイアログに出す (#24)。</summary>
     public static string AiPrivacyNotice => Pick(
-        "ファイルの中身は送信しませんが、ファイル名とフォルダ構成を送信します。"
+        "設定したAIに書庫のファイル名とフォルダ構成を送信してルールを推定します。"
+        + "ファイルの中身は送信しません。"
         + "無料枠では送信したものが提供元の製品改善に使用される可能性がありますのでご注意ください。"
         + "入力したAPIキーは本アプリケーションと同ディレクトリに保存されますが、"
         + "移動した場合には無効になります。",
-        "File contents are never sent, but file names and the folder structure are. "
+        "The AI you set up receives the file names and folder structure of the archive "
+        + "and works out the rules from them. File contents are never sent. "
         + "On a free tier, what you send may be used to improve the provider's products. "
         + "The API key you enter is stored in the same directory as this application, "
         + "and stops working if it is moved elsewhere.");
@@ -634,18 +636,18 @@ internal static partial class Strings
     // ------------------------------------------------------------ お手本からのルール推定 (#25)
 
     public static string RuleMenu => Pick(
-        "書庫の作り方を推定…", "Work out how this archive is built...");
+        "書庫のルールを推定…", "Work out the rules of this archive...");
 
     public static string RuleNeedsAi => Pick(
         "先に「AI連携の設定…」で接続先を入れてください。",
         "Set up the connection under AI settings... first.");
 
     public static string RuleDialogTitle => Pick(
-        "書庫の作り方を推定", "Work out how this archive is built");
+        "書庫のルールを推定", "Work out the archive's rules");
 
     public static string RuleIntro(string archiveName) => Pick(
-        $"{archiveName} を「お手本」として、この書庫の作り方を推定します。",
-        $"Treat {archiveName} as the model archive and work out how it is built.");
+        $"{archiveName} を「お手本」として、この書庫のルールを推定します。",
+        $"Treat {archiveName} as the model archive and work out its rules.");
 
     public static string RuleSendLabel => Pick("書庫詳細", "Archive details");
 
@@ -656,37 +658,45 @@ internal static partial class Strings
     /// **効いた上限をそのまま書く** (#70)。「多すぎるため」とだけ書くと、書庫が
     /// 大きすぎたように読める。実際に効くのはたいてい1フォルダあたりの上限のほうで、
     /// 159ファイル・10KB の書庫でも端折りは起きる。
+    /// <para>
+    /// **端折りが無くても上限を書く** (#89)。送る前に「何が送られるのか」を
+    /// 知りたい気持ちは、端折りの有無では変わらない。
+    /// </para>
     /// </remarks>
     public static string RulePayload(int bytes, int omitted, int perFolder) => omitted == 0
-        ? Pick($"全部で {bytes:N0} バイトです。これがそのまま送られます。",
-            $"{bytes:N0} bytes in total. This is sent exactly as shown.")
-        : Pick($"全部で {bytes:N0} バイトです。これがそのまま送られます。"
-            + $"1つのフォルダからは最大 {perFolder} 個までにしているため、"
-            + $"名前 {omitted:N0} 個は送りません。",
-            $"{bytes:N0} bytes in total. This is sent exactly as shown. "
-            + $"At most {perFolder} names are taken from each folder, "
-            + $"so {omitted:N0} names are left out.");
+        ? Pick($"1つのフォルダから最大で {perFolder} 項目を送信します。"
+            + $"全部で {bytes:N0} バイトです。",
+            $"At most {perFolder} entries are taken from each folder. "
+            + $"{bytes:N0} bytes in total.")
+        : Pick($"1つのフォルダから最大で {perFolder} 項目を送信します。"
+            + $"そのため名前 {omitted:N0} 個は送りません。"
+            + $"全部で {bytes:N0} バイトです。",
+            $"At most {perFolder} entries are taken from each folder, "
+            + $"so {omitted:N0} names are left out. "
+            + $"{bytes:N0} bytes in total.");
 
     /// <summary>送るものの断り。AI連携の設定と同じ書きぶりにする (#24)。</summary>
     public static string RulePrivacyShort => Pick(
-        "ファイルの中身は送信しませんが、ファイル名とフォルダ構成を送信します。",
-        "File contents are never sent, but file names and the folder structure are.");
+        "設定したAIに上記の書庫詳細を送信してルールを推定します。"
+        + "ファイルの中身は送信しません。",
+        "The archive details above are sent to the AI you set up, "
+        + "and the rules are worked out from them. File contents are never sent.");
 
-    public static string RuleSend => Pick("送って読み取る", "Send and read the rules");
+    public static string RuleSend => Pick("推定する", "Work out the rules");
 
-    /// <summary>読み取っている間の表示。経過した秒を出す (#76)。</summary>
+    /// <summary>推定している間の表示。経過した秒を出す (#76)。</summary>
     public static string RuleSending(int seconds) => seconds <= 0
-        ? Pick("読み取っています…", "Reading...")
-        : Pick($"読み取っています… ({seconds} 秒)", $"Reading... ({seconds}s)");
+        ? Pick("推定しています…", "Working it out...")
+        : Pick($"推定しています… ({seconds} 秒)", $"Working it out... ({seconds}s)");
 
     public static string RuleClose => Pick("閉じる", "Close");
 
     public static string RuleFound(int count) => Pick(
-        $"ルールを {count} 件読み取りました。", $"Read off {count} rule(s).");
+        $"ルールを {count} 件推定しました。", $"Worked out {count} rule(s).");
 
     public static string RuleNoneFound => Pick(
         "ルールらしいものは見つかりませんでした。"
-        + "お手本の項目が少ないと、読み取れることがありません。",
+        + "お手本の項目が少ないと、推定できるものがありません。",
         "No rules could be read off. "
         + "There may be too few entries in the model archive to see a pattern.");
 
@@ -730,13 +740,11 @@ internal static partial class Strings
     /// いまできるのは「使う / 使わない」の選びだけ。無い機能を案内していた。
     /// </remarks>
     public static string RuleProposalNotice => Pick(
-        "これは AI が読み取った提案です。お手本の中身しか見ていないため、"
-        + "本当のルールとは違うことがあります。"
-        + "使うものを選んでください。外したものは、保存しても当てません。"
+        "これはAIが推定したルールです。本来のルールとは異なる場合があります。"
+        + "使用するものを選んでください。外したものは、保存しても当てません。"
         + "保存するまでは何も残りません。",
-        "These are the AI's proposals. It has seen only this archive, "
-        + "so they may not match the real rules. "
-        + "Choose which ones to keep. Those you clear are not applied, even once saved. "
+        "These are the rules the AI worked out. They may differ from the real ones. "
+        + "Choose which ones to use. Those you clear are not applied, even once saved. "
         + "Nothing is stored until you save.");
 
     public static string RuleUnreadable => Pick(
@@ -747,7 +755,7 @@ internal static partial class Strings
 
     // ------------------------------------------------ 確かめて直す (#26)
 
-    public static string RuleColumnUse => Pick("使う", "Use");
+    public static string RuleColumnUse => Pick("使用", "Use");
 
     public static string RuleColumnSource => Pick("出どころ", "From");
 
@@ -761,8 +769,9 @@ internal static partial class Strings
     /// <summary>
     /// AI が指した場所を、こちらで数え上げて補ったもの (#84)。
     /// **AI が言っていないことを AI 名義にしない。**
+    /// 出どころなので、こちらの都合の「補い」ではなく**誰が出したか**で言う (#89)。
     /// </summary>
-    public static string RuleSourceFilled => Pick("補い", "Filled in");
+    public static string RuleSourceFilled => Pick("アプリ", "App");
 
     /// <summary>補ったルールの説明。こちらが書くので、書きぶりは一定になる。</summary>
     public static string RuleFilledSays(string name) => Pick(
@@ -779,10 +788,10 @@ internal static partial class Strings
         $"同じ場所の {places} 個すべてにある (数え上げ)",
         $"present in all {places} of them (counted)");
 
-    public static string RuleHolds => Pick("守られている", "Holds");
+    public static string RuleHolds => Pick("順守", "Holds");
 
     public static string RuleBreaks(int count) => Pick(
-        $"{count:N0} 件が外れる", $"{count:N0} do not match");
+        $"{count:N0} 件が違反", $"{count:N0} do not match");
 
     public static string RuleMissing => Pick("見つからない", "Not found");
 
@@ -832,9 +841,9 @@ internal static partial class Strings
         "ルールに合っているか見る…", "Check against the rules...");
 
     public static string RuleNoneSaved => Pick(
-        "ルールが保存されていません。先に「書庫の作り方を推定…」で決めてください。",
+        "ルールが保存されていません。先に「書庫のルールを推定…」で決めてください。",
         "No rules are saved yet. "
-        + "Set them under \"Work out how this archive is built...\" first.");
+        + "Set them under \"Work out the rules of this archive...\" first.");
 
     public static string RuleAuditTitle(string archiveName) => Pick(
         $"ルールに合っているか - {archiveName}",
@@ -923,8 +932,8 @@ internal static partial class Strings
     /// という意味だと分からないと、開いても何も無いように見える。
     /// </remarks>
     public static string RuleTreeBreakTooltip => Pick(
-        "このフォルダか、この中のどこかに、ルールに合っていない項目があります。",
-        "Something here, or somewhere inside, does not match the rules.");
+        "このフォルダ以下にルールに合っていない項目があります。",
+        "Something in or below this folder does not match the rules.");
 
     /// <summary>
     /// ツリーの印に添える、違反の中身 (#88)。
