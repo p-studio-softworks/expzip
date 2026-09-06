@@ -769,6 +769,11 @@ internal static partial class Strings
 
     public static string RuleColumnUse => Pick("使用", "Use");
 
+    /// <summary>「使用」の見出しを押すと何が起きるか (#94)。押せると分かる形が他に無い。</summary>
+    public static string RuleUseAll => Pick(
+        "押すと、全部使う・全部使わないを切り替えます。",
+        "Click to turn them all on, or all off.");
+
     public static string RuleColumnSource => Pick("出どころ", "From");
 
     /// <summary>いま開いている書庫に当てるとどうなるか (#26)。</summary>

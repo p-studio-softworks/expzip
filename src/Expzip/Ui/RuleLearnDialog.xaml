@@ -70,7 +70,8 @@
         <!-- 読み取れたルール。1件も無いうちは場所を取らない -->
         <ListView x:Name="RuleList" Grid.Row="5" MinHeight="160" Margin="0,8,0,0"
                   Visibility="Collapsed"
-                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                  GridViewColumnHeader.Click="Header_Click">
             <!--
                 行の名前。入れておかないと、支援技術には束ねている型の名前が
                 そのまま読まれる

@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Localization;
@@ -76,7 +77,12 @@ public partial class RuleLearnDialog : Window
             + Strings.RulePayload(
                 _digest.Bytes, _digest.Omitted, ArchiveDigest.PerFolderLimit);
         NoticeText.Text = Strings.RuleProposalNotice;
-        UseColumn.Header = Strings.RuleColumnUse;
+        // 押せる見出しだと分かる形が他に無いので、説明を添える (#94)
+        UseColumn.Header = new TextBlock
+        {
+            Text = Strings.RuleColumnUse,
+            ToolTip = Strings.RuleUseAll,
+        };
         KindColumn.Header = Strings.RuleColumnKind;
         ScopeColumn.Header = Strings.RuleColumnScope;
         PlaceColumn.Header = Strings.RuleColumnPlace;
@@ -263,6 +269,41 @@ public partial class RuleLearnDialog : Window
 
         SavedCount = InUse.Count;
         ResultText.Text = Strings.RuleSaved(usable.Count, SavedCount);
+    }
+
+    /// <summary>
+    /// 「使用」の見出しを押すと、全部入れる・全部外すを切り替える (#94)。
+    /// </summary>
+    /// <remarks>
+    /// 20件並ぶことがある (#78)。**1つだけ使いたいときに、19回外させない。**
+    /// 一度全部外してから、要るものだけ入れられるようにする。
+    /// <para>
+    /// **1つでも外れていれば全部入れる。**全部入っているときだけ全部外す。
+    /// 押すたびに行ったり来たりするより、いまの状態から素直に決まるほうが読める。
+    /// </para>
+    /// </remarks>
+    private void Header_Click(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not GridViewColumnHeader { Column: { } column }
+            || !ReferenceEquals(column, UseColumn))
+        {
+            return;
+        }
+
+        // 採らなかった候補 (#80) は動かさない。そもそも使えない
+        var usable = _rows.Where(static row => row.CanUse).ToList();
+
+        if (usable.Count == 0)
+        {
+            return;
+        }
+
+        var turnOn = usable.Exists(static row => !row.Enabled);
+
+        foreach (var row in usable)
+        {
+            row.Enabled = turnOn;
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
