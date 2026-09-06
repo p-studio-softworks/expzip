@@ -1121,13 +1121,17 @@ internal static partial class Strings
         {"kind":"name_pattern","scope":"folders","where":"^[^/]+/libraries$",
          "value":"usb_host_[a-z0-9_]+","description":"...","evidence":"..."}
 
-        例: 包みフォルダの直下に library.json がある、と言いたいとき
+        例: 書庫のルートに library.json がある、と言いたいとき
         {"kind":"required_entry","scope":"all","where":"^[^/]+$",
          "value":"library.json","description":"...","evidence":"..."}
 
         書庫全体が1つのフォルダに包まれていることがあります。その場合、
-        root は**包みフォルダそのもの**を指し、その中身は指しません。
-        包みの中を指すには where を使ってください。
+        利用者はその**フォルダの中**を「書庫のルート」と受け取ります。
+        いっぽう scope の root は、**包んでいるフォルダそのもの**を指し、
+        その中身は指しません。中を指すには where に ^[^/]+$ を書いてください。
+
+        **description には「包み」という言い方を使わないでください。**
+        利用者の目に触れる文です。「書庫のルート」と書いてください。
 
         description には、そのルールを日本語の一文で書いてください。
         evidence には、一覧のどこからそう読み取ったかを短く書いてください。
