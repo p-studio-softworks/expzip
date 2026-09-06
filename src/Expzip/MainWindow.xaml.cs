@@ -4214,15 +4214,18 @@ public partial class MainWindow : Window
 
         foreach (var child in folder.Folders)
         {
-            var breaks = Marked(child.FullPath);
-
             rows.Add(new EntryRow
             {
                 Name = child.Name,
                 Kind = EntryRowKind.Folder,
                 Folder = child,
-                BreaksRules = breaks is not null,
-                RuleTooltip = DescribeBreaks(breaks),
+
+                // **中のどこかにあれば、フォルダにも印を付ける** (#93)。
+                // ツリーが伝えている印 (#87) をそのまま使う。同じフォルダが
+                // ツリーでは色付き、一覧では素のまま、ということにしない。
+                // 絞り (#88) も伝える時点で掛かっている
+                BreaksRules = child.BreaksRules,
+                RuleTooltip = child.RuleTooltip,
             });
         }
 
