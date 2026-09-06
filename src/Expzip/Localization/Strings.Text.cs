@@ -55,7 +55,19 @@ internal static partial class Strings
 
     // ------------------------------------------------------------------ アドレスバーとタブ
 
-    public static string LocationLabel => Pick("場所", "Location");
+    /// <summary>
+    /// 畳んだ区切りを出す口 (#90)。
+    /// </summary>
+    /// <remarks>
+    /// **「場所」の見出しは外した。**エクスプローラーのアドレスバーに見出しは無い。
+    /// いまの場所はタイトルバーに出るので、見出しが無くて分からなくなることもない。
+    /// </remarks>
+    public static string LocationHidden => Pick(
+        "隠れている場所", "Hidden parts of the path");
+
+    /// <summary>区切りの口 (#90)。押すと、その場所の中にあるフォルダが並ぶ。</summary>
+    public static string LocationInside(string name) => Pick(
+        $"{name} の中", $"Inside {name}");
 
     public static string NewTabTooltip => Pick(
         "新しい書庫を作って開く", "Create and open a new archive");

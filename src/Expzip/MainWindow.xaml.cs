@@ -1246,7 +1246,6 @@ public partial class MainWindow : Window
         SaveButton.Visibility = tab.Nest is null ? Visibility.Collapsed : Visibility.Visible;
         SaveButton.IsEnabled = tab.Nest is not null;
         ShowSaveLabel(tab.Nest);
-        UpdateTitle(tab.Title);
 
         // 旗を立てるには、一覧を作る前に当ててある必要がある (#27)
         EnsureAudit(tab);
@@ -1307,8 +1306,7 @@ public partial class MainWindow : Window
     {
         FolderTree.ItemsSource = null;
         EntryList.ItemsSource = null;
-        AddressBar.Text = string.Empty;
-        AddressBar.ToolTip = null;
+        ClearLocation();
         SuspiciousWarningItem.Visibility = Visibility.Collapsed;
         TotalSizeInfo.Text = string.Empty;
         SelectionInfo.Text = Strings.SelectionNone;
@@ -1323,7 +1321,6 @@ public partial class MainWindow : Window
         PasswordButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         SaveButton.Visibility = Visibility.Collapsed;
-        UpdateTitle(null);
 
         // 書庫を1つも開いていないなら見張るものが無い (#64)
         _archiveWatch?.Stop();
@@ -4243,19 +4240,235 @@ public partial class MainWindow : Window
         EmptyStateMessage.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyStateMessage.Text = Contents is null ? Strings.NoArchiveOpen : Strings.EmptyFolder;
 
-        // 書庫のあるフォルダから続けて書庫の中の位置まで、ひと続きの場所として出す。
-        // 書庫名だけでは同じ名前の別の書庫と区別が付かず、「場所」の名に合わない (#58)。
-        // エクスプローラーが書庫を開いたときの表示に合わせ、区切りは `\` にする
-        AddressBar.Text = Contents is null
-            ? string.Empty
-            : folder.FullPath.Length == 0
-                ? Contents.FilePath
-                : Contents.FilePath + "\\" + folder.FullPath.Replace('/', '\\');
-
-        // 長い場所は欄からはみ出すため、全体を見られるようにしておく
-        AddressBar.ToolTip = AddressBar.Text.Length == 0 ? null : AddressBar.Text;
-
+        ShowLocation(folder);
         UpdateSelectionInfo();
+    }
+
+    // ------------------------------------------------------------------ 場所 (#90)
+
+    /// <summary>
+    /// いまの場所を、区切りごとに押せる形で出す (#90)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// **パスの文字はタイトルバーへ出す。**同じ文字を
+    /// 2箇所に置いても、どちらも読み飛ばされる。
+    /// </para>
+    /// <para>
+    /// 区切りに並べるのは**書庫より内側だけ**。書庫の置き場は、押しても行けない。
+    /// 行けない場所を押せる形で出すと、押してから分かることになる。
+    /// 書庫のあるフォルダまで含めた文字のほうは、タイトルバーと下に敷いた欄に残る (#58)。
+    /// </para>
+    /// </remarks>
+    private void ShowLocation(ArchiveFolder folder)
+    {
+        if (Contents is null)
+        {
+            ClearLocation();
+            return;
+        }
+
+        var chain = new List<ArchiveFolder>();
+
+        for (var at = folder; at is not null; at = at.Parent)
+        {
+            chain.Add(at);
+        }
+
+        chain.Reverse();
+
+        Crumbs.ItemsSource = chain.Select((at, depth) => new Crumb
+        {
+            Name = depth == 0 ? Path.GetFileName(LocationRoot()) : at.Name,
+            Path = at.FullPath,
+            IsArchive = depth == 0,
+            HasFolders = at.Folders.Count > 0,
+            Inside = Strings.LocationInside(depth == 0 ? Path.GetFileName(LocationRoot()) : at.Name),
+        }).ToList();
+
+        var text = LocationText(folder);
+        AddressBar.Text = text;
+        AddressBar.ToolTip = text;
+        ShowCrumbs();
+        UpdateTitle(text);
+
+        // 収まるかどうかは、並べ終わってからでないと分からない
+        Dispatcher.BeginInvoke(FitCrumbs, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>書庫を1つも開いていないときの場所。</summary>
+    private void ClearLocation()
+    {
+        Crumbs.ItemsSource = null;
+        AddressBar.Text = string.Empty;
+        AddressBar.ToolTip = null;
+        CrumbOverflow.Visibility = Visibility.Collapsed;
+        ShowCrumbs();
+        UpdateTitle(null);
+    }
+
+    /// <summary>
+    /// いま見ている書庫の在り処。
+    /// </summary>
+    /// <remarks>
+    /// 書庫の中の書庫 (#30) は、取り出した先の一時ファイルを開いている。
+    /// **そのパスを出しても、利用者が置いた覚えのない場所が出るだけ。**
+    /// 親書庫から続けて書く。
+    /// </remarks>
+    private string LocationRoot()
+        => Tab is { Nest: { } nest }
+            ? nest.ArchivePath + "\\" + nest.EntryPath.Replace('/', '\\')
+            : Contents?.FilePath ?? string.Empty;
+
+    /// <summary>書庫の在り処から、いま見ているフォルダまでをひと続きにした文字。</summary>
+    private string LocationText(ArchiveFolder folder)
+    {
+        var root = LocationRoot();
+
+        return folder.FullPath.Length == 0
+            ? root
+            : root + "\\" + folder.FullPath.Replace('/', '\\');
+    }
+
+    /// <summary>
+    /// 区切りが収まりきらないときに、畳んだしるしを出す (#90)。
+    /// </summary>
+    /// <remarks>
+    /// 深いところを見ているときに要るのは**末尾のほう**なので、そちらへ寄せる。
+    /// 押せなくなった先頭は、しるしの口から辿れる。
+    /// </remarks>
+    private void FitCrumbs()
+    {
+        CrumbScroll.ScrollToRightEnd();
+        CrumbOverflow.Visibility = CrumbScroll.ScrollableWidth > 0.5
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void CrumbScroll_SizeChanged(object sender, SizeChangedEventArgs e) => FitCrumbs();
+
+    private void Crumb_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string path })
+        {
+            GoTo(path);
+        }
+    }
+
+    /// <summary>その場所の中にあるフォルダを出す。区切りそのものが口になる (#90)。</summary>
+    private void CrumbInside_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string path } button
+            || Contents is not { } contents
+            || FindFolder(contents.Root, path) is not { } folder)
+        {
+            return;
+        }
+
+        Popup(button, folder.Folders
+            .OrderBy(static child => child.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(static child => (child.Name, child.FullPath)));
+    }
+
+    /// <summary>畳んだ区切りを出す。ここからなら、隠れた場所へも行ける (#90)。</summary>
+    private void CrumbOverflow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && Crumbs.ItemsSource is IEnumerable<Crumb> crumbs)
+        {
+            Popup(button, crumbs.Select(static crumb => (crumb.Name, crumb.Path)));
+        }
+    }
+
+    /// <summary>行き先を並べた口を出す。</summary>
+    /// <remarks>
+    /// **名前の下線はそのまま出す。**献立の見出しは <c>_</c> を押し文字の印として
+    /// 食べてしまうので、二重にして渡す。`usb_host_cp210x_vcp` のような名前は珍しくない。
+    /// </remarks>
+    private void Popup(Button at, IEnumerable<(string Name, string Path)> places)
+    {
+        var menu = new ContextMenu
+        {
+            PlacementTarget = at,
+            Placement = PlacementMode.Bottom,
+        };
+
+        foreach (var (name, path) in places)
+        {
+            var item = new MenuItem { Header = name.Replace("_", "__"), Tag = path };
+            item.Click += Crumb_Click;
+            menu.Items.Add(item);
+        }
+
+        menu.IsOpen = menu.Items.Count > 0;
+    }
+
+    /// <summary>書庫内のパスのフォルダへ移る。</summary>
+    private void GoTo(string path)
+    {
+        if (_cancellation is not null
+            || Contents is not { } contents
+            || FindFolder(contents.Root, path) is not { } folder)
+        {
+            return;
+        }
+
+        SelectInTree(folder);
+        Navigate(folder);
+    }
+
+    /// <summary>
+    /// 空きを押したら、場所を文字として選べる形にする (#90)。
+    /// </summary>
+    /// <remarks>
+    /// エクスプローラーと同じ。写して他所へ貼りたいことがあるので、
+    /// 区切りにしたぶん**文字が取れなくなる、ということにはしない。**
+    /// </remarks>
+    private void CrumbBar_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (AddressBar.Text.Length == 0)
+        {
+            return;
+        }
+
+        CrumbBar.Visibility = Visibility.Collapsed;
+        AddressBar.Focus();
+        AddressBar.SelectAll();
+    }
+
+    private void AddressBar_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Escape or Key.Enter))
+        {
+            return;
+        }
+
+        ShowCrumbs();
+        EntryList.Focus();
+        e.Handled = true;
+    }
+
+    private void AddressBar_LostFocus(object sender, KeyboardFocusChangedEventArgs e)
+        => ShowCrumbs();
+
+    /// <summary>文字の欄を下に隠して、区切りの帯を戻す。</summary>
+    private void ShowCrumbs() => CrumbBar.Visibility = Visibility.Visible;
+
+    /// <summary>アドレスバーの区切り1つ (#90)。</summary>
+    private sealed class Crumb
+    {
+        public required string Name { get; init; }
+
+        /// <summary>書庫内のパス。書庫そのものは空。</summary>
+        public required string Path { get; init; }
+
+        /// <summary>書庫そのものを指す先頭の区切りか。絵を添えるのはここだけ。</summary>
+        public bool IsArchive { get; init; }
+
+        /// <summary>中にフォルダがあるか。区切りの口を出すかどうかに使う。</summary>
+        public bool HasFolders { get; init; }
+
+        /// <summary>区切りの口の名前。記号だけでは、支援技術に記号として読まれる。</summary>
+        public required string Inside { get; init; }
     }
 
     // ------------------------------------------------------------------ 並び替え
@@ -4613,15 +4826,18 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ 見た目の調整
 
     /// <summary>
-    /// 開いている書庫に応じてタイトルバーを切り替える。
-    /// フェーズ3でタブ表示に対応した際は、アクティブなタブの書庫名を渡す
-    /// (docs/SPEC.md 5.2節)。
+    /// タイトルバーに、いまの場所を出す (#90)。
     /// </summary>
-    private void UpdateTitle(string? archiveFileName)
+    /// <remarks>
+    /// **パスはここに出す。**アドレスバーは区切りごとに
+    /// 押せる形にしたので (#90)、パスの文字を読みたいときの行き先はここになる。
+    /// 書庫を1つも開いていなければアプリの名前だけにする。
+    /// </remarks>
+    private void UpdateTitle(string? location)
     {
-        Title = string.IsNullOrEmpty(archiveFileName)
+        Title = string.IsNullOrEmpty(location)
             ? AppName
-            : $"{archiveFileName} - {AppName}";
+            : $"{location} - {AppName}";
     }
 
     // ------------------------------------------------------------------ 言語 (#23)
@@ -5031,7 +5247,15 @@ public partial class MainWindow : Window
         LanguageEnglishItem.Header = Strings.LanguageEnglish;
         UpdateLanguageChecks();
 
-        LocationLabel.Text = Strings.LocationLabel;
+        // 記号だけの口。名前を入れておかないと、支援技術には記号のまま読まれる (#90)
+        CrumbOverflow.ToolTip = Strings.LocationHidden;
+        AutomationProperties.SetName(CrumbOverflow, Strings.LocationHidden);
+
+        // 区切りに添えた名前は、並べたときの言語のまま残っている (#90)
+        if (Tab is { } here)
+        {
+            ShowLocation(here.CurrentFolder);
+        }
 
         NewTabButton.ToolTip = Strings.NewTabTooltip;
         AutomationProperties.SetName(NewTabButton, Strings.NewTabName);

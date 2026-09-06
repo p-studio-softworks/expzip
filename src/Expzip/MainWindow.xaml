@@ -37,6 +37,43 @@
         </ToolTip>
 
         <!--
+            アドレスバーの区切り (#90)。エクスプローラーと同じく、枠も影も無く、
+            指した場所だけが色付く。押せるものだと分かるのは動きだけなので、
+            当たり判定と地色の変わり方はそちらに合わせる
+        -->
+        <Style x:Key="CrumbButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Fill"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- 一覧の選択と同じ薄い青。同じ窓で色の意味を変えない -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="#D9F4FF" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="#D9F4FF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CrumbGlyph" TargetType="Button" BasedOn="{StaticResource CrumbButton}">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Foreground" Value="{x:Static SystemColors.GrayTextBrush}" />
+        </Style>
+
+        <!--
             名前の色。保護された項目だけ色を変える (#20)。
             ツリーと一覧で同じ見え方にするため、ひとつの型を両方から使う
         -->
@@ -160,22 +197,96 @@
             </ToolBar>
         </ToolBarTray>
 
-        <!-- アドレスバー: 書庫内の現在パスを表示する -->
+        <!--
+            アドレスバー (#90)。いまの場所を、エクスプローラーと同じく
+            **区切りごとに押せる形**で出す。パスの文字そのものはタイトルバーに出す。
+
+            文字の欄は消さずに**下に敷いてある。**空きを押すと上の帯が引っ込んで
+            現れ、選んで写せる。支援技術から見た「場所」もこの欄のままになる
+        -->
         <Border DockPanel.Dock="Top"
                 BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="8,5">
-            <DockPanel>
-                <TextBlock x:Name="LocationLabel"
-                           DockPanel.Dock="Left"
-                           VerticalAlignment="Center"
-                           Margin="0,0,8,0" />
-                <TextBox x:Name="AddressBar"
-                         IsReadOnly="True"
-                         IsReadOnlyCaretVisible="True"
-                         Padding="4,2"
-                         VerticalContentAlignment="Center" />
-            </DockPanel>
+            <Border Background="{x:Static SystemColors.WindowBrush}"
+                    BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                    BorderThickness="1"
+                    MinHeight="24">
+                <Grid>
+                    <TextBox x:Name="AddressBar"
+                             IsReadOnly="True"
+                             IsReadOnlyCaretVisible="True"
+                             BorderThickness="0"
+                             Padding="6,2"
+                             VerticalContentAlignment="Center"
+                             PreviewKeyDown="AddressBar_PreviewKeyDown"
+                             LostKeyboardFocus="AddressBar_LostFocus" />
+                    <DockPanel x:Name="CrumbBar"
+                               Background="{x:Static SystemColors.WindowBrush}"
+                               MouseLeftButtonDown="CrumbBar_MouseDown">
+                        <!-- 収まらないときだけ出る。畳んだところはここから辿れる -->
+                        <Button x:Name="CrumbOverflow"
+                                DockPanel.Dock="Left"
+                                Visibility="Collapsed"
+                                Content="&#xE712;"
+                                Style="{StaticResource CrumbGlyph}"
+                                Click="CrumbOverflow_Click" />
+                        <ScrollViewer x:Name="CrumbScroll"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      Focusable="False"
+                                      SizeChanged="CrumbScroll_SizeChanged">
+                            <ItemsControl x:Name="Crumbs">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <!--
+                                                中身が絵と文字の組なので、名前を
+                                                入れておかないと支援技術には
+                                                何も読まれない
+                                            -->
+                                            <Button Style="{StaticResource CrumbButton}"
+                                                    Tag="{Binding Path}"
+                                                    AutomationProperties.Name="{Binding Name}"
+                                                    Click="Crumb_Click">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <!-- 先頭 (書庫そのもの) にだけ付く -->
+                                                    <TextBlock Text="&#xE7B8;"
+                                                               FontFamily="Segoe MDL2 Assets"
+                                                               FontSize="12"
+                                                               Margin="0,0,5,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource FolderBrush}"
+                                                               Visibility="{Binding IsArchive,
+                                                                            Converter={StaticResource BoolToVisibility}}" />
+                                                    <TextBlock Text="{Binding Name}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <!--
+                                                この場所の中にあるフォルダを出す。
+                                                エクスプローラーと同じく、区切りそのものが口になる
+                                            -->
+                                            <Button Style="{StaticResource CrumbGlyph}"
+                                                    Content="&#xE76C;"
+                                                    Tag="{Binding Path}"
+                                                    AutomationProperties.Name="{Binding Inside}"
+                                                    Click="CrumbInside_Click"
+                                                    Visibility="{Binding HasFolders,
+                                                                 Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+            </Border>
         </Border>
 
         <!--
