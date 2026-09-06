@@ -46,6 +46,19 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     public bool AuditDone { get; set; }
 
     /// <summary>
+    /// 利用者が、このタブで当てることを求めたか (#91)。
+    /// </summary>
+    /// <remarks>
+    /// **開いただけでは当てない。**書庫を開く理由は中を見ることで、いつも
+    /// ルールを気にしているわけではない。求められてから当てる。
+    /// <para>
+    /// 一度求められたら、そのタブでは覚えておく。読み直しのたびに求め直させると、
+    /// 直したかどうかを確かめる流れ (#87) が途切れる。
+    /// </para>
+    /// </remarks>
+    public bool AuditWanted { get; set; }
+
+    /// <summary>
     /// ツリーに印を出す項目 (#88)。<see langword="null"/> なら合っていないもの全部。
     /// </summary>
     /// <remarks>

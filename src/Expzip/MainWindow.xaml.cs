@@ -4950,15 +4950,22 @@ public partial class MainWindow : Window
     // ------------------------------------------------------ 決まりに合っているか見る (#27)
 
     /// <summary>
-    /// 保存した決まりを、まだ当てていなければ当てる。
+    /// 求められていて、まだ当てていなければ、保存した決まりを当てる。
     /// </summary>
     /// <remarks>
-    /// タブごとに1度だけでよい。書庫を読み直すか、決まりを保存し直すまでは
-    /// 結果が変わらないため。切り替えのたびに数千件へ当て直さない。
+    /// <para>
+    /// **求められるまで当てない** (#91)。書庫を開く理由は中を見ることで、
+    /// いつもルールを気にしているわけではない。開いただけで旗が立ち、
+    /// ステータスバーが違反の数を言うのは、こちらが決めた頃合いでしかない。
+    /// </para>
+    /// <para>
+    /// 求められたあとは、タブごとに1度だけでよい。書庫を読み直すか、決まりを
+    /// 保存し直すまでは結果が変わらないため。切り替えのたびに数千件へ当て直さない。
+    /// </para>
     /// </remarks>
     private static void EnsureAudit(ArchiveTab tab)
     {
-        if (tab.AuditDone)
+        if (!tab.AuditWanted || tab.AuditDone)
         {
             return;
         }
@@ -5153,6 +5160,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        // ここで初めて、このタブで当てることを求められた (#91)
+        tab.AuditWanted = true;
         tab.Audit = null;
         tab.AuditDone = false;
 
@@ -5165,6 +5174,12 @@ public partial class MainWindow : Window
         {
             StatusMessage.Text = Strings.RuleNoneSaved;
             return;
+        }
+
+        // 開いた時点では言っていないので、ここで言う (#91)
+        if (_cancellation is null)
+        {
+            StatusMessage.Text = DescribeArchive(tab.Contents, audit);
         }
 
         if (_ruleAudit is { } opened)
