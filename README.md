@@ -37,6 +37,12 @@ dotnet build
 dotnet publish src/Expzip -p:PublishProfile=win-x64
 ```
 
+画面越しの確認に使う書庫は、次で作り直せます。出力先の下に `ui_work` と `nest_work` を作ります。
+
+```
+dotnet run --project tools/uifixtures -- <出したい場所>
+```
+
 ## ドキュメント
 
 - [仕様書](docs/SPEC.md)

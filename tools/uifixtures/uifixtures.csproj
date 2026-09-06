@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    画面越しの確認に使う書庫を作り直す道具 (#97)。
+    本体の一部ではないので、Expzip.slnx には入れない。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Expzip.Tools.UiFixtures</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 本体と同じものを使う。合言葉の掛け方まで揃える -->
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+  </ItemGroup>
+
+</Project>
