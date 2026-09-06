@@ -4750,37 +4750,89 @@ public partial class MainWindow : Window
         tab.Audit = RuleAudit.FromStore(tab.Contents);
         tab.AuditDone = true;
 
-        // ツリーにも印を付ける (#87)
-        MarkTree(tab.Contents.Root, tab.Audit);
+        // ツリーにも印を付ける (#87)。絞られていればその項目だけ (#88)
+        MarkTree(tab.Contents.Root, tab.Audit, tab.RuleMarks);
     }
 
     /// <summary>
     /// ツリーのフォルダに、ルールに合っていない印を付ける (#87)。
     /// </summary>
     /// <remarks>
+    /// <para>
     /// **配下に1つでもあれば、親にも印を付ける。**伝えないと、深いところの違反に
     /// 気付くには開いて回るしかない。38個のフォルダを開いて回るのは現実的ではない。
+    /// </para>
+    /// <para>
+    /// 印には**何が合っていないのか**を添える (#88)。印だけでは、直すときに何を
+    /// すればよいか分からない。配下の違反で付いていることもあるので、どこの何かまで書く。
+    /// </para>
     /// </remarks>
-    /// <returns>このフォルダか、その配下に合っていない項目があるか。</returns>
-    private static bool MarkTree(ArchiveFolder folder, RuleAudit? audit)
+    /// <param name="only">
+    /// 印を出す項目 (#88)。<see langword="null"/> なら合っていないもの全部。
+    /// </param>
+    /// <returns>このフォルダと、その配下にある違反を1件1行にしたもの。</returns>
+    private static List<string> MarkTree(
+        ArchiveFolder folder, RuleAudit? audit, ISet<string>? only)
     {
-        var broken = false;
+        var found = new List<string>();
 
         foreach (var child in folder.Folders)
         {
             // **短絡させない。**印は全部のフォルダに要る
-            broken |= MarkTree(child, audit);
+            found.AddRange(MarkTree(child, audit, only));
         }
 
         if (audit is not null)
         {
-            broken |= folder.Files.Any(file => audit.Breaks(file.FullPath) is not null);
-            broken |= folder.FullPath.Length > 0
-                && audit.Breaks(folder.FullPath) is not null;
+            foreach (var file in folder.Files)
+            {
+                Note(file.FullPath);
+            }
+
+            if (folder.FullPath.Length > 0)
+            {
+                Note(folder.FullPath);
+            }
         }
 
-        folder.BreaksRules = broken;
-        return broken;
+        folder.BreaksRules = found.Count > 0;
+        folder.RuleTooltip = found.Count > 0 ? DescribeTree(found) : null;
+        return found;
+
+        void Note(string path)
+        {
+            // 自分で対処すると印を付けたものだけに絞られていることがある (#88)
+            if (only is not null && !only.Contains(path))
+            {
+                return;
+            }
+
+            if (audit!.Breaks(path) is not { Count: > 0 } rules)
+            {
+                return;
+            }
+
+            found.Add(Strings.RuleTreeBreakItem(
+                path, string.Join(" / ", rules.Select(RuleWords))));
+        }
+    }
+
+    /// <summary>ツリーの印に添える説明を組み立てる (#88)。</summary>
+    /// <remarks>
+    /// 拡張子ひとつの決まりが数百件に当たることがある。全部並べた説明は読めないので
+    /// 切るが、**切ったことは書く。**黙って切ると、これで全部だと読める。
+    /// </remarks>
+    private static string DescribeTree(List<string> found)
+    {
+        var shown = found.Take(TreeTipItems).ToList();
+
+        if (found.Count > shown.Count)
+        {
+            shown.Add(Strings.RuleTreeBreakMore(found.Count - shown.Count));
+        }
+
+        return Strings.RuleTreeBreakDetail(
+            Strings.RuleTreeBreakTooltip, string.Join(Environment.NewLine, shown));
     }
 
     /// <summary>当てた結果をすべて捨てる。決まりが変わったときに呼ぶ。</summary>
@@ -4792,7 +4844,7 @@ public partial class MainWindow : Window
             tab.AuditDone = false;
 
             // 印も落とす。当て直すまで、古い印を残さない (#87)
-            MarkTree(tab.Contents.Root, null);
+            MarkTree(tab.Contents.Root, null, null);
         }
     }
 
@@ -4813,15 +4865,21 @@ public partial class MainWindow : Window
             : counted;
     }
 
+    /// <summary>ツリーの説明に並べる違反の上限 (#88)。</summary>
+    private const int TreeTipItems = 8;
+
     /// <summary>その項目が破っている決まりを、行に添える一言にする。</summary>
     private static string? DescribeBreaks(IReadOnlyList<ArchiveRule>? rules)
         => rules is null || rules.Count == 0
             ? null
             : Strings.RuleBreaksTooltip(string.Join(
-                Environment.NewLine,
-                rules.Select(static rule => rule.Description.Length > 0
-                    ? rule.Description
-                    : $"{rule.KindText}: {rule.Value}")));
+                Environment.NewLine, rules.Select(RuleWords)));
+
+    /// <summary>決まりを一言で書く。AI が説明を書いていなければ、種類と値で書く。</summary>
+    private static string RuleWords(ArchiveRule rule)
+        => rule.Description.Length > 0
+            ? rule.Description
+            : $"{rule.KindText}: {rule.Value}";
 
     /// <summary>保存した決まりを、いま見ている書庫に当てて結果を出す (#27)。</summary>
     /// <remarks>
@@ -4851,6 +4909,27 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 結果の窓を閉じたら、ツリーの印を**自分で対処すると決めたものだけ**にする (#88)。
+    /// </summary>
+    /// <remarks>
+    /// 全部に印が出たままでは、どれを引き受けたのかが見えない。何も選ばずに閉じたなら
+    /// 印は残さない。**選ばなかったことも選択**で、後から見直すのは窓を開き直せばよい。
+    /// </remarks>
+    private void KeepChosenMarks(RuleAuditWindow window)
+    {
+        var tab = _tabs.FirstOrDefault(t => string.Equals(
+            t.FilePath, window.ArchivePath, StringComparison.OrdinalIgnoreCase));
+
+        if (tab is null)
+        {
+            return;
+        }
+
+        tab.RuleMarks = new HashSet<string>(window.Handled, StringComparer.OrdinalIgnoreCase);
+        MarkTree(tab.Contents.Root, tab.Audit, tab.RuleMarks);
+    }
+
     private void RuleAuditItem_Click(object sender, RoutedEventArgs e)
     {
         if (Tab is not { } tab)
@@ -4860,6 +4939,9 @@ public partial class MainWindow : Window
 
         tab.Audit = null;
         tab.AuditDone = false;
+
+        // 見直すのだから、絞りは解く (#88)。閉じるときに付け直す
+        tab.RuleMarks = null;
         EnsureAudit(tab);
         Navigate(tab.CurrentFolder);
 
@@ -4877,7 +4959,12 @@ public partial class MainWindow : Window
 
         var window = new RuleAuditWindow(
             this, audit, tab.FilePath, JumpToRulePath, () => _ = RecheckAsync());
-        window.Closed += (_, _) => _ruleAudit = null;
+
+        window.Closed += (_, _) =>
+        {
+            KeepChosenMarks(window);
+            _ruleAudit = null;
+        };
         _ruleAudit = window;
         window.Show();
     }
@@ -4970,11 +5057,6 @@ public partial class MainWindow : Window
             suspiciousText.Text = Strings.SuspiciousPathTooltip;
         }
 
-        if (Resources["RuleBreakTooltip"] is ToolTip { Content: TextBlock breakText })
-        {
-            breakText.Text = Strings.RuleTreeBreakTooltip;
-        }
-
         if (Resources["EncryptedTooltip"] is ToolTip { Content: TextBlock encryptedText })
         {
             encryptedText.Text = Strings.EncryptedTooltip;
@@ -4984,6 +5066,9 @@ public partial class MainWindow : Window
         foreach (var tab in _tabs)
         {
             tab.NotifyLanguageChanged();
+
+            // ツリーの印に添えた説明は、当てたときの言語のまま残っている (#88)
+            MarkTree(tab.Contents.Root, tab.Audit, tab.RuleMarks);
         }
 
         foreach (var row in EntryList.Items.OfType<EntryRow>())

@@ -10,6 +10,8 @@ internal sealed class ArchiveFolder : INotifyPropertyChanged
 {
     private bool _breaksRules;
 
+    private string? _ruleTooltip;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -37,6 +39,29 @@ internal sealed class ArchiveFolder : INotifyPropertyChanged
 
             _breaksRules = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BreaksRules)));
+        }
+    }
+
+    /// <summary>
+    /// 印に添える説明 (#88)。**何が合っていないのか**を、項目ごとに並べる。
+    /// </summary>
+    /// <remarks>
+    /// 印だけでは、直すときに何をすればよいか分からない。フォルダ自身ではなく
+    /// **配下**の違反で印が付いていることもあるので、どこの何かまで書く。
+    /// 印と同じく検査のたびに入れ替わるため、変わったことを画面へ知らせる。
+    /// </remarks>
+    public string? RuleTooltip
+    {
+        get => _ruleTooltip;
+        set
+        {
+            if (_ruleTooltip == value)
+            {
+                return;
+            }
+
+            _ruleTooltip = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RuleTooltip)));
         }
     }
 

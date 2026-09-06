@@ -87,6 +87,15 @@ public partial class RuleAuditWindow : Window
     /// <summary>いま出している結果の書庫。飛び先のタブを決めるのに使う。</summary>
     internal string ArchivePath { get; private set; }
 
+    /// <summary>
+    /// 自分で対処すると印を付けたもの (#88)。
+    /// </summary>
+    /// <remarks>
+    /// 閉じたあとに、**ツリーの印をこれだけに絞る**のに使う。全部に印が出たままでは、
+    /// どれを引き受けたのかが見えない。
+    /// </remarks>
+    internal IReadOnlyCollection<string> Handled => _handled;
+
     /// <summary>新しい結果に差し替える。窓は開いたままにする。</summary>
     internal void ShowAudit(RuleAudit audit, string archivePath)
     {
@@ -102,6 +111,9 @@ public partial class RuleAuditWindow : Window
         Title = Strings.RuleAuditTitle(Path.GetFileName(ArchivePath));
         CloseButton.Content = Strings.InspectionClose;
         DoneButton.Content = Strings.RuleDone;
+
+        // 「更新」だけでは何をするか分からない (#88)
+        DoneButton.ToolTip = Strings.RuleDoneHint;
         HandleColumn.Header = Strings.RuleColumnHandle;
 
         // 合っていないものが何も無ければ、押しても言うことがない

@@ -887,8 +887,20 @@ internal static partial class Strings
     /// <summary>自分で対処するものに印を付ける列 (#87)。</summary>
     public static string RuleColumnHandle => Pick("直す", "Fix");
 
-    /// <summary>直し終えたときに押す (#87)。</summary>
-    public static string RuleDone => Pick("直したので確かめる", "I fixed them - check");
+    /// <summary>
+    /// 直し終えたときに押す (#87)。
+    /// </summary>
+    /// <remarks>
+    /// **「更新」にした** (#88)。押してすることは書庫の読み直しで、他の画面の
+    /// 「更新」と同じ。長い文にしても、そこは伝わらない。何をするかは
+    /// <see cref="RuleDoneHint"/> で添える。
+    /// </remarks>
+    public static string RuleDone => Pick("更新", "Refresh");
+
+    /// <summary>「更新」に添える説明 (#88)。押すと何が起きるかを言う。</summary>
+    public static string RuleDoneHint => Pick(
+        "書庫を読み直して、ルールに合っているか当て直します。",
+        "Reads the archive again and re-checks it against the rules.");
 
     /// <summary>印を付けたものが全部直っていた (#87)。</summary>
     public static string RuleDoneAll => Pick(
@@ -913,6 +925,24 @@ internal static partial class Strings
     public static string RuleTreeBreakTooltip => Pick(
         "このフォルダか、この中のどこかに、ルールに合っていない項目があります。",
         "Something here, or somewhere inside, does not match the rules.");
+
+    /// <summary>
+    /// ツリーの印に添える、違反の中身 (#88)。
+    /// </summary>
+    /// <remarks>
+    /// **印だけでは、直すときに何をすればよいか分からない。**どこの何が、どの
+    /// ルールに合っていないのかまで書く。結果の窓を開き直さずに済ませるための説明。
+    /// </remarks>
+    public static string RuleTreeBreakDetail(string heading, string items) =>
+        $"{heading}{Environment.NewLine}{Environment.NewLine}{items}";
+
+    /// <summary>違反1件を1行で書く (#88)。</summary>
+    public static string RuleTreeBreakItem(string path, string what) => $"{path}: {what}";
+
+    /// <summary>説明に載せ切れなかった残り (#88)。黙って切ると、これで全部だと読める。</summary>
+    public static string RuleTreeBreakMore(int count) => Pick(
+        $"ほか {count} 件",
+        $"and {count} more");
 
     public static string RuleColumnKind => Pick("種類", "Kind");
 

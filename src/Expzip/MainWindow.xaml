@@ -35,9 +35,6 @@
         <ToolTip x:Key="EncryptedTooltip">
             <TextBlock TextWrapping="Wrap" />
         </ToolTip>
-        <ToolTip x:Key="RuleBreakTooltip">
-            <TextBlock TextWrapping="Wrap" />
-        </ToolTip>
 
         <!--
             名前の色。保護された項目だけ色を変える (#20)。
@@ -56,6 +53,17 @@
                 <DataTrigger Binding="{Binding HasEncryptedContent}" Value="True">
                     <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
                     <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
+                </DataTrigger>
+                <!--
+                    ルールに合っていない印 (#88)。**名前の地色を変える。**
+                    旗を前に置くと1文字ぶん名前がずれ、兄弟のフォルダと段が違って
+                    見える。ツリーは段で親子を読ませる絵なので、そこは狂わせない。
+                    説明にはフォルダごとの中身が入る。**何が合っていないのかを、
+                    結果の窓を開き直さずに読めるようにする**
+                -->
+                <DataTrigger Binding="{Binding BreaksRules}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource RuleBreakBackBrush}" />
+                    <Setter Property="ToolTip" Value="{Binding RuleTooltip}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -342,19 +350,10 @@
                                               ItemsSource="{Binding Folders}">
                         <StackPanel Orientation="Horizontal">
                             <!--
-                                ルールに合っていない項目がある印 (#87)。
-                                **配下のどこかにあれば、ここにも出る。**
-                                でないと、開いて回らないと気付けない
+                                ルールに合っていない印 (#87) は、名前の地色で出す
+                                (#88、FolderNameText)。**配下のどこかにあれば、
+                                ここにも出る。**でないと、開いて回らないと気付けない
                             -->
-                            <TextBlock Text="&#xE7C1;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="12"
-                                       Foreground="{StaticResource RuleBreakBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,4,0"
-                                       ToolTip="{StaticResource RuleBreakTooltip}"
-                                       Visibility="{Binding BreaksRules,
-                                                    Converter={StaticResource BoolToVisibility}}" />
                             <!-- パスが通常ではないフォルダに警告を添える (#36) -->
                             <TextBlock Text="&#xE814;"
                                        FontFamily="Segoe MDL2 Assets"
@@ -371,8 +370,13 @@
                                        Foreground="{StaticResource FolderBrush}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,6,0" />
+                            <!--
+                                地色を敷いたときに文字が縁にくっつかないよう、
+                                余白を取る。**どの節にも同じだけ**取るので、段はずれない
+                            -->
                             <TextBlock Text="{Binding Name}"
                                        VerticalAlignment="Center"
+                                       Padding="3,0"
                                        Style="{StaticResource FolderNameText}" />
                         </StackPanel>
                     </HierarchicalDataTemplate>

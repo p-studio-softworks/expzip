@@ -45,6 +45,15 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// <summary>もう当ててあるか。決まりが無くて <c>null</c> の場合と区別する。</summary>
     public bool AuditDone { get; set; }
 
+    /// <summary>
+    /// ツリーに印を出す項目 (#88)。<see langword="null"/> なら合っていないもの全部。
+    /// </summary>
+    /// <remarks>
+    /// 結果の窓で「直す」に印を付けて閉じると、**その項目だけ**が残る。
+    /// 全部に印が出たままでは、どれを自分が引き受けたのかが見えない。
+    /// </remarks>
+    public HashSet<string>? RuleMarks { get; set; }
+
     /// <summary>一覧に出している書庫内フォルダ。</summary>
     public ArchiveFolder CurrentFolder { get; set; } = contents.Root;
 

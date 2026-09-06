@@ -27,5 +27,13 @@
             名前の付け方が違うだけの書庫が同じ顔になる
         -->
         <SolidColorBrush x:Key="RuleBreakBrush" Color="#6B4FBB" />
+        <!--
+            ツリーで印を付けるときの地色 (#88)。旗を前に置くと、その1文字ぶん
+            名前がずれ、**兄弟のフォルダと段が違って見える。**ツリーは段で親子を
+            読ませる絵なので、そこを狂わせてはいけない。地色なら幅が変わらない。
+            薄い赤にしてあるのは、黒い文字を白地と同じに読ませたまま、
+            目には入るようにするため
+        -->
+        <SolidColorBrush x:Key="RuleBreakBackBrush" Color="#F6BFBA" />
     </Application.Resources>
 </Application>

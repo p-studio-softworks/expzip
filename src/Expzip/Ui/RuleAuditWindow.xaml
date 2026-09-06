@@ -51,10 +51,12 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <!--
                     直したら押す (#87)。押すと**検査し直す。**
-                    直っていれば印が消え、直っていなければそう言う
+                    直っていれば印が消え、直っていなければそう言う。
+                    名前は「更新」(#88)。することは書庫の読み直しで、
+                    何が起きるかは説明で添える
                 -->
                 <Button x:Name="DoneButton"
-                        Width="180" Height="26" Margin="0,0,8,0"
+                        Width="96" Height="26" Margin="0,0,8,0"
                         Click="DoneButton_Click" />
                 <Button x:Name="CloseButton"
                         Width="96" Height="26"
