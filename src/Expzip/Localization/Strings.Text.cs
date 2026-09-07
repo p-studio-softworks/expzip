@@ -774,6 +774,29 @@ internal static partial class Strings
         "押すと、全部使う・全部使わないを切り替えます。",
         "Click to turn them all on, or all off.");
 
+    /// <summary>選んだルールを一覧から消す (#98)。</summary>
+    public static string RuleDelete => Pick("消す", "Remove");
+
+    /// <summary>
+    /// 消すことと、使用を外すことの違い (#98)。
+    /// </summary>
+    /// <remarks>
+    /// **消すと、次の推定でまた挙がってくることがある。**外したものは印を付けて
+    /// 残るので挙がってこない (#26)。この違いは、押す前に分かっていないと困る。
+    /// </remarks>
+    public static string RuleDeleteHint => Pick(
+        "選んだルールを一覧から消します。"
+        + "消したものは、次の推定でまた挙がってくることがあります。"
+        + "二度と挙がってこないようにするには、使用を外したまま保存してください。",
+        "Removes the selected rules from the list. "
+        + "A removed rule can be proposed again the next time you work out the rules. "
+        + "To keep one from coming back, clear its Use box and save instead.");
+
+    /// <summary>消したことの知らせ (#98)。**まだファイルは変わっていない**と言う。</summary>
+    public static string RuleRemoved(int count) => Pick(
+        $"{count} 件を一覧から消しました。保存すると、ファイルからも消えます。",
+        $"Removed {count} rule(s) from the list. Saving writes the change to the file.");
+
     public static string RuleColumnSource => Pick("出どころ", "From");
 
     /// <summary>いま開いている書庫に当てるとどうなるか (#26)。</summary>
@@ -1127,11 +1150,9 @@ internal static partial class Strings
 
         書庫全体が1つのフォルダに包まれていることがあります。その場合、
         利用者はその**フォルダの中**を「書庫のルート」と受け取ります。
+        description でもそう書いてください。
         いっぽう scope の root は、**包んでいるフォルダそのもの**を指し、
         その中身は指しません。中を指すには where に ^[^/]+$ を書いてください。
-
-        **description には「包み」という言い方を使わないでください。**
-        利用者の目に触れる文です。「書庫のルート」と書いてください。
 
         description には、そのルールを日本語の一文で書いてください。
         evidence には、一覧のどこからそう読み取ったかを短く書いてください。

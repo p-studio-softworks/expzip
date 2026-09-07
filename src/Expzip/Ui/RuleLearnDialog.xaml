@@ -71,7 +71,10 @@
         <ListView x:Name="RuleList" Grid.Row="5" MinHeight="160" Margin="0,8,0,0"
                   Visibility="Collapsed"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                  GridViewColumnHeader.Click="Header_Click">
+                  GridViewColumnHeader.Click="Header_Click"
+                  SelectionMode="Extended"
+                  SelectionChanged="RuleList_SelectionChanged"
+                  KeyDown="RuleList_KeyDown">
             <!--
                 行の名前。入れておかないと、支援技術には束ねている型の名前が
                 そのまま読まれる
@@ -152,6 +155,13 @@
                     HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button x:Name="SendButton" Width="160" Height="26" Margin="0,0,8,0"
                     IsDefault="True" Click="SendButton_Click" />
+            <!--
+                選んだものを一覧から消す (#98)。推定するたびに増える一方だった。
+                足す・直す (#72 で外した) と違い、**新しい決まりを作らせない**ので、
+                誤ったものが生まれる余地が無い。保存するまでファイルは変わらない
+            -->
+            <Button x:Name="DeleteButton" Width="96" Height="26" Margin="0,0,8,0"
+                    IsEnabled="False" Click="DeleteButton_Click" />
             <Button x:Name="SaveButton" Width="120" Height="26" Margin="0,0,8,0"
                     Click="SaveButton_Click" />
             <Button x:Name="CloseButton" Width="96" Height="26"

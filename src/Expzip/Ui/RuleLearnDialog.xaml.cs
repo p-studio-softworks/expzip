@@ -2,6 +2,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Localization;
@@ -92,6 +93,10 @@ public partial class RuleLearnDialog : Window
         SourceColumn.Header = Strings.RuleColumnSource;
         VerdictColumn.Header = Strings.RuleColumnVerdict;
         SendButton.Content = Strings.RuleSend;
+        DeleteButton.Content = Strings.RuleDelete;
+
+        // 消すことと、使用を外すことは違う (#98)。押す前に分かるようにする
+        DeleteButton.ToolTip = Strings.RuleDeleteHint;
         SaveButton.Content = Strings.RuleSave;
         CloseButton.Content = Strings.RuleClose;
     }
@@ -348,6 +353,60 @@ public partial class RuleLearnDialog : Window
         {
             row.Enabled = turnOn;
         }
+    }
+
+    // ------------------------------------------------------------------ 消す (#98)
+
+    /// <summary>
+    /// 選んだ決まりを一覧から消す (#98)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 推定するたびに**増える一方**だった。要らないと決めたものを、目の前から
+    /// 消せるようにする。#72 で外した足す・直すとは違い、消すのは
+    /// **新しい決まりを作らせない**ので、誤ったものが生まれる余地が無い。
+    /// </para>
+    /// <para>
+    /// **消すと、次の推定でまた挙がってくることがある。**二度と挙がってこない
+    /// ようにするなら、使用を外したまま保存する (#26)。その違いは説明で断る。
+    /// </para>
+    /// <para>
+    /// **保存するまでファイルは変わらない。**押し間違えても、保存せずに閉じれば元のまま。
+    /// </para>
+    /// </remarks>
+    private void DeleteButton_Click(object sender, RoutedEventArgs e) => DeleteChosen();
+
+    private void RuleList_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Delete)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        DeleteChosen();
+    }
+
+    private void RuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        => DeleteButton.IsEnabled = RuleList.SelectedItems.Count > 0;
+
+    private void DeleteChosen()
+    {
+        // 採らなかった候補 (#80) も消せる。並べてあるだけで、保存はされていない
+        var chosen = RuleList.SelectedItems.OfType<RuleRow>().ToList();
+
+        if (chosen.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var row in chosen)
+        {
+            _rows.Remove(row);
+        }
+
+        ResultText.Text = Strings.RuleRemoved(chosen.Count);
+        ShowRows();
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
