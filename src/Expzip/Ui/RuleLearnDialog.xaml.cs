@@ -95,8 +95,9 @@ public partial class RuleLearnDialog : Window
         SendButton.Content = Strings.RuleSend;
         DeleteButton.Content = Strings.RuleDelete;
 
-        // 消すことと、使用を外すことは違う (#98)。押す前に分かるようにする
-        DeleteButton.ToolTip = Strings.RuleDeleteHint;
+        // 消すことと、使用を外すことは違う (#98)。押す前に分かるようにする。
+        // 押せないときは、何をすれば押せるのかを出す (#101)
+        ShowDeleteReady();
         SaveButton.Content = Strings.RuleSave;
         CloseButton.Content = Strings.RuleClose;
     }
@@ -387,8 +388,23 @@ public partial class RuleLearnDialog : Window
         DeleteChosen();
     }
 
+    /// <summary>
+    /// 選びに合わせて、消す口の押せる・押せないと説明を入れ替える (#101)。
+    /// </summary>
+    /// <remarks>
+    /// **押せないまま置くと、壊れているように見える。**「使用」のチェックで消せると
+    /// 思って押した人に、何をすれば押せるのかを返す。
+    /// </remarks>
     private void RuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        => DeleteButton.IsEnabled = RuleList.SelectedItems.Count > 0;
+        => ShowDeleteReady();
+
+    private void ShowDeleteReady()
+    {
+        var chosen = RuleList.SelectedItems.Count;
+
+        DeleteButton.IsEnabled = chosen > 0;
+        DeleteButton.ToolTip = chosen > 0 ? Strings.RuleDeleteHint : Strings.RuleDeleteNone;
+    }
 
     private void DeleteChosen()
     {

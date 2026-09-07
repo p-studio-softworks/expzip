@@ -160,8 +160,14 @@
                 足す・直す (#72 で外した) と違い、**新しい決まりを作らせない**ので、
                 誤ったものが生まれる余地が無い。保存するまでファイルは変わらない
             -->
-            <Button x:Name="DeleteButton" Width="96" Height="26" Margin="0,0,8,0"
-                    IsEnabled="False" Click="DeleteButton_Click" />
+            <!--
+                押せないときこそ訳が要る (#101)。既定では押せないボタンの説明は
+                出ないので、出す指定を入れておく
+            -->
+            <Button x:Name="DeleteButton" Width="140" Height="26" Margin="0,0,8,0"
+                    IsEnabled="False"
+                    ToolTipService.ShowOnDisabled="True"
+                    Click="DeleteButton_Click" />
             <Button x:Name="SaveButton" Width="120" Height="26" Margin="0,0,8,0"
                     Click="SaveButton_Click" />
             <Button x:Name="CloseButton" Width="96" Height="26"

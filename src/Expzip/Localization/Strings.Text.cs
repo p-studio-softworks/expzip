@@ -773,7 +773,18 @@ internal static partial class Strings
         "Click to turn them all on, or all off.");
 
     /// <summary>選んだルールを一覧から消す (#98)。</summary>
-    public static string RuleDelete => Pick("消す", "Remove");
+    /// <remarks>
+    /// **何を消すのかを名前に書く** (#101)。「消す」だけだと、「使用」のチェックを
+    /// 付けたものが消えると読める。あれは使うかどうかの印で、選びの印ではない。
+    /// </remarks>
+    public static string RuleDelete => Pick("選んだ行を消す", "Remove selected rows");
+
+    /// <summary>押せない訳 (#101)。押せないまま置くと、壊れているように見える。</summary>
+    public static string RuleDeleteNone => Pick(
+        "消す行を選んでください。行をクリックすると選べます"
+        + "(Ctrl または Shift を押しながらで複数選べます)。",
+        "Select the rows to remove first. Click a row to select it "
+        + "(hold Ctrl or Shift to select several).");
 
     /// <summary>
     /// 消すことと、使用を外すことの違い (#98)。
@@ -783,10 +794,12 @@ internal static partial class Strings
     /// 残るので挙がってこない (#26)。この違いは、押す前に分かっていないと困る。
     /// </remarks>
     public static string RuleDeleteHint => Pick(
-        "選んだルールを一覧から消します。"
+        "選んだ行を一覧から消します。行をクリックして選んでください"
+        + "(「使用」のチェックとは別です)。"
         + "消したものは、次の推定でまた挙がってくることがあります。"
         + "二度と挙がってこないようにするには、使用を外したまま保存してください。",
-        "Removes the selected rules from the list. "
+        "Removes the selected rows from the list. Click a row to select it "
+        + "(this is not the Use box). "
         + "A removed rule can be proposed again the next time you work out the rules. "
         + "To keep one from coming back, clear its Use box and save instead.");
 
