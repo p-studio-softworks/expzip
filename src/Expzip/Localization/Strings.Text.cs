@@ -675,16 +675,14 @@ internal static partial class Strings
     /// 知りたい気持ちは、端折りの有無では変わらない。
     /// </para>
     /// </remarks>
-    public static string RulePayload(int bytes, int omitted, int perFolder) => omitted == 0
-        ? Pick($"1つのフォルダから最大で {perFolder} 項目を送信します。"
+    public static string RulePayload(int bytes, int omitted, int total) => omitted == 0
+        ? Pick($"この書庫の名前はすべて含まれています。全部で {bytes:N0} バイトです。",
+            $"Every name in this archive is included. {bytes:N0} bytes in total.")
+        : Pick($"名前は全体で最大 {total:N0} 個までにしているため、"
+            + $"{omitted:N0} 個は送りません。"
             + $"全部で {bytes:N0} バイトです。",
-            $"At most {perFolder} entries are taken from each folder. "
-            + $"{bytes:N0} bytes in total.")
-        : Pick($"1つのフォルダから最大で {perFolder} 項目を送信します。"
-            + $"そのため名前 {omitted:N0} 個は送りません。"
-            + $"全部で {bytes:N0} バイトです。",
-            $"At most {perFolder} entries are taken from each folder, "
-            + $"so {omitted:N0} names are left out. "
+            $"At most {total:N0} names are sent in all, "
+            + $"so {omitted:N0} of them are left out. "
             + $"{bytes:N0} bytes in total.");
 
     /// <summary>送るものの断り。AI連携の設定と同じ書きぶりにする (#24)。</summary>
@@ -1072,19 +1070,26 @@ internal static partial class Strings
     public static string RuleDigestMoreFiles(int count) => Pick(
         $"(ほか {count:N0} 個は送らない)", $"({count:N0} more not sent)");
 
-    public static string RuleDigestSamples(int perFolder) => Pick(
-        $"## 各フォルダのファイル名 (フォルダごとに最大 {perFolder} 個)",
-        $"## File names per folder (at most {perFolder} per folder)");
+    /// <remarks>
+    /// **数を書かない** (#99)。1フォルダあたりの数は配る順番の決め方でしかなく、
+    /// 枠が余っていれば端折った所へ配り直すので、上限として書くと嘘になる。
+    /// </remarks>
+    public static string RuleDigestSamples => Pick(
+        "## 各フォルダのファイル名", "## File names per folder");
 
     public static string RuleDigestMoreHere(int count) => Pick(
         $"…ほか {count:N0} 個", $"...and {count:N0} more");
 
-    public static string RuleDigestOmitted(int count, int perFolder, int total) => Pick(
+    /// <remarks>
+    /// **効いた上限だけを書く** (#99)。1フォルダあたりの数は配る順番の決め方に
+    /// なったので、端折りが出るのは**全体の枠を使い切ったときだけ**になった。
+    /// </remarks>
+    public static string RuleDigestOmitted(int count, int total) => Pick(
         $"※ 名前 {count:N0} 個は送っていない "
-        + $"(1フォルダあたり最大 {perFolder} 個、全体で最大 {total:N0} 個までのため)。"
+        + $"(全体で最大 {total:N0} 個までのため)。"
         + "ここに出ていない名前を根拠にしないこと。",
         $"Note: {count:N0} names are not included "
-        + $"(at most {perFolder} per folder, {total:N0} in total). "
+        + $"({total:N0} names at most in total). "
         + "Do not base any rule on names that are not shown here.");
 
     /// <summary>AI への頼み方 (#25)。答えられる形をあらかじめ絞る。</summary>

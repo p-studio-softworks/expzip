@@ -76,7 +76,7 @@ public partial class RuleLearnDialog : Window
         SendLabel.Text = Strings.RuleSendLabel;
         PayloadText.Text = Strings.RulePrivacyShort + Environment.NewLine
             + Strings.RulePayload(
-                _digest.Bytes, _digest.Omitted, ArchiveDigest.PerFolderLimit);
+                _digest.Bytes, _digest.Omitted, ArchiveDigest.TotalLimit);
         NoticeText.Text = Strings.RuleProposalNotice;
         // 押せる見出しだと分かる形が他に無いので、説明を添える (#94)
         UseColumn.Header = new TextBlock

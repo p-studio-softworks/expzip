@@ -53,11 +53,14 @@ internal sealed record ArchiveDigest(string Text, int Folders, int Files, int Om
     /// <summary>出すファイル名の上限。</summary>
     private const int MaxFiles = 300;
 
-    /// <summary>ルートより下で、1つのフォルダから出すファイル名の数。</summary>
+    /// <summary>
+    /// ルートより下で、1周目に1つのフォルダから出すファイル名の数。
+    /// </summary>
+    /// <remarks>
+    /// **これは端折る理由ではなく、配る順番の決め方** (#99)。まず各フォルダから
+    /// この数だけ取り、<see cref="MaxFiles"/> の枠が余っていれば端折った所へ配り直す。
+    /// </remarks>
     private const int PerFolder = 5;
-
-    /// <summary>1つのフォルダから出す数。端折った理由を画面に出すのに使う (#70)。</summary>
-    public static int PerFolderLimit => PerFolder;
 
     /// <summary>出すファイル名の合計。端折った理由を画面に出すのに使う (#70)。</summary>
     public static int TotalLimit => MaxFiles;
@@ -145,27 +148,27 @@ internal sealed record ArchiveDigest(string Text, int Folders, int Files, int Om
 
         budget -= Math.Min(budget, root.Count);
 
-        // 深いところは、フォルダごとに数個ずつ。命名の癖を見るのに何百個も要らない
+        // 深いところは、まず各フォルダから数個ずつ。余ったら端折った所へ配り直す (#99)
         builder.Append('\n');
-        builder.Append(Strings.RuleDigestSamples(PerFolder));
+        builder.Append(Strings.RuleDigestSamples);
         builder.Append('\n');
 
-        foreach (var folder in folders.Take(MaxFolders))
+        var deep = folders.Take(MaxFolders).ToList();
+        var takes = Share(deep, budget);
+
+        // 出せなかったフォルダの中身も、端折った数に入れる
+        omitted += folders.Skip(MaxFolders).Sum(static folder => folder.Files.Count);
+
+        for (var at = 0; at < deep.Count; at++)
         {
-            if (folder.Files.Count == 0)
-            {
-                continue;
-            }
-
-            var take = Math.Min(Math.Min(PerFolder, budget), folder.Files.Count);
+            var folder = deep[at];
+            var take = takes[at];
             omitted += folder.Files.Count - take;
 
             if (take == 0)
             {
                 continue;
             }
-
-            budget -= take;
 
             var names = folder.Files.Select(static f => f.Name)
                 .OrderBy(static n => n, StringComparer.Ordinal).Take(take);
@@ -186,12 +189,63 @@ internal sealed record ArchiveDigest(string Text, int Folders, int Files, int Om
         if (omitted > 0)
         {
             builder.Append('\n');
-            builder.Append(Strings.RuleDigestOmitted(omitted, PerFolder, MaxFiles));
+            builder.Append(Strings.RuleDigestOmitted(omitted, MaxFiles));
             builder.Append('\n');
         }
 
         return new ArchiveDigest(
             builder.ToString(), folders.Count, contents.FileCount, omitted);
+    }
+
+    /// <summary>
+    /// 残りの枠を、フォルダに配る (#99)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 1周目は、どのフォルダからも <see cref="PerFolder"/> 個まで。
+    /// **先頭のフォルダが枠を食い尽くして、後ろが1個も出ない、ということにしない。**
+    /// </para>
+    /// <para>
+    /// **配り終えて余っていたら、端折った所へ配り直す。**1周につき1個ずつ増やし、
+    /// 増やせなくなるまで繰り返す。119ファイルの書庫で28個を端折っていたが、
+    /// 枠は300個あって余っていた。**端折る理由が無いのに端折っていた。**
+    /// </para>
+    /// <para>
+    /// この配り方だと、端折りが出るのは**枠を使い切ったときだけ**になる。
+    /// 1フォルダあたりの数は、もう端折る理由ではなく、配る順番の決め方でしかない。
+    /// </para>
+    /// </remarks>
+    /// <returns><paramref name="folders"/> と同じ並びの、フォルダごとに出す数。</returns>
+    private static int[] Share(List<ArchiveFolder> folders, int budget)
+    {
+        var takes = new int[folders.Count];
+
+        for (var at = 0; at < folders.Count && budget > 0; at++)
+        {
+            takes[at] = Math.Min(Math.Min(PerFolder, budget), folders[at].Files.Count);
+            budget -= takes[at];
+        }
+
+        var more = true;
+
+        while (budget > 0 && more)
+        {
+            more = false;
+
+            for (var at = 0; at < folders.Count && budget > 0; at++)
+            {
+                if (takes[at] >= folders[at].Files.Count)
+                {
+                    continue;
+                }
+
+                takes[at]++;
+                budget--;
+                more = true;
+            }
+        }
+
+        return takes;
     }
 
     /// <summary>ルートを除く全フォルダを、深さ優先で集める。</summary>
