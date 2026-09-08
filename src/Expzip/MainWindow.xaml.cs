@@ -2262,12 +2262,26 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>保存ボタンの見出しを、上書きできるかどうかで選ぶ (#30)。</summary>
+    /// <summary>ツールバーの絵の口に、名前と説明を入れる (#102)。</summary>
+    /// <remarks>
+    /// 名前は支援技術と画面越しの確認が拾うもの、説明はマウスを当てた人が読むもので、
+    /// 相手が違う。前者は短い見出し、後者は何が起きるかの一文にする。
+    /// </remarks>
+    private static void NameTool(Button button, string name, string tooltip)
+    {
+        AutomationProperties.SetName(button, name);
+        button.ToolTip = tooltip;
+    }
+
+    /// <summary>保存ボタンの名前を、上書きできるかどうかで選ぶ (#30)。</summary>
+    /// <remarks>絵は同じままにする。同じ保存なので、違うのは行き先だけ (#102)。</remarks>
     private void ShowSaveLabel(NestSession? nest)
     {
         var orphaned = nest is { Orphaned: true };
-        SaveButton.Content = orphaned ? Strings.SaveAs : Strings.Save;
-        SaveButton.ToolTip = orphaned ? Strings.SaveAsTooltip : Strings.SaveTooltip;
+        NameTool(
+            SaveButton,
+            orphaned ? Strings.SaveAs : Strings.Save,
+            orphaned ? Strings.SaveAsTooltip : Strings.SaveTooltip);
     }
 
     /// <summary>閉じた書庫を親にしているタブに、上書き保存できなくなったことを伝える (#30)。</summary>
@@ -5246,31 +5260,22 @@ public partial class MainWindow : Window
     /// </remarks>
     private void ApplyLanguage()
     {
-        OpenButton.Content = Strings.Open;
-        OpenButton.ToolTip = Strings.OpenTooltip;
-        RecentButton.ToolTip = Strings.RecentTooltip;
-        ExtractButton.Content = Strings.Extract;
-        ExtractButton.ToolTip = Strings.ExtractTooltip;
-        AddButton.Content = Strings.Add;
-        AddButton.ToolTip = Strings.AddTooltip;
-        PasswordButton.Content = Strings.Password;
-        PasswordButton.ToolTip = Strings.PasswordTooltip;
+        // ツールバーは絵だけになった (#102)。中身は XAML にあり、ここでは触らない。
+        // **絵の口には必ず名前を入れる。**入れないと支援技術には記号のまま読まれ、
+        // 画面越しの確認からも見えなくなる。名前は字だったころの見出しをそのまま使う
+        NameTool(OpenButton, Strings.Open, Strings.OpenTooltip);
+        NameTool(RecentButton, Strings.RecentTooltip, Strings.RecentTooltip);
+        NameTool(ExtractButton, Strings.Extract, Strings.ExtractTooltip);
+        NameTool(AddButton, Strings.Add, Strings.AddTooltip);
+        NameTool(PasswordButton, Strings.Password, Strings.PasswordTooltip);
         ShowSaveLabel(Tab?.Nest);
-        InspectButton.Content = Strings.Inspect;
-        InspectButton.ToolTip = Strings.InspectTooltip;
-        SplitButton.Content = Strings.Split;
-        SplitButton.ToolTip = Strings.SplitTooltip;
-        SfxButton.Content = Strings.Sfx;
-        SfxButton.ToolTip = Strings.SfxTooltip;
-        SettingsButton.ToolTip = Strings.SettingsTooltip;
+        NameTool(InspectButton, Strings.Inspect, Strings.InspectTooltip);
+        NameTool(SplitButton, Strings.Split, Strings.SplitTooltip);
+        NameTool(SfxButton, Strings.Sfx, Strings.SfxTooltip);
+        NameTool(SettingsButton, Strings.SettingsTooltip, Strings.SettingsTooltip);
         AiSettingsItem.Header = Strings.AiSettingsMenu;
         RuleLearnItem.Header = Strings.RuleMenu;
         RuleAuditItem.Header = Strings.RuleAuditMenu;
-
-        // 絵文字だけのボタンは、そのままだと支援技術に記号として読まれる。
-        // 説明と同じ文言を名前にしておく
-        AutomationProperties.SetName(RecentButton, Strings.RecentTooltip);
-        AutomationProperties.SetName(SettingsButton, Strings.SettingsTooltip);
 
         LanguageMenuItem.Header = Strings.LanguageMenu;
         LanguageAutoItem.Header = Strings.LanguageAuto;
