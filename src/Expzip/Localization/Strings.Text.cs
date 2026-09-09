@@ -100,6 +100,18 @@ internal static partial class Strings
 
     public static string AboutClose => Pick("閉じる", "Close");
 
+    // ------------------------------------------------------------------ ライセンス表示 (#105)
+
+    public static string AboutLicense => Pick("ライセンス", "Licenses");
+
+    public static string LicenseTitle => Pick(
+        "ライセンス表示", "Third-Party Notices");
+
+    /// <summary>組み立てを間違えたときだけ出る。黙って空にはしない。</summary>
+    public static string LicenseMissing(string resource) => Pick(
+        $"ライセンス表示を実行ファイルから読み出せませんでした ({resource})。",
+        $"Could not read the notices from the executable ({resource}).");
+
     // ------------------------------------------------------------------ アドレスバーとタブ
 
     /// <summary>

@@ -79,11 +79,15 @@ public partial class AboutDialog : Window
         PlatformText.Text = Strings.AboutPlatform(
             RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription);
         CloseButton.Content = Strings.AboutClose;
+        LicenseButton.Content = Strings.AboutLicense;
 
         // 空の枠が何なのか分からないままにしない (#104)
         IconSlot.ToolTip = Strings.AboutIconLater;
         AutomationProperties.SetName(IconPlaceholder, Strings.AboutIconLater);
     }
+
+    private void LicenseButton_Click(object sender, RoutedEventArgs e)
+        => new LicenseDialog(this).ShowDialog();
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 }

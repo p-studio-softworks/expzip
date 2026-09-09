@@ -1,0 +1,42 @@
+﻿<Window x:Class="Expzip.Ui.LicenseDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="760" Height="600"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!--
+        ライセンス表示 (#105)。文言はすべて ApplyLanguage が入れる (#23)。
+
+        **本文は入っているものをそのまま出す。**訳さない、要約しない、体裁も
+        揃え直さない。MIT が求めているのは「上記の著作権表示とこの許諾条文を
+        複製物に含めること」で、言い換えたものは含めたことにならない。
+
+        窓の大きさは変えられる。読む人はまずいないが、読みたい人が読めない形に
+        はしない
+    -->
+    <DockPanel Margin="14">
+        <Button x:Name="CloseButton" DockPanel.Dock="Bottom"
+                Width="96" Height="28" Margin="0,12,0,0"
+                HorizontalAlignment="Right"
+                IsDefault="True" IsCancel="True" Click="CloseButton_Click" />
+
+        <!--
+            読み取り専用の入力欄にする。ただの文字より重いが、
+            **選んで写せる。**貼って渡したい人の手を塞がない
+        -->
+        <TextBox x:Name="NoticeText"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Disabled"
+                 FontFamily="Consolas, Meiryo"
+                 FontSize="12"
+                 Padding="8"
+                 Background="{x:Static SystemColors.WindowBrush}" />
+    </DockPanel>
+</Window>

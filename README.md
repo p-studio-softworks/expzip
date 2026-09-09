@@ -50,3 +50,8 @@ dotnet run --project tools/uifixtures -- <出したい場所>
 ## ライセンス
 
 [MIT License](LICENSE)
+
+Expzip.exe には SharpCompress・SharpZipLib・.NET ランタイムが入っています。
+それぞれの著作権表示と許諾条文は [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) に
+そのまま載せてあり、同じものが実行ファイルにも入っています
+(**バージョン情報 → ライセンス**)。

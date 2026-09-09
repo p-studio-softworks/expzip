@@ -47,7 +47,48 @@
       ソースと建て直し方は tools/sfx にある。
     -->
     <EmbeddedResource Include="Resources\sfx-x86.exe" LogicalName="Expzip.Resources.sfx-x86.exe" />
+
+    <!--
+      配るものに入っているソフトウェアの、著作権表示と許諾条文 (#105)。
+
+      **MIT は「上記の著作権表示とこの許諾条文を、複製物に含めること」を条件に
+      している。**単一の実行ファイルとして配るので添付ファイルを並べる形は採れない。
+      実行ファイルの中に入れ、バージョン情報から読めるようにすることで、
+      どの複製にも必ず付いてくる。
+    -->
+    <EmbeddedResource Include="..\..\THIRD-PARTY-NOTICES.txt"
+                      LogicalName="Expzip.Resources.THIRD-PARTY-NOTICES.txt" />
   </ItemGroup>
+
+  <!--
+    表示と、実際に入れている版がずれていないか確かめる (#105)。
+
+    **ずれても動いてしまうのが厄介なところ。**版を上げたときに表示を直し忘れると、
+    入っていないものの表示を配ることになる。気付く手立てをここに置く。
+  -->
+  <Target Name="CheckNotices" BeforeTargets="Build">
+    <PropertyGroup>
+      <NoticesPath>$(MSBuildProjectDirectory)\..\..\THIRD-PARTY-NOTICES.txt</NoticesPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(NoticesPath)')"
+           Text="THIRD-PARTY-NOTICES.txt がありません。配るものに入れる表示なので、無いままでは建てられません (#105)" />
+
+    <PropertyGroup>
+      <NoticesText>$([System.IO.File]::ReadAllText('$(NoticesPath)'))</NoticesText>
+    </PropertyGroup>
+
+    <!-- 名前と版をつないだ「あるはずの一行」を作り、それが表示にあるかを見る -->
+    <ItemGroup>
+      <NoticeCheck Include="@(PackageReference)"
+                   Condition="'%(Identity)' == 'SharpCompress' or '%(Identity)' == 'SharpZipLib'">
+        <Wanted>%(Identity) %(Version)</Wanted>
+      </NoticeCheck>
+    </ItemGroup>
+
+    <Error Condition="!$(NoticesText.Contains('%(NoticeCheck.Wanted)'))"
+           Text="THIRD-PARTY-NOTICES.txt に「%(NoticeCheck.Wanted)」がありません。版を上げたら表示も直してください (#105)" />
+  </Target>
 
   <!--
     建てたときのコミットを組み込む (#104)。バージョン情報の窓に出す。
