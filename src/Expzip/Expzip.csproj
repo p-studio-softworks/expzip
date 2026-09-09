@@ -50,6 +50,41 @@
   </ItemGroup>
 
   <!--
+    建てたときのコミットを組み込む (#104)。バージョン情報の窓に出す。
+    版だけでは、同じ 0.1.0 のどれを渡したのかが分からない。
+
+    **git が無くても、リポジトリの外に置いても建つようにする。**
+    取れなければリビジョンは入らず、窓には「不明」と出る。
+  -->
+  <Target Name="StampRevision" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; rev-parse --short HEAD"
+          ConsoleToMSBuild="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low"
+          IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="RevisionHash" />
+      <Output TaskParameter="ExitCode" PropertyName="RevisionExitCode" />
+    </Exec>
+
+    <!--
+      そのコミットから手を入れた木で建てたかどうか。
+      **黙って番号だけ出さない。**取り寄せても同じものにならないため、
+      突き合わせる人が嘘の手掛かりを追うことになる
+    -->
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)&quot; status --porcelain"
+          ConsoleToMSBuild="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low"
+          IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="RevisionChanges" />
+    </Exec>
+
+    <ItemGroup Condition="'$(RevisionExitCode)' == '0' and '$(RevisionHash)' != ''">
+      <AssemblyMetadata Include="Revision" Value="$(RevisionHash.Trim())" />
+      <AssemblyMetadata Include="RevisionModified"
+                        Condition="'$(RevisionChanges)' != ''" Value="true" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     発行設定は Properties/PublishProfiles/win-x64.pubxml にある。
     ここに RuntimeIdentifier を書くと通常のビルドまで RID 固有になり
     開発時のビルドが遅くなるため、発行プロファイル側に分離している。

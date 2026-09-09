@@ -1,0 +1,69 @@
+﻿<Window x:Class="Expzip.Ui.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="440"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!--
+        バージョン情報 (#104)。文言はすべて ApplyLanguage が入れる (#23)。
+
+        出すのは**このアプリが何で、どの版なのか**だけにする。組み込んだ部品の版は
+        並べない。外の書庫用 DLL を差し替えて使う造りなら、どれが入っているかが
+        利用者の関心事になるが、Expzip は全部入りの単一 exe なので、並べても
+        中身は毎回同じになる
+    -->
+    <StackPanel Margin="18">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--
+                絵の置き場 (#104)。**まだ絵が無いので空けてある。**
+                後で描いたものをここへ入れる。枠だけ先に決めておけば、
+                入れ替えたときに周りの並びが動かない
+            -->
+            <Border x:Name="IconSlot" Grid.Column="0"
+                    Width="64" Height="64" Margin="0,0,18,0"
+                    VerticalAlignment="Top"
+                    BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                    BorderThickness="1"
+                    Background="{x:Static SystemColors.ControlLightLightBrush}">
+                <!--
+                    枠 (Border) は支援技術の木に出てこないので、名前はこちらに入れる。
+                    入れないと記号がそのまま読み上げられる (#102 と同じ話)
+                -->
+                <TextBlock x:Name="IconPlaceholder" Text="&#xE7B8;"
+                           FontFamily="Segoe MDL2 Assets" FontSize="30"
+                           Foreground="{x:Static SystemColors.ControlDarkBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+
+            <StackPanel Grid.Column="1">
+                <TextBlock x:Name="NameText" FontSize="19" FontWeight="SemiBold" />
+                <TextBlock x:Name="VersionText" Margin="0,8,0,0" />
+                <TextBlock x:Name="RevisionText" Margin="0,2,0,0" />
+                <TextBlock x:Name="CopyrightText" Margin="0,12,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </Grid>
+
+        <Separator Margin="0,16,0,0" />
+
+        <!--
+            動いている土台。不具合を伝えるときに要るのはここまでで、
+            利用者に読んでもらうものではないので薄く出す
+        -->
+        <TextBlock x:Name="PlatformText" Margin="0,12,0,0" TextWrapping="Wrap"
+                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+
+        <Button x:Name="CloseButton" Width="96" Height="28"
+                Margin="0,18,0,0" HorizontalAlignment="Right"
+                IsDefault="True" IsCancel="True" Click="CloseButton_Click" />
+    </StackPanel>
+</Window>

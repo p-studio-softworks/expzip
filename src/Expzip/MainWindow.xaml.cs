@@ -4866,14 +4866,13 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 言語 (#23)
 
-    /// <summary>ツールバーの歯車。いまは言語だけがぶら下がっている。</summary>
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (SettingsButton.ContextMenu is not { } menu)
-        {
-            return;
-        }
+    /// <summary>ツールバーの言語 (#104)。口そのものが言語なので、中で入れ子にしない。</summary>
+    private void LanguageButton_Click(object sender, RoutedEventArgs e)
+        => DropDown(LanguageButton);
 
+    /// <summary>ツールバーの AI (#104)。繋ぎ先の設定と、書庫のルールの操作。</summary>
+    private void AiButton_Click(object sender, RoutedEventArgs e)
+    {
         // AI の機能は、接続先が揃っていて書庫が開いているときだけ押せる (#25)
         RuleLearnItem.IsEnabled = AiConfigured && Tab is not null;
         RuleLearnItem.ToolTip = AiConfigured
@@ -4886,10 +4885,27 @@ public partial class MainWindow : Window
             ? Tab is null ? Strings.NoArchiveOpen : null
             : Strings.RuleNoneSaved;
 
-        menu.PlacementTarget = SettingsButton;
+        DropDown(AiButton);
+    }
+
+    /// <summary>ツールバーの口に、ぶら下げた品書きを開く。</summary>
+    private static void DropDown(Button button)
+    {
+        if (button.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        menu.PlacementTarget = button;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
     }
+
+    // ------------------------------------------------------------------ バージョン情報 (#104)
+
+    /// <summary>このアプリが何で、どの版なのかを出す。</summary>
+    private void AboutButton_Click(object sender, RoutedEventArgs e)
+        => new AboutDialog(this).ShowDialog();
 
     // ------------------------------------------------------------------ AI 連携の設定 (#24)
 
@@ -5272,12 +5288,13 @@ public partial class MainWindow : Window
         NameTool(InspectButton, Strings.Inspect, Strings.InspectTooltip);
         NameTool(SplitButton, Strings.Split, Strings.SplitTooltip);
         NameTool(SfxButton, Strings.Sfx, Strings.SfxTooltip);
-        NameTool(SettingsButton, Strings.SettingsTooltip, Strings.SettingsTooltip);
+        NameTool(AiButton, Strings.AiMenu, Strings.AiTooltip);
+        NameTool(LanguageButton, Strings.LanguageMenu, Strings.LanguageTooltip);
+        NameTool(AboutButton, Strings.AboutTitle, Strings.AboutTooltip);
         AiSettingsItem.Header = Strings.AiSettingsMenu;
         RuleLearnItem.Header = Strings.RuleMenu;
         RuleAuditItem.Header = Strings.RuleAuditMenu;
 
-        LanguageMenuItem.Header = Strings.LanguageMenu;
         LanguageAutoItem.Header = Strings.LanguageAuto;
         LanguageJapaneseItem.Header = Strings.LanguageJapanese;
         LanguageEnglishItem.Header = Strings.LanguageEnglish;

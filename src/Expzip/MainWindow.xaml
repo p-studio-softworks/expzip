@@ -208,25 +208,18 @@
                         Style="{StaticResource ToolGlyph}" Content="&#xE7B8;" />
                 <Separator />
                 <!--
-                    設定 (#23)。いまは言語だけ。設定ファイルを開かずに変えられる
-                    項目が増えたら、ここにぶら下げていく
+                    AI の機能 (#104)。歯車ひとつに言語といっしょに入れていたが、
+                    **性質の違うものが1つの口に同居していた。**開くまで何が出てくるか
+                    分からないので、口を分ける
                 -->
-                <Button x:Name="SettingsButton" Click="SettingsButton_Click"
-                        Style="{StaticResource ToolGlyph}" Content="&#xE713;">
+                <!-- Robot -->
+                <Button x:Name="AiButton" Click="AiButton_Click"
+                        Style="{StaticResource ToolGlyph}" Content="&#xE99A;">
                     <Button.ContextMenu>
                         <ContextMenu>
-                            <MenuItem x:Name="LanguageMenuItem">
-                                <MenuItem x:Name="LanguageAutoItem" IsCheckable="True"
-                                          Tag="auto" Click="LanguageItem_Click" />
-                                <Separator />
-                                <MenuItem x:Name="LanguageJapaneseItem" IsCheckable="True"
-                                          Tag="ja" Click="LanguageItem_Click" />
-                                <MenuItem x:Name="LanguageEnglishItem" IsCheckable="True"
-                                          Tag="en" Click="LanguageItem_Click" />
-                            </MenuItem>
-                            <Separator />
                             <!-- AI 連携の繋ぎ先 (#24)。設定していなければ機能を出さない -->
                             <MenuItem x:Name="AiSettingsItem" Click="AiSettingsItem_Click" />
+                            <Separator />
                             <!--
                                 お手本からルールを学ぶ (#25)。繋ぎ先が未設定なら押せない
                                 (仕様書 11.4節)。灰色の項目が何なのか分からないままに
@@ -243,6 +236,27 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
+                <!--
+                    言語 (#23, #104)。口そのものが言語なので、中で入れ子にしない。
+                    LocaleLanguage。Windows が言語に使っている絵
+                -->
+                <Button x:Name="LanguageButton" Click="LanguageButton_Click"
+                        Style="{StaticResource ToolGlyph}" Content="&#xF2B7;">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem x:Name="LanguageAutoItem" IsCheckable="True"
+                                      Tag="auto" Click="LanguageItem_Click" />
+                            <Separator />
+                            <MenuItem x:Name="LanguageJapaneseItem" IsCheckable="True"
+                                      Tag="ja" Click="LanguageItem_Click" />
+                            <MenuItem x:Name="LanguageEnglishItem" IsCheckable="True"
+                                      Tag="en" Click="LanguageItem_Click" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+                <!-- バージョン情報 (#104)。Info。押すとその場で窓が出る -->
+                <Button x:Name="AboutButton" Click="AboutButton_Click"
+                        Style="{StaticResource ToolGlyph}" Content="&#xE946;" />
             </ToolBar>
         </ToolBarTray>
 

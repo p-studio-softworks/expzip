@@ -40,7 +40,17 @@ internal static partial class Strings
         "この書庫のパスワードを付ける・変える・外す",
         "Set, change, or remove this archive's password");
 
-    public static string SettingsTooltip => Pick("設定", "Settings");
+    // 歯車ひとつに言語と AI が同居していたのをやめた (#104)。
+    // 性質の違うものが1つの口に入っていると、何が出てくるのか開くまで分からない
+
+    public static string AiMenu => Pick("AI 機能", "AI features");
+
+    public static string AiTooltip => Pick(
+        "AI の設定と、書庫のルールの推定",
+        "AI settings and archive rule estimation");
+
+    public static string LanguageTooltip => Pick(
+        "表示する言語を選ぶ", "Choose the display language");
 
     // ------------------------------------------------------------------ 言語の切り替え (#23)
 
@@ -52,6 +62,43 @@ internal static partial class Strings
     public static string LanguageJapanese => "日本語";
 
     public static string LanguageEnglish => "English";
+
+    // ------------------------------------------------------------------ バージョン情報 (#104)
+
+    public static string AboutTitle => Pick("バージョン情報", "About");
+
+    public static string AboutTooltip => Pick("Expzip について", "About Expzip");
+
+    /// <summary>版と、動いている側の作り。x64 の exe を x86 の窓で見ることはない。</summary>
+    public static string AboutVersion(string version, string architecture) => Pick(
+        $"バージョン {version} ({architecture})",
+        $"Version {version} ({architecture})");
+
+    /// <summary>建てたときのコミット。手元の木と突き合わせるためのもの。</summary>
+    public static string AboutRevision(string revision) => Pick(
+        $"リビジョン {revision}", $"Revision {revision}");
+
+    /// <summary>
+    /// そのコミットから手を入れた木で建てた場合 (#104)。
+    /// </summary>
+    /// <remarks>
+    /// **黙って番号だけ出さない。**そのコミットを取り寄せても同じものにならないため、
+    /// 突き合わせる人が嘘の手掛かりを追うことになる。
+    /// </remarks>
+    public static string AboutRevisionModified(string revision) => Pick(
+        $"リビジョン {revision} (変更あり)", $"Revision {revision} (modified)");
+
+    public static string AboutRevisionUnknown => Pick(
+        "リビジョン 不明", "Revision unknown");
+
+    public static string AboutPlatform(string os, string runtime) => Pick(
+        $"{os} / {runtime}", $"{os} / {runtime}");
+
+    /// <summary>絵の置き場に添える説明 (#104)。空の枠が何なのか分からないままにしない。</summary>
+    public static string AboutIconLater => Pick(
+        "アイコンはここに入ります", "The application icon goes here");
+
+    public static string AboutClose => Pick("閉じる", "Close");
 
     // ------------------------------------------------------------------ アドレスバーとタブ
 
