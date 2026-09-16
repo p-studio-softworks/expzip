@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using Expzip.Localization;
 
 namespace Expzip.Archives;
 
@@ -87,8 +88,7 @@ internal static class SfxWriter
         CancellationToken cancellationToken = default)
     {
         using var stub = typeof(SfxWriter).Assembly.GetManifestResourceStream(StubResource)
-            ?? throw new InvalidOperationException(
-                $"取り出すプログラムが同梱されていません ({StubResource})");
+            ?? throw new InvalidOperationException(Strings.EmbeddedToolMissing(StubResource));
 
         using var source = File.OpenRead(archivePath);
 

@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.IO.Compression;
 using ICSharpCode.SharpZipLib.Zip;
+using Expzip.Localization;
 
 // 標準ライブラリにも同じ名前の型があるため、こちら側の名前をはっきりさせる
 using SharpZipFile = ICSharpCode.SharpZipLib.Zip.ZipFile;
@@ -249,7 +250,7 @@ internal static class ZipEncryption
                                        or ArgumentException or NotSupportedException
                                        or PathTooLongException or InvalidDataException)
             {
-                failed.Add((entry.Name, ex.Message));
+                failed.Add((entry.Name, Strings.Reason(ex)));
             }
 
             doneBytes += Math.Max(0, entry.Size);

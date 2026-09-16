@@ -161,5 +161,5 @@ internal static class SharpArchiveExtractor
         => ex is System.Security.Cryptography.CryptographicException
             or SharpCompress.Common.CryptographicException
             ? Strings.PasswordNotSupported
-            : ex.Message;
+            : Strings.Reason(ex);
 }

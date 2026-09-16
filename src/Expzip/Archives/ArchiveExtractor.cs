@@ -213,7 +213,7 @@ internal static class ArchiveExtractor
         => ex is InvalidDataException or NotSupportedException
            && ex.Message.Contains("compress", StringComparison.OrdinalIgnoreCase)
             ? Strings.UnsupportedCompressionMethod
-            : ex.Message;
+            : Strings.Reason(ex);
 
     /// <summary>
     /// 書庫内パスの先頭から、指定のフォルダを取り除く。

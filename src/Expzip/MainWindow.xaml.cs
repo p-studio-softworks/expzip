@@ -238,7 +238,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.CreateArchiveFailed(dialog.FileName, ex.Message),
+                Strings.CreateArchiveFailed(dialog.FileName, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -327,13 +327,13 @@ public partial class MainWindow : Window
             // 外のアプリが書き換えている途中なら、次に変わったときにまた試せる
             if (quiet)
             {
-                StatusMessage.Text = Strings.ReloadFailed(Path.GetFileName(path), ex.Message);
+                StatusMessage.Text = Strings.ReloadFailed(Path.GetFileName(path), Strings.Reason(ex));
                 return false;
             }
 
             MessageBox.Show(
                 this,
-                Strings.OpenArchiveFailed(path, ex.Message),
+                Strings.OpenArchiveFailed(path, Strings.Reason(ex)),
                 AppName,
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -815,7 +815,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.RenameFailed(ex.Message),
+                Strings.RenameFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -939,7 +939,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.CreateFolderFailed(ex.Message),
+                Strings.CreateFolderFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -1112,7 +1112,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.ChangePasswordFailed(ex.Message),
+                Strings.ChangePasswordFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -1702,7 +1702,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.DeleteFailed(ex.Message),
+                Strings.DeleteFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -1995,7 +1995,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.AddFailed(ex.Message),
+                Strings.AddFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -2343,7 +2343,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.NestSaveAsFailed(dialog.FileName, ex.Message),
+                Strings.NestSaveAsFailed(dialog.FileName, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -2494,7 +2494,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.ApplyEditFailed(session.EntryPath, ex.Message),
+                Strings.ApplyEditFailed(session.EntryPath, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -2748,7 +2748,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.SfxFailed(dialog.FileName, ex.Message),
+                Strings.SfxFailed(dialog.FileName, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -3020,7 +3020,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.DragExtractFailed(ex.Message),
+                Strings.DragExtractFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -3215,7 +3215,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.MoveFailed(ex.Message),
+                Strings.MoveFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -3406,7 +3406,7 @@ public partial class MainWindow : Window
         _tempUnavailableReported = true;
         MessageBox.Show(
             this,
-            Strings.TempUnavailableDetail(TempWorkspace.Root, ex.Message),
+            Strings.TempUnavailableDetail(TempWorkspace.Root, Strings.Reason(ex)),
             AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
@@ -3488,7 +3488,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.OpenEntryFailed(entry.Name, ex.Message),
+                Strings.OpenEntryFailed(entry.Name, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -3537,7 +3537,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.DefaultAppFailed(ex.Message),
+                Strings.DefaultAppFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -3562,7 +3562,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.NoAppFound(ex.Message),
+                Strings.NoAppFound(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -3751,7 +3751,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.ExtractFailed(ex.Message),
+                Strings.ExtractFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -3822,7 +3822,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 this,
-                Strings.InspectFailed(ex.Message),
+                Strings.InspectFailed(Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -3998,7 +3998,7 @@ public partial class MainWindow : Window
                                    or NotSupportedException or ArgumentException)
         {
             MessageBox.Show(
-                this, Strings.SplitFailed(ex.Message), AppName,
+                this, Strings.SplitFailed(Strings.Reason(ex)), AppName,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally

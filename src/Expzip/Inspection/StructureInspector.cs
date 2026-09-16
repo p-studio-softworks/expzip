@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using Expzip.Archives;
 using ICSharpCode.SharpZipLib.Zip;
+using Expzip.Localization;
 
 // 標準ライブラリにも同じ名前の型があるため、こちら側の名前をはっきりさせる
 using SharpZipFile = ICSharpCode.SharpZipLib.Zip.ZipFile;
@@ -138,7 +139,7 @@ internal static class StructureInspector
         catch (Exception ex) when (ex is ZipException or IOException or UnauthorizedAccessException
                                    or InvalidDataException or NotSupportedException)
         {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, ex.Message);
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }
     }
 

@@ -1,4 +1,5 @@
-﻿using System.IO.Compression;
+﻿using System.IO;
+using System.IO.Compression;
 using Expzip.Archives;
 using Expzip.Inspection;
 
@@ -20,7 +21,7 @@ internal static partial class Strings
 
     public static string OpenTooltip => Pick("書庫を開く", "Open an archive");
 
-    public static string RecentTooltip => Pick("最近使った書庫", "Recently opened archives");
+    public static string RecentTooltip => Pick("最近開いた書庫", "Recently opened archives");
 
     public static string Extract => Pick("展開", "Extract");
 
@@ -31,32 +32,32 @@ internal static partial class Strings
     public static string Add => Pick("追加", "Add");
 
     public static string AddTooltip => Pick(
-        "ファイルを書庫に追加する。一覧にドラッグしても追加できる",
-        "Add files to the archive. Dragging them onto the list works too.");
+        "ファイルを追加する",
+        "Add files to the archive");
 
     public static string Password => Pick("パスワード", "Password");
 
     public static string PasswordTooltip => Pick(
-        "この書庫のパスワードを付ける・変える・外す",
-        "Set, change, or remove this archive's password");
+        "パスワードを設定・変更・削除",
+        "Set, change, or remove the password");
 
     // 歯車ひとつに言語と AI が同居していたのをやめた (#104)。
     // 性質の違うものが1つの口に入っていると、何が出てくるのか開くまで分からない
 
-    public static string AiMenu => Pick("AI 機能", "AI features");
+    public static string AiMenu => Pick("AI機能", "AI features");
 
     public static string AiTooltip => Pick(
-        "AI の設定と、書庫のルールの推定",
-        "AI settings and archive rule estimation");
+        "AI機能の設定",
+        "AI feature settings");
 
     public static string LanguageTooltip => Pick(
-        "表示する言語を選ぶ", "Choose the display language");
+        "言語設定", "Language settings");
 
     // ------------------------------------------------------------------ 言語の切り替え (#23)
 
     public static string LanguageMenu => Pick("言語", "Language");
 
-    public static string LanguageAuto => Pick("OS に合わせる", "Match Windows");
+    public static string LanguageAuto => Pick("Windows の表示言語に合わせる", "Match Windows");
 
     /// <summary>言語の名前は、その言語で書く。探している人が読める形にするため。</summary>
     public static string LanguageJapanese => "日本語";
@@ -96,7 +97,7 @@ internal static partial class Strings
 
     /// <summary>絵の置き場に添える説明 (#104)。空の枠が何なのか分からないままにしない。</summary>
     public static string AboutIconLater => Pick(
-        "アイコンはここに入ります", "The application icon goes here");
+        "Expzipアイコン", "Expzip icon");
 
     public static string AboutClose => Pick("閉じる", "Close");
 
@@ -109,8 +110,8 @@ internal static partial class Strings
 
     /// <summary>組み立てを間違えたときだけ出る。黙って空にはしない。</summary>
     public static string LicenseMissing(string resource) => Pick(
-        $"ライセンス表示を実行ファイルから読み出せませんでした ({resource})。",
-        $"Could not read the notices from the executable ({resource}).");
+        "ライセンス表示を読み出せませんでした。",
+        "Could not read the third-party notices.");
 
     // ------------------------------------------------------------------ アドレスバーとタブ
 
@@ -129,7 +130,7 @@ internal static partial class Strings
         $"{name} の中", $"Inside {name}");
 
     public static string NewTabTooltip => Pick(
-        "新しい書庫を作って開く", "Create and open a new archive");
+        "新しい書庫を作成して開く", "Create and open a new archive");
 
     public static string NewTabName => Pick("新しい書庫", "New archive");
 
@@ -154,7 +155,7 @@ internal static partial class Strings
 
     public static string MenuDelete => Pick("削除", "Delete");
 
-    public static string MenuNewFolder => Pick("新しいフォルダ", "New folder");
+    public static string MenuNewFolder => Pick("新しいフォルダー", "New folder");
 
     /// <summary>書庫を読み直す (#64)。エクスプローラーと同じ文言にする。</summary>
     public static string MenuRefresh => Pick("最新の情報に更新", "Refresh");
@@ -163,7 +164,7 @@ internal static partial class Strings
 
     public static string NoArchiveOpen => Pick("書庫が開かれていません", "No archive is open");
 
-    public static string EmptyFolder => Pick("このフォルダは空です", "This folder is empty");
+    public static string EmptyFolder => Pick("このフォルダーは空です", "This folder is empty");
 
     public static string Stop => Pick("中断", "Stop");
 
@@ -182,7 +183,7 @@ internal static partial class Strings
         $"{total:N0} bytes total ({compressed:N0} bytes packed)");
 
     public static string SuspiciousCount(int count) => Pick(
-        $"パスが通常ではない項目が {count:N0} 件あります",
+        $"パスが通常と異なる項目が {count:N0} 個あります",
         $"{count:N0} {Plural(count, "entry has", "entries have")} an unusual path");
 
     /// <summary>書庫にできることの断り書き。件数の後ろに添える。</summary>
@@ -203,12 +204,12 @@ internal static partial class Strings
 
     /// <summary>分割された書庫であることの断り書き (#61)。</summary>
     public static string LimitSplit(int count) => Pick(
-        $" (分割された書庫 / {count:N0} 個の断片 / 読み取りのみ)",
+        $" (分割された書庫 / {count:N0} 個の分割ファイル / 読み取りのみ)",
         $" (split archive / {count:N0} volumes / read-only)");
 
     /// <summary>断片が揃っていない場合 (#61)。</summary>
     public static string SplitVolumeMissing(string name) => Pick(
-        $"分割された書庫の断片が揃っていません。{name} が見つかりません。",
+        $"分割ファイルが揃っていません。{name} が見つかりません。",
         $"The split archive is incomplete. {name} is missing.");
 
     /// <summary>書庫の中の書庫であることの断り書き (#30)。</summary>
@@ -216,7 +217,7 @@ internal static partial class Strings
         $" ({parentName} の中)", $" (inside {parentName})");
 
     public static string EncryptedTooltip => Pick(
-        "この項目はパスワードで保護されています。取り出すときにパスワードを尋ねます。",
+        "この項目はパスワードで保護されています。展開するときにパスワードを入力してください。",
         "This item is protected with a password. You will be asked for it when extracting.");
 
     public static string SuspiciousPathTooltipLine1 => Pick(
@@ -224,7 +225,7 @@ internal static partial class Strings
         "This path is not in a form normally used by archives.");
 
     public static string SuspiciousPathTooltipLine2 => Pick(
-        "展開しても、選んだフォルダの外には書き出されません。",
+        "展開しても、選択したフォルダーの外には書き込まれません。",
         "Extracting it will not write anything outside the folder you choose.");
 
     public static string SuspiciousPathTooltip
@@ -245,20 +246,14 @@ internal static partial class Strings
 
     // ------------------------------------------------------------------ 圧縮方式 (#11)
 
-    public static string CompressionLevelLabel(CompressionLevel level) => level switch
-    {
-        CompressionLevel.NoCompression => Pick("格納のみ", "Store only"),
-        _ => Pick("圧縮する", "Compress"),
-    };
-
     // ------------------------------------------------------------------ 書庫の形式 (#19)
 
     public static string FormatUnknown => Pick("不明", "Unknown");
 
     /// <summary>NSIS 製インストーラーとして読めなかったときの断り (#68)。</summary>
     public static string NsisNotSupported => Pick(
-        "このインストーラーの作りには、まだ対応していません",
-        "This installer layout is not supported yet.");
+        "このインストーラーには対応していません。",
+        "This installer is not supported.");
 
     /// <summary>「開く」ダイアログの絞り込み。</summary>
     /// <remarks>
@@ -288,10 +283,8 @@ internal static partial class Strings
     public static string Sfx => Pick("自己解凍", "Self-extract");
 
     public static string SfxTooltip => Pick(
-        "取り出すプログラムを付けた実行ファイルとして書き出します。"
-        + "受け取った人は Expzip が無くても取り出せます。",
-        "Write the archive as an executable with an extractor attached, "
-        + "so the recipient can unpack it without Expzip.");
+        "自己解凍書庫として書き出す",
+        "Save as a self-extracting archive");
 
     public static string SfxDialogTitle => Pick(
         "自己解凍書庫として保存", "Save as a self-extracting archive");
@@ -300,42 +293,40 @@ internal static partial class Strings
         "自己解凍書庫 (*.exe)|*.exe", "Self-extracting archives (*.exe)|*.exe");
 
     public static string SfxCreating => Pick(
-        "自己解凍書庫を作っています…", "Creating the self-extracting archive...");
+        "自己解凍書庫を作成しています…", "Creating the self-extracting archive...");
 
     public static string SfxDone(string path, long length) => Pick(
-        $"{path} を作りました ({length:N0} バイト)",
+        $"{path} を作成しました ({length:N0} バイト)",
         $"Created {path} ({length:N0} bytes)");
 
     public static string SfxSameFile => Pick(
-        "元の書庫と同じ場所には書き出せません。",
-        "It cannot be written over the archive it is made from.");
+        "元の書庫と同じファイル名では保存できません。",
+        "It cannot be saved over the archive it is made from.");
 
     public static string SfxCancelled => Pick(
-        "自己解凍書庫の作成を取りやめました", "Stopped creating the self-extracting archive");
+        "自己解凍書庫の作成を中断しました", "Stopped creating the self-extracting archive");
 
     public static string SfxFailed(string path, string reason) => Pick(
-        $"{path} を作れませんでした。{Environment.NewLine}{reason}",
-        $"Could not create {path}.{Environment.NewLine}{reason}");
+        $"{path} を作成できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not create {path}.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     /// <summary>自己解凍書庫にできない理由 (#29)。作る前に断る。</summary>
     public static string SfxRejected(SfxRejection reason) => reason switch
     {
         SfxRejection.NotZip => Pick(
-            "自己解凍書庫にできるのは ZIP だけです。",
+            "自己解凍書庫にできるのは ZIP のみです。",
             "Only ZIP archives can be made self-extracting."),
         SfxRejection.AlreadySelfExtracting => Pick(
             "この書庫はすでに自己解凍書庫です。",
             "This archive is already self-extracting."),
         SfxRejection.Encrypted => Pick(
-            "パスワードの掛かった書庫は自己解凍書庫にできません。"
-            + "取り出すプログラムに復号を持たせると大きくなりすぎるためです。",
-            "A password-protected archive cannot be made self-extracting: "
-            + "carrying the decryption code would make the extractor too large."),
+            "パスワードが設定された書庫は自己解凍書庫にできません。",
+            "A password-protected archive cannot be made self-extracting."),
         SfxRejection.TooMany => Pick(
-            "この書庫は件数が多すぎて、自己解凍書庫にできません。",
+            "この書庫は項目が多すぎるため、自己解凍書庫にできません。",
             "This archive has too many entries to be made self-extracting."),
         _ => Pick(
-            "この書庫は大きすぎて、自己解凍書庫にできません。",
+            "この書庫は大きすぎるため、自己解凍書庫にできません。",
             "This archive is too large to be made self-extracting."),
     };
 
@@ -351,10 +342,8 @@ internal static partial class Strings
     public static string NewArchiveFileName => Pick("新しい書庫.zip", "New archive.zip");
 
     public static string CreateArchiveFailed(string path, string reason) => Pick(
-        $"書庫を作成できませんでした。{Environment.NewLine}{Environment.NewLine}"
-        + $"{path}{Environment.NewLine}{Environment.NewLine}{reason}",
-        $"The archive could not be created.{Environment.NewLine}{Environment.NewLine}"
-        + $"{path}{Environment.NewLine}{Environment.NewLine}{reason}");
+        $"{path} を作成できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not create {path}.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string Reading(string fileName, int done, int total) => Pick(
         $"{fileName} を読み込んでいます… ({done:N0} / {total:N0} 件)",
@@ -363,38 +352,34 @@ internal static partial class Strings
     public static string ReadCancelled => Pick("読み込みを中断しました", "Reading was stopped");
 
     public static string OpenArchiveFailed(string path, string reason) => Pick(
-        $"書庫を開けませんでした。{Environment.NewLine}{Environment.NewLine}{path}"
-        + $"{Environment.NewLine}{Environment.NewLine}{reason}",
-        $"The archive could not be opened.{Environment.NewLine}{Environment.NewLine}{path}"
-        + $"{Environment.NewLine}{Environment.NewLine}{reason}");
+        $"{path} を開けませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not open {path}.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string EncryptedEntriesNotice => Pick(
         $"この書庫には暗号化されたファイルが含まれています。{Environment.NewLine}{Environment.NewLine}"
-        + "一覧は読めますが、中身の取り出しには対応していません。",
+        + "一覧は表示できますが、これらのファイルの展開には対応していません。",
         $"This archive contains encrypted files.{Environment.NewLine}{Environment.NewLine}"
-        + "The list can be read, but extracting their contents is not supported.");
+        + "The list can be shown, but extracting those files is not supported.");
 
     // ------------------------------------------------------------------ 名前の変更 (#15)
 
     public static string RenameSeparatorNotAllowed => Pick(
-        "名前に \\ と / は使えません。フォルダの移動は名前の変更では行えません。",
-        "A name cannot contain \\ or /. Renaming cannot move an item to another folder.");
+        "名前に \\ と / は使用できません。",
+        "A name cannot contain \\ or /.");
 
     public static string RenameReservedName => Pick(
-        "その名前は使えません。", "That name cannot be used.");
+        "その名前は使用できません。", "That name cannot be used.");
 
     public static string RenameInvalidCharacter(char invalid) => Pick(
-        $"名前に使えない文字が含まれています ({invalid})。"
-        + $"{Environment.NewLine}展開したときにファイルを作れなくなります。",
-        $"The name contains a character that cannot be used ({invalid})."
-        + $"{Environment.NewLine}Extracting it would fail to create the file.");
+        $"名前に使用できない文字 ({invalid}) が含まれています。",
+        $"The name contains a character that cannot be used ({invalid}).");
 
     public static string RenameDuplicate(string name) => Pick(
-        $"このフォルダには既に「{name}」があります。",
+        $"このフォルダーには「{name}」がすでに存在します。",
         $"This folder already contains \"{name}\".");
 
     public static string Renaming(int done) => Pick(
-        $"名前を変更しています… ({done:N0} 件)",
+        $"名前を変更しています… ({done:N0} 個)",
         $"Renaming… ({done:N0})");
 
     public static string RenameFailed(string reason) => Pick(
@@ -404,7 +389,7 @@ internal static partial class Strings
     public static string RenameCancelled => Pick("名前の変更を中断しました", "Renaming was stopped");
 
     public static string RenameDone(int count) => Pick(
-        $"{count:N0} 件の名前を変更しました",
+        $"{count:N0} 個の項目の名前を変更しました",
         $"Renamed {count:N0} {Plural(count, "item", "items")}");
 
     // ------------------------------------------------------------------ フォルダの作成 (#50)
@@ -412,14 +397,14 @@ internal static partial class Strings
     /// <summary>新しく作るフォルダの仮の名前。エクスプローラーに合わせる。</summary>
     public static string NewFolderName => Pick("新しいフォルダー", "New folder");
 
-    public static string CreatingFolder => Pick("フォルダを作っています…", "Creating the folder…");
+    public static string CreatingFolder => Pick("フォルダーを作成しています…", "Creating the folder…");
 
     public static string CreateFolderFailed(string reason) => Pick(
-        $"フォルダを作れませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"フォルダーを作成できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"The folder could not be created.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string FolderCreated(string name) => Pick(
-        $"「{name}」を作りました", $"Created \"{name}\"");
+        $"「{name}」を作成しました", $"Created \"{name}\"");
 
     // ------------------------------------------------------------------ パスワード (#20, #63)
 
@@ -439,27 +424,25 @@ internal static partial class Strings
         + $"Enter the password for \"{archiveName}\".");
 
     public static string SetPasswordPrompt(string archiveName) => Pick(
-        $"「{archiveName}」に付けるパスワードを入力してください。{Environment.NewLine}{Environment.NewLine}"
-        + $"入れたファイルは AES-256 で暗号化されます。{Environment.NewLine}"
-        + "パスワードを忘れると中身は取り出せません。",
+        $"「{archiveName}」に設定するパスワードを入力してください。{Environment.NewLine}{Environment.NewLine}"
+        + "パスワードを忘れると、中身を展開できなくなります。",
         $"Enter the password to set on \"{archiveName}\".{Environment.NewLine}{Environment.NewLine}"
-        + $"Files in it will be encrypted with AES-256.{Environment.NewLine}"
-        + "If you forget the password, the contents cannot be recovered.");
+        + "If you forget the password, the contents cannot be extracted.");
 
     public static string ChangePasswordPrompt(string archiveName) => Pick(
         $"「{archiveName}」の新しいパスワードを入力してください。{Environment.NewLine}{Environment.NewLine}"
-        + "空のままにするとパスワードを外します。",
+        + "空欄のままにすると、パスワードを削除します。",
         $"Enter the new password for \"{archiveName}\".{Environment.NewLine}{Environment.NewLine}"
         + "Leave it empty to remove the password.");
 
     public static string NoPasswordSet => Pick(
-        "この書庫にパスワードは付いていません", "This archive has no password");
+        "この書庫にはパスワードが設定されていません", "This archive has no password");
 
     public static string PasswordUnchanged => Pick(
-        "パスワードは変わっていません", "The password is unchanged");
+        "パスワードは変更されていません", "The password is unchanged");
 
     public static string PasswordRemoved => Pick(
-        "パスワードを外しました", "The password was removed");
+        "パスワードを削除しました", "The password was removed");
 
     public static string PasswordSet => Pick(
         "パスワードを設定しました", "The password was set");
@@ -468,21 +451,19 @@ internal static partial class Strings
         "パスワードを設定しました (AES-256)", "The password was set (AES-256)");
 
     public static string RemovingPassword => Pick(
-        "パスワードを外しています…", "Removing the password…");
+        "パスワードを削除しています…", "Removing the password…");
 
     public static string ApplyingPassword => Pick(
-        "パスワードを付けて書庫を作り直しています…",
+        "パスワードを設定して書庫を作り直しています…",
         "Rebuilding the archive with the password…");
 
     public static string Rebuilding(int done) => Pick(
-        $"書庫を作り直しています… ({done:N0} 件)",
+        $"書庫を作り直しています… ({done:N0} 個)",
         $"Rebuilding the archive… ({done:N0})");
 
     public static string ChangePasswordFailed(string reason) => Pick(
-        $"パスワードを変更できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
-        $"The password could not be changed.{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}The original archive was left untouched.");
+        $"パスワードを変更できませんでした。書庫の変更はありません。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"The password could not be changed. The archive was left untouched.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     // ------------------------------------------------------------------ 削除
 
@@ -496,7 +477,7 @@ internal static partial class Strings
 
     public static string DeleteFolderDetail(int affected) => Pick(
         $"{Environment.NewLine}{Environment.NewLine}"
-        + $"フォルダの中身を含めて {affected:N0} 個のファイルが削除されます。",
+        + $"フォルダーの中身を含めて {affected:N0} 個のファイルが削除されます。",
         $"{Environment.NewLine}{Environment.NewLine}"
         + $"{affected:N0} {Plural(affected, "file", "files")} will be deleted, "
         + "including the contents of the folders.");
@@ -506,19 +487,16 @@ internal static partial class Strings
     public static string DeleteCancelled => Pick("削除を中断しました", "Deleting was stopped");
 
     public static string DeleteCancelledDetail => Pick(
-        $"削除を中断しました。{Environment.NewLine}{Environment.NewLine}書庫は変更していません。",
-        $"Deleting was stopped.{Environment.NewLine}{Environment.NewLine}"
-        + "The archive was left untouched.");
+        "削除を中断しました。書庫の変更はありません。",
+        "Deleting was stopped. The archive was left untouched.");
 
     public static string DeleteDone(int count) => Pick(
         $"{count:N0} 個の項目を削除しました",
         $"Deleted {count:N0} {Plural(count, "item", "items")}");
 
     public static string DeleteFailed(string reason) => Pick(
-        $"削除できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
-        $"The items could not be deleted.{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}The original archive was left untouched.");
+        $"削除できませんでした。書庫の変更はありません。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"The items could not be deleted. The archive was left untouched.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     // ------------------------------------------------------------------ 追加
 
@@ -526,22 +504,18 @@ internal static partial class Strings
         "書庫に追加するファイルを選択", "Select the files to add to the archive");
 
     public static string NoArchiveToAddTo => Pick(
-        $"追加先の書庫がありません。{Environment.NewLine}{Environment.NewLine}"
-        + "先に書庫を開くか、タブの右の + で作ってください。",
-        $"There is no archive to add to.{Environment.NewLine}{Environment.NewLine}"
-        + "Open an archive first, or create one with the + next to the tabs.");
+        "追加先の書庫がありません。書庫を開くか、新規作成してください。",
+        "There is no archive to add to. Open an archive or create a new one.");
 
     public static string FormatIsReadOnly(string format) => Pick(
-        $"{format} 書庫にはファイルを追加できません。{Environment.NewLine}{Environment.NewLine}"
-        + "この形式は読み取りのみに対応しています。",
-        $"Files cannot be added to {format} archives.{Environment.NewLine}{Environment.NewLine}"
-        + "This format is supported for reading only.");
+        $"{format} 書庫にはファイルを追加できません。読み取りのみに対応しています。",
+        $"Files cannot be added to {format} archives. This format is supported for reading only.");
 
     public static string ConfirmReplace(int count, string preview, string more) => Pick(
-        $"同じ名前の項目が書庫内に {count:N0} 件あります。置き換えますか?"
+        $"同じ名前の項目が書庫内に {count:N0} 個あります。置き換えますか?"
         + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
         + $"{Environment.NewLine}{Environment.NewLine}"
-        + "「いいえ」を選ぶと、それらは書庫内のまま残します。",
+        + "「いいえ」を選ぶと、それらは置き換えません。",
         $"The archive already contains {count:N0} {Plural(count, "item", "items")} "
         + $"with the same name. Replace {Plural(count, "it", "them")}?"
         + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
@@ -555,20 +529,14 @@ internal static partial class Strings
         "Rebuilding the password-protected archive…");
 
     public static string AddFailed(string reason) => Pick(
-        $"書庫に追加できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
-        $"The files could not be added to the archive.{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}The original archive was left untouched.");
+        $"書庫に追加できませんでした。書庫の変更はありません。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"The files could not be added to the archive. The archive was left untouched.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string AddCancelled => Pick("追加を中断しました", "Adding was stopped");
 
     public static string AddCancelledDetail => Pick(
-        $"追加を中断しました。{Environment.NewLine}{Environment.NewLine}"
-        + "書庫は変更していません。作業用の複製に対して処理していたため、"
-        + $"{Environment.NewLine}中断しても元の書庫はそのまま残ります。",
-        $"Adding was stopped.{Environment.NewLine}{Environment.NewLine}"
-        + "The archive was left untouched. The work was done on a working copy,"
-        + $"{Environment.NewLine}so stopping leaves the original archive as it was.");
+        "追加を中断しました。書庫の変更はありません。",
+        "Adding was stopped. The archive was left untouched.");
 
     public static string AddedFilesLine(int count) => Pick(
         $"追加したファイル: {count:N0} 個",
@@ -579,7 +547,7 @@ internal static partial class Strings
         $"Files replaced: {count:N0}");
 
     public static string KeptFilesLine(int count) => Pick(
-        $"置き換えず残したファイル: {count:N0} 個",
+        $"置き換えずそのまま残したファイル: {count:N0} 個",
         $"Files kept instead of replaced: {count:N0}");
 
     public static string FailedFilesLine(int count) => Pick(
@@ -593,17 +561,17 @@ internal static partial class Strings
     // ------------------------------------------------------------------ 既定のアプリで開く (#12, #16)
 
     public static string OpenedReadOnly(string name, string format) => Pick(
-        $"{name} を開きました ({format} は読み取りのみのため、書き換えても書庫には戻りません)",
+        $"{name} を開きました ({format} は読み取りのみのため、書き換えても書庫は更新されません)",
         $"Opened {name} ({format} is read-only, so any changes will not go back into the archive)");
 
     public static string OpenedWatching(string name) => Pick(
-        $"{name} を開きました。保存すると書庫へ反映するか尋ねます",
+        $"{name} を開きました。保存すると、書庫に反映するか確認します",
         $"Opened {name}. When you save it, you will be asked whether to put it back.");
 
     // ------------------------------------------------------------------ 書庫の中の書庫 (#30)
 
     public static string OpenedNested(string entryPath, string parentName) => Pick(
-        $"{parentName} の中の {entryPath} を新しいタブで開きました",
+        $"{parentName} 内の {entryPath} を新しいタブで開きました",
         $"Opened {entryPath} from {parentName} in a new tab");
 
     public static string Save => Pick("保存", "Save");
@@ -615,14 +583,12 @@ internal static partial class Strings
     public static string AiDialogTitle => Pick("AI連携の設定", "AI settings");
 
     public static string AiIntro => Pick(
-        "書庫のルールをAIに推定させる機能のAIの設定です。"
-        + "接続先はこのアプリでは決めません。使いたいところを自分で選んでください。",
-        "Settings for the AI that works out the rules of an archive. "
-        + "This app does not pick the provider - choose the one you want to use.");
+        "書庫のルールをAIに推定させる機能の設定です。",
+        "Settings for the AI that works out the rules of an archive.");
 
     public static string AiPresetLabel => Pick("接続先", "Provider");
 
-    public static string AiPresetCustom => Pick("手動設定", "Manual");
+    public static string AiPresetCustom => Pick("その他", "Other");
 
     public static string AiPresetGoogle => Pick("Google (Gemini)", "Google (Gemini)");
 
@@ -640,15 +606,15 @@ internal static partial class Strings
 
     /// <summary>送るものと鍵の置き場。隠さずダイアログに出す (#24)。</summary>
     public static string AiPrivacyNotice => Pick(
-        "設定したAIに書庫のファイル名とフォルダ構成を送信してルールを推定します。"
+        "設定したAIに書庫のファイル名とフォルダー構成を送信してルールを推定します。"
         + "ファイルの中身は送信しません。"
         + "無料枠では送信したものが提供元の製品改善に使用される可能性がありますのでご注意ください。"
-        + "入力したAPIキーは本アプリケーションと同ディレクトリに保存されますが、"
+        + "入力したAPIキーは本アプリケーションと同じフォルダーに保存されますが、"
         + "移動した場合には無効になります。",
         "The AI you set up receives the file names and folder structure of the archive "
         + "and works out the rules from them. File contents are never sent. "
         + "On a free tier, what you send may be used to improve the provider's products. "
-        + "The API key you enter is stored in the same directory as this application, "
+        + "The API key you enter is stored in the same folder as this application, "
         + "and stops working if it is moved elsewhere.");
 
     public static string AiCancel => Pick("キャンセル", "Cancel");
@@ -660,23 +626,23 @@ internal static partial class Strings
     /// 待ち時間を延ばしたぶん、動いているのか固まったのかが分からなくなるため。
     /// </summary>
     public static string AiTesting(int seconds) => seconds <= 0
-        ? Pick("試しています…", "Testing...")
-        : Pick($"試しています… ({seconds} 秒)", $"Testing... ({seconds}s)");
+        ? Pick("接続をテストしています…", "Testing...")
+        : Pick($"接続をテストしています… ({seconds} 秒)", $"Testing... ({seconds}s)");
 
     public static string AiBadEndpoint => Pick(
-        "URLが正しくありません。http:// か https:// で始まるURLを入れてください。",
+        "URLが正しくありません。http:// または https:// で始まるURLを入力してください。",
         "That is not a usable URL. It should start with http:// or https://.");
 
     public static string AiNoModel => Pick(
-        "モデル名を入れてください。", "Enter the model name.");
+        "モデル名を入力してください。", "Enter the model name.");
 
     public static string AiReachable(string model) => Pick(
-        $"接続できました。{model} が使えます。",
+        $"接続しました。{model} が使えます。",
         $"Connected. {model} is available.");
 
     public static string AiRefused(int status, string reason) => Pick(
-        $"接続できましたが断られました (HTTP {status})。{Environment.NewLine}{reason}",
-        $"Reached it, but the request was refused (HTTP {status}).{Environment.NewLine}{reason}");
+        $"接続先から拒否されました (HTTP {status})。{Environment.NewLine}{reason}",
+        $"The request was refused (HTTP {status}).{Environment.NewLine}{reason}");
 
     /// <summary>
     /// 待ち時間切れ。**繋がらなかったのとは違う** (#76)。
@@ -684,10 +650,10 @@ internal static partial class Strings
     /// URLや通信経路を疑わせない。考えるモデルほど時間がかかる。
     /// </summary>
     public static string AiTimedOut(int seconds) => Pick(
-        $"{seconds} 秒待ちましたが、答えが返りませんでした。"
+        $"{seconds} 秒待ちましたが、回答が得られませんでした。"
         + $"{Environment.NewLine}"
-        + "混んでいるか、考える時間の長いモデルかもしれません。"
-        + "もう一度試すか、軽いモデルに変えてみてください。",
+        + "接続先が混雑しているか、回答に時間のかかるモデルの可能性があります。"
+        + "もう一度試すか、軽量なモデルに変更してください。",
         $"Waited {seconds}s with no answer.{Environment.NewLine}"
         + "The service may be busy, or the model may take a long time to think. "
         + "Try again, or switch to a lighter model.");
@@ -695,13 +661,11 @@ internal static partial class Strings
     public static string AiSaved => Pick("AI連携の設定を保存しました", "Saved the AI settings");
 
     public static string AiKeyLost => Pick(
-        "保存されていたAPIキーを戻せませんでした。"
-        + "別の PC か別の利用者で保存されたものです。入れ直してください。",
-        "The saved API key could not be read back. "
-        + "It was saved by another user or on another PC. Please enter it again.");
+        "保存されているAPIキーが使用できませんでした。再度入力してください。",
+        "The saved API key could not be used. Please enter it again.");
 
     public static string AiEmptyAnswer => Pick(
-        "AI から中身のある答えが返りませんでした。もう一度試してください。",
+        "AI から回答がありませんでした。もう一度試してください。",
         "The AI returned an empty answer. Please try again.");
 
     // ------------------------------------------------------------ お手本からのルール推定 (#25)
@@ -710,7 +674,7 @@ internal static partial class Strings
         "書庫のルールを推定…", "Work out the rules of this archive...");
 
     public static string RuleNeedsAi => Pick(
-        "先に「AI連携の設定…」で接続先を入れてください。",
+        "先に「AI連携の設定…」で接続先を設定してください。",
         "Set up the connection under AI settings... first.");
 
     public static string RuleDialogTitle => Pick(
@@ -735,11 +699,11 @@ internal static partial class Strings
     /// </para>
     /// </remarks>
     public static string RulePayload(int bytes, int omitted, int total) => omitted == 0
-        ? Pick($"この書庫の名前はすべて含まれています。全部で {bytes:N0} バイトです。",
+        ? Pick($"この書庫のすべての名前を送信します。合計 {bytes:N0} バイトです。",
             $"Every name in this archive is included. {bytes:N0} bytes in total.")
-        : Pick($"名前は全体で最大 {total:N0} 個までにしているため、"
-            + $"{omitted:N0} 個は送りません。"
-            + $"全部で {bytes:N0} バイトです。",
+        : Pick($"送信する名前は最大 {total:N0} 個のため、"
+            + $"{omitted:N0} 個は送信しません。"
+            + $"合計 {bytes:N0} バイトです。",
             $"At most {total:N0} names are sent in all, "
             + $"so {omitted:N0} of them are left out. "
             + $"{bytes:N0} bytes in total.");
@@ -755,19 +719,17 @@ internal static partial class Strings
 
     /// <summary>推定している間の表示。経過した秒を出す (#76)。</summary>
     public static string RuleSending(int seconds) => seconds <= 0
-        ? Pick("推定しています…", "Working it out...")
-        : Pick($"推定しています… ({seconds} 秒)", $"Working it out... ({seconds}s)");
+        ? Pick("ルールを推定しています…", "Working it out...")
+        : Pick($"ルールを推定しています… ({seconds} 秒)", $"Working it out... ({seconds}s)");
 
     public static string RuleClose => Pick("閉じる", "Close");
 
     public static string RuleFound(int count) => Pick(
-        $"ルールを {count} 件推定しました。", $"Worked out {count} rule(s).");
+        $"{count} 件のルールを推定しました。", $"Worked out {count} rule(s).");
 
     public static string RuleNoneFound => Pick(
-        "ルールらしいものは見つかりませんでした。"
-        + "お手本の項目が少ないと、推定できるものがありません。",
-        "No rules could be read off. "
-        + "There may be too few entries in the model archive to see a pattern.");
+        "ルールを推定できませんでした。",
+        "No rules could be worked out.");
 
     /// <summary>採らなかった候補の内訳。黙って減らすと、数が合わない理由が分からない。</summary>
     /// <remarks>
@@ -781,25 +743,25 @@ internal static partial class Strings
 
         if (broken > 0)
         {
-            parts.Add(Pick($"お手本自身が破っているものを {broken} 件",
+            parts.Add(Pick($"お手本の書庫が守っていないもの {broken} 件",
                 $"{broken} that the model archive itself breaks"));
         }
 
         if (unchecked_ > 0)
         {
-            parts.Add(Pick($"当てる先が無く確かめられないものを {unchecked_} 件",
+            parts.Add(Pick($"確認できる対象が無いもの {unchecked_} 件",
                 $"{unchecked_} with nothing to check them against"));
         }
 
         if (unusable > 0)
         {
-            parts.Add(Pick($"形として読み取れないものを {unusable} 件",
+            parts.Add(Pick($"ルールとして解釈できないもの {unusable} 件",
                 $"{unusable} that could not be read as a rule"));
         }
 
         return parts.Count == 0
             ? string.Empty
-            : Pick(string.Join("、", parts) + "外しました。",
+            : Pick(string.Join("、", parts) + "を除外しました。",
                 "Left out " + string.Join(" and ", parts) + ".");
     }
 
@@ -809,16 +771,14 @@ internal static partial class Strings
     /// いまできるのは「使う / 使わない」の選びだけ。無い機能を案内していた。
     /// </remarks>
     public static string RuleProposalNotice => Pick(
-        "これはAIが推定したルールです。本来のルールとは異なる場合があります。"
-        + "使用するものを選んでください。外したものは、保存しても当てません。"
-        + "保存するまでは何も残りません。",
+        "これらはAIが推定したルールです。書庫の本来のルールとは異なる場合があります。"
+        + "ルールとして使用したいものを選択してください。",
         "These are the rules the AI worked out. They may differ from the real ones. "
-        + "Choose which ones to use. Those you clear are not applied, even once saved. "
-        + "Nothing is stored until you save.");
+        + "Choose which ones to use.");
 
     public static string RuleUnreadable => Pick(
-        "AI の答えをルールの形として読み取れませんでした。"
-        + "モデルを変えるか、もう一度試してください。",
+        "AI の回答をルールとして解釈できませんでした。"
+        + "モデルを変更するか、もう一度試してください。",
         "The AI's answer could not be read as a set of rules. "
         + "Try again, or try a different model.");
 
@@ -828,7 +788,7 @@ internal static partial class Strings
 
     /// <summary>「使用」の見出しを押すと何が起きるか (#94)。押せると分かる形が他に無い。</summary>
     public static string RuleUseAll => Pick(
-        "押すと、全部使う・全部使わないを切り替えます。",
+        "クリックすると、すべて使用する・すべて使用しないを切り替えます。",
         "Click to turn them all on, or all off.");
 
     /// <summary>選んだルールを一覧から消す (#98)。</summary>
@@ -836,13 +796,13 @@ internal static partial class Strings
     /// **何を消すのかを名前に書く** (#101)。「消す」だけだと、「使用」のチェックを
     /// 付けたものが消えると読める。あれは使うかどうかの印で、選びの印ではない。
     /// </remarks>
-    public static string RuleDelete => Pick("選んだ行を消す", "Remove selected rows");
+    public static string RuleDelete => Pick("選択したルールを削除", "Remove selected rules");
 
     /// <summary>押せない訳 (#101)。押せないまま置くと、壊れているように見える。</summary>
     public static string RuleDeleteNone => Pick(
-        "消す行を選んでください。行をクリックすると選べます"
-        + "(Ctrl または Shift を押しながらで複数選べます)。",
-        "Select the rows to remove first. Click a row to select it "
+        "削除するルールを選択してください。行をクリックすると選択できます"
+        + "(Ctrl または Shift を押すと複数選択できます)。",
+        "Select the rules to remove first. Click a row to select it "
         + "(hold Ctrl or Shift to select several).");
 
     /// <summary>
@@ -853,21 +813,21 @@ internal static partial class Strings
     /// 残るので挙がってこない (#26)。この違いは、押す前に分かっていないと困る。
     /// </remarks>
     public static string RuleDeleteHint => Pick(
-        "選んだ行を一覧から消します。行をクリックして選んでください"
+        "選択したルールを一覧から削除します。行をクリックして選択してください"
         + "(「使用」のチェックとは別です)。"
-        + "消したものは、次の推定でまた挙がってくることがあります。"
-        + "二度と挙がってこないようにするには、使用を外したまま保存してください。",
-        "Removes the selected rows from the list. Click a row to select it "
+        + "削除したルールは、次の推定で再び提案されることがあります。"
+        + "提案されないようにするには、「使用」を外して保存してください。",
+        "Removes the selected rules from the list. Click a row to select it "
         + "(this is not the Use box). "
         + "A removed rule can be proposed again the next time you work out the rules. "
         + "To keep one from coming back, clear its Use box and save instead.");
 
     /// <summary>消したことの知らせ (#98)。**まだファイルは変わっていない**と言う。</summary>
     public static string RuleRemoved(int count) => Pick(
-        $"{count} 件を一覧から消しました。保存すると、ファイルからも消えます。",
+        $"{count} 件のルールを一覧から削除しました。保存するとファイルに反映されます。",
         $"Removed {count} rule(s) from the list. Saving writes the change to the file.");
 
-    public static string RuleColumnSource => Pick("出どころ", "From");
+    public static string RuleColumnSource => Pick("提案元", "From");
 
     /// <summary>いま開いている書庫に当てるとどうなるか (#26)。</summary>
     public static string RuleColumnVerdict => Pick("この書庫では", "In this archive");
@@ -885,17 +845,17 @@ internal static partial class Strings
 
     /// <summary>補ったルールの説明。こちらが書くので、書きぶりは一定になる。</summary>
     public static string RuleFilledSays(string name) => Pick(
-        $"この場所のフォルダには、いずれも {name} がある。",
+        $"この場所のすべてのフォルダーに {name} がある。",
         $"Every folder in this place holds {name}.");
 
     /// <summary>補った件数の知らせ。**AI が挙げた数と混ぜない** (#84)。</summary>
     public static string RuleFilledCount(int count) => Pick(
-        $"うち {count} 件は、AI が指した場所を数え上げて補いました。",
+        $"うち {count} 件は、AI が示した場所を Expzip が確認して補いました。",
         $"{count} of them were filled in by counting the places the AI pointed at.");
 
     /// <summary>補ったルールの根拠。**何個数えたかを出す。**</summary>
     public static string RuleFilledSaw(int places) => Pick(
-        $"同じ場所の {places} 個すべてにある (数え上げ)",
+        $"同じ場所の {places} 個すべてにある (Expzip が確認)",
         $"present in all {places} of them (counted)");
 
     public static string RuleHolds => Pick("順守", "Holds");
@@ -906,57 +866,57 @@ internal static partial class Strings
     public static string RuleMissing => Pick("見つからない", "Not found");
 
     /// <summary>当てる先が1つも無い。守られているとは言えない (#26)。</summary>
-    public static string RuleNothingToCheck => Pick("当てる先が無い", "Nothing to check");
+    public static string RuleNothingToCheck => Pick("対象なし", "Nothing to check");
 
     /// <summary>採らなかった候補が、なぜ採られなかったか (#80)。</summary>
-    public static string RuleDropBroken => Pick("採らない (お手本が破る)", "Not taken (model breaks it)");
+    public static string RuleDropBroken => Pick("除外 (お手本の書庫が守っていない)", "Not taken (model breaks it)");
 
     /// <summary>
     /// 当てる先が無くて確かめられなかった。**AI の間違いとは限らない。**
     /// 書けないことを値に押し込まれると、ここに来る。
     /// </summary>
     public static string RuleDropUnchecked
-        => Pick("採らない (確かめられない)", "Not taken (cannot be checked)");
+        => Pick("除外 (確認できる対象なし)", "Not taken (cannot be checked)");
 
     public static string RuleSave => Pick("保存する", "Save");
 
     public static string RuleLoaded(int count, string from) => from.Length == 0
-        ? Pick($"保存されていたルール {count} 件を読み込みました。",
+        ? Pick($"保存されている {count} 件のルールを読み込みました。",
             $"Loaded {count} saved rule(s).")
-        : Pick($"保存されていたルール {count} 件を読み込みました (お手本: {from})。",
+        : Pick($"保存されている {count} 件のルールを読み込みました (お手本: {from})。",
             $"Loaded {count} saved rule(s) (learned from {from}).");
 
     public static string RuleAlreadyHad => Pick(
-        "すでにあるものは足していません。", " Ones already listed were not added again.");
+        "一覧にすでにあるルールは追加していません。", " Ones already listed were not added again.");
 
     public static string RuleSaved(int total, int used) => Pick(
-        $"ルール {total:N0} 件を保存しました (使うのは {used:N0} 件)。",
+        $"{total:N0} 件のルールを保存しました (使用するのは {used:N0} 件)。",
         $"Saved {total:N0} rule(s); {used:N0} of them are in use.");
 
     /// <summary>保存したルールのうち、実際に使うもの。ステータスバーに出す。</summary>
     public static string RuleKept(int used) => Pick(
-        $"ルールを保存しました (使うのは {used:N0} 件)",
+        $"ルールを保存しました (使用するのは {used:N0} 件)",
         $"Saved the rules; {used:N0} in use");
 
     public static string RuleCleared => Pick(
-        "保存されていたルールを消しました。", "Removed the saved rules.");
+        "保存されていたルールを削除しました。", "Removed the saved rules.");
 
     public static string RuleSaveFailed => Pick(
-        "ルールを保存できませんでした。exe と同じフォルダに書き込めない場所のようです。",
+        "ルールを保存できませんでした。exe と同じフォルダーに書き込めないようです。",
         "Could not save the rules. The folder holding the exe appears not to be writable.");
 
     // ------------------------------------------------ ルールに合っているか見る (#27)
 
     public static string RuleAuditMenu => Pick(
-        "ルールに合っているか見る…", "Check against the rules...");
+        "ルールに合っているか検査…", "Check against the rules...");
 
     public static string RuleNoneSaved => Pick(
-        "ルールが保存されていません。先に「書庫のルールを推定…」で決めてください。",
+        "ルールが保存されていません。先に「書庫のルールを推定…」で保存してください。",
         "No rules are saved yet. "
         + "Set them under \"Work out the rules of this archive...\" first.");
 
     public static string RuleAuditTitle(string archiveName) => Pick(
-        $"ルールに合っているか - {archiveName}",
+        $"ルールの検査結果 - {archiveName}",
         $"Rule check - {archiveName}");
 
     public static string RuleAuditClean => Pick(
@@ -969,28 +929,28 @@ internal static partial class Strings
     /// 数だけでも別に言う。印が付かないことを「問題なし」と読ませない。
     /// </remarks>
     public static string RuleAuditFound(int broken, int missing) => missing == 0
-        ? Pick($"ルールに合っていない項目が {broken:N0} 件あります",
+        ? Pick($"ルールに合っていない項目が {broken:N0} 個あります",
             $"{broken:N0} item(s) conflict with the rules")
         : broken == 0
-            ? Pick($"あるはずのものが {missing:N0} 件ありません",
+            ? Pick($"あるはずの項目が {missing:N0} 個ありません",
                 $"{missing:N0} required item(s) are missing")
-            : Pick($"ルールに合っていない項目が {broken:N0} 件、"
-                + $"あるはずのものが {missing:N0} 件ありません",
+            : Pick($"ルールに合っていない項目が {broken:N0} 個あります。"
+                + $"あるはずの項目が {missing:N0} 個ありません",
                 $"{broken:N0} item(s) conflict with the rules, "
                 + $"and {missing:N0} required item(s) are missing");
 
     public static string RuleAuditSource(int rules, string from, DateTimeOffset at) =>
         from.Length == 0
-            ? Pick($"ルール {rules:N0} 件を当てました。",
+            ? Pick($"{rules:N0} 件のルールで検査しました。",
                 $"Applied {rules:N0} rule(s).")
-            : Pick($"ルール {rules:N0} 件を当てました "
+            : Pick($"{rules:N0} 件のルールで検査しました "
                 + $"(お手本: {from}、{at.LocalDateTime:yyyy/MM/dd HH:mm})。",
                 $"Applied {rules:N0} rule(s) "
                 + $"(learned from {from} on {at.LocalDateTime:yyyy/MM/dd HH:mm}).");
 
     /// <summary>多すぎて出し切れなかったときだけ出す (#27)。</summary>
     public static string RuleAuditTrimmed(int count) => Pick(
-        $"ほか {count:N0} 件は多すぎるため並べていません。ルールを絞るか、直してから見直してください。",
+        $"ほかに {count:N0} 件ありますが、多すぎるため表示していません。修正してから、もう一度検査してください。",
         $"{count:N0} more are not listed because there are too many. "
         + "Narrow the rules or fix these first.");
 
@@ -1004,7 +964,7 @@ internal static partial class Strings
         $"Does not match the rules:{Environment.NewLine}{rules}");
 
     /// <summary>自分で対処するものに印を付ける列 (#87)。</summary>
-    public static string RuleColumnHandle => Pick("直す", "Fix");
+    public static string RuleColumnHandle => Pick("修正する", "Fix");
 
     /// <summary>
     /// 直し終えたときに押す (#87)。
@@ -1018,12 +978,12 @@ internal static partial class Strings
 
     /// <summary>「更新」に添える説明 (#88)。押すと何が起きるかを言う。</summary>
     public static string RuleDoneHint => Pick(
-        "書庫を読み直して、ルールに合っているか当て直します。",
+        "書庫を読み込み直して、もう一度ルールに合っているか検査します。",
         "Reads the archive again and re-checks it against the rules.");
 
     /// <summary>印を付けたものが全部直っていた (#87)。</summary>
     public static string RuleDoneAll => Pick(
-        "直すことにした項目は、すべてルールに合うようになりました。",
+        "「修正する」に印を付けた項目は、すべてルールに合うようになりました。",
         "Everything you marked now matches the rules.");
 
     /// <summary>
@@ -1031,7 +991,7 @@ internal static partial class Strings
     /// **確かめずに印を消さない**ので、こう言える。
     /// </summary>
     public static string RuleDoneLeft(int count) => Pick(
-        $"直すことにした項目のうち、{count} 件はまだルールに合っていません。",
+        $"「修正する」に印を付けた項目のうち、{count} 個はまだルールに合っていません。",
         $"{count} of the items you marked still do not match the rules.");
 
     /// <summary>
@@ -1042,7 +1002,7 @@ internal static partial class Strings
     /// という意味だと分からないと、開いても何も無いように見える。
     /// </remarks>
     public static string RuleTreeBreakTooltip => Pick(
-        "このフォルダ以下にルールに合っていない項目があります。",
+        "このフォルダー以下にルールに合っていない項目があります。",
         "Something in or below this folder does not match the rules.");
 
     /// <summary>
@@ -1079,7 +1039,7 @@ internal static partial class Strings
     /// 「この形のものが必ずある」(#83)。「必ずある」は名前しか取らないので、
     /// 名前が場所ごとに違うもの (examples の各フォルダの `.ino` など) が書けなかった。
     /// </summary>
-    public static string RuleKindRequiredPattern => Pick("この形が必ずある", "A shape must exist");
+    public static string RuleKindRequiredPattern => Pick("この形の名前が必ずある", "A shape must exist");
 
     /// <summary>場所が決まっていないとき、その列に出す言葉 (#81)。</summary>
     public static string RuleWhereAnywhere => Pick("書庫全体", "Whole archive");
@@ -1092,7 +1052,7 @@ internal static partial class Strings
 
     public static string RuleKindRequiredEntry => Pick("必ずある", "Must exist");
 
-    public static string RuleKindRequiredFolder => Pick("必ずあるフォルダ", "Folder must exist");
+    public static string RuleKindRequiredFolder => Pick("必ずあるフォルダー", "Folder must exist");
 
     public static string RuleKindForbiddenExtension => Pick("含めない拡張子", "Extension not allowed");
 
@@ -1102,7 +1062,7 @@ internal static partial class Strings
 
     public static string RuleScopeRoot => Pick("ルート直下", "Directly under the root");
 
-    public static string RuleScopeFolders => Pick("すべてのフォルダ", "Every folder");
+    public static string RuleScopeFolders => Pick("すべてのフォルダー", "Every folder");
 
     public static string RuleScopeFiles => Pick("すべてのファイル", "Every file");
 
@@ -1114,14 +1074,14 @@ internal static partial class Strings
         $"書庫: {name}", $"Archive: {name}");
 
     public static string RuleDigestCounts(int files, int folders) => Pick(
-        $"ファイル {files:N0} 個、フォルダ {folders:N0} 個",
+        $"ファイル {files:N0} 個、フォルダー {folders:N0} 個",
         $"{files:N0} file(s), {folders:N0} folder(s)");
 
     public static string RuleDigestFolders(int count) => Pick(
-        $"## フォルダ ({count:N0} 個)", $"## Folders ({count:N0})");
+        $"## フォルダー ({count:N0} 個)", $"## Folders ({count:N0})");
 
     public static string RuleDigestNoFolders => Pick(
-        "(フォルダは無い)", "(none)");
+        "(フォルダーなし)", "(none)");
 
     public static string RuleDigestMoreFolders(int count) => Pick(
         $"(ほか {count:N0} 個は送らない)", $"({count:N0} more not sent)");
@@ -1137,7 +1097,7 @@ internal static partial class Strings
         $"## Files directly under the root ({count:N0})");
 
     public static string RuleDigestNoRootFiles => Pick(
-        "(ルート直下にファイルは無い)", "(none)");
+        "(ルート直下のファイルなし)", "(none)");
 
     public static string RuleDigestMoreFiles(int count) => Pick(
         $"(ほか {count:N0} 個は送らない)", $"({count:N0} more not sent)");
@@ -1147,7 +1107,7 @@ internal static partial class Strings
     /// 枠が余っていれば端折った所へ配り直すので、上限として書くと嘘になる。
     /// </remarks>
     public static string RuleDigestSamples => Pick(
-        "## 各フォルダのファイル名", "## File names per folder");
+        "## 各フォルダーのファイル名", "## File names per folder");
 
     public static string RuleDigestMoreHere(int count) => Pick(
         $"…ほか {count:N0} 個", $"...and {count:N0} more");
@@ -1331,13 +1291,13 @@ internal static partial class Strings
         """;
 
     public static string SaveTooltip => Pick(
-        "書き換えた内容を親の書庫へ書き戻します (Ctrl+S)",
+        "変更を親の書庫に反映する (Ctrl+S)",
         "Put the changes back into the parent archive (Ctrl+S)");
 
     public static string SaveAs => Pick("名前を付けて保存", "Save as");
 
     public static string SaveAsTooltip => Pick(
-        "親の書庫のタブが閉じられているため、別のファイルとして保存します (Ctrl+S)",
+        "親の書庫のタブが閉じられているため、別のファイルとして保存する (Ctrl+S)",
         "The parent archive's tab has been closed, so save this as a separate file (Ctrl+S)");
 
     public static string SaveAsDialogTitle => Pick(
@@ -1345,20 +1305,20 @@ internal static partial class Strings
 
     /// <summary>親のタブが閉じられ、上書き保存ができなくなったときの知らせ (#30)。</summary>
     public static string NestOrphaned(string name, string parentName) => Pick(
-        $"{parentName} のタブが閉じられたため、{name} は名前を付けて保存のみになりました",
+        $"{parentName} のタブが閉じられたため、{name} は「名前を付けて保存」でのみ保存できます",
         $"The tab for {parentName} was closed, so {name} can only be saved as a separate file");
 
     public static string NestSavedAs(string path) => Pick(
         $"{path} に保存しました", $"Saved to {path}");
 
     public static string NestSaveAsFailed(string path, string reason) => Pick(
-        $"{path} に保存できませんでした。{Environment.NewLine}{reason}",
-        $"Could not save to {path}.{Environment.NewLine}{reason}");
+        $"{path} に保存できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not save to {path}.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string ConfirmApplyNest(string entryPath, string parentName) => Pick(
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
-        + $"書き換えられています。{parentName} に反映しますか?{Environment.NewLine}{Environment.NewLine}"
-        + "「いいえ」を選ぶと、書き換えた内容は失われます。",
+        + $"変更されています。{parentName} に反映しますか?{Environment.NewLine}{Environment.NewLine}"
+        + "「いいえ」を選ぶと、変更内容は失われます。",
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
         + $"This has been changed. Put it back into {parentName}?{Environment.NewLine}{Environment.NewLine}"
         + "Choosing No discards the changes.");
@@ -1368,7 +1328,7 @@ internal static partial class Strings
         $"Put {entryPath} back into {parentName}");
 
     public static string NestNoChanges => Pick(
-        "書き換えられていないため、反映するものはありません",
+        "変更されていないため、反映する内容はありません",
         "Nothing to put back - it has not been changed");
 
     /// <summary>親書庫のタブが先に閉じられていた場合 (#30)。</summary>
@@ -1378,19 +1338,19 @@ internal static partial class Strings
     /// できないと決めてある。
     /// </remarks>
     public static string NestParentClosed(string parentName) => Pick(
-        $"{parentName} のタブが閉じられているため、書き戻せません。"
+        $"{parentName} のタブが閉じられているため、反映できません。"
         + $"{parentName} を開き直してから、もう一度保存してください。",
         $"The tab for {parentName} has been closed, so the changes cannot be put back. "
         + $"Open {parentName} again and save once more.");
 
     public static string ReloadedAfterNestApply(string name) => Pick(
-        $"中の書庫を書き戻したため、{name} を読み直しました",
+        $"中の書庫を反映したため、{name} を読み込み直しました",
         $"Reloaded {name} after putting the inner archive back");
 
     public static string ConfirmApplyEdit(string entryPath) => Pick(
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
-        + $"編集されました。書庫に反映しますか?{Environment.NewLine}{Environment.NewLine}"
-        + "「いいえ」を選んでも編集内容は残ります。アプリを終了するときに改めて尋ねます。",
+        + $"変更されました。書庫に反映しますか?{Environment.NewLine}{Environment.NewLine}"
+        + "「いいえ」を選んでも変更内容は残ります。Expzip を終了するときに、もう一度確認します。",
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
         + $"This file was edited. Put it back into the archive?{Environment.NewLine}{Environment.NewLine}"
         + "Choosing No keeps your edits; you will be asked again when you quit.");
@@ -1399,10 +1359,8 @@ internal static partial class Strings
         $"{name} を書庫に反映しています…", $"Putting {name} back into the archive…");
 
     public static string ApplyEditFailed(string entryPath, string reason) => Pick(
-        $"書庫に反映できませんでした。{Environment.NewLine}{Environment.NewLine}"
-        + $"{entryPath}{Environment.NewLine}{Environment.NewLine}{reason}",
-        $"The file could not be put back into the archive.{Environment.NewLine}{Environment.NewLine}"
-        + $"{entryPath}{Environment.NewLine}{Environment.NewLine}{reason}");
+        $"{entryPath} を書庫に反映できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not put {entryPath} back into the archive.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string ApplyEditCancelled => Pick("反映を中断しました", "Putting it back was stopped");
 
@@ -1410,9 +1368,9 @@ internal static partial class Strings
         $"{name} を書庫に反映しました", $"Put {name} back into the archive");
 
     public static string ConfirmPendingEdits(string names) => Pick(
-        $"書庫に反映していない編集があります。{Environment.NewLine}{Environment.NewLine}{names}"
+        $"書庫に反映していない変更があります。{Environment.NewLine}{Environment.NewLine}{names}"
         + $"{Environment.NewLine}{Environment.NewLine}反映してから終了しますか?{Environment.NewLine}"
-        + "「いいえ」を選ぶと編集内容は失われます。",
+        + "「いいえ」を選ぶと、変更内容は失われます。",
         $"Some edits have not been put back into the archive."
         + $"{Environment.NewLine}{Environment.NewLine}{names}"
         + $"{Environment.NewLine}{Environment.NewLine}Put them back before quitting?{Environment.NewLine}"
@@ -1428,34 +1386,34 @@ internal static partial class Strings
 
     public static string ConfirmExecutable(string fileName) => Pick(
         $"{fileName}{Environment.NewLine}{Environment.NewLine}"
-        + $"このファイルは開くと実行されます。{Environment.NewLine}"
-        + $"出所の分からない書庫の場合は開かないでください。{Environment.NewLine}{Environment.NewLine}"
-        + "続けますか?",
+        + $"このファイルは、開くとプログラムとして実行されます。{Environment.NewLine}"
+        + $"入手元が不明な書庫の場合は、開かないでください。{Environment.NewLine}{Environment.NewLine}"
+        + "続行しますか?",
         $"{fileName}{Environment.NewLine}{Environment.NewLine}"
         + $"Opening this file will run it.{Environment.NewLine}"
         + $"Do not open it if you are unsure where the archive came from."
         + $"{Environment.NewLine}{Environment.NewLine}Continue?");
 
     public static string TempUnavailable => Pick(
-        "一時フォルダを使えないため、ファイルを開けません",
+        "一時フォルダーを使用できないため、ファイルを開けません",
         "Files cannot be opened because the temporary folder is unavailable");
 
     public static string TempUnavailableDetail(string root, string reason) => Pick(
-        $"ファイルを開くための一時フォルダを用意できませんでした。{Environment.NewLine}"
-        + $"「展開」で場所を指定すれば取り出せます。{Environment.NewLine}{Environment.NewLine}"
+        $"ファイルを開くための一時フォルダーを作成できませんでした。{Environment.NewLine}"
+        + $"ツールバーの「展開」からは展開できます。{Environment.NewLine}{Environment.NewLine}"
         + $"{root}{Environment.NewLine}{Environment.NewLine}{reason}",
         $"The temporary folder used to open files could not be prepared.{Environment.NewLine}"
         + $"You can still get the files out with Extract.{Environment.NewLine}{Environment.NewLine}"
         + $"{root}{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string ExtractingOne(string name) => Pick(
-        $"{name} を取り出しています…", $"Extracting {name}…");
+        $"{name} を展開しています…", $"Extracting {name}…");
 
     public static string ExtractOneCancelled => Pick(
-        "取り出しを中断しました", "Extracting was stopped");
+        "展開を中断しました", "Extracting was stopped");
 
     public static string ExtractOneFailedReason => Pick(
-        "書庫から取り出せませんでした。", "It could not be extracted from the archive.");
+        "書庫から展開できませんでした。", "It could not be extracted from the archive.");
 
     public static string OpenEntryFailed(string name, string reason) => Pick(
         $"{name} を開けませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
@@ -1466,14 +1424,14 @@ internal static partial class Strings
         $"Opened {fileName} with its default app");
 
     public static string OpenLaunchCancelled => Pick(
-        "開くのを取り消しました", "Opening was cancelled");
+        "ファイルを開くのをキャンセルしました", "Opening was cancelled");
 
     public static string DefaultAppFailed(string reason) => Pick(
         $"既定のアプリで開けませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"It could not be opened with the default app.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string ChooseAppPrompt(string fileName) => Pick(
-        $"{fileName} を開くアプリを選んでください",
+        $"{fileName} を開くアプリを選択してください",
         $"Choose an app to open {fileName}");
 
     public static string NoAppFound(string reason) => Pick(
@@ -1483,24 +1441,24 @@ internal static partial class Strings
     // ------------------------------------------------------------------ ドラッグでの取り出し (#17)
 
     public static string NothingToExtract => Pick(
-        "取り出せるファイルがありません", "There are no files to extract");
+        "展開できるファイルがありません", "There are no files to extract");
 
     public static string DragCancelled => Pick(
-        "取り出しを取りやめました", "Extracting was called off");
+        "展開を中止しました", "Extracting was called off");
 
     public static string ExtractingCount(int count) => Pick(
-        $"{count:N0} 件を取り出しています…", $"Extracting {count:N0}…");
+        $"{count:N0} 個の項目を展開しています…", $"Extracting {count:N0}…");
 
     public static string DragExtractFailed(string reason) => Pick(
-        $"取り出しに失敗しました。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"展開に失敗しました。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"Extracting failed.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string DragCannotStart => Pick(
-        "取り出せませんでした。ドラッグを開始できません",
+        "展開できなかったため、ドラッグを開始できません",
         "Nothing could be extracted, so the drag cannot start");
 
     public static string DragExtracted(int count) => Pick(
-        $"{count:N0} 件を取り出しました",
+        $"{count:N0} 個の項目を展開しました",
         $"Extracted {count:N0} {Plural(count, "item", "items")}");
 
     public static string DragFailed => Pick(
@@ -1508,39 +1466,35 @@ internal static partial class Strings
 
     public static string DragTooLarge(
         int fileLimit, long megabyteLimit, int count, long megabytes) => Pick(
-        $"ドラッグで取り出せるのは {fileLimit:N0} 件 / {megabyteLimit:N0}MB までです。"
-        + $"{Environment.NewLine}選択されているのは {count:N0} 件 / {megabytes:N0}MB です。"
+        $"ドラッグで展開できるのは {fileLimit:N0} 個 / {megabyteLimit:N0} MB までです。"
+        + $"{Environment.NewLine}選択されているのは {count:N0} 個 / {megabytes:N0} MB です。"
         + $"{Environment.NewLine}{Environment.NewLine}"
-        + "ドラッグでは取り出しが終わるまで操作を受け付けられないため、"
-        + $"{Environment.NewLine}この量では「展開」を使ってください。中断もできます。",
+        + "ツールバーの「展開」を使用してください。",
         $"Dragging can extract up to {fileLimit:N0} items / {megabyteLimit:N0}MB."
         + $"{Environment.NewLine}You have selected {count:N0} items / {megabytes:N0}MB."
         + $"{Environment.NewLine}{Environment.NewLine}"
-        + "A drag cannot be interrupted until it finishes,"
-        + $"{Environment.NewLine}so use Extract for this much. That can be stopped.");
+        + "Use Extract on the toolbar instead.");
 
     // ------------------------------------------------------------------ 書庫内の移動 (#43)
 
     public static string MoveConflict(string names) => Pick(
         $"移動先に同じ名前の項目があります。{Environment.NewLine}{Environment.NewLine}{names}"
-        + $"{Environment.NewLine}{Environment.NewLine}名前を変えてから移動してください。",
+        + $"{Environment.NewLine}{Environment.NewLine}名前を変更してから移動してください。",
         $"The destination already contains items with the same name."
         + $"{Environment.NewLine}{Environment.NewLine}{names}"
         + $"{Environment.NewLine}{Environment.NewLine}Rename them before moving.");
 
     public static string Moving(int done) => Pick(
-        $"移動しています… ({done:N0} 件)", $"Moving… ({done:N0})");
+        $"移動しています… ({done:N0} 個)", $"Moving… ({done:N0})");
 
     public static string MoveFailed(string reason) => Pick(
-        $"移動できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}元の書庫は変更していません。",
-        $"The items could not be moved.{Environment.NewLine}{Environment.NewLine}{reason}"
-        + $"{Environment.NewLine}{Environment.NewLine}The original archive was left untouched.");
+        $"移動できませんでした。書庫の変更はありません。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"The items could not be moved. The archive was left untouched.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string MoveCancelled => Pick("移動を中断しました", "Moving was stopped");
 
     public static string MoveDone(int count) => Pick(
-        $"{count:N0} 件を移動しました",
+        $"{count:N0} 個の項目を移動しました",
         $"Moved {count:N0} {Plural(count, "item", "items")}");
 
     // ------------------------------------------------------------------ 展開
@@ -1555,10 +1509,10 @@ internal static partial class Strings
         "書庫全体の展開先を選択", "Select where to extract the whole archive");
 
     public static string ConfirmOverwrite(int count, string preview, string more) => Pick(
-        $"展開先に同じ名前のファイルが {count:N0} 件あります。上書きしますか?"
+        $"展開先に同じ名前のファイルが {count:N0} 個あります。上書きしますか?"
         + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
         + $"{Environment.NewLine}{Environment.NewLine}"
-        + "「いいえ」を選ぶと、それらは展開せずに残します。",
+        + "「いいえ」を選ぶと、それらは展開しません。",
         $"The destination already has {count:N0} {Plural(count, "file", "files")} "
         + $"with the same name. Overwrite {Plural(count, "it", "them")}?"
         + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
@@ -1566,7 +1520,7 @@ internal static partial class Strings
         + "Choosing No leaves those files alone and skips them.");
 
     public static string ExtractCalledOff => Pick(
-        "展開を取りやめました", "Extracting was called off");
+        "展開を中止しました", "Extracting was called off");
 
     public static string Extracting(string name) => Pick(
         $"展開中: {name}", $"Extracting: {name}");
@@ -1576,7 +1530,7 @@ internal static partial class Strings
         $"Extracting failed.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string ExtractCancelledStatus(int extracted) => Pick(
-        $"展開を中断しました({extracted:N0} 個展開済み)",
+        $"展開を中断しました ({extracted:N0} 個展開済み)",
         $"Extracting was stopped ({extracted:N0} extracted)");
 
     public static string ExtractDone(int extracted) => Pick(
@@ -1587,11 +1541,11 @@ internal static partial class Strings
         "展開を中断しました。", "Extracting was stopped.");
 
     public static string ExtractCancelledLine2 => Pick(
-        "中断までに展開したファイルはそのまま残してあります。",
+        "中断するまでに展開したファイルは、そのまま残っています。",
         "The files extracted before it stopped were left in place.");
 
     public static string ExtractCancelledLine3 => Pick(
-        "書きかけだったファイルは削除しました。",
+        "書き込み途中のファイルは削除しました。",
         "The file being written at that moment was deleted.");
 
     public static string ExtractDestinationLine(string destination) => Pick(
@@ -1601,7 +1555,7 @@ internal static partial class Strings
         $"展開したファイル: {count:N0} 個", $"Files extracted: {count:N0}");
 
     public static string SkippedFilesLine(int count) => Pick(
-        $"上書きせず残したファイル: {count:N0} 個",
+        $"上書きせずそのまま残したファイル: {count:N0} 個",
         $"Files skipped instead of overwritten: {count:N0}");
 
     public static string RejectedFilesLine(int count) => Pick(
@@ -1609,11 +1563,11 @@ internal static partial class Strings
         $"Files not extracted because of an unsafe path: {count:N0}");
 
     public static string RejectedFilesDetail => Pick(
-        "展開先の外に書き出そうとするエントリが含まれていました。",
+        "展開先の外に書き込もうとする項目が含まれていました。",
         "The archive contained entries that would write outside the destination.");
 
     public static string NotWrittenFilesLine(int count) => Pick(
-        $"書き出せなかったファイル: {count:N0} 個",
+        $"書き込めなかったファイル: {count:N0} 個",
         $"Files that could not be written: {count:N0}");
 
     // ------------------------------------------------------------------ 書庫検査 (#53)
@@ -1621,22 +1575,22 @@ internal static partial class Strings
     public static string Inspect => Pick("検査", "Inspect");
 
     public static string InspectTooltip => Pick(
-        "この書庫が壊れていないか、危ない中身が入っていないかを調べる",
+        "この書庫が壊れていないか、危険なものが入っていないかを調べる",
         "Check this archive for damage and for content that could cause trouble");
 
     /// <summary>検査中のステータスバー。区切りごとに何をしているかを出す。</summary>
     public static string Inspecting(InspectionPhase phase, string name) => phase switch
     {
         InspectionPhase.Structure => Pick(
-            "検査中: 索引とヘッダを照合しています",
+            "検査中: 索引とヘッダーを照合しています",
             "Inspecting: comparing the index against the entry headers"),
 
         InspectionPhase.Safety => Pick(
-            "検査中: 名前と大きさを調べています",
+            "検査中: 名前とサイズを調べています",
             "Inspecting: checking names and sizes"),
 
         _ => name.Length == 0
-            ? Pick("検査中: 中身を読んでいます", "Inspecting: reading the contents")
+            ? Pick("検査中: 中身を読み込んでいます", "Inspecting: reading the contents")
             : Pick($"検査中: {name}", $"Inspecting: {name}"),
     };
 
@@ -1714,33 +1668,33 @@ internal static partial class Strings
     /// 何も出ないと検査が働いたのか分からないため、問題が無かった場合でも必ず出す (#57)。
     /// </remarks>
     public static string InspectionChecksLine => Pick(
-        "行った検査: 構造(索引・ヘッダ・CRCの照合)、安全性(パス・名前・圧縮率)、マルウェア(AMSI)",
+        "行った検査: 構造 (索引・ヘッダー・CRC の照合)、安全性 (パス・名前・圧縮率)、マルウェア (AMSI)",
         "Checks performed: structure (index, headers, CRC), "
         + "safety (paths, names, ratios), malware (AMSI)");
 
     public static string InspectionChecksLineWithoutMalware => Pick(
-        "行った検査: 構造(索引・ヘッダ・CRCの照合)、安全性(パス・名前・圧縮率)",
+        "行った検査: 構造 (索引・ヘッダー・CRC の照合)、安全性 (パス・名前・圧縮率)",
         "Checks performed: structure (index, headers, CRC), safety (paths, names, ratios)");
 
     public static string InspectionContentsLine(int checkedCount, int fileCount) => Pick(
-        $"ファイル {fileCount:N0} 件のうち {checkedCount:N0} 件は中身まで読んで確かめました。",
+        $"{fileCount:N0} 個のファイルのうち、{checkedCount:N0} 個は中身まで読み込んで確認しました。",
         $"Read and verified the contents of {checkedCount:N0} of {fileCount:N0} "
         + $"{Plural(fileCount, "file", "files")}.");
 
     public static string InspectionMalwareLine(int scanned) => Pick(
-        $"うち {scanned:N0} 件を対策ソフトの判定に掛けました。書庫ファイルそのものも渡しています。",
+        $"うち {scanned:N0} 個をウイルス対策ソフトで検査しました。書庫ファイル自体も検査しています。",
         $"Of those, {scanned:N0} {Plural(scanned, "was", "were")} handed to the antimalware "
         + "service. The archive file itself was handed over as well.");
 
     /// <summary>マルウェア検査が使えなかったことを、黙って省かずに出す (#56、#57)。</summary>
     public static string InspectionMalwareUnavailable => Pick(
-        "マルウェア検査は行えませんでした。この環境の対策ソフトは、Windows の検査の口 (AMSI) "
-        + "に応じていません。ほかの検査は行っています。",
+        "マルウェアの検査は行えませんでした。この PC のウイルス対策ソフトが、Windows の検査機能 (AMSI) "
+        + "に対応していません。ほかの検査は行っています。",
         "The malware check could not run: the antimalware software on this machine does not "
         + "answer Windows' scan interface (AMSI). The other checks did run.");
 
     public static string InspectionCancelledLine => Pick(
-        "検査は途中で中断されました。ここに出ているのは、中断までに調べた範囲の結果です。",
+        "検査は途中で中断されました。ここに表示しているのは、中断するまでに検査した範囲の結果です。",
         "The inspection was stopped partway. What follows covers only what it reached.");
 
     public static string InspectionElapsedLine(TimeSpan elapsed) => elapsed.TotalSeconds < 1
@@ -1763,27 +1717,27 @@ internal static partial class Strings
     public static string InspectionMessage(InspectionIssue issue, string? detail) => issue switch
     {
         InspectionIssue.CrcMismatch => Pick(
-            "中身が壊れています。書庫に記録された照合値と一致しません",
+            "中身が壊れています。書庫に記録された CRC と一致しません",
             "The contents are damaged: they do not match the checksum recorded in the archive"),
 
         InspectionIssue.HeaderMismatch => Pick(
-            $"書庫の索引と項目の見出しが食い違っています{Paren(detail)}",
+            $"書庫の索引と項目のヘッダーが一致しません{Paren(detail)}",
             $"The archive index and the entry header disagree{Paren(detail)}"),
 
         InspectionIssue.Truncated => Pick(
-            "書庫が途中で切れています。記録されている位置まで中身がありません",
+            "書庫が途中で切れています",
             "The archive is cut short: it ends before the point its own index refers to"),
 
         InspectionIssue.TrailingData => Pick(
-            $"書庫の終わりのあとに、書庫ではないデータが {detail} バイト続いています",
+            $"書庫の末尾のあとに、書庫ではないデータが {detail} バイトあります",
             $"{detail} bytes that are not part of the archive follow its end"),
 
         InspectionIssue.UnsupportedMethod => Pick(
-            $"対応していない圧縮方式のため取り出せません{Paren(detail)}",
+            $"対応していない圧縮方式のため展開できません{Paren(detail)}",
             $"Stored with a compression method Expzip cannot read{Paren(detail)}"),
 
         InspectionIssue.DuplicateName => Pick(
-            "同じ名前の項目が2つ以上あります。展開すると片方しか残りません",
+            "同じ名前の項目が 2 個以上あります。展開すると 1 個しか残りません",
             "More than one item has this name. Extracting leaves only one of them."),
 
         InspectionIssue.Unreadable => Pick(
@@ -1791,62 +1745,62 @@ internal static partial class Strings
             $"The contents could not be read{Paren(detail)}"),
 
         InspectionIssue.EncryptedNotChecked => Pick(
-            "パスワードが分からないため、中身を調べられませんでした",
+            "パスワードが不明なため、中身を検査できませんでした",
             "The contents could not be checked: the password is not known"),
 
         InspectionIssue.EscapingPath => Pick(
-            $"展開先の外へ書き出そうとするパスです{Paren(detail)}",
+            $"展開先の外に書き込もうとするパスです{Paren(detail)}",
             $"This path would write outside the folder you extract into{Paren(detail)}"),
 
         InspectionIssue.SuspiciousPath => Pick(
-            $"通常の書庫にはあり得ない形のパスです{Paren(detail)}",
+            $"通常の書庫にはない形式のパスです{Paren(detail)}",
             $"This path is not shaped like anything a normal archive holds{Paren(detail)}"),
 
         InspectionIssue.ReservedName => Pick(
-            $"Windows が装置の名前として扱うため、この名前では作れません{Paren(detail)}",
+            $"Windows が予約している名前のため、このファイルは作成できません{Paren(detail)}",
             $"Windows treats this as a device name, so the file cannot be created{Paren(detail)}"),
 
         InspectionIssue.TrailingSpaceOrDot => Pick(
-            $"末尾が空白かピリオドのため、Windows ではこの名前で作れません{Paren(detail)}",
+            $"名前の末尾が空白またはピリオドのため、Windows ではこの名前のファイルを作成できません{Paren(detail)}",
             $"Windows cannot create this name: it ends with a space or a period{Paren(detail)}"),
 
         InspectionIssue.ControlCharacter => Pick(
-            "名前に制御文字が入っています。画面に見えている名前と実際の名前が違います",
+            "名前に制御文字が含まれています。表示されている名前と実際の名前が異なります",
             "The name contains control characters, so what you see is not the real name"),
 
         InspectionIssue.InvalidCharacter => Pick(
-            $"Windows のファイル名に使えない文字が入っています{Paren(detail)}",
+            $"Windows のファイル名に使用できない文字が含まれています{Paren(detail)}",
             $"The name contains characters Windows does not allow in a file name{Paren(detail)}"),
 
         InspectionIssue.CaseCollision => Pick(
-            $"大文字小文字だけが違う項目があります{Paren(detail)}。展開すると片方が失われます",
+            $"大文字と小文字だけが異なる項目があります{Paren(detail)}。展開すると片方が失われます",
             $"Another item differs only in letter case{Paren(detail)}. "
             + "Extracting loses one of them."),
 
         InspectionIssue.BidiOverride => Pick(
-            "文字の向きを変える記号で拡張子を偽装しています。見えている拡張子と実際の拡張子が違います",
+            "文字の向きを変える記号で拡張子が偽装されています。表示されている拡張子と実際の拡張子が異なります",
             "A text-direction override disguises the extension: "
             + "what you see is not the real extension"),
 
         InspectionIssue.HighRatio => Pick(
-            $"展開すると {detail} 倍に膨らみます",
+            $"展開するとサイズが {detail} 倍になります",
             $"This expands to {detail} times its stored size"),
 
         InspectionIssue.ZipBomb => Pick(
-            $"書庫全体が展開すると {detail} 倍に膨らみます。展開先の空きに気を付けてください",
+            $"書庫全体を展開するとサイズが {detail} 倍になります。展開先の空き容量に注意してください",
             $"The whole archive expands to {detail} times its size. "
             + "Watch the free space where you extract it."),
 
         InspectionIssue.ExecutableExtension => Pick(
-            $"開くと、中身を見るのではなくそのまま実行される種類のファイルです{Paren(detail)}",
+            $"開くとプログラムとして実行される種類のファイルです{Paren(detail)}",
             $"Opening this runs it instead of showing its contents{Paren(detail)}"),
 
         InspectionIssue.MalwareDetected => Pick(
-            "対策ソフトが問題のあるものとして検出しました",
+            "ウイルス対策ソフトが脅威として検出しました",
             "The antimalware service flagged this"),
 
         InspectionIssue.TooLargeToScan => Pick(
-            $"大きすぎて一度に渡せないため、マルウェア検査を行えませんでした{Paren(detail)}",
+            $"サイズが大きすぎるため、マルウェアの検査を行えませんでした{Paren(detail)}",
             $"Too large to hand over in one piece, so the malware check was skipped{Paren(detail)}"),
 
         _ => string.Empty,
@@ -1857,14 +1811,14 @@ internal static partial class Strings
     public static string Split => Pick("分割", "Split");
 
     public static string SplitTooltip => Pick(
-        "大きなファイルを決まった大きさに分ける。つなぎ直すプログラムも一緒に作る",
+        "ファイルを指定した大きさに分割する。つなぎ直すためのプログラムも作成する",
         "Split a large file into fixed-size pieces, with a program to put them back together");
 
     public static string SplitTitle => Pick("ファイルの分割", "Split a file");
 
-    public static string SplitSourceLabel => Pick("分けるもの", "File");
+    public static string SplitSourceLabel => Pick("分割するファイル", "File");
 
-    public static string SplitDestinationLabel => Pick("置き場", "Put pieces in");
+    public static string SplitDestinationLabel => Pick("保存先", "Put pieces in");
 
     public static string SplitSizeLabel => Pick("1つの大きさ", "Piece size");
 
@@ -1881,19 +1835,19 @@ internal static partial class Strings
     public static string SplitUnitGigabytes => "GB";
 
     public static string SplitSourceTitle => Pick(
-        "分けるファイルを選択", "Choose the file to split");
+        "分割するファイルを選択", "Choose the file to split");
 
     public static string SplitDestinationTitle => Pick(
-        "断片の置き場を選択", "Choose where to put the pieces");
+        "分割ファイルの保存先を選択", "Choose where to put the pieces");
 
     public static string SplitAnyFile => Pick(
         "すべてのファイル|*.*", "All files|*.*");
 
     public static string SplitSourceMissing => Pick(
-        "分けるファイルを選んでください。", "Choose the file you want to split.");
+        "分割するファイルを選択してください。", "Choose the file you want to split.");
 
     public static string SplitDestinationMissing => Pick(
-        "断片の置き場を選んでください。", "Choose where the pieces should go.");
+        "分割ファイルの保存先を選択してください。", "Choose where the pieces should go.");
 
     public static string SplitTooSmall(long minimum) => Pick(
         $"1つの大きさは {minimum / 1024:N0} KB 以上にしてください。",
@@ -1905,7 +1859,7 @@ internal static partial class Strings
         "No need to split: each piece would be larger than the file itself.");
 
     public static string SplitPreview(int parts) => Pick(
-        $"{parts:N0} 個の断片と、つなぎ直すプログラムを1つ作ります。元のファイルは残ります。",
+        $"{parts:N0} 個の分割ファイルと、つなぎ直すためのプログラムを作成します。元のファイルはそのまま残ります。",
         $"This makes {parts:N0} {Plural(parts, "piece", "pieces")} plus one program to put "
         + "them back together. The original file is left alone.");
 
@@ -1921,19 +1875,19 @@ internal static partial class Strings
 
     public static string SplitDone(int parts, string joiner, string destination) => Pick(
         $"{parts:N0} 個に分割しました。{Environment.NewLine}{Environment.NewLine}"
-        + $"置き場: {destination}{Environment.NewLine}{Environment.NewLine}"
-        + $"元に戻すときは、断片をすべて同じ場所に置いて「{joiner}」を実行してください。"
-        + $"中身が元と同じであることも確かめます。{Environment.NewLine}"
-        + "7-Zip など他のソフトでもつなげられる形にしてあります。",
+        + $"保存先: {destination}{Environment.NewLine}{Environment.NewLine}"
+        + $"元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「{joiner}」を実行してください。"
+        + $"{Environment.NewLine}"
+        + "7-Zip などほかのソフトでもつなぎ直せます。",
         $"Split into {parts:N0} {Plural(parts, "piece", "pieces")}."
         + $"{Environment.NewLine}{Environment.NewLine}"
         + $"Location: {destination}{Environment.NewLine}{Environment.NewLine}"
-        + $"To put it back together, keep every piece in one folder and run \"{joiner}\". "
-        + $"It checks that the result matches the original.{Environment.NewLine}"
-        + "The pieces are in the usual format, so other tools such as 7-Zip can join them too.");
+        + $"To put it back together, keep every piece in one folder and run \"{joiner}\"."
+        + $"{Environment.NewLine}"
+        + "Other tools such as 7-Zip can join them too.");
 
     public static string SplitCancelled => Pick(
-        "分割を中断しました。書きかけの断片は削除しました。",
+        "分割を中断しました。書き込み途中の分割ファイルは削除しました。",
         "Splitting was stopped. The half-written pieces were deleted.");
 
     public static string SplitFailed(string reason) => Pick(
@@ -1941,7 +1895,7 @@ internal static partial class Strings
         $"The file could not be split.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string SplitSourceShrank => Pick(
-        "分割中に元のファイルが読めなくなりました。",
+        "分割中に元のファイルを読み込めなくなりました。",
         "The file became unreadable while it was being split.");
 
     // ------------------------------------------------------------------ 共通
@@ -1962,7 +1916,7 @@ internal static partial class Strings
 
     /// <summary>取り出したファイルの置き場を作れなかったときの理由 (#12)。</summary>
     public static string TempWorkspaceFailed(string root) => Pick(
-        $"一時ファイルの置き場を作れませんでした。{Environment.NewLine}{root}",
+        $"一時フォルダーを作成できませんでした。{Environment.NewLine}{root}",
         $"Could not create a place to put temporary files.{Environment.NewLine}{root}");
 
     /// <summary>「この名前は この理由で駄目だった」の1行。</summary>
@@ -1970,7 +1924,7 @@ internal static partial class Strings
         $"  {name} … {reason}", $"  {name} — {reason}");
 
     public static string More(int count) => Pick(
-        $"{Environment.NewLine}  ほか {count:N0} 件",
+        $"{Environment.NewLine}  ほか {count:N0} 個",
         $"{Environment.NewLine}  and {count:N0} more");
 
     public static string Stopping => Pick("中断しています…", "Stopping…");
@@ -1982,23 +1936,22 @@ internal static partial class Strings
 
     /// <summary>外での書き換えに追随できなかったことを知らせる (#64)。</summary>
     public static string ReloadFailed(string name, string reason) => Pick(
-        $"{name} を読み直せませんでした ({reason})。表示は書き換えられる前のままです",
+        $"{name} を読み込み直せませんでした ({reason})。表示は変更前のままです",
         $"Could not reload {name} ({reason}). The list still shows the earlier contents.");
 
     /// <summary>外で書き換わった書庫を読み直したことを知らせる (#64)。</summary>
     public static string ReloadedAfterExternalChange(string name) => Pick(
-        $"{name} が外で書き換えられたため、最新の内容に更新しました",
+        $"{name} がほかのプログラムで変更されたため、表示を更新しました",
         $"{name} changed outside Expzip, so the list was refreshed.");
 
     public static string RecoveredFromError => Pick(
         "処理を中断しました", "The operation was stopped");
 
     public static string UnhandledError(string type, string message) => Pick(
-        $"処理中に問題が起きました。{Environment.NewLine}"
-        + $"書庫は変更していません。{Environment.NewLine}{Environment.NewLine}"
+        $"処理中に問題が発生しました。書庫の変更はありません。{Environment.NewLine}{Environment.NewLine}"
         + $"{type}{Environment.NewLine}{message}",
-        $"Something went wrong during the operation.{Environment.NewLine}"
-        + $"The archive was left untouched.{Environment.NewLine}{Environment.NewLine}"
+        $"Something went wrong during the operation. The archive was left untouched."
+        + $"{Environment.NewLine}{Environment.NewLine}"
         + $"{type}{Environment.NewLine}{message}");
 
     /// <summary>書庫の形式の名前。ZIP や 7z は訳さない。</summary>
@@ -2010,4 +1963,70 @@ internal static partial class Strings
         ArchiveFormat.Nsis => "NSIS",
         _ => FormatUnknown,
     };
+
+    // ------------------------------------------------------------------ 失敗の理由 (#106)
+
+    /// <summary>
+    /// 失敗の理由を、利用者が次にすることを決められる言葉にする (#106)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// **例外の文をそのまま出さない。**.NET の例外の文は、日本語の Windows でも英語で来る。
+    /// 「Access to the path ... is denied.」のまま日本語の文の中に差し込まれていた。
+    /// </para>
+    /// <para>
+    /// よくある失敗 (書き込めない・使用中・見つからない・空きが無い・壊れている) だけを
+    /// 言い直し、それ以外は元の文を出す。黙って消すと、不具合を伝えてもらう手掛かりが無くなる。
+    /// </para>
+    /// </remarks>
+    public static string Reason(Exception error)
+    {
+        const int SharingViolation = unchecked((int)0x80070020);
+        const int LockViolation = unchecked((int)0x80070021);
+        const int HandleDiskFull = unchecked((int)0x80070027);
+        const int DiskFull = unchecked((int)0x80070070);
+
+        // 例外の文に 'C:\...' の形でパスが入っていれば、それを使う
+        var quoted = System.Text.RegularExpressions.Regex.Match(error.Message, "'([^']+)'");
+        var path = quoted.Success ? quoted.Groups[1].Value : null;
+
+        return error switch
+        {
+            UnauthorizedAccessException => path is null
+                ? Pick("アクセスが拒否されました。", "Access was denied.")
+                : Pick($"{path} へのアクセスが拒否されました。", $"Access to {path} was denied."),
+
+            FileNotFoundException or DirectoryNotFoundException => path is null
+                ? Pick("ファイルまたはフォルダーが見つかりません。", "The file or folder was not found.")
+                : Pick($"{path} が見つかりません。", $"{path} was not found."),
+
+            PathTooLongException => Pick("パスが長すぎます。", "The path is too long."),
+
+            IOException { HResult: SharingViolation or LockViolation } => path is null
+                ? Pick("ほかのプログラムが使用中のため、アクセスできません。",
+                    "Another program is using the file.")
+                : Pick($"{path} は、ほかのプログラムが使用中のためアクセスできません。",
+                    $"{path} is being used by another program."),
+
+            IOException { HResult: DiskFull or HandleDiskFull } => Pick(
+                "ディスクの空き容量が足りません。", "There is not enough free disk space."),
+
+            InvalidDataException => Pick(
+                "書庫が壊れているか、対応していない形式です。",
+                "The archive is damaged or in an unsupported format."),
+
+            System.Net.Http.HttpRequestException => Pick(
+                "接続先に接続できませんでした。URL とネットワークを確認してください。",
+                "Could not connect. Check the URL and your network."),
+
+            _ => error.Message,
+        };
+    }
+
+    /// <summary>
+    /// 実行ファイルに入れてあるはずのものが無いとき (#106)。組み立てを間違えない限り出ない。
+    /// </summary>
+    public static string EmbeddedToolMissing(string resource) => Pick(
+        $"Expzip.exe に必要なファイルが含まれていません ({resource})。",
+        $"A file Expzip.exe needs is missing from it ({resource}).");
 }

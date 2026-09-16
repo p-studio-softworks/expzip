@@ -164,7 +164,7 @@
                 押せないときこそ訳が要る (#101)。既定では押せないボタンの説明は
                 出ないので、出す指定を入れておく
             -->
-            <Button x:Name="DeleteButton" Width="140" Height="26" Margin="0,0,8,0"
+            <Button x:Name="DeleteButton" MinWidth="140" Padding="10,0" Height="26" Margin="0,0,8,0"
                     IsEnabled="False"
                     ToolTipService.ShowOnDisabled="True"
                     Click="DeleteButton_Click" />

@@ -31,7 +31,7 @@ internal sealed class ExtractState(
         => ex is System.Security.Cryptography.CryptographicException
             or SharpCompress.Common.CryptographicException
             ? Strings.PasswordNotSupported
-            : ex.Message;
+            : Strings.Reason(ex);
 
     /// <summary>1件を書き出す。</summary>
     public void Write(
@@ -110,7 +110,7 @@ internal sealed class ExtractState(
                                    or InvalidFormatException or ArchiveOperationException)
         {
             // 1件の失敗で全体を止めない。まとめて報告する
-            _failed.Add((key, ex.Message));
+            _failed.Add((key, Strings.Reason(ex)));
         }
 
         Advance(size, key);

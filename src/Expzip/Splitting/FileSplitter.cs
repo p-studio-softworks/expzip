@@ -2,6 +2,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using ICSharpCode.SharpZipLib.Checksum;
+using Expzip.Localization;
 
 namespace Expzip.Splitting;
 
@@ -165,8 +166,7 @@ internal static class FileSplitter
     {
         using var stub = typeof(FileSplitter).Assembly
             .GetManifestResourceStream(JoinerResource)
-            ?? throw new InvalidOperationException(
-                $"連結プログラムが同梱されていません ({JoinerResource})");
+            ?? throw new InvalidOperationException(Strings.EmbeddedToolMissing(JoinerResource));
 
         using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
         stub.CopyTo(output);

@@ -162,14 +162,14 @@ int WINAPI WinMainCRTStartup(void)
 
     if (GetModuleFileNameW(NULL, self, MAX_PATH) == 0)
     {
-        Say(L"自分の場所が分かりませんでした。", L"連結", MB_ICONERROR);
+        Say(L"この連結プログラムの場所を取得できませんでした。", L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
     h = CreateFileW(self, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (h == INVALID_HANDLE_VALUE)
     {
-        Say(L"自分自身を読めませんでした。", L"連結", MB_ICONERROR);
+        Say(L"この連結プログラムを読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -178,7 +178,7 @@ int WINAPI WinMainCRTStartup(void)
     if (!ReadFile(h, footer, FOOTER_SIZE, &got, NULL) || got != FOOTER_SIZE)
     {
         CloseHandle(h);
-        Say(L"分割の情報を読めませんでした。", L"連結", MB_ICONERROR);
+        Say(L"分割の情報を読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -187,7 +187,7 @@ int WINAPI WinMainCRTStartup(void)
         if (footer[i] != (unsigned char)FOOTER_MAGIC[i])
         {
             CloseHandle(h);
-            Say(L"分割の情報が入っていません。", L"連結", MB_ICONERROR);
+            Say(L"分割の情報が見つかりません。", L"ファイルの連結", MB_ICONERROR);
             ExitProcess(1);
         }
     }
@@ -200,7 +200,7 @@ int WINAPI WinMainCRTStartup(void)
     if (nameLength == 0 || nameLength >= MAX_PATH || count == 0)
     {
         CloseHandle(h);
-        Say(L"分割の情報が壊れています。", L"連結", MB_ICONERROR);
+        Say(L"分割の情報が壊れています。", L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -209,7 +209,7 @@ int WINAPI WinMainCRTStartup(void)
     if (!ReadFile(h, name, nameLength * 2, &got, NULL) || got != nameLength * 2)
     {
         CloseHandle(h);
-        Say(L"元の名前を読めませんでした。", L"連結", MB_ICONERROR);
+        Say(L"元のファイル名を読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
     name[nameLength] = 0;
@@ -238,8 +238,8 @@ int WINAPI WinMainCRTStartup(void)
     out = CreateFileW(target, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
     if (out == INVALID_HANDLE_VALUE)
     {
-        Say(L"元のファイルを作れませんでした。同じ名前のものが既にあるかもしれません。",
-            L"連結", MB_ICONERROR);
+        Say(L"元のファイルを作成できませんでした。同じ名前のファイルがすでに存在する可能性があります。",
+            L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -258,8 +258,8 @@ int WINAPI WinMainCRTStartup(void)
         {
             CloseHandle(out);
             DeleteFileW(target);
-            Say(L"断片が足りません。すべてを同じ場所に置いてから、もう一度お試しください。",
-                L"連結", MB_ICONERROR);
+            Say(L"分割ファイルが足りません。すべての分割ファイルを同じフォルダーに置いてから、もう一度実行してください。",
+                L"ファイルの連結", MB_ICONERROR);
             ExitProcess(1);
         }
 
@@ -274,7 +274,7 @@ int WINAPI WinMainCRTStartup(void)
                 CloseHandle(h);
                 CloseHandle(out);
                 DeleteFileW(target);
-                Say(L"書き出しに失敗しました。空き容量をご確認ください。", L"連結", MB_ICONERROR);
+                Say(L"書き込みに失敗しました。ディスクの空き容量を確認してください。", L"ファイルの連結", MB_ICONERROR);
                 ExitProcess(1);
             }
             crc = UpdateCrc(crc, g_chunk, got);
@@ -290,11 +290,11 @@ int WINAPI WinMainCRTStartup(void)
     if (total != wantSize || crc != wantCrc)
     {
         DeleteFileW(target);
-        Say(L"連結したものが元と一致しませんでした。断片が壊れているか、揃っていません。",
-            L"連結", MB_ICONERROR);
+        Say(L"つなぎ直したファイルが元のファイルと一致しませんでした。分割ファイルが壊れているか、揃っていない可能性があります。",
+            L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
-    Say(L"連結しました。中身が元と同じであることを確かめました。", L"連結", MB_ICONINFORMATION);
+    Say(L"つなぎ直しました。元のファイルと一致することを確認しました。", L"ファイルの連結", MB_ICONINFORMATION);
     ExitProcess(0);
 }

@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 using ICSharpCode.SharpZipLib.Zip;
+using Expzip.Localization;
 
 using SharpZipFile = ICSharpCode.SharpZipLib.Zip.ZipFile;
 
@@ -113,7 +114,7 @@ internal static class ZipEncryptedWriter
                                                or PathTooLongException)
                     {
                         // 1件の失敗で全体を止めない。まとめて報告する
-                        failed.Add((item.SourcePath, ex.Message));
+                        failed.Add((item.SourcePath, Strings.Reason(ex)));
                     }
 
                     doneBytes += item.Length;

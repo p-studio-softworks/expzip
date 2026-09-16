@@ -863,19 +863,19 @@ int WINAPI WinMainCRTStartup(void)
 
     if (GetModuleFileNameW(NULL, self, MAX_PATH) == 0)
     {
-        Fail(L"自分の場所が分かりませんでした。");
+        Fail(L"この自己解凍書庫の場所を取得できませんでした。");
     }
 
     g_self = CreateFileW(self, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 
     if (g_self == INVALID_HANDLE_VALUE)
     {
-        Fail(L"自分自身を読めませんでした。");
+        Fail(L"この自己解凍書庫を読み込めませんでした。");
     }
 
     if (!GetFileSizeEx(g_self, &size))
     {
-        Fail(L"大きさを読めませんでした。");
+        Fail(L"この自己解凍書庫のサイズを取得できませんでした。");
     }
 
     /* 終端レコードを末尾から探す */
@@ -884,14 +884,14 @@ int WINAPI WinMainCRTStartup(void)
 
     if (tail == NULL)
     {
-        Fail(L"領域を確保できませんでした。");
+        Fail(L"メモリを確保できませんでした。");
     }
 
     Seek(g_self, (unsigned __int64)size.QuadPart - searchLength);
 
     if (!ReadFile(g_self, tail, searchLength, &got, NULL) || got != searchLength)
     {
-        Fail(L"末尾を読めませんでした。");
+        Fail(L"この自己解凍書庫を読み込めませんでした。");
     }
 
     eocd = 0;
@@ -910,7 +910,7 @@ int WINAPI WinMainCRTStartup(void)
 
     if (eocd == 0)
     {
-        Fail(L"中に書庫が見つかりませんでした。");
+        Fail(L"展開するデータが見つかりませんでした。ファイルが壊れている可能性があります。");
     }
 
     /*
@@ -919,7 +919,7 @@ int WINAPI WinMainCRTStartup(void)
      */
     if (entries == 0xFFFFUL || cdSize == 0xFFFFFFFFUL || cdOffset == 0xFFFFFFFFUL)
     {
-        Fail(L"この自己解凍書庫は大きすぎて、この形では取り出せません。");
+        Fail(L"この自己解凍書庫は大きすぎるため、展開できません。");
     }
 
     /*
@@ -954,7 +954,7 @@ int WINAPI WinMainCRTStartup(void)
     if (!CreateDirectoryW(destination, NULL)
         && GetLastError() != ERROR_ALREADY_EXISTS)
     {
-        Fail(L"取り出し先のフォルダを作れませんでした。");
+        Fail(L"展開先のフォルダーを作成できませんでした。");
     }
 
     at = g_start + cdOffset;
@@ -1108,7 +1108,7 @@ int WINAPI WinMainCRTStartup(void)
     CloseHandle(g_self);
 
     message[0] = 0;
-    Append(message, L"取り出しました。");
+    Append(message, L"展開しました。");
     Append(message, L"\n\n");
     AppendNumber(message, done);
     Append(message, L" 個のファイル\n");
@@ -1116,7 +1116,7 @@ int WINAPI WinMainCRTStartup(void)
 
     if (failed > 0)
     {
-        Append(message, L"\n\n取り出せなかったもの: ");
+        Append(message, L"\n\n展開できなかったファイル: ");
         AppendNumber(message, failed);
         Append(message, L" 個");
         Say(message, MB_ICONWARNING);

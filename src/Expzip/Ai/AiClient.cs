@@ -209,7 +209,7 @@ internal static class AiClient
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
                                    or UriFormatException)
         {
-            return (false, string.Empty, ex.Message);
+            return (false, string.Empty, Strings.Reason(ex));
         }
     }
 

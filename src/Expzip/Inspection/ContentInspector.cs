@@ -98,7 +98,7 @@ internal static class ContentInspector
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, ex.Message);
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }
     }
 
@@ -118,7 +118,7 @@ internal static class ContentInspector
         catch (Exception ex) when (ex is ZipException or IOException or InvalidDataException
                                    or UnauthorizedAccessException or NotSupportedException)
         {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, ex.Message);
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
             return;
         }
 
@@ -217,7 +217,7 @@ internal static class ContentInspector
         {
             // 塊の復号に失敗すると、取り出しの手前で例外になる。
             // どのエントリとは言えないため、書庫そのものの問題として報告する
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, ex.Message);
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }
         finally
         {
@@ -271,7 +271,7 @@ internal static class ContentInspector
         }
         catch (Exception ex) when (IsReadFailure(ex) || ex is ZipException or OutOfMemoryException)
         {
-            context.Findings.Add(InspectionIssue.Unreadable, name, ex.Message);
+            context.Findings.Add(InspectionIssue.Unreadable, name, Strings.Reason(ex));
             return;
         }
 
