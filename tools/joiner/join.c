@@ -162,14 +162,14 @@ int WINAPI WinMainCRTStartup(void)
 
     if (GetModuleFileNameW(NULL, self, MAX_PATH) == 0)
     {
-        Say(L"この連結プログラムの場所を取得できませんでした。", L"ファイルの連結", MB_ICONERROR);
+        Say(L"連結プログラムの場所を取得できませんでした。", L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
     h = CreateFileW(self, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (h == INVALID_HANDLE_VALUE)
     {
-        Say(L"この連結プログラムを読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
+        Say(L"連結プログラムを読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -238,7 +238,7 @@ int WINAPI WinMainCRTStartup(void)
     out = CreateFileW(target, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
     if (out == INVALID_HANDLE_VALUE)
     {
-        Say(L"元のファイルを作成できませんでした。同じ名前のファイルがすでに存在する可能性があります。",
+        Say(L"ファイルを連結できませんでした。既に同じ名前のファイルが存在する可能性があります。",
             L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
@@ -290,11 +290,11 @@ int WINAPI WinMainCRTStartup(void)
     if (total != wantSize || crc != wantCrc)
     {
         DeleteFileW(target);
-        Say(L"つなぎ直したファイルが元のファイルと一致しませんでした。分割ファイルが壊れているか、揃っていない可能性があります。",
+        Say(L"連結したファイルが元のファイルと一致しませんでした。分割ファイルが壊れているか、揃っていない可能性があります。",
             L"ファイルの連結", MB_ICONERROR);
         ExitProcess(1);
     }
 
-    Say(L"つなぎ直しました。元のファイルと一致することを確認しました。", L"ファイルの連結", MB_ICONINFORMATION);
+    Say(L"連結完了し、元のファイルと一致することを確認しました。", L"ファイルの連結", MB_ICONINFORMATION);
     ExitProcess(0);
 }

@@ -35,7 +35,7 @@ public partial class App : Application
 
         MessageBox.Show(
             base.MainWindow,
-            Strings.UnhandledError(e.Exception.GetType().Name, e.Exception.Message),
+            Strings.UnhandledError(e.Exception.GetType().Name, Strings.Reason(e.Exception)),
             "Expzip", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 }

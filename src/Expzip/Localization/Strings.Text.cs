@@ -317,7 +317,7 @@ internal static partial class Strings
             "自己解凍書庫にできるのは ZIP のみです。",
             "Only ZIP archives can be made self-extracting."),
         SfxRejection.AlreadySelfExtracting => Pick(
-            "この書庫はすでに自己解凍書庫です。",
+            "この書庫は既に自己解凍書庫です。",
             "This archive is already self-extracting."),
         SfxRejection.Encrypted => Pick(
             "パスワードが設定された書庫は自己解凍書庫にできません。",
@@ -375,7 +375,7 @@ internal static partial class Strings
         $"The name contains a character that cannot be used ({invalid}).");
 
     public static string RenameDuplicate(string name) => Pick(
-        $"このフォルダーには「{name}」がすでに存在します。",
+        $"このフォルダーには既に「{name}」が存在します。",
         $"This folder already contains \"{name}\".");
 
     public static string Renaming(int done) => Pick(
@@ -887,7 +887,7 @@ internal static partial class Strings
             $"Loaded {count} saved rule(s) (learned from {from}).");
 
     public static string RuleAlreadyHad => Pick(
-        "一覧にすでにあるルールは追加していません。", " Ones already listed were not added again.");
+        "既に一覧にあるルールは追加していません。", " Ones already listed were not added again.");
 
     public static string RuleSaved(int total, int used) => Pick(
         $"{total:N0} 件のルールを保存しました (使用するのは {used:N0} 件)。",
@@ -950,7 +950,7 @@ internal static partial class Strings
 
     /// <summary>多すぎて出し切れなかったときだけ出す (#27)。</summary>
     public static string RuleAuditTrimmed(int count) => Pick(
-        $"ほかに {count:N0} 件ありますが、多すぎるため表示していません。修正してから、もう一度検査してください。",
+        $"ほかに {count:N0} 件のルールがありますが、数が多すぎるため表示していません。修正してから、もう一度検査してください。",
         $"{count:N0} more are not listed because there are too many. "
         + "Narrow the rules or fix these first.");
 
@@ -1349,8 +1349,8 @@ internal static partial class Strings
 
     public static string ConfirmApplyEdit(string entryPath) => Pick(
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
-        + $"変更されました。書庫に反映しますか?{Environment.NewLine}{Environment.NewLine}"
-        + "「いいえ」を選んでも変更内容は残ります。Expzip を終了するときに、もう一度確認します。",
+        + $"変更されました。書庫に反映しますか?{Environment.NewLine}"
+        + "「いいえ」を選んでも変更内容は保持しています。Expzip の終了時に再度確認します。",
         $"{entryPath}{Environment.NewLine}{Environment.NewLine}"
         + $"This file was edited. Put it back into the archive?{Environment.NewLine}{Environment.NewLine}"
         + "Choosing No keeps your edits; you will be asked again when you quit.");
@@ -1386,8 +1386,8 @@ internal static partial class Strings
 
     public static string ConfirmExecutable(string fileName) => Pick(
         $"{fileName}{Environment.NewLine}{Environment.NewLine}"
-        + $"このファイルは、開くとプログラムとして実行されます。{Environment.NewLine}"
-        + $"入手元が不明な書庫の場合は、開かないでください。{Environment.NewLine}{Environment.NewLine}"
+        + "このファイルを開くとプログラムとして実行されます。入手元が不明な書庫の場合は、開かないでください。"
+        + $"{Environment.NewLine}{Environment.NewLine}"
         + "続行しますか?",
         $"{fileName}{Environment.NewLine}{Environment.NewLine}"
         + $"Opening this file will run it.{Environment.NewLine}"
@@ -1424,7 +1424,7 @@ internal static partial class Strings
         $"Opened {fileName} with its default app");
 
     public static string OpenLaunchCancelled => Pick(
-        "ファイルを開くのをキャンセルしました", "Opening was cancelled");
+        "キャンセルしました", "Cancelled");
 
     public static string DefaultAppFailed(string reason) => Pick(
         $"既定のアプリで開けませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
@@ -1454,8 +1454,8 @@ internal static partial class Strings
         $"Extracting failed.{Environment.NewLine}{Environment.NewLine}{reason}");
 
     public static string DragCannotStart => Pick(
-        "展開できなかったため、ドラッグを開始できません",
-        "Nothing could be extracted, so the drag cannot start");
+        "展開できません",
+        "Could not extract");
 
     public static string DragExtracted(int count) => Pick(
         $"{count:N0} 個の項目を展開しました",
