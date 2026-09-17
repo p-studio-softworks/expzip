@@ -3623,7 +3623,9 @@ public partial class MainWindow : Window
         try
         {
             Mouse.OverrideCursor = Cursors.Wait;
-            conflicts = await Task.Run(() => FindExtractConflicts(selection, basePath, destination));
+            // 中身の木はここで取っておく。Contents はタブの選択から引くため、裏の糸からは読めない (#107)
+            var root = Contents.Root;
+            conflicts = await Task.Run(() => FindExtractConflicts(root, selection, basePath, destination));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -3666,8 +3668,8 @@ public partial class MainWindow : Window
     /// 展開先を一度なめて名前の一覧を作り、そこと突き合わせる。1件ずつ存在を
     /// 確かめると件数が多い書庫で待たされるため。展開先が空なら即座に終わる。
     /// </remarks>
-    private List<string> FindExtractConflicts(
-        IReadOnlySet<string>? selection, string? basePath, string destination)
+    private static List<string> FindExtractConflicts(
+        ArchiveFolder root, IReadOnlySet<string>? selection, string? basePath, string destination)
     {
         var conflicts = new List<string>();
 
@@ -3711,7 +3713,7 @@ public partial class MainWindow : Window
             }
         }
 
-        Walk(Contents!.Root);
+        Walk(root);
         return conflicts;
     }
 
