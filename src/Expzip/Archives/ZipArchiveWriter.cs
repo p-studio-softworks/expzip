@@ -205,13 +205,52 @@ internal static class ZipArchiveWriter
 
         try
         {
-            zip.CommitUpdate();
+            Commit(zip);
             return true;
         }
         catch (OperationCanceledException)
         {
             TryAbort(zip);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 書き換えを確定する。差し替えに失敗したときは、本当の理由を投げ直す (#106)。
+    /// </summary>
+    /// <remarks>
+    /// SharpZipLib は書庫を退避名へ移せなかったとき、戻す処理で退避先が
+    /// 見つからず <see cref="FileNotFoundException"/> を投げ、元の例外を失う。
+    /// そのままだと、書庫がほかのプログラムに使われているだけなのに
+    /// 「edit.zip.cii2e34b.zyx が見つかりません」と伝えてしまう。
+    /// 書庫を占有して開いてみて、開けなければその例外を理由にする。
+    /// </remarks>
+    private static void Commit(SharpZipFile zip)
+    {
+        try
+        {
+            zip.CommitUpdate();
+        }
+        catch (FileNotFoundException lost) when (
+            File.Exists(zip.Name)
+            && !string.Equals(lost.FileName, zip.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            Exception? cause = null;
+            try
+            {
+                using var probe = new FileStream(zip.Name, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                cause = ex;
+            }
+
+            if (cause is not null)
+            {
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(cause);
+            }
+
+            throw;
         }
     }
 
@@ -266,7 +305,7 @@ internal static class ZipArchiveWriter
 
         zip.BeginUpdate();
         zip.AddDirectory(entryName.TrimEnd('/'));
-        zip.CommitUpdate();
+        Commit(zip);
         return true;
     }
 
