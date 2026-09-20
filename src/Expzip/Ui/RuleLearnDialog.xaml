@@ -6,6 +6,7 @@
         Height="620"
         MinWidth="700"
         MinHeight="560"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         UseLayoutRounding="True"
@@ -63,7 +64,7 @@
                  TextWrapping="NoWrap" />
 
         <TextBlock x:Name="PayloadText" Grid.Row="3" Margin="0,6,0,0" TextWrapping="Wrap"
-                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
         <TextBlock x:Name="ResultText" Grid.Row="4" Margin="0,12,0,0" TextWrapping="Wrap" />
 
@@ -90,7 +91,7 @@
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding CanUse}" Value="False">
                             <Setter Property="Foreground"
-                                    Value="{x:Static SystemColors.GrayTextBrush}" />
+                                    Value="{DynamicResource TextFillColorSecondaryBrush}" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -149,7 +150,7 @@
         <!-- 提案であって確かめた結果ではない、と断る (仕様書 10.5節) -->
         <TextBlock x:Name="NoticeText" Grid.Row="6" Margin="0,10,0,0" TextWrapping="Wrap"
                    Visibility="Collapsed"
-                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
         <StackPanel Grid.Row="7" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,16,0,0">

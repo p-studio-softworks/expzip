@@ -157,7 +157,7 @@ public partial class RuleAuditWindow : Window
             {
                 Marks = _handled,
                 Glyph = GlyphMissing,
-                Accent = (Brush)FindResource("CautionBrush"),
+                AccentKey = "CautionBrush",
                 KindText = Strings.RuleMissing,
                 Target = rule.Value,
                 Message = Describe(rule),
@@ -176,7 +176,7 @@ public partial class RuleAuditWindow : Window
             {
                 Marks = _handled,
                 Glyph = GlyphFlag,
-                Accent = (Brush)FindResource("RuleBreakBrush"),
+                AccentKey = "RuleBreakBrush",
                 KindText = rules[0].KindText,
                 Target = path,
                 Message = string.Join(" / ", rules.Select(Describe)),
@@ -194,7 +194,7 @@ public partial class RuleAuditWindow : Window
             {
                 Marks = _handled,
                 Glyph = GlyphClean,
-                Accent = (Brush)FindResource("EncryptedBrush"),
+                AccentKey = "EncryptedBrush",
                 KindText = string.Empty,
                 Target = string.Empty,
                 Message = Strings.RuleAuditClean,
@@ -309,7 +309,12 @@ public partial class RuleAuditWindow : Window
 
         public required string Glyph { get; init; }
 
-        public required Brush Accent { get; init; }
+        /// <summary>
+        /// 種類を表す色の名前 (#122)。**筆そのものではなく名前で持つ。**
+        /// 資源に入れた筆には封がされるため、テーマが切り替わるときは筆ごと
+        /// 差し替わる。掴んだままにすると前の色で残る
+        /// </summary>
+        public required string AccentKey { get; init; }
 
         public required string KindText { get; init; }
 

@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!--
+      ダークテーマに使う ThemeMode は、まだ試験中の印 (WPF0001) が付いている (#122)。
+      **抑えないとビルドが通らない。**版が上がったときに形が変わりうるので、
+      .NET を上げたらここと App.xaml の ThemeMode を見直す。
+    -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>

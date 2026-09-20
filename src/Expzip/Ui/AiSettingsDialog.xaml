@@ -4,6 +4,7 @@
         Width="620"
         SizeToContent="Height"
         ResizeMode="NoResize"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         UseLayoutRounding="True"
@@ -55,7 +56,7 @@
 
         <!-- 送るものと、鍵の置き場についての断り。隠さずここに出す -->
         <TextBlock x:Name="PrivacyText" Margin="0,14,0,0" TextWrapping="Wrap"
-                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
         <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap" />
 

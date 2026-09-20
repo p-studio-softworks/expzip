@@ -4,6 +4,7 @@
         Width="440"
         SizeToContent="Height"
         ResizeMode="NoResize"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         UseLayoutRounding="True"
@@ -32,16 +33,16 @@
             <Border x:Name="IconSlot" Grid.Column="0"
                     Width="64" Height="64" Margin="0,0,18,0"
                     VerticalAlignment="Top"
-                    BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                     BorderThickness="1"
-                    Background="{x:Static SystemColors.ControlBrush}">
+                    Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}">
                 <!--
                     枠 (Border) は支援技術の木に出てこないので、名前はこちらに入れる。
                     入れないと記号がそのまま読み上げられる (#102 と同じ話)
                 -->
                 <TextBlock x:Name="IconPlaceholder" Text="&#xE7B8;"
                            FontFamily="Segoe MDL2 Assets" FontSize="30"
-                           Foreground="{x:Static SystemColors.ControlDarkBrush}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
 
@@ -60,7 +61,7 @@
             利用者に読んでもらうものではないので薄く出す
         -->
         <TextBlock x:Name="PlatformText" Margin="0,12,0,0" TextWrapping="Wrap"
-                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
         <!--
             入っているソフトウェアの表示はここから (#105)。

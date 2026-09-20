@@ -20,9 +20,9 @@ public partial class App : Application
         // 操作を続けられるようにするほうが実害が少ない。
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
-        // ハイコントラストなら、決め打ちの色を Windows の色へ寄せる (#121)。
-        // **窓を作る前に。**StaticResource は読み込んだ時点の値で固まる
-        Theme.Apply(Resources);
+        // 意味を表す色を、地の明るさに合う組にする (#121、#122)。
+        // **窓を作る前に。**最初の窓が読み込まれる時点でキーが揃っている必要がある
+        Theme.Start(Resources);
 
         base.OnStartup(e);
     }

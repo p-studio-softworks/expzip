@@ -84,9 +84,8 @@ public partial class InspectionWindow : Window
         var worst = _report.Worst;
 
         HeadlineGlyph.Text = GlyphOf(worst);
-        HeadlineGlyph.Foreground = AccentOf(worst);
         Headline.Text = Strings.InspectionHeadline(_report.DangerCount, _report.WarningCount);
-        Headline.Foreground = AccentOf(worst);
+        ShowHeadlineAccent(worst);
 
         CancelledLine.Text = Strings.InspectionCancelledLine;
         CancelledLine.Visibility = _report.Cancelled ? Visibility.Visible : Visibility.Collapsed;
@@ -163,12 +162,32 @@ public partial class InspectionWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
-    /// <summary>重さを表す色。一覧の警告色と揃えてある (App.xaml)。</summary>
-    internal static Brush AccentOf(InspectionSeverity severity) => severity switch
+    /// <summary>
+    /// 要約の色を付ける。**名前で参照させる** (#122)。筆を代入すると、
+    /// テーマが切り替わったときにここだけ前の色で残る。
+    /// ハイコントラストでは付けない (#121、一覧の行と同じ理由)。
+    /// </summary>
+    private void ShowHeadlineAccent(InspectionSeverity worst)
     {
-        InspectionSeverity.Danger => Resource("WarningBrush"),
-        InspectionSeverity.Warning => Resource("CautionBrush"),
-        _ => Resource("EncryptedBrush"),
+        foreach (var text in new[] { HeadlineGlyph, Headline })
+        {
+            if (Theme.Instance.UseAccentColors)
+            {
+                text.SetResourceReference(ForegroundProperty, AccentKeyOf(worst));
+            }
+            else
+            {
+                text.ClearValue(ForegroundProperty);
+            }
+        }
+    }
+
+    /// <summary>重さを表す色の名前。一覧の警告色と揃えてある (App.xaml)。</summary>
+    internal static string AccentKeyOf(InspectionSeverity severity) => severity switch
+    {
+        InspectionSeverity.Danger => "WarningBrush",
+        InspectionSeverity.Warning => "CautionBrush",
+        _ => "EncryptedBrush",
     };
 
     /// <summary>重さを表す印 (Segoe MDL2 Assets)。</summary>
@@ -179,8 +198,6 @@ public partial class InspectionWindow : Window
         _ => "\uE73E",                           // チェック
     };
 
-    private static Brush Resource(string key)
-        => Application.Current.Resources[key] as Brush ?? SystemColors.ControlTextBrush;
 }
 
 /// <summary>検査結果の一覧に出す1行 (#57)。</summary>
@@ -206,5 +223,10 @@ internal sealed class InspectionRow
 
     public string Glyph => InspectionWindow.GlyphOf(Severity);
 
-    public Brush Accent => InspectionWindow.AccentOf(Severity);
+    /// <summary>
+    /// 重さを表す色の名前 (#122)。**筆そのものではなく名前で持つ。**
+    /// 資源に入れた筆には封がされるため、テーマが切り替わるときは筆ごと
+    /// 差し替わる。掴んだままにすると前の色で残る。
+    /// </summary>
+    public string AccentKey => InspectionWindow.AccentKeyOf(Severity);
 }

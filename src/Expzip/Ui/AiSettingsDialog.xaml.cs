@@ -158,7 +158,7 @@ public partial class AiSettingsDialog : Window
         _testing = cancellation;
         TestButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
-        ResultText.Foreground = SystemColors.GrayTextBrush;
+        ResultText.SetResourceReference(ForegroundProperty, "TextFillColorSecondaryBrush");
 
         AiTestResult result;
 
@@ -176,9 +176,12 @@ public partial class AiSettingsDialog : Window
         }
 
         ResultText.Text = result.Message;
-        ResultText.Foreground = result.Reachable
-            ? (Brush)FindResource("EncryptedBrush")
-            : SystemColors.GrayTextBrush;
+
+        // **資源への参照として持たせる (#122)。**色を取り出して代入すると、
+        // 表示したままテーマが切り替わったときに、その文字だけ前の色で残る
+        ResultText.SetResourceReference(
+            ForegroundProperty,
+            result.Reachable ? "EncryptedBrush" : "TextFillColorSecondaryBrush");
 
         ShowReady();
     }

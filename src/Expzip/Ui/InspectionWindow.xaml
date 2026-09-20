@@ -4,6 +4,7 @@
         xmlns:local="clr-namespace:Expzip"
         Width="920" Height="560"
         MinWidth="520" MinHeight="320"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
         UseLayoutRounding="True"
@@ -26,8 +27,8 @@
             ControlBrush なら地も文字も同じ組から来る
         -->
         <Border DockPanel.Dock="Top"
-                Background="{x:Static SystemColors.ControlBrush}"
-                BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1">
             <StackPanel Margin="16,12">
                 <StackPanel Orientation="Horizontal">
@@ -47,7 +48,7 @@
                            Margin="24,6,0,0"
                            TextWrapping="Wrap"
                            Visibility="Collapsed"
-                           Foreground="{StaticResource CautionBrush}" />
+                           Foreground="{DynamicResource CautionBrush}" />
                 <!--
                     検査が使えなかったことだけは畳まない (#56)。
                     結果そのものの意味が変わるため
@@ -56,29 +57,29 @@
                            Margin="24,6,0,0"
                            TextWrapping="Wrap"
                            Visibility="Collapsed"
-                           Foreground="{StaticResource CautionBrush}" />
+                           Foreground="{DynamicResource CautionBrush}" />
                 <!--
                     何をどれだけ調べたかは畳んでおく。変わるのは数だけで、
                     利用者が知りたいのは結末のほう。見たい人だけ開く
                 -->
                 <Expander x:Name="DetailsExpander"
                           Margin="20,6,0,0"
-                          Foreground="{x:Static SystemColors.GrayTextBrush}">
+                          Foreground="{DynamicResource TextFillColorSecondaryBrush}">
                     <StackPanel Margin="4,4,0,0">
                         <TextBlock x:Name="ChecksLine"
                                    TextWrapping="Wrap"
-                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="ContentsLine"
                                    Margin="0,3,0,0"
                                    TextWrapping="Wrap"
-                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="MalwareLine"
                                    Margin="0,3,0,0"
                                    TextWrapping="Wrap"
-                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         <TextBlock x:Name="ElapsedLine"
                                    Margin="0,3,0,0"
-                                   Foreground="{x:Static SystemColors.GrayTextBrush}" />
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                 </Expander>
             </StackPanel>
@@ -126,10 +127,36 @@
                 <Style x:Key="AccentText" TargetType="TextBlock">
                     <Setter Property="VerticalAlignment" Value="Center" />
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
-                                     Value="True">
-                            <Setter Property="Foreground" Value="{Binding Accent}" />
-                        </DataTrigger>
+                        <!--
+                            **色は名前で選ぶ (#122)。**筆を束ねた値から出すと、
+                            テーマが切り替わったときに前の色のまま残る。
+                            資源に入れた筆には封がされ、切り替えは筆ごとの
+                            差し替えになるため
+                        -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
+                                           Value="True" />
+                                <Condition Binding="{Binding AccentKey}" Value="WarningBrush" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
+                                           Value="True" />
+                                <Condition Binding="{Binding AccentKey}" Value="CautionBrush" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Foreground" Value="{DynamicResource CautionBrush}" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
+                                           Value="True" />
+                                <Condition Binding="{Binding AccentKey}" Value="EncryptedBrush" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Foreground" Value="{DynamicResource EncryptedBrush}" />
+                        </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
 

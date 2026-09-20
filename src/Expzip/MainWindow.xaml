@@ -7,6 +7,7 @@
         Title="Expzip"
         Height="620" Width="960"
         MinHeight="360" MinWidth="640"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
@@ -61,13 +62,13 @@
                             -->
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Fill" Property="Background"
-                                        Value="{StaticResource HoverBackBrush}" />
-                                <Setter Property="Foreground" Value="{StaticResource HoverTextBrush}" />
+                                        Value="{DynamicResource HoverBackBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource HoverTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Fill" Property="Background"
-                                        Value="{StaticResource HoverBackBrush}" />
-                                <Setter Property="Foreground" Value="{StaticResource HoverTextBrush}" />
+                                        Value="{DynamicResource HoverBackBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource HoverTextBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -78,7 +79,7 @@
             <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Padding" Value="4,2" />
-            <Setter Property="Foreground" Value="{x:Static SystemColors.GrayTextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         </Style>
 
         <!--
@@ -121,8 +122,8 @@
                     もう片方が Windows 側で入れ替わったときに読めなくなる
                 -->
                 <DataTrigger Binding="{Binding BreaksRules}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource RuleBreakBackBrush}" />
-                    <Setter Property="Foreground" Value="{StaticResource RuleBreakTextBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource RuleBreakBackBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource RuleBreakTextBrush}" />
                     <Setter Property="ToolTip" Value="{Binding RuleTooltip}" />
                 </DataTrigger>
                 <!--
@@ -140,7 +141,7 @@
                         <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
                                    Value="True" />
                     </MultiDataTrigger.Conditions>
-                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource EncryptedBrush}" />
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
@@ -158,8 +159,8 @@
                     地と文字色は組で決める (#121)
                 -->
                 <DataTrigger Binding="{Binding BreaksRules}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource RuleBreakBackBrush}" />
-                    <Setter Property="Foreground" Value="{StaticResource RuleBreakTextBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource RuleBreakBackBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource RuleBreakTextBrush}" />
                     <Setter Property="ToolTip" Value="{Binding RuleTooltip}" />
                 </DataTrigger>
                 <!-- 文字色だけの色付けは、こちらで色を決めてよいときだけ (#121) -->
@@ -169,7 +170,7 @@
                         <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
                                    Value="True" />
                     </MultiDataTrigger.Conditions>
-                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource EncryptedBrush}" />
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
@@ -307,13 +308,17 @@
 
             文字の欄は消さずに**下に敷いてある。**空きを押すと上の帯が引っ込んで
             現れ、選んで写せる。支援技術から見た「場所」もこの欄のままになる
+
+            **地は透けないものにする (#122)。**下の欄を隠すのが仕事なので、
+            半透明の色を使うと、下のパスが透けて二重に見える。
+            Fluent のブラシは `ControlFillColor…` のように半透明のものが多い
         -->
         <Border DockPanel.Dock="Top"
-                BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="8,5">
-            <Border Background="{x:Static SystemColors.WindowBrush}"
-                    BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+            <Border Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     MinHeight="24">
                 <Grid>
@@ -326,7 +331,7 @@
                              PreviewKeyDown="AddressBar_PreviewKeyDown"
                              LostKeyboardFocus="AddressBar_LostFocus" />
                     <DockPanel x:Name="CrumbBar"
-                               Background="{x:Static SystemColors.WindowBrush}"
+                               Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
                                MouseLeftButtonDown="CrumbBar_MouseDown">
                         <!-- 収まらないときだけ出る。畳んだところはここから辿れる -->
                         <Button x:Name="CrumbOverflow"
@@ -399,8 +404,8 @@
             見出しの帯だけにしてある
         -->
         <Border DockPanel.Dock="Top"
-                Background="{x:Static SystemColors.ControlBrush}"
-                BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
+                Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal">
                 <TabControl x:Name="ArchiveTabs"
@@ -417,7 +422,8 @@
                             タブの名前を支援技術に伝える。既定では型名がそのまま
                             読み上げられ、どの書庫のタブか分からない
                         -->
-                        <Style TargetType="TabItem">
+                        <Style TargetType="TabItem"
+                               BasedOn="{StaticResource DefaultTabItemStyle}">
                             <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
                         </Style>
                     </TabControl.ItemContainerStyle>
@@ -488,11 +494,11 @@
                     <TextBlock Text="&#xE814;"
                                FontFamily="Segoe MDL2 Assets"
                                FontSize="12"
-                               Foreground="{StaticResource WarningBrush}"
+                               Foreground="{DynamicResource WarningBrush}"
                                VerticalAlignment="Center"
                                Margin="6,0,4,0" />
                     <TextBlock x:Name="SuspiciousWarningText"
-                               Foreground="{StaticResource WarningBrush}"
+                               Foreground="{DynamicResource WarningBrush}"
                                VerticalAlignment="Center" />
                 </StackPanel>
             </StatusBarItem>
@@ -533,7 +539,9 @@
                     </ContextMenu>
                 </TreeView.ContextMenu>
                 <TreeView.ItemContainerStyle>
-                    <Style TargetType="TreeViewItem">
+                    <!-- ここも Fluent の既定を敷く (#122、一覧と同じ理由) -->
+                    <Style TargetType="TreeViewItem"
+                           BasedOn="{StaticResource DefaultTreeViewItemStyle}">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                         <!--
                             節の名前。入れておかないと、支援技術には束ねている型の名前
@@ -545,25 +553,13 @@
                 </TreeView.ItemContainerStyle>
                 <TreeView.Resources>
                     <!--
-                        選ばれている節の色 (#20)。WPF の既定では濃い青地に白文字になり、
-                        保護された項目の緑が読めなくなる。一覧側は薄い青地のまま文字色を
-                        変えないため、同じ窓の中で選択の見え方も食い違っていた。
-                        エクスプローラーも薄い青地なので、そちらに合わせる。
-                        一覧が使っている色をそのまま置く (実測 #98DDFB を挟む階調)。
-
-                        色そのものは App.xaml にある。**文字色は Windows から
-                        採らずに、地と組で決める** (#121)。ハイコントラストでは
-                        組ごと Windows の色に入れ替わり、この差し替えは効かなくなる
+                        選ばれている節の色を差し替えていた (#20、#65、#121)。
+                        **要らなくなったので外した (#122)。**差し替えていたのは、
+                        WPF の既定ではツリーだけが濃い青地になり、一覧の薄い青地と
+                        食い違ううえ、保護された項目の緑が沈んだため。
+                        Fluent ではツリーも一覧も同じ型から選択の見た目を採るので、
+                        こちらで揃える必要が無くなった
                     -->
-                    <StaticResource x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                                    ResourceKey="TreeSelectionBrush" />
-                    <StaticResource x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
-                                    ResourceKey="TreeSelectionTextBrush" />
-                    <!-- 焦点が一覧へ移っている間。エクスプローラーと同じく薄い灰色 -->
-                    <StaticResource x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
-                                    ResourceKey="TreeInactiveSelectionBrush" />
-                    <StaticResource x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
-                                    ResourceKey="TreeInactiveSelectionTextBrush" />
                     <HierarchicalDataTemplate DataType="{x:Type archives:ArchiveFolder}"
                                               ItemsSource="{Binding Folders}">
                         <StackPanel Orientation="Horizontal">
@@ -580,7 +576,7 @@
                             <ui:GlyphText Text="&#xE814;"
                                           FontFamily="Segoe MDL2 Assets"
                                           FontSize="12"
-                                          Foreground="{StaticResource WarningBrush}"
+                                          Foreground="{DynamicResource WarningBrush}"
                                           VerticalAlignment="Center"
                                           Margin="0,0,4,0"
                                           ToolTip="{StaticResource SuspiciousPathTooltip}"
@@ -609,7 +605,7 @@
                           Width="4"
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Stretch"
-                          Background="{x:Static SystemColors.ControlBrush}"
+                          Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
                           ShowsPreview="False" />
 
             <Grid Grid.Column="2">
@@ -641,7 +637,18 @@
                         伝わらない
                     -->
                     <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
+                        <!--
+                            **Fluent の既定を敷く (#122)。**敷かずに型だけ書くと、
+                            部品は古い見た目に落ちる。落ちると選択の地は明るい青のまま、
+                            文字色だけが暗いテーマの白になり、行が読めなくなる。
+
+                            **敷くのは `GridViewItemContainerStyleKey` のほう。**
+                            `DefaultListViewItemStyle` は列を持たない一覧のための型で、
+                            これを敷くと列が組み立てられず、行に束ねている型の名前が
+                            そのまま出る
+                        -->
+                        <Style TargetType="ListViewItem"
+                               BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                             <Setter Property="AutomationProperties.Name"
                                     Value="{Binding RowName}" />
                         </Style>
@@ -689,10 +696,18 @@
                             <Setter Property="HorizontalContentAlignment" Value="Left" />
                             <Setter Property="Padding" Value="6,2" />
                         </Style>
-                        <!-- 数値列は見出しも値も右揃えにして桁を読みやすくする -->
+                        <!--
+                            数値列は見出しも値も右揃えにして桁を読みやすくする。
+
+                            **元にするのは Fluent の既定の型 (#122)。**すぐ上の暗黙の
+                            型を `{x:Type GridViewColumnHeader}` で指すと、同じ辞書の
+                            中で自分自身を指すことになり、Fluent の見た目から外れる。
+                            外れた見出しは明るい地のまま残り、暗いテーマで白い箱になる
+                        -->
                         <Style x:Key="NumericHeader" TargetType="GridViewColumnHeader"
-                               BasedOn="{StaticResource {x:Type GridViewColumnHeader}}">
+                               BasedOn="{StaticResource DefaultGridViewColumnHeaderStyle}">
                             <Setter Property="HorizontalContentAlignment" Value="Right" />
+                            <Setter Property="Padding" Value="6,2" />
                         </Style>
 
                         <DataTemplate x:Key="NameCell">
@@ -711,7 +726,7 @@
                                 <ui:GlyphText Text="{Binding WarningGlyph}"
                                               FontFamily="Segoe MDL2 Assets"
                                               FontSize="12"
-                                              Foreground="{StaticResource WarningBrush}"
+                                              Foreground="{DynamicResource WarningBrush}"
                                               VerticalAlignment="Center"
                                               Margin="0,0,4,0"
                                               ToolTip="{Binding WarningTooltip}"
@@ -778,7 +793,7 @@
 
                 <!-- 書庫が開かれていないときの案内。項目を表示したら隠す -->
                 <TextBlock x:Name="EmptyStateMessage"
-                           Foreground="{x:Static SystemColors.GrayTextBrush}"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
                            IsHitTestVisible="False" />
