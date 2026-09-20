@@ -1,4 +1,4 @@
-// 画面に出る文言を、本物を呼び出して一覧にする (#118)。
+﻿// 画面に出る文言を、本物を呼び出して一覧にする (#118)。
 //
 //     dotnet run --project tools/stringdump              一覧を作り直す
 //     dotnet run --project tools/stringdump -- --check    一覧とずれていないか見る
@@ -230,7 +230,8 @@ if (check)
     return 1;
 }
 
-File.WriteAllText(output, made, new UTF8Encoding(false));
+// 出来上がりはリポジトリに入れる。改行はほかのファイルと同じ CRLF にする
+File.WriteAllText(output, made.Replace("\n", Environment.NewLine), new UTF8Encoding(false));
 Console.WriteLine($"書きました: {output}");
 Console.WriteLine($"文言 {results.Count} 個 / 形 {total} 個 / 呼べなかったもの {failures.Count} 個");
 
