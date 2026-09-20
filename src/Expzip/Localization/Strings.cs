@@ -13,7 +13,7 @@ internal enum UiLanguage
 }
 
 /// <summary>
-/// 画面に出す文言 (#23、仕様書 8章)。
+/// 画面に出す文言 (#23、仕様書 7章)。
 /// </summary>
 /// <remarks>
 /// <para>

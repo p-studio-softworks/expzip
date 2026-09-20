@@ -6,7 +6,7 @@ namespace Expzip.Configuration;
 /// <summary>設定ファイルの読み書き。</summary>
 /// <remarks>
 /// <para>
-/// 保存先は exe と同じフォルダ (docs/SPEC.md 8章)。<c>%APPDATA%</c> は使わない。
+/// 保存先は exe と同じフォルダ (docs/SPEC.md 7章)。<c>%APPDATA%</c> は使わない。
 /// フォルダにコピーするだけで動き、消すときはフォルダごと消せる状態を保つため。
 /// </para>
 /// <para>

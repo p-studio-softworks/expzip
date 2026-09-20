@@ -12,7 +12,7 @@ namespace Expzip.Archives;
 /// </para>
 /// <para>
 /// スタブは <c>tools/sfx</c> にある C のプログラムで、出来上がりを同梱してある。
-/// 詳しくは仕様書 5.7節。
+/// 詳しくは仕様書 4.7節。
 /// </para>
 /// </remarks>
 internal static class SfxWriter

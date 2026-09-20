@@ -146,7 +146,7 @@
             </ListView.View>
         </ListView>
 
-        <!-- 提案であって確かめた結果ではない、と断る (仕様書 11.5節) -->
+        <!-- 提案であって確かめた結果ではない、と断る (仕様書 10.5節) -->
         <TextBlock x:Name="NoticeText" Grid.Row="6" Margin="0,10,0,0" TextWrapping="Wrap"
                    Visibility="Collapsed"
                    Foreground="{x:Static SystemColors.GrayTextBrush}" />

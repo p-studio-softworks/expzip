@@ -7,7 +7,7 @@ using Expzip.Localization;
 namespace Expzip.Ui;
 
 /// <summary>
-/// 保存した決まりを書庫に当てた結果を1枚にまとめて出す窓 (#27、仕様書 11.3節の4)。
+/// 保存した決まりを書庫に当てた結果を1枚にまとめて出す窓 (#27、仕様書 10.3節の4)。
 /// </summary>
 /// <remarks>
 /// <para>

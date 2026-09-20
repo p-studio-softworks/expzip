@@ -765,7 +765,7 @@ internal static partial class Strings
                 "Left out " + string.Join(" and ", parts) + ".");
     }
 
-    /// <summary>これは提案であって、確かめた結果ではない (仕様書 11.5節)。</summary>
+    /// <summary>これは提案であって、確かめた結果ではない (仕様書 10.5節)。</summary>
     /// <remarks>
     /// **#72 で足す・直す・消す口を外したのに、この文だけ残っていた** (#77)。
     /// いまできるのは「使う / 使わない」の選びだけ。無い機能を案内していた。
@@ -1334,7 +1334,7 @@ internal static partial class Strings
     /// <summary>親書庫のタブが先に閉じられていた場合 (#30)。</summary>
     /// <remarks>
     /// 開いているタブが無いと、パスワードが要るかどうかも分からないまま
-    /// 書き込むことになる。仕様書 12.2 でも、親を先に閉じた場合は上書き保存
+    /// 書き込むことになる。仕様書 4.3節 でも、親を先に閉じた場合は上書き保存
     /// できないと決めてある。
     /// </remarks>
     public static string NestParentClosed(string parentName) => Pick(

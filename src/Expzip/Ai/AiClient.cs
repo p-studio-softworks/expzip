@@ -16,7 +16,7 @@ namespace Expzip.Ai;
 /// </para>
 /// <para>
 /// 送るのはファイル名とフォルダ構成だけで、ファイルの中身は一切送らない
-/// (仕様書 11.4節、確定方針)。何を送るかを決めるのはここではなく、
+/// (仕様書 10.4節、確定方針)。何を送るかを決めるのはここではなく、
 /// <see cref="ArchiveDigest"/> と <see cref="RuleEstimator"/> (#25)。
 /// </para>
 /// </remarks>

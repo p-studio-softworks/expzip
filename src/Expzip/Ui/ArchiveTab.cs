@@ -70,14 +70,14 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// <summary>一覧に出している書庫内フォルダ。</summary>
     public ArchiveFolder CurrentFolder { get; set; } = contents.Root;
 
-    /// <summary>並び順。タブごとに覚える (仕様書 5.2)。</summary>
+    /// <summary>並び順。タブごとに覚える (仕様書 4.2)。</summary>
     public EntryColumn SortColumn { get; set; } = EntryColumn.Name;
 
     /// <summary>並び順が降順かどうか。</summary>
     public bool SortDescending { get; set; }
 
     /// <summary>
-    /// 一覧で選んでいた項目の名前。タブを離れるときに控え、戻ったら選び直す (仕様書 5.2)。
+    /// 一覧で選んでいた項目の名前。タブを離れるときに控え、戻ったら選び直す (仕様書 4.2)。
     /// </summary>
     public IReadOnlyList<string> SelectedNames { get; set; } = [];
 

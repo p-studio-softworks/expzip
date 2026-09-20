@@ -12,7 +12,7 @@ namespace Expzip.Ai;
 /// 提案としても役に立たない。
 /// </para>
 /// <para>
-/// 仕様書 11.2節が挙げている例 (「ルート直下に README.txt が必須」
+/// 仕様書 10.2節が挙げている例 (「ルート直下に README.txt が必須」
 /// 「フォルダ名は `日付_案件名` 形式」「`.tmp`/`.bak` は含めない」) が、
 /// この5つで過不足なく書ける。足りなくなったら増やす。
 /// </para>
@@ -28,7 +28,7 @@ internal sealed record ArchiveRule(
     /// <summary>この決まりを最後に決めたのは誰か (#26)。</summary>
     /// <remarks>
     /// AI が挙げたものと、人が入れた・直したものを見分けられるようにする。
-    /// **提案であることを画面で明示する**ために要る (仕様書 11.5節)。
+    /// **提案であることを画面で明示する**ために要る (仕様書 10.5節)。
     /// </remarks>
     public RuleSource Source { get; init; } = RuleSource.Ai;
 

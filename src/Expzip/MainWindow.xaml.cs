@@ -24,7 +24,7 @@ namespace Expzip;
 
 /// <summary>
 /// メインウィンドウ。
-/// エクスプローラーライクな2ペイン構成 (docs/SPEC.md 5.1節)。
+/// エクスプローラーライクな2ペイン構成 (docs/SPEC.md 4.1節)。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>現在の並び順。タブごとに覚える (仕様書 5.2)。</summary>
+    /// <summary>現在の並び順。タブごとに覚える (仕様書 4.2)。</summary>
     private EntryColumn SortColumn
     {
         get => Tab?.SortColumn ?? EntryColumn.Name;
@@ -1334,7 +1334,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 離れるタブの選択を控えておく。戻ってきたときに選び直すため (仕様書 5.2)
+        // 離れるタブの選択を控えておく。戻ってきたときに選び直すため (仕様書 4.2)
         if (e.RemovedItems.Count > 0 && e.RemovedItems[0] is ArchiveTab leaving)
         {
             leaving.SelectedNames = EntryList.SelectedItems.OfType<EntryRow>()
@@ -1378,7 +1378,7 @@ public partial class MainWindow : Window
         }
 
         // 親のタブが閉じられている場合は尋ねない。戻す先が無いのに尋ねても
-        // 応えられない (仕様書 12.2)
+        // 応えられない (仕様書 4.3節)
         if (tab.Nest is { Orphaned: false } nest)
         {
             nest.DetectChange();
@@ -2213,7 +2213,7 @@ public partial class MainWindow : Window
     /// <summary>書庫の中の書庫を、専用のタブで開く (#30)。</summary>
     /// <remarks>
     /// 親書庫との繋がりはタブに持たせる。いまは中を見るところまでで、書き換えた
-    /// 結果を親書庫へ戻すのは次の段階 (仕様書 12.2)。
+    /// 結果を親書庫へ戻すのは次の段階 (仕様書 4.3節)。
     /// </remarks>
     private async Task OpenNestedAsync(ArchiveEntry entry, string target, string parentPath)
     {
@@ -2361,7 +2361,7 @@ public partial class MainWindow : Window
             t => string.Equals(t.FilePath, nest.ArchivePath, StringComparison.OrdinalIgnoreCase));
 
         // 親のタブが閉じられていると、パスワードが要るかどうかも分からないまま
-        // 書き込むことになる。仕様書 12.2 でも、親を先に閉じた場合は上書き保存を
+        // 書き込むことになる。仕様書 4.3節 でも、親を先に閉じた場合は上書き保存を
         // しないと決めてある
         if (parent is null)
         {
@@ -2674,7 +2674,7 @@ public partial class MainWindow : Window
 
     /// <summary>いま開いている書庫を、自己解凍書庫として書き出す (#29)。</summary>
     /// <remarks>
-    /// 取り出すプログラムの後ろに書庫をそのまま繋ぐだけ。詳しくは仕様書 5.7節。
+    /// 取り出すプログラムの後ろに書庫をそのまま繋ぐだけ。詳しくは仕様書 4.7節。
     /// </remarks>
     private async Task CreateSfxAsync()
     {
@@ -4924,7 +4924,7 @@ public partial class MainWindow : Window
     /// <summary>AI の機能を出してよいか (#24)。</summary>
     /// <remarks>
     /// 繋ぎ先が揃っていなければ、フェーズ4の機能は画面に出さない。
-    /// 押せるのに何も起きない口を作らないため (仕様書 11.4節)。
+    /// 押せるのに何も起きない口を作らないため (仕様書 10.4節)。
     /// </remarks>
     private bool AiConfigured => CurrentAiOptions.IsConfigured;
 
@@ -4961,7 +4961,7 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------ お手本からのルール推定 (#25)
 
     /// <summary>
-    /// いま見ている書庫をお手本として、作り方の決まりを読み取らせる (仕様書 11.3節)。
+    /// いま見ている書庫をお手本として、作り方の決まりを読み取らせる (仕様書 10.3節)。
     /// </summary>
     /// <remarks>
     /// **ここでは何も送らない。**送るかどうかはダイアログの中で、送るものを

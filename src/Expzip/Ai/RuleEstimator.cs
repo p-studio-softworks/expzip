@@ -5,7 +5,7 @@ using Expzip.Localization;
 namespace Expzip.Ai;
 
 /// <summary>
-/// お手本書庫から、作り方の決まりを推定する (#25、仕様書 11.3節)。
+/// お手本書庫から、作り方の決まりを推定する (#25、仕様書 10.3節)。
 /// </summary>
 /// <remarks>
 /// <para>

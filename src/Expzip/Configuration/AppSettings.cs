@@ -4,7 +4,7 @@ namespace Expzip.Configuration;
 
 /// <summary>
 /// 設定ファイルに保存する内容。
-/// ポータブル運用のため exe と同じフォルダに置く (docs/SPEC.md 8章)。
+/// ポータブル運用のため exe と同じフォルダに置く (docs/SPEC.md 7章)。
 /// 利用者が直接開いて編集することも想定し、人が読める形で書き出す。
 /// </summary>
 internal sealed class AppSettings
