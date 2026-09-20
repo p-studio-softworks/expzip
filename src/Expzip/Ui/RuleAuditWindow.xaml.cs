@@ -132,7 +132,7 @@ public partial class RuleAuditWindow : Window
 
         HeadlineGlyph.Text = clean ? GlyphClean : GlyphFlag;
         HeadlineGlyph.Foreground = clean
-            ? new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10))
+            ? (Brush)FindResource("EncryptedBrush")
             : (Brush)FindResource("RuleBreakBrush");
 
         Headline.Text = clean
@@ -194,7 +194,7 @@ public partial class RuleAuditWindow : Window
             {
                 Marks = _handled,
                 Glyph = GlyphClean,
-                Accent = new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10)),
+                Accent = (Brush)FindResource("EncryptedBrush"),
                 KindText = string.Empty,
                 Target = string.Empty,
                 Message = Strings.RuleAuditClean,

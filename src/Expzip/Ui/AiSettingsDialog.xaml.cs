@@ -177,7 +177,7 @@ public partial class AiSettingsDialog : Window
 
         ResultText.Text = result.Message;
         ResultText.Foreground = result.Reachable
-            ? new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10))
+            ? (Brush)FindResource("EncryptedBrush")
             : SystemColors.GrayTextBrush;
 
         ShowReady();
