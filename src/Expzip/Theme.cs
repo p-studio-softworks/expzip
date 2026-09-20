@@ -51,7 +51,6 @@ internal sealed class Theme : INotifyPropertyChanged
     /// <summary>暗いと見なす明るさの境目。0 が黒、1 が白。</summary>
     private const double DarkBelow = 0.5;
 
-
     /// <summary>
     /// Fluent が地に使っている色。ここの明るさで、どちらの組を使うかを決める。
     /// </summary>

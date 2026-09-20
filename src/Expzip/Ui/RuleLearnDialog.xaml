@@ -81,7 +81,9 @@
                 そのまま読まれる
             -->
             <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
+                <!-- 列のある一覧なので、Fluent の既定はこちらを敷く (#122) -->
+                <Style TargetType="ListViewItem"
+                       BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                     <Setter Property="AutomationProperties.Name"
                             Value="{Binding Description}" />
                     <!--

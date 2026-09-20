@@ -47,6 +47,11 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="6,2" />
+            <!--
+                **文字色を必ず決める (#122)。**見た目を丸ごと差し替えているので、
+                決めないと古い既定の黒のままになる。地を暗くすると沈んで消える
+            -->
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
