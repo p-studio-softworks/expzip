@@ -1,0 +1,2273 @@
+# Expzip の文言
+#
+# tools/stringdump が作る。手で直さない。
+# ⟦ ⟧ は差し込まれた見本。件数や名前は見本の値であって、決まった値ではない。
+
+AboutClose
+  ja  閉じる
+  en  Close
+
+AboutIconLater
+  ja  Expzipアイコン
+  en  Expzip icon
+
+AboutLicense
+  ja  ライセンス
+  en  Licenses
+
+AboutPlatform (os: Microsoft Windows 10.0.26200, runtime: .NET 10.0.11)
+  ja  ⟦Microsoft Windows 10.0.26200⟧ / ⟦.NET 10.0.11⟧
+  en  ⟦Microsoft Windows 10.0.26200⟧ / ⟦.NET 10.0.11⟧
+
+AboutRevision (revision: 0123abc)
+  ja  リビジョン ⟦0123abc⟧
+  en  Revision ⟦0123abc⟧
+
+AboutRevisionModified (revision: 0123abc)
+  ja  リビジョン ⟦0123abc⟧ (変更あり)
+  en  Revision ⟦0123abc⟧ (modified)
+
+AboutRevisionUnknown
+  ja  リビジョン 不明
+  en  Revision unknown
+
+AboutTitle
+  ja  バージョン情報
+  en  About
+
+AboutTooltip
+  ja  Expzip について
+  en  About Expzip
+
+AboutVersion (version: 0.1.0, architecture: x64)
+  ja  バージョン ⟦0.1.0⟧ (⟦x64⟧)
+  en  Version ⟦0.1.0⟧ (⟦x64⟧)
+
+Add
+  ja  追加
+  en  Add
+
+AddCancelled
+  ja  追加を中断しました
+  en  Adding was stopped
+
+AddCancelledDetail
+  ja  追加を中断しました。書庫の変更はありません。
+  en  Adding was stopped. The archive was left untouched.
+
+AddDialogTitle
+  ja  書庫に追加するファイルを選択
+  en  Select the files to add to the archive
+
+AddDone (count: 3)
+  ja  3 個のファイルを追加しました
+  en  Added 3 files
+AddDone (count: 1)
+  ja  1 個のファイルを追加しました
+  en  Added 1 file
+
+AddFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  書庫に追加できませんでした。書庫の変更はありません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The files could not be added to the archive. The archive was left untouched.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+AddTooltip
+  ja  ファイルを追加する
+  en  Add files to the archive
+
+AddedFilesLine (count: 3)
+  ja  追加したファイル: 3 個
+  en  Files added: 3
+
+Adding (name: 報告書.pdf)
+  ja  追加中: ⟦報告書.pdf⟧
+  en  Adding: ⟦報告書.pdf⟧
+
+AiBadEndpoint
+  ja  URLが正しくありません。http:// または https:// で始まるURLを入力してください。
+  en  That is not a usable URL. It should start with http:// or https://.
+
+AiCancel
+  ja  キャンセル
+  en  Cancel
+
+AiDialogTitle
+  ja  AI連携の設定
+  en  AI settings
+
+AiEmptyAnswer
+  ja  AI から回答がありませんでした。もう一度試してください。
+  en  The AI returned an empty answer. Please try again.
+
+AiEndpointLabel
+  ja  URL
+  en  URL
+
+AiIntro
+  ja  書庫のルールをAIに推定させる機能の設定です。
+  en  Settings for the AI that works out the rules of an archive.
+
+AiKeyLabel
+  ja  APIキー
+  en  API key
+
+AiKeyLost
+  ja  保存されているAPIキーが使用できませんでした。再度入力してください。
+  en  The saved API key could not be used. Please enter it again.
+
+AiMenu
+  ja  AI機能
+  en  AI features
+
+AiModelLabel
+  ja  モデル名
+  en  Model
+
+AiNoModel
+  ja  モデル名を入力してください。
+  en  Enter the model name.
+
+AiPresetAnthropic
+  ja  Anthropic (Claude)
+  en  Anthropic (Claude)
+
+AiPresetCustom
+  ja  その他
+  en  Other
+
+AiPresetGoogle
+  ja  Google (Gemini)
+  en  Google (Gemini)
+
+AiPresetLabel
+  ja  接続先
+  en  Provider
+
+AiPresetLocal
+  ja  ローカル
+  en  Local
+
+AiPresetOpenAi
+  ja  OpenAI
+  en  OpenAI
+
+AiPrivacyNotice
+  ja  設定したAIに書庫のファイル名とフォルダー構成を送信してルールを推定します。ファイルの中身は送信しません。無料枠では送信したものが提供元の製品改善に使用される可能性がありますのでご注意ください。入力したAPIキーは本アプリケーションと同じフォルダーに保存されますが、移動した場合には無効になります。
+  en  The AI you set up receives the file names and folder structure of the archive and works out the rules from them. File contents are never sent. On a free tier, what you send may be used to improve the provider's products. The API key you enter is stored in the same folder as this application, and stops working if it is moved elsewhere.
+
+AiReachable (model: gemini-2.5-flash)
+  ja  接続しました。⟦gemini-2.5-flash⟧ が使えます。
+  en  Connected. ⟦gemini-2.5-flash⟧ is available.
+
+AiRefused (status: 429, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  接続先から拒否されました (HTTP 429)。
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The request was refused (HTTP 429).
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+AiSaved
+  ja  AI連携の設定を保存しました
+  en  Saved the AI settings
+
+AiSettingsMenu
+  ja  AI連携の設定…
+  en  AI settings...
+
+AiTest
+  ja  接続テスト
+  en  Test connection
+
+AiTesting (seconds: 12)
+  ja  接続をテストしています… (12 秒)
+  en  Testing... (12s)
+AiTesting (seconds: 0)
+  ja  接続をテストしています…
+  en  Testing...
+
+AiTimedOut (seconds: 12)
+  ja  12 秒待ちましたが、回答が得られませんでした。
+      | 接続先が混雑しているか、回答に時間のかかるモデルの可能性があります。もう一度試すか、軽量なモデルに変更してください。
+  en  Waited 12s with no answer.
+      | The service may be busy, or the model may take a long time to think. Try again, or switch to a lighter model.
+
+AiTooltip
+  ja  AI機能の設定
+  en  AI feature settings
+
+AllFilesFilter
+  ja  すべてのファイル (*.*)|*.*
+  en  All files (*.*)|*.*
+
+ApplyEditCancelled
+  ja  反映を中断しました
+  en  Putting it back was stopped
+
+ApplyEditDone (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ を書庫に反映しました
+  en  Put ⟦報告書.pdf⟧ back into the archive
+
+ApplyEditFailed (entryPath: 画像/2024/写真.jpg, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦画像/2024/写真.jpg⟧ を書庫に反映できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not put ⟦画像/2024/写真.jpg⟧ back into the archive.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+ApplyingEdit (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ を書庫に反映しています…
+  en  Putting ⟦報告書.pdf⟧ back into the archive…
+
+ApplyingPassword
+  ja  パスワードを設定して書庫を作り直しています…
+  en  Rebuilding the archive with the password…
+
+AskPassword (archiveName: 資料.zip)
+  ja  「⟦資料.zip⟧」はパスワードで保護されています。
+  en  "⟦資料.zip⟧" is protected with a password.
+
+AskPasswordAgain (archiveName: 資料.zip)
+  ja  パスワードが違います。
+      | 「⟦資料.zip⟧」のパスワードを入力してください。
+  en  That password is not correct.
+      | Enter the password for "⟦資料.zip⟧".
+
+Bullet
+  ja  ・
+  en  - 
+
+CannotOpenOutsidePath (sourceName: ..\..\Windows\System32\evil.dll)
+  ja  このファイルは開けません。
+      | 
+      | ⟦..\..\Windows\System32\evil.dll⟧
+      | 
+      | 書庫の外を指すパスが指定されています。
+  en  This file cannot be opened.
+      | 
+      | ⟦..\..\Windows\System32\evil.dll⟧
+      | 
+      | Its path points outside the archive.
+
+ChangePasswordFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  パスワードを変更できませんでした。書庫の変更はありません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The password could not be changed. The archive was left untouched.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+ChangePasswordPrompt (archiveName: 資料.zip)
+  ja  「⟦資料.zip⟧」の新しいパスワードを入力してください。
+      | 
+      | 空欄のままにすると、パスワードを削除します。
+  en  Enter the new password for "⟦資料.zip⟧".
+      | 
+      | Leave it empty to remove the password.
+
+ChooseAppPrompt (fileName: 資料.zip)
+  ja  ⟦資料.zip⟧ を開くアプリを選択してください
+  en  Choose an app to open ⟦資料.zip⟧
+
+ClearRecent
+  ja  履歴を消去(_C)
+  en  _Clear history
+
+CloseTabTooltip
+  ja  このタブを閉じる (Ctrl+W)
+  en  Close this tab (Ctrl+W)
+
+ColumnCompressed
+  ja  圧縮後
+  en  Packed
+
+ColumnDate
+  ja  更新日時
+  en  Modified
+
+ColumnName
+  ja  名前
+  en  Name
+
+ColumnRatio
+  ja  圧縮率
+  en  Ratio
+
+ColumnSize
+  ja  サイズ
+  en  Size
+
+ConfirmApplyEdit (entryPath: 画像/2024/写真.jpg)
+  ja  ⟦画像/2024/写真.jpg⟧
+      | 
+      | 変更されました。書庫に反映しますか?
+      | 「いいえ」を選んでも変更内容は保持しています。Expzip の終了時に再度確認します。
+  en  ⟦画像/2024/写真.jpg⟧
+      | 
+      | This file was edited. Put it back into the archive?
+      | 
+      | Choosing No keeps your edits; you will be asked again when you quit.
+
+ConfirmApplyNest (entryPath: 画像/2024/写真.jpg, parentName: 外側.zip)
+  ja  ⟦画像/2024/写真.jpg⟧
+      | 
+      | 変更されています。⟦外側.zip⟧ に反映しますか?
+      | 
+      | 「いいえ」を選ぶと、変更内容は失われます。
+  en  ⟦画像/2024/写真.jpg⟧
+      | 
+      | This has been changed. Put it back into ⟦外側.zip⟧?
+      | 
+      | Choosing No discards the changes.
+
+ConfirmDelete (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個, detail:  ⏎  ⏎ フォルダーの中身を含めて 12 個のファイルが削除されます。)
+  ja  選択した 3 個の項目を書庫から削除します。
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   ほか 7 個⟧⟦
+      | 
+      | フォルダーの中身を含めて 12 個のファイルが削除されます。⟧
+      | 
+      | この操作は取り消せません。削除しますか?
+  en  3 selected items will be deleted from the archive.
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   and 7 more⟧⟦
+      | 
+      | 12 files will be deleted, including the contents of the folders.⟧
+      | 
+      | This cannot be undone. Delete them?
+ConfirmDelete (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個, detail:  ⏎  ⏎ フォルダーの中身を含めて 12 個のファイルが削除されます。)
+  ja  選択した 1 個の項目を書庫から削除します。
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   ほか 7 個⟧⟦
+      | 
+      | フォルダーの中身を含めて 12 個のファイルが削除されます。⟧
+      | 
+      | この操作は取り消せません。削除しますか?
+  en  1 selected item will be deleted from the archive.
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   and 7 more⟧⟦
+      | 
+      | 12 files will be deleted, including the contents of the folders.⟧
+      | 
+      | This cannot be undone. Delete them?
+ConfirmDelete (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空), detail:  ⏎  ⏎ フォルダーの中身を含めて 12 個のファイルが削除されます。)
+  ja  選択した 3 個の項目を書庫から削除します。
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      | 
+      | フォルダーの中身を含めて 12 個のファイルが削除されます。⟧
+      | 
+      | この操作は取り消せません。削除しますか?
+  en  3 selected items will be deleted from the archive.
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      | 
+      | 12 files will be deleted, including the contents of the folders.⟧
+      | 
+      | This cannot be undone. Delete them?
+
+ConfirmExecutable (fileName: 資料.zip)
+  ja  ⟦資料.zip⟧
+      | 
+      | このファイルを開くとプログラムとして実行されます。入手元が不明な書庫の場合は、開かないでください。
+      | 
+      | 続行しますか?
+  en  ⟦資料.zip⟧
+      | 
+      | Opening this file will run it.
+      | Do not open it if you are unsure where the archive came from.
+      | 
+      | Continue?
+
+ConfirmOverwrite (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個)
+  ja  展開先に同じ名前のファイルが 3 個あります。上書きしますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   ほか 7 個⟧
+      | 
+      | 「いいえ」を選ぶと、それらは展開しません。
+  en  The destination already has 3 files with the same name. Overwrite them?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   and 7 more⟧
+      | 
+      | Choosing No leaves those files alone and skips them.
+ConfirmOverwrite (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個)
+  ja  展開先に同じ名前のファイルが 1 個あります。上書きしますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   ほか 7 個⟧
+      | 
+      | 「いいえ」を選ぶと、それらは展開しません。
+  en  The destination already has 1 file with the same name. Overwrite it?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   and 7 more⟧
+      | 
+      | Choosing No leaves those files alone and skips them.
+ConfirmOverwrite (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  展開先に同じ名前のファイルが 3 個あります。上書きしますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | 「いいえ」を選ぶと、それらは展開しません。
+  en  The destination already has 3 files with the same name. Overwrite them?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | Choosing No leaves those files alone and skips them.
+
+ConfirmPendingEdits (names:   報告書.pdf ⏎   写真.jpg)
+  ja  書庫に反映していない変更があります。
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg⟧
+      | 
+      | 反映してから終了しますか?
+      | 「いいえ」を選ぶと、変更内容は失われます。
+  en  Some edits have not been put back into the archive.
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg⟧
+      | 
+      | Put them back before quitting?
+      | Choosing No discards those edits.
+
+ConfirmReplace (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個)
+  ja  同じ名前の項目が書庫内に 3 個あります。置き換えますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   ほか 7 個⟧
+      | 
+      | 「いいえ」を選ぶと、それらは置き換えません。
+  en  The archive already contains 3 items with the same name. Replace them?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   and 7 more⟧
+      | 
+      | Choosing No leaves what is already in the archive.
+ConfirmReplace (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個)
+  ja  同じ名前の項目が書庫内に 1 個あります。置き換えますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   ほか 7 個⟧
+      | 
+      | 「いいえ」を選ぶと、それらは置き換えません。
+  en  The archive already contains 1 item with the same name. Replace it?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧⟦
+      |   and 7 more⟧
+      | 
+      | Choosing No leaves what is already in the archive.
+ConfirmReplace (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  同じ名前の項目が書庫内に 3 個あります。置き換えますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | 「いいえ」を選ぶと、それらは置き換えません。
+  en  The archive already contains 3 items with the same name. Replace them?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | Choosing No leaves what is already in the archive.
+
+CreateArchiveFailed (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を作成できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not create ⟦C:\Users\user\Desktop\資料.zip⟧.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+CreateFolderFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  フォルダーを作成できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The folder could not be created.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+CreatingFolder
+  ja  フォルダーを作成しています…
+  en  Creating the folder…
+
+DefaultAppFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  既定のアプリで開けませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  It could not be opened with the default app.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+DeleteCancelled
+  ja  削除を中断しました
+  en  Deleting was stopped
+
+DeleteCancelledDetail
+  ja  削除を中断しました。書庫の変更はありません。
+  en  Deleting was stopped. The archive was left untouched.
+
+DeleteDone (count: 3)
+  ja  3 個の項目を削除しました
+  en  Deleted 3 items
+DeleteDone (count: 1)
+  ja  1 個の項目を削除しました
+  en  Deleted 1 item
+
+DeleteFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  削除できませんでした。書庫の変更はありません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The items could not be deleted. The archive was left untouched.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+DeleteFolderDetail (affected: 12)
+  ja  
+      | 
+      | フォルダーの中身を含めて 12 個のファイルが削除されます。
+  en  
+      | 
+      | 12 files will be deleted, including the contents of the folders.
+DeleteFolderDetail (affected: 1)
+  ja  
+      | 
+      | フォルダーの中身を含めて 1 個のファイルが削除されます。
+  en  
+      | 
+      | 1 file will be deleted, including the contents of the folders.
+
+Deleting
+  ja  削除しています…
+  en  Deleting…
+
+DragCancelled
+  ja  展開を中止しました
+  en  Extracting was called off
+
+DragCannotStart
+  ja  展開できません
+  en  Could not extract
+
+DragExtractFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  展開に失敗しました。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Extracting failed.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+DragExtracted (count: 3)
+  ja  3 個の項目を展開しました
+  en  Extracted 3 items
+DragExtracted (count: 1)
+  ja  1 個の項目を展開しました
+  en  Extracted 1 item
+
+DragFailed
+  ja  ドラッグを完了できませんでした
+  en  The drag could not be completed
+
+DragTooLarge (fileLimit: 3, megabyteLimit: 1048576, count: 3, megabytes: 1048576)
+  ja  ドラッグで展開できるのは 3 個 / 1,048,576 MB までです。
+      | 選択されているのは 3 個 / 1,048,576 MB です。
+      | 
+      | ツールバーの「展開」を使用してください。
+  en  Dragging can extract up to 3 items / 1,048,576MB.
+      | You have selected 3 items / 1,048,576MB.
+      | 
+      | Use Extract on the toolbar instead.
+
+EmbeddedToolMissing (resource: Expzip.Resources.THIRD-PARTY-NOTICES.txt)
+  ja  Expzip.exe に必要なファイルが含まれていません (⟦Expzip.Resources.THIRD-PARTY-NOTICES.txt⟧)。
+  en  A file Expzip.exe needs is missing from it (⟦Expzip.Resources.THIRD-PARTY-NOTICES.txt⟧).
+
+EmptyFolder
+  ja  このフォルダーは空です
+  en  This folder is empty
+
+EncryptedEntriesNotice
+  ja  この書庫には暗号化されたファイルが含まれています。
+      | 
+      | 一覧は表示できますが、これらのファイルの展開には対応していません。
+  en  This archive contains encrypted files.
+      | 
+      | The list can be shown, but extracting those files is not supported.
+
+EncryptedTooltip
+  ja  この項目はパスワードで保護されています。展開するときにパスワードを入力してください。
+  en  This item is protected with a password. You will be asked for it when extracting.
+
+Extract
+  ja  展開
+  en  Extract
+
+ExtractAllTitle
+  ja  書庫全体の展開先を選択
+  en  Select where to extract the whole archive
+
+ExtractCalledOff
+  ja  展開を中止しました
+  en  Extracting was called off
+
+ExtractCancelledLine1
+  ja  展開を中断しました。
+  en  Extracting was stopped.
+
+ExtractCancelledLine2
+  ja  中断するまでに展開したファイルは、そのまま残っています。
+  en  The files extracted before it stopped were left in place.
+
+ExtractCancelledLine3
+  ja  書き込み途中のファイルは削除しました。
+  en  The file being written at that moment was deleted.
+
+ExtractCancelledStatus (extracted: 10)
+  ja  展開を中断しました (10 個展開済み)
+  en  Extracting was stopped (10 extracted)
+
+ExtractDestinationLine (destination: C:\Users\user\Desktop\資料)
+  ja  展開先: ⟦C:\Users\user\Desktop\資料⟧
+  en  Destination: ⟦C:\Users\user\Desktop\資料⟧
+
+ExtractDone (extracted: 10)
+  ja  10 個のファイルを展開しました
+  en  Extracted 10 files
+ExtractDone (extracted: 1)
+  ja  1 個のファイルを展開しました
+  en  Extracted 1 file
+
+ExtractFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  展開に失敗しました。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Extracting failed.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+ExtractFolderTitle (name: 報告書.pdf)
+  ja  「⟦報告書.pdf⟧」の展開先を選択
+  en  Select where to extract "⟦報告書.pdf⟧"
+
+ExtractOneCancelled
+  ja  展開を中断しました
+  en  Extracting was stopped
+
+ExtractOneFailedReason
+  ja  書庫から展開できませんでした。
+  en  It could not be extracted from the archive.
+
+ExtractSelectedTitle
+  ja  選択した項目の展開先を選択
+  en  Select where to extract the selected items
+
+ExtractTooltip
+  ja  選択した項目を展開する。選択していなければ書庫全体を展開する
+  en  Extract the selected items. With nothing selected, extracts the whole archive.
+
+ExtractedFilesLine (count: 3)
+  ja  展開したファイル: 3 個
+  en  Files extracted: 3
+
+Extracting (name: 報告書.pdf)
+  ja  展開中: ⟦報告書.pdf⟧
+  en  Extracting: ⟦報告書.pdf⟧
+
+ExtractingCount (count: 3)
+  ja  3 個の項目を展開しています…
+  en  Extracting 3…
+
+ExtractingOne (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ を展開しています…
+  en  Extracting ⟦報告書.pdf⟧…
+
+FailedFilesLine (count: 3)
+  ja  追加できなかったファイル: 3 個
+  en  Files that could not be added: 3
+
+FailureLine (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja    ⟦報告書.pdf⟧ … ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en    ⟦報告書.pdf⟧ — ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+FileCount (count: 3, limits:  (パスワード付き / AES))
+  ja  3 個のファイル⟦ (パスワード付き / AES)⟧
+  en  3 files⟦ (password protected / AES)⟧
+FileCount (count: 1, limits:  (パスワード付き / AES))
+  ja  1 個のファイル⟦ (パスワード付き / AES)⟧
+  en  1 file⟦ (password protected / AES)⟧
+FileCount (count: 3, limits: (空))
+  ja  3 個のファイル
+  en  3 files
+
+FolderCreated (name: 報告書.pdf)
+  ja  「⟦報告書.pdf⟧」を作成しました
+  en  Created "⟦報告書.pdf⟧"
+
+FormatIsReadOnly (format: 7z)
+  ja  ⟦7z⟧ 書庫にはファイルを追加できません。読み取りのみに対応しています。
+  en  Files cannot be added to ⟦7z⟧ archives. This format is supported for reading only.
+
+FormatName (format: Unknown)
+  ja  不明
+  en  Unknown
+FormatName (format: Zip)
+  ja  ZIP
+  en  ZIP
+FormatName (format: SevenZip)
+  ja  7z
+  en  7z
+FormatName (format: Tar)
+  ja  tar
+  en  tar
+FormatName (format: Nsis)
+  ja  NSIS
+  en  NSIS
+
+FormatUnknown
+  ja  不明
+  en  Unknown
+
+Inspect
+  ja  検査
+  en  Inspect
+
+InspectCancelledStatus
+  ja  検査を中断しました
+  en  The inspection was stopped
+
+InspectClean
+  ja  検査しました。問題は見つかりませんでした
+  en  Inspection finished. Nothing to report.
+
+InspectFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  検査できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The archive could not be inspected.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+InspectFound (count: 3)
+  ja  検査しました。3 件見つかりました
+  en  Inspection finished. 3 items to report.
+InspectFound (count: 1)
+  ja  検査しました。1 件見つかりました
+  en  Inspection finished. 1 item to report.
+
+InspectTooltip
+  ja  この書庫が壊れていないか、危険なものが入っていないかを調べる
+  en  Check this archive for damage and for content that could cause trouble
+
+Inspecting (phase: Structure, name: 報告書.pdf)
+  ja  検査中: 索引とヘッダーを照合しています
+  en  Inspecting: comparing the index against the entry headers
+Inspecting (phase: Safety, name: 報告書.pdf)
+  ja  検査中: 名前とサイズを調べています
+  en  Inspecting: checking names and sizes
+Inspecting (phase: Contents, name: 報告書.pdf)
+  ja  検査中: ⟦報告書.pdf⟧
+  en  Inspecting: ⟦報告書.pdf⟧
+
+InspectionArchiveItself
+  ja  (書庫そのもの)
+  en  (the archive itself)
+
+InspectionCancelledLine
+  ja  検査は途中で中断されました。ここに表示しているのは、中断するまでに検査した範囲の結果です。
+  en  The inspection was stopped partway. What follows covers only what it reached.
+
+InspectionChecksLine
+  ja  行った検査: 構造 (索引・ヘッダー・CRC の照合)、安全性 (パス・名前・圧縮率)、マルウェア (AMSI)
+  en  Checks performed: structure (index, headers, CRC), safety (paths, names, ratios), malware (AMSI)
+
+InspectionChecksLineWithoutMalware
+  ja  行った検査: 構造 (索引・ヘッダー・CRC の照合)、安全性 (パス・名前・圧縮率)
+  en  Checks performed: structure (index, headers, CRC), safety (paths, names, ratios)
+
+InspectionClose
+  ja  閉じる
+  en  Close
+
+InspectionColumnDetail
+  ja  内容
+  en  What was found
+
+InspectionColumnSeverity
+  ja  重大度
+  en  Severity
+
+InspectionColumnTarget
+  ja  対象
+  en  Item
+
+InspectionContentsLine (checkedCount: 3, fileCount: 42)
+  ja  42 個のファイルのうち、3 個は中身まで読み込んで確認しました。
+  en  Read and verified the contents of 3 of 42 files.
+InspectionContentsLine (checkedCount: 3, fileCount: 1)
+  ja  1 個のファイルのうち、3 個は中身まで読み込んで確認しました。
+  en  Read and verified the contents of 3 of 1 file.
+
+InspectionDetails
+  ja  調べた内容
+  en  What was checked
+
+InspectionElapsedLine (elapsed: 00:01:23)
+  ja  かかった時間: 83.0 秒
+  en  Time taken: 83.0 s
+
+InspectionHeadline (danger: 1, warning: 2)
+  ja  危険 1 件、注意 2 件が見つかりました
+  en  Found 1 dangerous and 2 questionable items
+InspectionHeadline (danger: 0, warning: 2)
+  ja  注意したい項目が 2 件見つかりました
+  en  Found 2 questionable items
+InspectionHeadline (danger: 1, warning: 0)
+  ja  危険な項目が 1 件見つかりました
+  en  Found 1 dangerous item
+
+InspectionMalwareLine (scanned: 250)
+  ja  うち 250 個をウイルス対策ソフトで検査しました。書庫ファイル自体も検査しています。
+  en  Of those, 250 were handed to the antimalware service. The archive file itself was handed over as well.
+InspectionMalwareLine (scanned: 1)
+  ja  うち 1 個をウイルス対策ソフトで検査しました。書庫ファイル自体も検査しています。
+  en  Of those, 1 was handed to the antimalware service. The archive file itself was handed over as well.
+
+InspectionMalwareUnavailable
+  ja  マルウェアの検査は行えませんでした。この PC のウイルス対策ソフトが、Windows の検査機能 (AMSI) に対応していません。ほかの検査は行っています。
+  en  The malware check could not run: the antimalware software on this machine does not answer Windows' scan interface (AMSI). The other checks did run.
+
+InspectionMessage (issue: CrcMismatch, detail: 画像/2024/写真.jpg)
+  ja  中身が壊れています。書庫に記録された CRC と一致しません
+  en  The contents are damaged: they do not match the checksum recorded in the archive
+InspectionMessage (issue: HeaderMismatch, detail: 画像/2024/写真.jpg)
+  ja  書庫の索引と項目のヘッダーが一致しません (⟦画像/2024/写真.jpg⟧)
+  en  The archive index and the entry header disagree (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: Truncated, detail: 画像/2024/写真.jpg)
+  ja  書庫が途中で切れています
+  en  The archive is cut short: it ends before the point its own index refers to
+InspectionMessage (issue: TrailingData, detail: 画像/2024/写真.jpg)
+  ja  書庫の末尾のあとに、書庫ではないデータが ⟦画像/2024/写真.jpg⟧ バイトあります
+  en  ⟦画像/2024/写真.jpg⟧ bytes that are not part of the archive follow its end
+InspectionMessage (issue: UnsupportedMethod, detail: 画像/2024/写真.jpg)
+  ja  対応していない圧縮方式のため展開できません (⟦画像/2024/写真.jpg⟧)
+  en  Stored with a compression method Expzip cannot read (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: DuplicateName, detail: 画像/2024/写真.jpg)
+  ja  同じ名前の項目が 2 個以上あります。展開すると 1 個しか残りません
+  en  More than one item has this name. Extracting leaves only one of them.
+InspectionMessage (issue: Unreadable, detail: 画像/2024/写真.jpg)
+  ja  中身を読み出せませんでした (⟦画像/2024/写真.jpg⟧)
+  en  The contents could not be read (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: EncryptedNotChecked, detail: 画像/2024/写真.jpg)
+  ja  パスワードが不明なため、中身を検査できませんでした
+  en  The contents could not be checked: the password is not known
+InspectionMessage (issue: EscapingPath, detail: 画像/2024/写真.jpg)
+  ja  展開先の外に書き込もうとするパスです (⟦画像/2024/写真.jpg⟧)
+  en  This path would write outside the folder you extract into (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: SuspiciousPath, detail: 画像/2024/写真.jpg)
+  ja  通常の書庫にはない形式のパスです (⟦画像/2024/写真.jpg⟧)
+  en  This path is not shaped like anything a normal archive holds (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: ReservedName, detail: 画像/2024/写真.jpg)
+  ja  Windows が予約している名前のため、このファイルは作成できません (⟦画像/2024/写真.jpg⟧)
+  en  Windows treats this as a device name, so the file cannot be created (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: TrailingSpaceOrDot, detail: 画像/2024/写真.jpg)
+  ja  名前の末尾が空白またはピリオドのため、Windows ではこの名前のファイルを作成できません (⟦画像/2024/写真.jpg⟧)
+  en  Windows cannot create this name: it ends with a space or a period (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: ControlCharacter, detail: 画像/2024/写真.jpg)
+  ja  名前に制御文字が含まれています。表示されている名前と実際の名前が異なります
+  en  The name contains control characters, so what you see is not the real name
+InspectionMessage (issue: InvalidCharacter, detail: 画像/2024/写真.jpg)
+  ja  Windows のファイル名に使用できない文字が含まれています (⟦画像/2024/写真.jpg⟧)
+  en  The name contains characters Windows does not allow in a file name (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: CaseCollision, detail: 画像/2024/写真.jpg)
+  ja  大文字と小文字だけが異なる項目があります (⟦画像/2024/写真.jpg⟧)。展開すると片方が失われます
+  en  Another item differs only in letter case (⟦画像/2024/写真.jpg⟧). Extracting loses one of them.
+InspectionMessage (issue: BidiOverride, detail: 画像/2024/写真.jpg)
+  ja  文字の向きを変える記号で拡張子が偽装されています。表示されている拡張子と実際の拡張子が異なります
+  en  A text-direction override disguises the extension: what you see is not the real extension
+InspectionMessage (issue: HighRatio, detail: 画像/2024/写真.jpg)
+  ja  展開するとサイズが ⟦画像/2024/写真.jpg⟧ 倍になります
+  en  This expands to ⟦画像/2024/写真.jpg⟧ times its stored size
+InspectionMessage (issue: ZipBomb, detail: 画像/2024/写真.jpg)
+  ja  書庫全体を展開するとサイズが ⟦画像/2024/写真.jpg⟧ 倍になります。展開先の空き容量に注意してください
+  en  The whole archive expands to ⟦画像/2024/写真.jpg⟧ times its size. Watch the free space where you extract it.
+InspectionMessage (issue: ExecutableExtension, detail: 画像/2024/写真.jpg)
+  ja  開くとプログラムとして実行される種類のファイルです (⟦画像/2024/写真.jpg⟧)
+  en  Opening this runs it instead of showing its contents (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: MalwareDetected, detail: 画像/2024/写真.jpg)
+  ja  ウイルス対策ソフトが脅威として検出しました
+  en  The antimalware service flagged this
+InspectionMessage (issue: TooLargeToScan, detail: 画像/2024/写真.jpg)
+  ja  サイズが大きすぎるため、マルウェアの検査を行えませんでした (⟦画像/2024/写真.jpg⟧)
+  en  Too large to hand over in one piece, so the malware check was skipped (⟦画像/2024/写真.jpg⟧)
+
+InspectionMoreLine (count: 3)
+  ja  同じものがほかに 3 件あります
+  en  3 more like this
+
+InspectionNoProblems
+  ja  問題は見つかりませんでした
+  en  Nothing to report
+
+InspectionTitle (archiveName: 資料.zip)
+  ja  検査結果 - ⟦資料.zip⟧
+  en  Inspection results - ⟦資料.zip⟧
+
+KeptFilesLine (count: 3)
+  ja  置き換えずそのまま残したファイル: 3 個
+  en  Files kept instead of replaced: 3
+
+LanguageAuto
+  ja  Windows の表示言語に合わせる
+  en  Match Windows
+
+LanguageEnglish
+  ja  English
+  en  English
+
+LanguageJapanese
+  ja  日本語
+  en  日本語
+
+LanguageMenu
+  ja  言語
+  en  Language
+
+LanguageTooltip
+  ja  言語設定
+  en  Language settings
+
+LicenseMissing (resource: Expzip.Resources.THIRD-PARTY-NOTICES.txt)
+  ja  ライセンス表示を読み出せませんでした。
+  en  Could not read the third-party notices.
+
+LicenseTitle
+  ja  ライセンス表示
+  en  Third-Party Notices
+
+LimitEncrypted
+  ja   (パスワード付き)
+  en   (password protected)
+
+LimitEncryptedAes
+  ja   (パスワード付き / AES)
+  en   (password protected / AES)
+
+LimitInside (parentName: 外側.zip)
+  ja   (⟦外側.zip⟧ の中)
+  en   (inside ⟦外側.zip⟧)
+
+LimitReadOnly (format: 7z)
+  ja   (⟦7z⟧ は読み取りのみに対応)
+  en   (⟦7z⟧ is read-only)
+
+LimitSelfExtracting
+  ja   (自己解凍書庫 / 読み取りのみ)
+  en   (self-extracting / read-only)
+
+LimitSplit (count: 3)
+  ja   (分割された書庫 / 3 個の分割ファイル / 読み取りのみ)
+  en   (split archive / 3 volumes / read-only)
+
+LocationHidden
+  ja  隠れている場所
+  en  Hidden parts of the path
+
+LocationInside (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ の中
+  en  Inside ⟦報告書.pdf⟧
+
+MenuDelete
+  ja  削除
+  en  Delete
+
+MenuNewFolder
+  ja  新しいフォルダー
+  en  New folder
+
+MenuOpen
+  ja  開く
+  en  Open
+
+MenuRefresh
+  ja  最新の情報に更新
+  en  Refresh
+
+MenuRename
+  ja  名前の変更
+  en  Rename
+
+More (count: 3)
+  ja  
+      |   ほか 3 個
+  en  
+      |   and 3 more
+
+MoveCancelled
+  ja  移動を中断しました
+  en  Moving was stopped
+
+MoveConflict (names:   報告書.pdf ⏎   写真.jpg)
+  ja  移動先に同じ名前の項目があります。
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg⟧
+      | 
+      | 名前を変更してから移動してください。
+  en  The destination already contains items with the same name.
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg⟧
+      | 
+      | Rename them before moving.
+
+MoveDone (count: 3)
+  ja  3 個の項目を移動しました
+  en  Moved 3 items
+MoveDone (count: 1)
+  ja  1 個の項目を移動しました
+  en  Moved 1 item
+
+MoveFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  移動できませんでした。書庫の変更はありません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The items could not be moved. The archive was left untouched.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+Moving (done: 45)
+  ja  移動しています… (45 個)
+  en  Moving… (45)
+
+NestApplied (entryPath: 画像/2024/写真.jpg, parentName: 外側.zip)
+  ja  ⟦画像/2024/写真.jpg⟧ を ⟦外側.zip⟧ に反映しました
+  en  Put ⟦画像/2024/写真.jpg⟧ back into ⟦外側.zip⟧
+
+NestNoChanges
+  ja  変更されていないため、反映する内容はありません
+  en  Nothing to put back - it has not been changed
+
+NestOrphaned (name: 報告書.pdf, parentName: 外側.zip)
+  ja  ⟦外側.zip⟧ のタブが閉じられたため、⟦報告書.pdf⟧ は「名前を付けて保存」でのみ保存できます
+  en  The tab for ⟦外側.zip⟧ was closed, so ⟦報告書.pdf⟧ can only be saved as a separate file
+
+NestParentClosed (parentName: 外側.zip)
+  ja  ⟦外側.zip⟧ のタブが閉じられているため、反映できません。⟦外側.zip⟧ を開き直してから、もう一度保存してください。
+  en  The tab for ⟦外側.zip⟧ has been closed, so the changes cannot be put back. Open ⟦外側.zip⟧ again and save once more.
+
+NestSaveAsFailed (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ に保存できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not save to ⟦C:\Users\user\Desktop\資料.zip⟧.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+NestSavedAs (path: C:\Users\user\Desktop\資料.zip)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ に保存しました
+  en  Saved to ⟦C:\Users\user\Desktop\資料.zip⟧
+
+NewArchiveDialogTitle
+  ja  新しい書庫を作成
+  en  Create a new archive
+
+NewArchiveFileName
+  ja  新しい書庫.zip
+  en  New archive.zip
+
+NewFolderName
+  ja  新しいフォルダー
+  en  New folder
+
+NewTabName
+  ja  新しい書庫
+  en  New archive
+
+NewTabTooltip
+  ja  新しい書庫を作成して開く
+  en  Create and open a new archive
+
+NoAppFound (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  このファイルを開けるアプリが見つかりませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  No app was found that can open this file.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+NoArchiveOpen
+  ja  書庫が開かれていません
+  en  No archive is open
+
+NoArchiveToAddTo
+  ja  追加先の書庫がありません。書庫を開くか、新規作成してください。
+  en  There is no archive to add to. Open an archive or create a new one.
+
+NoPasswordSet
+  ja  この書庫にはパスワードが設定されていません
+  en  This archive has no password
+
+NotWrittenFilesLine (count: 3)
+  ja  書き込めなかったファイル: 3 個
+  en  Files that could not be written: 3
+
+NothingToExtract
+  ja  展開できるファイルがありません
+  en  There are no files to extract
+
+NsisNotSupported
+  ja  このインストーラーには対応していません。
+  en  This installer is not supported.
+
+Open
+  ja  開く
+  en  Open
+
+OpenArchiveFailed (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を開けませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not open ⟦C:\Users\user\Desktop\資料.zip⟧.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+OpenDialogTitle
+  ja  書庫を開く
+  en  Open archive
+
+OpenEntryFailed (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦報告書.pdf⟧ を開けませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  ⟦報告書.pdf⟧ could not be opened.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+OpenFilter
+  ja  書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001|ZIP書庫 (*.zip)|*.zip|7z書庫 (*.7z)|*.7z|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz|自己解凍書庫 (*.exe)|*.exe|分割された書庫 (*.001)|*.001|すべてのファイル (*.*)|*.*
+  en  Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001|ZIP archives (*.zip)|*.zip|7z archives (*.7z)|*.7z|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz|Self-extracting archives (*.exe)|*.exe|Split archives (*.001)|*.001|All files (*.*)|*.*
+
+OpenLaunchCancelled
+  ja  キャンセルしました
+  en  Cancelled
+
+OpenTooltip
+  ja  書庫を開く
+  en  Open an archive
+
+OpenedNested (entryPath: 画像/2024/写真.jpg, parentName: 外側.zip)
+  ja  ⟦外側.zip⟧ 内の ⟦画像/2024/写真.jpg⟧ を新しいタブで開きました
+  en  Opened ⟦画像/2024/写真.jpg⟧ from ⟦外側.zip⟧ in a new tab
+
+OpenedReadOnly (name: 報告書.pdf, format: 7z)
+  ja  ⟦報告書.pdf⟧ を開きました (⟦7z⟧ は読み取りのみのため、書き換えても書庫は更新されません)
+  en  Opened ⟦報告書.pdf⟧ (⟦7z⟧ is read-only, so any changes will not go back into the archive)
+
+OpenedWatching (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ を開きました。保存すると、書庫に反映するか確認します
+  en  Opened ⟦報告書.pdf⟧. When you save it, you will be asked whether to put it back.
+
+OpenedWithDefaultApp (fileName: 資料.zip)
+  ja  ⟦資料.zip⟧ を既定のアプリで開きました
+  en  Opened ⟦資料.zip⟧ with its default app
+
+Paren (detail: (空))
+  ja  
+  en  
+
+Password
+  ja  パスワード
+  en  Password
+
+PasswordCancel
+  ja  キャンセル
+  en  Cancel
+
+PasswordDialogTitle
+  ja  パスワード
+  en  Password
+
+PasswordNotSupported
+  ja  パスワードが必要です。パスワード付き書庫の展開には対応していません。
+  en  A password is required. Extracting password-protected archives of this format is not supported.
+
+PasswordOk
+  ja  OK
+  en  OK
+
+PasswordRemoved
+  ja  パスワードを削除しました
+  en  The password was removed
+
+PasswordSet
+  ja  パスワードを設定しました
+  en  The password was set
+
+PasswordSetAes
+  ja  パスワードを設定しました (AES-256)
+  en  The password was set (AES-256)
+
+PasswordTooltip
+  ja  パスワードを設定・変更・削除
+  en  Set, change, or remove the password
+
+PasswordUnchanged
+  ja  パスワードは変更されていません
+  en  The password is unchanged
+
+Plural (count: 1048576, singular: 見本, plural: 見本)
+  ja  ⟦見本⟧
+  en  ⟦見本⟧
+
+ReadCancelled
+  ja  読み込みを中断しました
+  en  Reading was stopped
+
+Reading (fileName: 資料.zip, done: 45, total: 120)
+  ja  ⟦資料.zip⟧ を読み込んでいます… (45 / 120 件)
+  en  Reading ⟦資料.zip⟧… (45 / 120)
+
+Reason (error: System.UnauthorizedAccessException: Access to the path 'C:\Users\user\Desktop\資料.zip' is denied.)
+  ja  C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。
+  en  Access to C:\Users\user\Desktop\資料.zip was denied.
+Reason (error: System.UnauthorizedAccessException: Access to the path is denied.)
+  ja  アクセスが拒否されました。
+  en  Access was denied.
+Reason (error: System.IO.FileNotFoundException: Could not find file 'C:\Users\user\Desktop\資料.zip'.)
+  ja  C:\Users\user\Desktop\資料.zip が見つかりません。
+  en  C:\Users\user\Desktop\資料.zip was not found.
+Reason (error: System.IO.IOException: The process cannot access the file 'C:\Users\user\Desktop\資料.zip' because it is being used by another process.)
+  ja  C:\Users\user\Desktop\資料.zip は、ほかのプログラムが使用中のためアクセスできません。
+  en  C:\Users\user\Desktop\資料.zip is being used by another program.
+Reason (error: System.IO.IOException: There is not enough space on the disk.)
+  ja  ディスクの空き容量が足りません。
+  en  There is not enough free disk space.
+Reason (error: System.IO.PathTooLongException: The path is too long.)
+  ja  パスが長すぎます。
+  en  The path is too long.
+Reason (error: System.IO.InvalidDataException: Found invalid data while decoding.)
+  ja  書庫が壊れているか、対応していない形式です。
+  en  The archive is damaged or in an unsupported format.
+Reason (error: System.Net.Http.HttpRequestException: No such host is known.)
+  ja  接続先に接続できませんでした。URL とネットワークを確認してください。
+  en  Could not connect. Check the URL and your network.
+Reason (error: System.NotSupportedException: Specified method is not supported.)
+  ja  Specified method is not supported.
+  en  Specified method is not supported.
+
+Rebuilding (done: 45)
+  ja  書庫を作り直しています… (45 個)
+  en  Rebuilding the archive… (45)
+
+RebuildingEncrypted
+  ja  パスワード付きの書庫を作り直しています…
+  en  Rebuilding the password-protected archive…
+
+RecentEmpty
+  ja  (履歴はありません)
+  en  (No history)
+
+RecentMissing (path: C:\Users\user\Desktop\資料.zip)
+  ja  ファイルが見つかりませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | 履歴から削除します。
+  en  The file was not found.
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | It will be removed from the history.
+
+RecentTooltip
+  ja  最近開いた書庫
+  en  Recently opened archives
+
+RecoveredFromError
+  ja  処理を中断しました
+  en  The operation was stopped
+
+RejectedFilesDetail
+  ja  展開先の外に書き込もうとする項目が含まれていました。
+  en  The archive contained entries that would write outside the destination.
+
+RejectedFilesLine (count: 3)
+  ja  安全でないパスのため展開しなかったファイル: 3 個
+  en  Files not extracted because of an unsafe path: 3
+
+ReloadFailed (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦報告書.pdf⟧ を読み込み直せませんでした (⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧)。表示は変更前のままです
+  en  Could not reload ⟦報告書.pdf⟧ (⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧). The list still shows the earlier contents.
+
+ReloadedAfterExternalChange (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ がほかのプログラムで変更されたため、表示を更新しました
+  en  ⟦報告書.pdf⟧ changed outside Expzip, so the list was refreshed.
+
+ReloadedAfterNestApply (name: 報告書.pdf)
+  ja  中の書庫を反映したため、⟦報告書.pdf⟧ を読み込み直しました
+  en  Reloaded ⟦報告書.pdf⟧ after putting the inner archive back
+
+RemovingPassword
+  ja  パスワードを削除しています…
+  en  Removing the password…
+
+RenameCancelled
+  ja  名前の変更を中断しました
+  en  Renaming was stopped
+
+RenameDone (count: 3)
+  ja  3 個の項目の名前を変更しました
+  en  Renamed 3 items
+RenameDone (count: 1)
+  ja  1 個の項目の名前を変更しました
+  en  Renamed 1 item
+
+RenameDuplicate (name: 報告書.pdf)
+  ja  このフォルダーには既に「⟦報告書.pdf⟧」が存在します。
+  en  This folder already contains "⟦報告書.pdf⟧".
+
+RenameFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  名前を変更できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The item could not be renamed.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+RenameInvalidCharacter (invalid: *)
+  ja  名前に使用できない文字 (*) が含まれています。
+  en  The name contains a character that cannot be used (*).
+
+RenameReservedName
+  ja  その名前は使用できません。
+  en  That name cannot be used.
+
+RenameSeparatorNotAllowed
+  ja  名前に \ と / は使用できません。
+  en  A name cannot contain \ or /.
+
+Renaming (done: 45)
+  ja  名前を変更しています… (45 個)
+  en  Renaming… (45)
+
+ReplacedFilesLine (count: 3)
+  ja  置き換えたファイル: 3 個
+  en  Files replaced: 3
+
+RuleAlreadyHad
+  ja  既に一覧にあるルールは追加していません。
+  en   Ones already listed were not added again.
+
+RuleAuditClean
+  ja  ルールに合っていない項目は見つかりませんでした
+  en  Nothing conflicts with the rules
+
+RuleAuditColumnRule
+  ja  ルール
+  en  Rule
+
+RuleAuditColumnTarget
+  ja  対象
+  en  Item
+
+RuleAuditFound (broken: 1, missing: 2)
+  ja  ルールに合っていない項目が 1 個あります。あるはずの項目が 2 個ありません
+  en  1 item(s) conflict with the rules, and 2 required item(s) are missing
+RuleAuditFound (broken: 0, missing: 2)
+  ja  あるはずの項目が 2 個ありません
+  en  2 required item(s) are missing
+RuleAuditFound (broken: 1, missing: 0)
+  ja  ルールに合っていない項目が 1 個あります
+  en  1 item(s) conflict with the rules
+
+RuleAuditMenu
+  ja  ルールに合っているか検査…
+  en  Check against the rules...
+
+RuleAuditSource (rules: 5, from: 見本.zip, at: 2026-09-10 14:30)
+  ja  5 件のルールで検査しました (お手本: ⟦見本.zip⟧、2026/09/10 14:30)。
+  en  Applied 5 rule(s) (learned from ⟦見本.zip⟧ on 2026/09/10 14:30).
+
+RuleAuditTitle (archiveName: 資料.zip)
+  ja  ルールの検査結果 - ⟦資料.zip⟧
+  en  Rule check - ⟦資料.zip⟧
+
+RuleAuditTrimmed (count: 3)
+  ja  ほかに 3 件のルールがありますが、数が多すぎるため表示していません。修正してから、もう一度検査してください。
+  en  3 more are not listed because there are too many. Narrow the rules or fix these first.
+
+RuleBreaks (count: 3)
+  ja  3 件が違反
+  en  3 do not match
+
+RuleBreaksTooltip (rules: ルート直下に README.md を置く ⏎ 拡張子は小文字にする)
+  ja  ルールに合っていません:
+      | ⟦ルート直下に README.md を置く
+      | 拡張子は小文字にする⟧
+  en  Does not match the rules:
+      | ⟦ルート直下に README.md を置く
+      | 拡張子は小文字にする⟧
+
+RuleCleared
+  ja  保存されていたルールを削除しました。
+  en  Removed the saved rules.
+
+RuleClose
+  ja  閉じる
+  en  Close
+
+RuleColumnDescription
+  ja  説明
+  en  What it says
+
+RuleColumnEvidence
+  ja  根拠
+  en  Why
+
+RuleColumnHandle
+  ja  修正する
+  en  Fix
+
+RuleColumnKind
+  ja  種類
+  en  Kind
+
+RuleColumnPlace
+  ja  場所
+  en  Where
+
+RuleColumnScope
+  ja  対象
+  en  Applies to
+
+RuleColumnSource
+  ja  提案元
+  en  From
+
+RuleColumnUse
+  ja  使用
+  en  Use
+
+RuleColumnValue
+  ja  値
+  en  Value
+
+RuleColumnVerdict
+  ja  この書庫では
+  en  In this archive
+
+RuleDelete
+  ja  選択したルールを削除
+  en  Remove selected rules
+
+RuleDeleteHint
+  ja  選択したルールを一覧から削除します。行をクリックして選択してください(「使用」のチェックとは別です)。削除したルールは、次の推定で再び提案されることがあります。提案されないようにするには、「使用」を外して保存してください。
+  en  Removes the selected rules from the list. Click a row to select it (this is not the Use box). A removed rule can be proposed again the next time you work out the rules. To keep one from coming back, clear its Use box and save instead.
+
+RuleDeleteNone
+  ja  削除するルールを選択してください。行をクリックすると選択できます(Ctrl または Shift を押すと複数選択できます)。
+  en  Select the rules to remove first. Click a row to select it (hold Ctrl or Shift to select several).
+
+RuleDialogTitle
+  ja  書庫のルールを推定
+  en  Work out the archive's rules
+
+RuleDigestArchive (name: 報告書.pdf)
+  ja  書庫: ⟦報告書.pdf⟧
+  en  Archive: ⟦報告書.pdf⟧
+
+RuleDigestCounts (files: 42, folders: 6)
+  ja  ファイル 42 個、フォルダー 6 個
+  en  42 file(s), 6 folder(s)
+
+RuleDigestExtensions
+  ja  ## 拡張子ごとのファイル数 (端折らない)
+  en  ## File count per extension (complete)
+
+RuleDigestFolders (count: 3)
+  ja  ## フォルダー (3 個)
+  en  ## Folders (3)
+
+RuleDigestMoreFiles (count: 3)
+  ja  (ほか 3 個は送らない)
+  en  (3 more not sent)
+
+RuleDigestMoreFolders (count: 3)
+  ja  (ほか 3 個は送らない)
+  en  (3 more not sent)
+
+RuleDigestMoreHere (count: 3)
+  ja  …ほか 3 個
+  en  ...and 3 more
+
+RuleDigestNoExtension
+  ja  (拡張子なし)
+  en  (no extension)
+
+RuleDigestNoFolders
+  ja  (フォルダーなし)
+  en  (none)
+
+RuleDigestNoRootFiles
+  ja  (ルート直下のファイルなし)
+  en  (none)
+
+RuleDigestOmitted (count: 3, total: 120)
+  ja  ※ 名前 3 個は送っていない (全体で最大 120 個までのため)。ここに出ていない名前を根拠にしないこと。
+  en  Note: 3 names are not included (120 names at most in total). Do not base any rule on names that are not shown here.
+
+RuleDigestRoot (count: 3)
+  ja  ## ルート直下のファイル (3 個)
+  en  ## Files directly under the root (3)
+
+RuleDigestSamples
+  ja  ## 各フォルダーのファイル名
+  en  ## File names per folder
+
+RuleDone
+  ja  更新
+  en  Refresh
+
+RuleDoneAll
+  ja  「修正する」に印を付けた項目は、すべてルールに合うようになりました。
+  en  Everything you marked now matches the rules.
+
+RuleDoneHint
+  ja  書庫を読み込み直して、もう一度ルールに合っているか検査します。
+  en  Reads the archive again and re-checks it against the rules.
+
+RuleDoneLeft (count: 3)
+  ja  「修正する」に印を付けた項目のうち、3 個はまだルールに合っていません。
+  en  3 of the items you marked still do not match the rules.
+
+RuleDropBroken
+  ja  除外 (お手本の書庫が守っていない)
+  en  Not taken (model breaks it)
+
+RuleDropUnchecked
+  ja  除外 (確認できる対象なし)
+  en  Not taken (cannot be checked)
+
+RuleDropped (broken: 1, unchecked_: 2, unusable: 1)
+  ja  お手本の書庫が守っていないもの 1 件、確認できる対象が無いもの 2 件、ルールとして解釈できないもの 1 件を除外しました。
+  en  Left out 1 that the model archive itself breaks and 2 with nothing to check them against and 1 that could not be read as a rule.
+RuleDropped (broken: 0, unchecked_: 2, unusable: 1)
+  ja  確認できる対象が無いもの 2 件、ルールとして解釈できないもの 1 件を除外しました。
+  en  Left out 2 with nothing to check them against and 1 that could not be read as a rule.
+RuleDropped (broken: 1, unchecked_: 0, unusable: 1)
+  ja  お手本の書庫が守っていないもの 1 件、ルールとして解釈できないもの 1 件を除外しました。
+  en  Left out 1 that the model archive itself breaks and 1 that could not be read as a rule.
+RuleDropped (broken: 1, unchecked_: 2, unusable: 0)
+  ja  お手本の書庫が守っていないもの 1 件、確認できる対象が無いもの 2 件を除外しました。
+  en  Left out 1 that the model archive itself breaks and 2 with nothing to check them against.
+
+RuleFilledCount (count: 3)
+  ja  うち 3 件は、AI が示した場所を Expzip が確認して補いました。
+  en  3 of them were filled in by counting the places the AI pointed at.
+
+RuleFilledSaw (places: 3)
+  ja  同じ場所の 3 個すべてにある (Expzip が確認)
+  en  present in all 3 of them (counted)
+
+RuleFilledSays (name: 報告書.pdf)
+  ja  この場所のすべてのフォルダーに ⟦報告書.pdf⟧ がある。
+  en  Every folder in this place holds ⟦報告書.pdf⟧.
+
+RuleFound (count: 3)
+  ja  3 件のルールを推定しました。
+  en  Worked out 3 rule(s).
+
+RuleHolds
+  ja  順守
+  en  Holds
+
+RuleIntro (archiveName: 資料.zip)
+  ja  ⟦資料.zip⟧ を「お手本」として、この書庫のルールを推定します。
+  en  Treat ⟦資料.zip⟧ as the model archive and work out its rules.
+
+RuleKept (used: 2)
+  ja  ルールを保存しました (使用するのは 2 件)
+  en  Saved the rules; 2 in use
+
+RuleKindForbiddenExtension
+  ja  含めない拡張子
+  en  Extension not allowed
+
+RuleKindForbiddenName
+  ja  含めない名前
+  en  Name not allowed
+
+RuleKindNamePattern
+  ja  名前の形
+  en  Name pattern
+
+RuleKindRequiredEntry
+  ja  必ずある
+  en  Must exist
+
+RuleKindRequiredFolder
+  ja  必ずあるフォルダー
+  en  Folder must exist
+
+RuleKindRequiredPattern
+  ja  この形の名前が必ずある
+  en  A shape must exist
+
+RuleLoaded (count: 3, from: 見本.zip)
+  ja  保存されている 3 件のルールを読み込みました (お手本: ⟦見本.zip⟧)。
+  en  Loaded 3 saved rule(s) (learned from ⟦見本.zip⟧).
+
+RuleMenu
+  ja  書庫のルールを推定…
+  en  Work out the rules of this archive...
+
+RuleMissing
+  ja  見つからない
+  en  Not found
+
+RuleNeedsAi
+  ja  先に「AI連携の設定…」で接続先を設定してください。
+  en  Set up the connection under AI settings... first.
+
+RuleNoneFound
+  ja  ルールを推定できませんでした。
+  en  No rules could be worked out.
+
+RuleNoneSaved
+  ja  ルールが保存されていません。先に「書庫のルールを推定…」で保存してください。
+  en  No rules are saved yet. Set them under "Work out the rules of this archive..." first.
+
+RuleNothingToCheck
+  ja  対象なし
+  en  Nothing to check
+
+RulePayload (bytes: 18432, omitted: 38, total: 120)
+  ja  送信する名前は最大 120 個のため、38 個は送信しません。合計 18,432 バイトです。
+  en  At most 120 names are sent in all, so 38 of them are left out. 18,432 bytes in total.
+RulePayload (bytes: 18432, omitted: 0, total: 120)
+  ja  この書庫のすべての名前を送信します。合計 18,432 バイトです。
+  en  Every name in this archive is included. 18,432 bytes in total.
+
+RulePrivacyShort
+  ja  設定したAIに上記の書庫詳細を送信してルールを推定します。ファイルの中身は送信しません。
+  en  The archive details above are sent to the AI you set up, and the rules are worked out from them. File contents are never sent.
+
+RulePromptSystem
+  ja  あなたは書庫 (ZIP など) の作り方を読み取る手伝いをします。
+      | これから、ある書庫のフォルダ構成とファイル名の一覧を渡します。
+      | ファイルの中身はありません。名前と構成だけです。
+      | 
+      | 目的は、別の書庫を同じ作り方で作るための決まりを挙げることです。
+      | この書庫を言い直すことではありません。次に別の中身で書庫を作る人が、
+      | それを見て同じ形に揃えられるものを挙げてください。
+      | 
+      | 次の JSON だけを返してください。前後に説明を書かないでください。
+      | 
+      | {"rules":[{"kind":"...","scope":"...","where":"...","value":"...",
+      |            "description":"...","evidence":"..."}]}
+      | 
+      | kind は次のいずれかです。
+      | - required_entry: この名前のものが必ずある。value は名前
+      | - required_folder: このフォルダが必ずある。value はフォルダ名
+      | - forbidden_extension: この拡張子を含めない。value は ".tmp" のような拡張子
+      | - forbidden_name: この名前のものを含めない。value は名前
+      | - name_pattern: 名前がこの形をしている。value は .NET の正規表現
+      | - required_pattern: この形のものが必ず1つはある。value は .NET の正規表現
+      | 
+      | name_pattern と required_pattern は間違えやすいので気をつけてください。
+      | - name_pattern は「**その形のものしか無い**」。1つも無い場所は素通りします
+      | - required_pattern は「**その形のものが1つはある**」。空の場所は違反になります
+      | 
+      | 例: examples の各フォルダに .ino が1つはあり、それ以外は置かない、と言いたいとき
+      | {"kind":"required_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+      |  "value":".+\\.ino","description":"...","evidence":"..."}
+      | {"kind":"name_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+      |  "value":".+\\.ino","description":"...","evidence":"..."}
+      | 
+      | scope は、何に当てるかです。次のいずれかです。
+      | - root: ルート直下だけ
+      | - folders: フォルダ
+      | - files: ファイル
+      | - all: すべての項目
+      | 
+      | where は、どこに当てるかです。**対象を含むフォルダ**の書庫内パスに当てる
+      | 正規表現を書いてください。書庫全体に当てるなら省いてください。
+      | 
+      | **「どこに」と「どんな形か」を1本の正規表現に繋げないでください。**
+      | 繋げると、その形に合わない他の場所の項目まで違反になってしまいます。
+      | 必ず where と value に分けてください。
+      | 
+      | 例: libraries 直下のフォルダ名が usb_host_ で始まる、と言いたいとき
+      | {"kind":"name_pattern","scope":"folders","where":"^[^/]+/libraries$",
+      |  "value":"usb_host_[a-z0-9_]+","description":"...","evidence":"..."}
+      | 
+      | 例: 書庫のルートに library.json がある、と言いたいとき
+      | {"kind":"required_entry","scope":"all","where":"^[^/]+$",
+      |  "value":"library.json","description":"...","evidence":"..."}
+      | 
+      | 書庫全体が1つのフォルダに包まれていることがあります。その場合、
+      | 利用者はその**フォルダの中**を「書庫のルート」と受け取ります。
+      | description でもそう書いてください。
+      | いっぽう scope の root は、**包んでいるフォルダそのもの**を指し、
+      | その中身は指しません。中を指すには where に ^[^/]+$ を書いてください。
+      | 
+      | description には、そのルールを日本語の一文で書いてください。
+      | evidence には、一覧のどこからそう読み取ったかを短く書いてください。
+      | 
+      | 探してほしいもの:
+      | - 繰り返し現れる形。兄弟のフォルダに同じ顔ぶれのファイルが揃っている、など
+      | - 置き場所の決まり。ある種類のものが、決まった場所にまとめられている
+      | - 名前の付け方。日付、連番、接頭辞など、同じ形をしている名前の並び
+      | - 無いもの。作業中の一時ファイルや、OSが作るファイルが含まれていない
+      | 
+      | 守ってほしいこと:
+      | - 一覧に出ている名前だけを根拠にしてください
+      | - 一覧は端折られていることがあります。「ほか N 個は送らない」と書いてあれば、そこは見えていません
+      | - この書庫だけの固有の名前を、そのまま決まりにしないでください。
+      |   例:「Foo-main フォルダがある」は、次の書庫では名前が変わるので役に立ちません。
+      |   形が繰り返されているなら name_pattern で書いてください
+      | - name_pattern は、一覧にあるその範囲の名前すべてに当てはまるものだけにしてください
+      | - 何にでも当てはまる正規表現 (".*" など) は挙げないでください
+      | - 数を絞らず、気付いたものを挙げてください。多くても20件までにしてください
+  en  You help read off how an archive (ZIP and the like) is put together.
+      | You will be given the folder structure and file names of one archive.
+      | There are no file contents - only names and structure.
+      | 
+      | The goal is to list rules for building another archive the same way,
+      | not to restate this one. List what someone packing different contents
+      | next time could follow to arrive at the same shape.
+      | 
+      | Return only the following JSON. Do not write anything before or after it.
+      | 
+      | {"rules":[{"kind":"...","scope":"...","where":"...","value":"...",
+      |            "description":"...","evidence":"..."}]}
+      | 
+      | kind must be one of:
+      | - required_entry: an entry with this name must exist. value is the name
+      | - required_folder: this folder must exist. value is the folder name
+      | - forbidden_extension: this extension must not appear. value is like ".tmp"
+      | - forbidden_name: an entry with this name must not appear. value is the name
+      | - name_pattern: names have this shape. value is a .NET regular expression
+      | - required_pattern: at least one entry of this shape exists.
+      |   value is a .NET regular expression
+      | 
+      | These two are easy to confuse:
+      | - name_pattern says "nothing but this shape". An empty place passes
+      | - required_pattern says "at least one of this shape". An empty place fails
+      | 
+      | Example: every folder under examples holds one .ino and nothing else
+      | {"kind":"required_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+      |  "value":".+\\.ino","description":"...","evidence":"..."}
+      | {"kind":"name_pattern","scope":"files","where":"^[^/]+/examples/[^/]+$",
+      |  "value":".+\\.ino","description":"...","evidence":"..."}
+      | 
+      | scope says what to apply it to. It must be one of:
+      | - root: only directly under the root
+      | - folders: folders
+      | - files: files
+      | - all: every entry
+      | 
+      | where says where to apply it: a regular expression matched against the
+      | archive path of the **folder containing** the entry. Omit it to apply
+      | the rule to the whole archive.
+      | 
+      | Do NOT join "where" and "what shape" into one regular expression.
+      | Joined, entries elsewhere that do not fit that shape become violations.
+      | Always split them into where and value.
+      | 
+      | Example: folder names directly under libraries start with usb_host_
+      | {"kind":"name_pattern","scope":"folders","where":"^[^/]+/libraries$",
+      |  "value":"usb_host_[a-z0-9_]+","description":"...","evidence":"..."}
+      | 
+      | Example: library.json sits directly inside the wrapping folder
+      | {"kind":"required_entry","scope":"all","where":"^[^/]+$",
+      |  "value":"library.json","description":"...","evidence":"..."}
+      | 
+      | An archive is sometimes wrapped in a single folder. Then root means
+      | that wrapping folder itself, not what is inside it. Use where to
+      | point inside the wrapper.
+      | 
+      | Write description as one English sentence stating the rule.
+      | Write evidence as a short note on where in the listing you read it.
+      | 
+      | What to look for:
+      | - Shapes that repeat. Sibling folders holding the same set of files, and the like
+      | - Where things live. A kind of file gathered in one settled place
+      | - How names are formed. Dates, running numbers, prefixes - names of one shape
+      | - What is absent. No scratch files, no files the OS leaves behind
+      | 
+      | Rules to follow:
+      | - Base every rule only on names that appear in the listing
+      | - The listing may be trimmed. Where it says "N more not sent", you cannot see those
+      | - Do not turn a name unique to this archive into a rule.
+      |   "There is a Foo-main folder" is useless next time, when that name differs.
+      |   If the shape repeats, write it as a name_pattern instead
+      | - A name_pattern must match every name in its scope that appears in the listing
+      | - Do not list a regular expression that matches anything (such as ".*")
+      | - Do not hold back on count. List what you notice, up to 20 rules
+
+RuleProposalNotice
+  ja  これらはAIが推定したルールです。書庫の本来のルールとは異なる場合があります。ルールとして使用したいものを選択してください。
+  en  These are the rules the AI worked out. They may differ from the real ones. Choose which ones to use.
+
+RuleRemoved (count: 3)
+  ja  3 件のルールを一覧から削除しました。保存するとファイルに反映されます。
+  en  Removed 3 rule(s) from the list. Saving writes the change to the file.
+
+RuleSave
+  ja  保存する
+  en  Save
+
+RuleSaveFailed
+  ja  ルールを保存できませんでした。exe と同じフォルダーに書き込めないようです。
+  en  Could not save the rules. The folder holding the exe appears not to be writable.
+
+RuleSaved (total: 120, used: 2)
+  ja  120 件のルールを保存しました (使用するのは 2 件)。
+  en  Saved 120 rule(s); 2 of them are in use.
+
+RuleScopeAll
+  ja  すべての項目
+  en  Every entry
+
+RuleScopeFiles
+  ja  すべてのファイル
+  en  Every file
+
+RuleScopeFolders
+  ja  すべてのフォルダー
+  en  Every folder
+
+RuleScopeRoot
+  ja  ルート直下
+  en  Directly under the root
+
+RuleSend
+  ja  推定する
+  en  Work out the rules
+
+RuleSendLabel
+  ja  書庫詳細
+  en  Archive details
+
+RuleSending (seconds: 12)
+  ja  ルールを推定しています… (12 秒)
+  en  Working it out... (12s)
+RuleSending (seconds: 0)
+  ja  ルールを推定しています…
+  en  Working it out...
+
+RuleSourceAi
+  ja  AI
+  en  AI
+
+RuleSourceFilled
+  ja  アプリ
+  en  App
+
+RuleSourceHand
+  ja  自分
+  en  You
+
+RuleTreeBreakDetail (heading: このフォルダー以下にルールに合っていない項目があります。, items: 資料/報告書.PDF: 拡張子は小文字にする ⏎ 資料/新しいフォルダ: フォルダ名に空白を入れない)
+  ja  ⟦このフォルダー以下にルールに合っていない項目があります。⟧
+      | 
+      | ⟦資料/報告書.PDF: 拡張子は小文字にする
+      | 資料/新しいフォルダ: フォルダ名に空白を入れない⟧
+  en  ⟦Something in or below this folder does not match the rules.⟧
+      | 
+      | ⟦資料/報告書.PDF: 拡張子は小文字にする
+      | 資料/新しいフォルダ: フォルダ名に空白を入れない⟧
+
+RuleTreeBreakItem (path: C:\Users\user\Desktop\資料.zip, what: ルート直下に README.md を置く / 拡張子は小文字にする)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧: ⟦ルート直下に README.md を置く / 拡張子は小文字にする⟧
+  en  ⟦C:\Users\user\Desktop\資料.zip⟧: ⟦ルート直下に README.md を置く / 拡張子は小文字にする⟧
+
+RuleTreeBreakMore (count: 3)
+  ja  ほか 3 件
+  en  and 3 more
+
+RuleTreeBreakTooltip
+  ja  このフォルダー以下にルールに合っていない項目があります。
+  en  Something in or below this folder does not match the rules.
+
+RuleUnreadable
+  ja  AI の回答をルールとして解釈できませんでした。モデルを変更するか、もう一度試してください。
+  en  The AI's answer could not be read as a set of rules. Try again, or try a different model.
+
+RuleUseAll
+  ja  クリックすると、すべて使用する・すべて使用しないを切り替えます。
+  en  Click to turn them all on, or all off.
+
+RuleWhereAnywhere
+  ja  書庫全体
+  en  Whole archive
+
+Save
+  ja  保存
+  en  Save
+
+SaveAs
+  ja  名前を付けて保存
+  en  Save as
+
+SaveAsDialogTitle
+  ja  中の書庫に名前を付けて保存
+  en  Save the inner archive as
+
+SaveAsTooltip
+  ja  親の書庫のタブが閉じられているため、別のファイルとして保存する (Ctrl+S)
+  en  The parent archive's tab has been closed, so save this as a separate file (Ctrl+S)
+
+SaveTooltip
+  ja  変更を親の書庫に反映する (Ctrl+S)
+  en  Put the changes back into the parent archive (Ctrl+S)
+
+Selection (count: 3, totalBytes: 52428800)
+  ja  選択 3 個 (52,428,800 バイト)
+  en  3 selected (52,428,800 bytes)
+
+SelectionNone
+  ja  選択 0 個
+  en  0 selected
+
+SetPasswordPrompt (archiveName: 資料.zip)
+  ja  「⟦資料.zip⟧」に設定するパスワードを入力してください。
+      | 
+      | パスワードを忘れると、中身を展開できなくなります。
+  en  Enter the password to set on "⟦資料.zip⟧".
+      | 
+      | If you forget the password, the contents cannot be extracted.
+
+SeverityName (severity: Ok)
+  ja  問題なし
+  en  All clear
+SeverityName (severity: Warning)
+  ja  注意
+  en  Caution
+SeverityName (severity: Danger)
+  ja  危険
+  en  Danger
+
+Sfx
+  ja  自己解凍
+  en  Self-extract
+
+SfxCancelled
+  ja  自己解凍書庫の作成を中断しました
+  en  Stopped creating the self-extracting archive
+
+SfxCreating
+  ja  自己解凍書庫を作成しています…
+  en  Creating the self-extracting archive...
+
+SfxDialogTitle
+  ja  自己解凍書庫として保存
+  en  Save as a self-extracting archive
+
+SfxDone (path: C:\Users\user\Desktop\資料.zip, length: 1048576)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を作成しました (1,048,576 バイト)
+  en  Created ⟦C:\Users\user\Desktop\資料.zip⟧ (1,048,576 bytes)
+
+SfxFailed (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を作成できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not create ⟦C:\Users\user\Desktop\資料.zip⟧.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+SfxFilter
+  ja  自己解凍書庫 (*.exe)|*.exe
+  en  Self-extracting archives (*.exe)|*.exe
+
+SfxRejected (reason: NotZip)
+  ja  自己解凍書庫にできるのは ZIP のみです。
+  en  Only ZIP archives can be made self-extracting.
+SfxRejected (reason: AlreadySelfExtracting)
+  ja  この書庫は既に自己解凍書庫です。
+  en  This archive is already self-extracting.
+SfxRejected (reason: Encrypted)
+  ja  パスワードが設定された書庫は自己解凍書庫にできません。
+  en  A password-protected archive cannot be made self-extracting.
+SfxRejected (reason: TooMany)
+  ja  この書庫は項目が多すぎるため、自己解凍書庫にできません。
+  en  This archive has too many entries to be made self-extracting.
+SfxRejected (reason: TooBig)
+  ja  この書庫は大きすぎるため、自己解凍書庫にできません。
+  en  This archive is too large to be made self-extracting.
+
+SfxSameFile
+  ja  元の書庫と同じファイル名では保存できません。
+  en  It cannot be saved over the archive it is made from.
+
+SfxTooltip
+  ja  自己解凍書庫として書き出す
+  en  Save as a self-extracting archive
+
+SkippedFilesLine (count: 3)
+  ja  上書きせずそのまま残したファイル: 3 個
+  en  Files skipped instead of overwritten: 3
+
+Split
+  ja  分割
+  en  Split
+
+SplitAnyFile
+  ja  すべてのファイル|*.*
+  en  All files|*.*
+
+SplitBrowse
+  ja  参照
+  en  Browse
+
+SplitCancel
+  ja  キャンセル
+  en  Cancel
+
+SplitCancelled
+  ja  分割を中断しました。書き込み途中の分割ファイルは削除しました。
+  en  Splitting was stopped. The half-written pieces were deleted.
+
+SplitCancelledStatus
+  ja  分割を中断しました
+  en  Splitting was stopped
+
+SplitDestinationLabel
+  ja  保存先
+  en  Put pieces in
+
+SplitDestinationMissing
+  ja  分割ファイルの保存先を選択してください。
+  en  Choose where the pieces should go.
+
+SplitDestinationTitle
+  ja  分割ファイルの保存先を選択
+  en  Choose where to put the pieces
+
+SplitDone (parts: 4, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\資料)
+  ja  4 個に分割しました。
+      | 
+      | 保存先: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
+      | 7-Zip などほかのソフトでもつなぎ直せます。
+  en  Split into 4 pieces.
+      | 
+      | Location: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | To put it back together, keep every piece in one folder and run "⟦資料.zip.exe⟧".
+      | Other tools such as 7-Zip can join them too.
+SplitDone (parts: 1, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\資料)
+  ja  1 個に分割しました。
+      | 
+      | 保存先: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
+      | 7-Zip などほかのソフトでもつなぎ直せます。
+  en  Split into 1 piece.
+      | 
+      | Location: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | To put it back together, keep every piece in one folder and run "⟦資料.zip.exe⟧".
+      | Other tools such as 7-Zip can join them too.
+
+SplitDoneStatus (parts: 4)
+  ja  4 個に分割しました
+  en  Split into 4 pieces
+SplitDoneStatus (parts: 1)
+  ja  1 個に分割しました
+  en  Split into 1 piece
+
+SplitFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  分割できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The file could not be split.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+SplitNotNeeded
+  ja  分割の必要はありません。1つの大きさが元のファイルより大きくなっています。
+  en  No need to split: each piece would be larger than the file itself.
+
+SplitPreview (parts: 4)
+  ja  4 個の分割ファイルと、つなぎ直すためのプログラムを作成します。元のファイルはそのまま残ります。
+  en  This makes 4 pieces plus one program to put them back together. The original file is left alone.
+SplitPreview (parts: 1)
+  ja  1 個の分割ファイルと、つなぎ直すためのプログラムを作成します。元のファイルはそのまま残ります。
+  en  This makes 1 piece plus one program to put them back together. The original file is left alone.
+
+SplitSizeLabel
+  ja  1つの大きさ
+  en  Piece size
+
+SplitSourceLabel
+  ja  分割するファイル
+  en  File
+
+SplitSourceMissing
+  ja  分割するファイルを選択してください。
+  en  Choose the file you want to split.
+
+SplitSourceShrank
+  ja  分割中に元のファイルを読み込めなくなりました。
+  en  The file became unreadable while it was being split.
+
+SplitSourceTitle
+  ja  分割するファイルを選択
+  en  Choose the file to split
+
+SplitStart
+  ja  分割
+  en  Split
+
+SplitTitle
+  ja  ファイルの分割
+  en  Split a file
+
+SplitTooSmall (minimum: 1048576)
+  ja  1つの大きさは 1,024 KB 以上にしてください。
+  en  Each piece must be at least 1,024 KB.
+
+SplitTooltip
+  ja  ファイルを指定した大きさに分割する。つなぎ直すためのプログラムも作成する
+  en  Split a large file into fixed-size pieces, with a program to put them back together
+
+SplitUnitGigabytes
+  ja  GB
+  en  GB
+
+SplitUnitKilobytes
+  ja  KB
+  en  KB
+
+SplitUnitMegabytes
+  ja  MB
+  en  MB
+
+SplitVolumeMissing (name: 報告書.pdf)
+  ja  分割ファイルが揃っていません。⟦報告書.pdf⟧ が見つかりません。
+  en  The split archive is incomplete. ⟦報告書.pdf⟧ is missing.
+
+Splitting (name: 報告書.pdf)
+  ja  分割中: ⟦報告書.pdf⟧
+  en  Splitting: ⟦報告書.pdf⟧
+
+Stop
+  ja  中断
+  en  Stop
+
+Stopping
+  ja  中断しています…
+  en  Stopping…
+
+SuspiciousCount (count: 3)
+  ja  パスが通常と異なる項目が 3 個あります
+  en  3 entries have an unusual path
+SuspiciousCount (count: 1)
+  ja  パスが通常と異なる項目が 1 個あります
+  en  1 entry has an unusual path
+
+SuspiciousPathTooltip
+  ja  このパスは通常の書庫では使われない形式です。
+      | 展開しても、選択したフォルダーの外には書き込まれません。
+  en  This path is not in a form normally used by archives.
+      | Extracting it will not write anything outside the folder you choose.
+
+SuspiciousPathTooltipLine1
+  ja  このパスは通常の書庫では使われない形式です。
+  en  This path is not in a form normally used by archives.
+
+SuspiciousPathTooltipLine2
+  ja  展開しても、選択したフォルダーの外には書き込まれません。
+  en  Extracting it will not write anything outside the folder you choose.
+
+TempUnavailable
+  ja  一時フォルダーを使用できないため、ファイルを開けません
+  en  Files cannot be opened because the temporary folder is unavailable
+
+TempUnavailableDetail (root: C:\Users\user\AppData\Local\Temp\Expzip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ファイルを開くための一時フォルダーを作成できませんでした。
+      | ツールバーの「展開」からは展開できます。
+      | 
+      | ⟦C:\Users\user\AppData\Local\Temp\Expzip⟧
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  The temporary folder used to open files could not be prepared.
+      | You can still get the files out with Extract.
+      | 
+      | ⟦C:\Users\user\AppData\Local\Temp\Expzip⟧
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+TempWorkspaceFailed (root: C:\Users\user\AppData\Local\Temp\Expzip)
+  ja  一時フォルダーを作成できませんでした。
+      | ⟦C:\Users\user\AppData\Local\Temp\Expzip⟧
+  en  Could not create a place to put temporary files.
+      | ⟦C:\Users\user\AppData\Local\Temp\Expzip⟧
+
+TotalSize (total: 52428800, compressed: 20971520)
+  ja  合計 52,428,800 バイト (圧縮後 20,971,520 バイト)
+  en  52,428,800 bytes total (20,971,520 bytes packed)
+
+UnhandledError (type: IOException, message: The process cannot access the file because it is being used by another process.)
+  ja  処理中に問題が発生しました。書庫の変更はありません。
+      | 
+      | ⟦IOException⟧
+      | ⟦The process cannot access the file because it is being used by another process.⟧
+  en  Something went wrong during the operation. The archive was left untouched.
+      | 
+      | ⟦IOException⟧
+      | ⟦The process cannot access the file because it is being used by another process.⟧
+
+UnsupportedCompressionMethod
+  ja  この圧縮方式には対応していません
+  en  This compression method is not supported.
+
+ZipFilter
+  ja  ZIP書庫 (*.zip)|*.zip
+  en  ZIP archives (*.zip)|*.zip
+

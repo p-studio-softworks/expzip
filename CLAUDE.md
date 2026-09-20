@@ -8,6 +8,9 @@ Windows 向けのアーカイバ。C# / .NET 10 / WPF、配布物は単一の `E
 - ビルドは `build.cmd`(`-Debug` 開発用 / `-Test` 画面テストも走らせる)。`dotnet publish` を直に叩かない
 - 画面テストは `tests/ui/Run-UiTests.ps1`。実際に Expzip を起動して操作するので、走行中は入力に触らない
 - **画面の文言を変えたら `tests/ui/suites` の期待値も直す。**文言はテストで見ている
+- **文言を変えたら `dotnet run --project tools/stringdump` で一覧を作り直してコミットする。**
+  `tools/stringdump/strings.txt` の差分を見れば、直すつもりの無かった文言まで変わっていないかが分かる
+  (`-- --check` でずれていないかだけ見られる)
 
 ## ファイルの形式
 

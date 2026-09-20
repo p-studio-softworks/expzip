@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    画面に出る文言を、本物を呼び出して一覧にする道具 (#118)。
+    本体の一部ではないので、Expzip.slnx には入れない。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Expzip.Tools.StringDump</RootNamespace>
+  </PropertyGroup>
+
+</Project>
