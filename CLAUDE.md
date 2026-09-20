@@ -32,6 +32,8 @@ Windows 向けのアーカイバ。C# / .NET 10 / WPF、配布物は単一の `E
 ## 名義
 
 - 著作権表示は `Copyright (c) <年> P studio`。**個人名は出さない**
+- コミットの名義は `paliensup <193758124+paliensup@users.noreply.github.com>`(このリポジトリ限定の設定)
+- **コミットに `Co-Authored-By` を付けない。**付けると GitHub で連名として表示される
 
 ## 書きもの
 
