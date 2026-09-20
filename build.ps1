@@ -9,8 +9,8 @@
     ほかに用意するものは無い。圧縮の処理も含め、必要なものはすべて exe の中に入る。
 
 .PARAMETER Test
-    建てたあとに、画面越しの確認 (tests\ui) も走らせる。
-    確認の間は Expzip の窓が前に出るので、マウスとキーボードに触らないこと。
+    建てたあとに tests\ui のテストも走らせる。
+    テストの間は Expzip の窓が前に出るので、マウスとキーボードに触らないこと。
 
 .PARAMETER Debug
     配布用ではなく、開発用に建てるだけにする (発行しない)。
@@ -72,7 +72,7 @@ else {
 
 if ($Test) {
     Write-Host ''
-    Write-Host '画面越しの確認を走らせます。終わるまでマウスとキーボードに触らないでください…'
+    Write-Host 'テストを走らせます。終わるまでマウスとキーボードに触らないでください…'
     & (Join-Path $repo 'tests\ui\Run-UiTests.ps1')
     exit $LASTEXITCODE
 }

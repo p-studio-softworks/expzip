@@ -1,4 +1,4 @@
-﻿# 画面越しの確認で共通に使う道具。各確認の先頭で . "$PSScriptRoot\..\Common.ps1" として読み込む。
+﻿# 画面を操作するテストで共通に使う道具。各台本の先頭で . "$PSScriptRoot\..\Common.ps1" として読み込む。
 #
 # - 動かす Expzip は Run-UiTests.ps1 がビルドして一時フォルダーに置いたもの。
 #   公開用の publish\ や、利用者が使っている Expzip には触らない
@@ -28,7 +28,7 @@ $script:ControlType = [System.Windows.Automation.ControlType]
 $script:Passed = 0
 $script:Failed = 0
 
-# ------------------------------------------------------------------ 確認の始まりと終わり
+# ------------------------------------------------------------------ テストの始まりと終わり
 
 function Start-Suite([string]$Name) {
     $script:SuiteName = $Name

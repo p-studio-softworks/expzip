@@ -2264,7 +2264,7 @@ public partial class MainWindow : Window
 
     /// <summary>ツールバーの絵の口に、名前と説明を入れる (#102)。</summary>
     /// <remarks>
-    /// 名前は支援技術と画面越しの確認が拾うもの、説明はマウスを当てた人が読むもので、
+    /// 名前は支援技術と画面のテストが拾うもの、説明はマウスを当てた人が読むもので、
     /// 相手が違う。前者は短い見出し、後者は何が起きるかの一文にする。
     /// </remarks>
     private static void NameTool(Button button, string name, string tooltip)
@@ -5280,7 +5280,7 @@ public partial class MainWindow : Window
     {
         // ツールバーは絵だけになった (#102)。中身は XAML にあり、ここでは触らない。
         // **絵の口には必ず名前を入れる。**入れないと支援技術には記号のまま読まれ、
-        // 画面越しの確認からも見えなくなる。名前は字だったころの見出しをそのまま使う
+        // 画面を操作するテストからも見えなくなる。名前は字だったころの見出しをそのまま使う
         NameTool(OpenButton, Strings.Open, Strings.OpenTooltip);
         NameTool(RecentButton, Strings.RecentTooltip, Strings.RecentTooltip);
         NameTool(ExtractButton, Strings.Extract, Strings.ExtractTooltip);

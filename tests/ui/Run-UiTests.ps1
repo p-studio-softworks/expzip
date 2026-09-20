@@ -1,12 +1,13 @@
 ﻿<#
 .SYNOPSIS
-    画面越しの確認をまとめて走らせる。
+    Expzip を起動して画面を操作するテストを、まとめて走らせる。
 
 .DESCRIPTION
     Expzip をビルドして一時フォルダーに置き、suites\*.Tests.ps1 を 1 本ずつ別のプロセスで走らせる。
     同じプロセスに詰めると Add-Type がぶつかり、前の窓が前面を奪うため。
 
     走っている間はマウスとキーボードに触らないでください。窓を前に出して操作します。
+    手順と注意は Redmine の Wiki「画面を操作するテスト」にあります。
 
 .EXAMPLE
     .\tests\ui\Run-UiTests.ps1
@@ -43,7 +44,7 @@ $all = @(Get-ChildItem (Join-Path $PSScriptRoot 'suites') -Filter '*.Tests.ps1' 
 $chosen = if ($Suite.Count -eq 0) { $all } else {
     foreach ($name in $Suite) {
         $match = $all | Where-Object { $_.BaseName -ieq "$name.Tests" }
-        if (-not $match) { throw "確認がありません: $name" }
+        if (-not $match) { throw "テストがありません: $name" }
         $match
     }
 }
@@ -66,7 +67,7 @@ foreach ($file in $chosen) {
     # 手綱を先に握っておく。握らないまま終わると戻り値が読めない
     $null = $process.Handle
 
-    # 固まった確認で全体が止まらないようにする
+    # 固まったテストで全体が止まらないようにする
     $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
     if ($timedOut) {
         $process.Kill()

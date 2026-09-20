@@ -165,17 +165,12 @@ build.cmd
 | 使い方 | 何をするか |
 |---|---|
 | `build.cmd` | 配布用の `Expzip.exe` を作ります |
-| `build.cmd -Test` | 作ったあと、画面越しの確認(`tests\ui`)も走らせます |
 | `build.cmd -Debug` | 開発用に建てるだけで、配布用のファイルは作りません |
-
-画面越しの確認は、実際に Expzip を起動して操作します。走っている間は
-マウスとキーボードに触らないでください。詳しくは [tests/ui/README.md](tests/ui/README.md)。
 
 ## ドキュメント
 
 - [仕様書](docs/SPEC.md) — 何をどう作っているか、なぜそう決めたか
 - [セキュリティ調査レポート](docs/SECURITY_REPORT.md) — 既知の攻撃手法への対応状況
-- [画面越しの確認](tests/ui/README.md) — 動かして確かめる手順
 
 ## ライセンス
 
