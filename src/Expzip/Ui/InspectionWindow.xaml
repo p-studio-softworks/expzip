@@ -1,6 +1,7 @@
 ﻿<Window x:Class="Expzip.Ui.InspectionWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Expzip"
         Width="920" Height="560"
         MinWidth="520" MinHeight="320"
         WindowStartupLocation="CenterOwner"
@@ -18,8 +19,14 @@
             要約。既定では結末だけを出す。何をどれだけ調べたかは畳んでおき、
             見たい人が開けるようにする。問題が無かったことは言い切る
         -->
+        <!--
+            帯の地は ControlBrush にする (#121)。ControlLightLight は
+            ハイコントラスト黒では明るい灰色になるのに、この上に乗る文字は
+            Windows の文字色 (白) のままで、読めなくなっていた。
+            ControlBrush なら地も文字も同じ組から来る
+        -->
         <Border DockPanel.Dock="Top"
-                Background="{x:Static SystemColors.ControlLightLightBrush}"
+                Background="{x:Static SystemColors.ControlBrush}"
                 BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
                 BorderThickness="0,0,0,1">
             <StackPanel Margin="16,12">
@@ -109,17 +116,32 @@
                     <Setter Property="Padding" Value="6,2" />
                 </Style>
 
+                <!--
+                    重さの色を付けるのは、こちらで色を決めてよいときだけ (#121)。
+                    ハイコントラストでは指定しない。行を選ぶと地が Windows の
+                    選択色に変わるので、こちらで決めた色は組にならない。
+                    指定しなければ、地に合った文字色を部品が選ぶ。
+                    重さは印と言葉でも出している (#57、#109)
+                -->
+                <Style x:Key="AccentText" TargetType="TextBlock">
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
+                                     Value="True">
+                            <Setter Property="Foreground" Value="{Binding Accent}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+
                 <DataTemplate x:Key="SeverityCell">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding Glyph}"
                                    FontFamily="Segoe MDL2 Assets"
                                    FontSize="12"
-                                   Foreground="{Binding Accent}"
-                                   VerticalAlignment="Center"
+                                   Style="{StaticResource AccentText}"
                                    Margin="0,0,6,0" />
                         <TextBlock Text="{Binding SeverityText}"
-                                   Foreground="{Binding Accent}"
-                                   VerticalAlignment="Center" />
+                                   Style="{StaticResource AccentText}" />
                     </StackPanel>
                 </DataTemplate>
 

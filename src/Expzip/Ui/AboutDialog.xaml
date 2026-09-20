@@ -34,7 +34,7 @@
                     VerticalAlignment="Top"
                     BorderBrush="{x:Static SystemColors.ControlDarkBrush}"
                     BorderThickness="1"
-                    Background="{x:Static SystemColors.ControlLightLightBrush}">
+                    Background="{x:Static SystemColors.ControlBrush}">
                 <!--
                     枠 (Border) は支援技術の木に出てこないので、名前はこちらに入れる。
                     入れないと記号がそのまま読み上げられる (#102 と同じ話)

@@ -41,5 +41,29 @@
             目には入るようにするため
         -->
         <SolidColorBrush x:Key="RuleBreakBackBrush" Color="#F6BFBA" />
+        <!--
+            その地に載る文字の色 (#121)。**地と組で決める。**地だけ決めて文字色を
+            Windows から採ると、ハイコントラストで白い文字が薄い赤に乗る。
+            両方こちらで決めておけば、行を選んでも組が崩れない
+        -->
+        <SolidColorBrush x:Key="RuleBreakTextBrush" Color="#000000" />
+        <!--
+            ツリーで選ばれている節の地と文字 (#65、#121)。一覧が使っている
+            Aero の薄い青に揃える。WPF の既定は濃い青で、保護の緑が沈む。
+            **地を決め打ちするなら、文字色も一緒に決める。**片方だけ決めると、
+            もう片方が Windows 側で入れ替わったときに読めなくなる (#121)。
+            ハイコントラストのときは、どちらも Windows の色へ寄せる (Theme.Apply)
+        -->
+        <LinearGradientBrush x:Key="TreeSelectionBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#D9F4FF" Offset="0" />
+            <GradientStop Color="#9BDDFB" Offset="1" />
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="TreeSelectionTextBrush" Color="#000000" />
+        <!-- 焦点が一覧へ移っている間。エクスプローラーと同じく薄い灰色 -->
+        <SolidColorBrush x:Key="TreeInactiveSelectionBrush" Color="#F0F0F0" />
+        <SolidColorBrush x:Key="TreeInactiveSelectionTextBrush" Color="#000000" />
+        <!-- アドレスバーで指している場所 (#90、#121)。ここも地と文字を組で決める -->
+        <SolidColorBrush x:Key="HoverBackBrush" Color="#D9F4FF" />
+        <SolidColorBrush x:Key="HoverTextBrush" Color="#000000" />
     </Application.Resources>
 </Application>

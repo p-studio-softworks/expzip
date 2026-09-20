@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:archives="clr-namespace:Expzip.Archives"
+        xmlns:local="clr-namespace:Expzip"
         xmlns:ui="clr-namespace:Expzip.Ui"
         Title="Expzip"
         Height="620" Width="960"
@@ -54,12 +55,19 @@
                             <ContentPresenter VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <!-- 一覧の選択と同じ薄い青。同じ窓で色の意味を変えない -->
+                            <!--
+                                一覧の選択と同じ薄い青。同じ窓で色の意味を変えない。
+                                **地を決めるなら文字色も組で決める** (#121)
+                            -->
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Fill" Property="Background" Value="#D9F4FF" />
+                                <Setter TargetName="Fill" Property="Background"
+                                        Value="{StaticResource HoverBackBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource HoverTextBrush}" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Fill" Property="Background" Value="#D9F4FF" />
+                                <Setter TargetName="Fill" Property="Background"
+                                        Value="{StaticResource HoverBackBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource HoverTextBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -98,25 +106,47 @@
         -->
         <Style x:Key="EntryNameText" TargetType="TextBlock">
             <Style.Triggers>
+                <!--
+                    保護されていることの説明。**両方に当たる行では、ルールの説明を
+                    出す。**そちらは中身が行ごとに違う。だからルールの引き金より前に置く
+                -->
                 <DataTrigger Binding="{Binding IsEncrypted}" Value="True">
-                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
                     <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
                 </DataTrigger>
                 <!--
                     ルールに合っていない印 (#92)。ツリー (#88) と同じ地色にする。
                     **同じことを2つの見た目で出さない。**旗と地色が混ざっていると、
-                    別の意味があるように見える
+                    別の意味があるように見える。
+                    **地と文字色は組で決める** (#121)。片方だけ決めると、
+                    もう片方が Windows 側で入れ替わったときに読めなくなる
                 -->
                 <DataTrigger Binding="{Binding BreaksRules}" Value="True">
                     <Setter Property="Background" Value="{StaticResource RuleBreakBackBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource RuleBreakTextBrush}" />
                     <Setter Property="ToolTip" Value="{Binding RuleTooltip}" />
                 </DataTrigger>
+                <!--
+                    保護された項目の色 (#20)。**これは文字色だけで、地はそのとき次第。**
+                    組にできないので、こちらで色を決めてよいときだけ付ける (#121)。
+                    ハイコントラストでは付けない。付けると、行を選んだときに
+                    Windows が変えた地の上へ、こちらの色がそのまま乗る。
+                    ルールの印より後ろに置く。両方に当たる行では緑を残したい
+                    (薄い赤の上でも 5.06 : 1 ある)。説明は色と関わりなく出す。
+                    **色だけに頼らない** (#119)
+                -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsEncrypted}" Value="True" />
+                        <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
+                                   Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
+                </MultiDataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="FolderNameText" TargetType="TextBlock">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding HasEncryptedContent}" Value="True">
-                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
                     <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
                 </DataTrigger>
                 <!--
@@ -124,12 +154,23 @@
                     旗を前に置くと1文字ぶん名前がずれ、兄弟のフォルダと段が違って
                     見える。ツリーは段で親子を読ませる絵なので、そこは狂わせない。
                     説明にはフォルダごとの中身が入る。**何が合っていないのかを、
-                    結果の窓を開き直さずに読めるようにする**
+                    結果の窓を開き直さずに読めるようにする**。
+                    地と文字色は組で決める (#121)
                 -->
                 <DataTrigger Binding="{Binding BreaksRules}" Value="True">
                     <Setter Property="Background" Value="{StaticResource RuleBreakBackBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource RuleBreakTextBrush}" />
                     <Setter Property="ToolTip" Value="{Binding RuleTooltip}" />
                 </DataTrigger>
+                <!-- 文字色だけの色付けは、こちらで色を決めてよいときだけ (#121) -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding HasEncryptedContent}" Value="True" />
+                        <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
+                                   Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Foreground" Value="{StaticResource EncryptedBrush}" />
+                </MultiDataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
@@ -508,20 +549,21 @@
                         保護された項目の緑が読めなくなる。一覧側は薄い青地のまま文字色を
                         変えないため、同じ窓の中で選択の見え方も食い違っていた。
                         エクスプローラーも薄い青地なので、そちらに合わせる。
-                        一覧が使っている色をそのまま置く (実測 #98DDFB を挟む階調)
+                        一覧が使っている色をそのまま置く (実測 #98DDFB を挟む階調)。
+
+                        色そのものは App.xaml にある。**文字色は Windows から
+                        採らずに、地と組で決める** (#121)。ハイコントラストでは
+                        組ごと Windows の色に入れ替わり、この差し替えは効かなくなる
                     -->
-                    <LinearGradientBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                                         StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#D9F4FF" Offset="0" />
-                        <GradientStop Color="#9BDDFB" Offset="1" />
-                    </LinearGradientBrush>
-                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
-                                     Color="{x:Static SystemColors.ControlTextColor}" />
+                    <StaticResource x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                                    ResourceKey="TreeSelectionBrush" />
+                    <StaticResource x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                                    ResourceKey="TreeSelectionTextBrush" />
                     <!-- 焦点が一覧へ移っている間。エクスプローラーと同じく薄い灰色 -->
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
-                                     Color="#F0F0F0" />
-                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
-                                     Color="{x:Static SystemColors.ControlTextColor}" />
+                    <StaticResource x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}"
+                                    ResourceKey="TreeInactiveSelectionBrush" />
+                    <StaticResource x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}"
+                                    ResourceKey="TreeInactiveSelectionTextBrush" />
                     <HierarchicalDataTemplate DataType="{x:Type archives:ArchiveFolder}"
                                               ItemsSource="{Binding Folders}">
                         <StackPanel Orientation="Horizontal">
