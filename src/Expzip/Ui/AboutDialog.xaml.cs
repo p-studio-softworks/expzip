@@ -11,7 +11,7 @@ namespace Expzip.Ui;
 /// </summary>
 /// <remarks>
 /// <b>版とリビジョンの両方を出す。</b> 版だけでは、同じ 0.1.0 のどれを渡したのかが
-/// 分からない。不具合の報告と手元の木を突き合わせられるよう、建てたときの
+/// 分からない。不具合の報告と手元の木を突き合わせられるよう、ビルドしたときの
 /// コミットを組み込んである (Expzip.csproj の StampRevision)。
 /// </remarks>
 public partial class AboutDialog : Window
@@ -23,10 +23,10 @@ public partial class AboutDialog : Window
         ApplyLanguage();
     }
 
-    /// <summary>建てたときのコミット。git の無いところで建てたなら <see langword="null"/>。</summary>
+    /// <summary>ビルドしたときのコミット。git の無いところでビルドしたなら <see langword="null"/>。</summary>
     internal static string? Revision => Meta("Revision");
 
-    /// <summary>そのコミットから手を入れた木で建てたか。</summary>
+    /// <summary>そのコミットから手を入れた木でビルドしたか。</summary>
     internal static bool Modified => Meta("RevisionModified") == "true";
 
     /// <summary>アプリの名前。</summary>

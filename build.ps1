@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Expzip を建てて、配布できる Expzip.exe を publish\win-x64 に作る。
+    Expzip をビルドして、配布できる Expzip.exe を publish\win-x64 に作る。
 
 .DESCRIPTION
     build.cmd から呼ばれる。直接動かしてもよい。
@@ -9,11 +9,11 @@
     ほかに用意するものは無い。圧縮の処理も含め、必要なものはすべて exe の中に入る。
 
 .PARAMETER Test
-    建てたあとに tests\ui のテストも走らせる。
+    ビルドしたあとに tests\ui のテストも走らせる。
     テストの間は Expzip の窓が前に出るので、マウスとキーボードに触らないこと。
 
 .PARAMETER Debug
-    配布用ではなく、開発用に建てるだけにする (発行しない)。
+    配布用ではなく、開発用にビルドするだけにする (発行しない)。
 
 .EXAMPLE
     .\build.ps1
@@ -54,7 +54,7 @@ if ($running.Count -gt 0) {
 }
 
 if ($Debug) {
-    Write-Host '開発用に建てています…'
+    Write-Host '開発用にビルドしています…'
     & dotnet build (Join-Path $repo 'Expzip.slnx') -nologo
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }

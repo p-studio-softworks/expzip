@@ -75,12 +75,12 @@ internal static partial class Strings
         $"バージョン {version} ({architecture})",
         $"Version {version} ({architecture})");
 
-    /// <summary>建てたときのコミット。手元の木と突き合わせるためのもの。</summary>
+    /// <summary>ビルドしたときのコミット。手元の木と突き合わせるためのもの。</summary>
     public static string AboutRevision(string revision) => Pick(
         $"リビジョン {revision}", $"Revision {revision}");
 
     /// <summary>
-    /// そのコミットから手を入れた木で建てた場合 (#104)。
+    /// そのコミットから手を入れた木でビルドした場合 (#104)。
     /// </summary>
     /// <remarks>
     /// **黙って番号だけ出さない。**そのコミットを取り寄せても同じものにならないため、

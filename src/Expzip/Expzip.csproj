@@ -36,15 +36,15 @@
     <!--
       分割した断片をつなぎ直す小さな Win32 実行ファイル (#59)。受け取った人が
       Expzip を持っていなくても元に戻せるよう、断片といっしょに書き出す。
-      出来上がり (4.6KB) をリポジトリに置いてあるため、Expzip を建てるのに
-      C のツールチェーンは要らない。ソースと建て直し方は tools/joiner にある。
+      出来上がり (4.6KB) をリポジトリに置いてあるため、Expzip をビルドするのに
+      C のツールチェーンは要らない。ソースとビルドし直す方法は tools/joiner にある。
     -->
     <EmbeddedResource Include="Resources\joiner-x86.exe" LogicalName="Expzip.Resources.joiner-x86.exe" />
 
     <!--
       自己解凍書庫の取り出し部 (#29)。この後ろに ZIP をそのまま繋いで配る。
       伸長器を内蔵しているため連結プログラムより大きいが、それでも 8.5KB。
-      ソースと建て直し方は tools/sfx にある。
+      ソースとビルドし直す方法は tools/sfx にある。
     -->
     <EmbeddedResource Include="Resources\sfx-x86.exe" LogicalName="Expzip.Resources.sfx-x86.exe" />
 
@@ -72,7 +72,7 @@
     </PropertyGroup>
 
     <Error Condition="!Exists('$(NoticesPath)')"
-           Text="THIRD-PARTY-NOTICES.txt がありません。配るものに入れる表示なので、無いままでは建てられません (#105)" />
+           Text="THIRD-PARTY-NOTICES.txt がありません。配るものに入れる表示なので、無いままではビルドできません (#105)" />
 
     <PropertyGroup>
       <NoticesText>$([System.IO.File]::ReadAllText('$(NoticesPath)'))</NoticesText>
@@ -91,10 +91,10 @@
   </Target>
 
   <!--
-    建てたときのコミットを組み込む (#104)。バージョン情報の窓に出す。
+    ビルドしたときのコミットを組み込む (#104)。バージョン情報の窓に出す。
     版だけでは、同じ 0.1.0 のどれを渡したのかが分からない。
 
-    **git が無くても、リポジトリの外に置いても建つようにする。**
+    **git が無くても、リポジトリの外に置いてもビルドできるようにする。**
     取れなければリビジョンは入らず、窓には「不明」と出る。
   -->
   <Target Name="StampRevision" BeforeTargets="GetAssemblyAttributes">
@@ -107,7 +107,7 @@
     </Exec>
 
     <!--
-      そのコミットから手を入れた木で建てたかどうか。
+      そのコミットから手を入れた木でビルドしたかどうか。
       **黙って番号だけ出さない。**取り寄せても同じものにならないため、
       突き合わせる人が嘘の手掛かりを追うことになる
     -->
