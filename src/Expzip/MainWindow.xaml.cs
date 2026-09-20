@@ -5062,6 +5062,10 @@ public partial class MainWindow : Window
 
         folder.BreaksRules = found.Count > 0;
         folder.RuleTooltip = found.Count > 0 ? DescribeTree(found) : null;
+
+        // 印は節の名前にも入っている (#119)。印を付け替えたときと、言語を
+        // 切り替えたとき (どちらもここを通る) に読み直させる
+        folder.NotifyRowName();
         return found;
 
         void Note(string path)

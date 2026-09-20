@@ -496,9 +496,10 @@
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                         <!--
                             節の名前。入れておかないと、支援技術には束ねている型の名前
-                            (Expzip.Archives.ArchiveFolder) がそのまま読まれる
+                            (Expzip.Archives.ArchiveFolder) がそのまま読まれる。
+                            一覧と同じく、付いている印の意味も入れる (#119)
                         -->
-                        <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                        <Setter Property="AutomationProperties.Name" Value="{Binding RowName}" />
                     </Style>
                 </TreeView.ItemContainerStyle>
                 <TreeView.Resources>
@@ -529,22 +530,26 @@
                                 (#88、FolderNameText)。**配下のどこかにあれば、
                                 ここにも出る。**でないと、開いて回らないと気付けない
                             -->
-                            <!-- パスが通常ではないフォルダに警告を添える (#36) -->
-                            <TextBlock Text="&#xE814;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="12"
-                                       Foreground="{StaticResource WarningBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,4,0"
-                                       ToolTip="{StaticResource SuspiciousPathTooltip}"
-                                       Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                            <!--
+                                パスが通常ではないフォルダに警告を添える (#36)。
+                                絵は支援技術の木に出さない (#119、GlyphText)。
+                                伝えたい事柄は節の名前に入れてある
+                            -->
+                            <ui:GlyphText Text="&#xE814;"
+                                          FontFamily="Segoe MDL2 Assets"
+                                          FontSize="12"
+                                          Foreground="{StaticResource WarningBrush}"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,4,0"
+                                          ToolTip="{StaticResource SuspiciousPathTooltip}"
+                                          Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
                             <!-- 塗りつぶしのフォルダ。輪郭線のみだと書類と紛らわしい -->
-                            <TextBlock Text="&#xE8D5;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="13"
-                                       Foreground="{StaticResource FolderBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0" />
+                            <ui:GlyphText Text="&#xE8D5;"
+                                          FontFamily="Segoe MDL2 Assets"
+                                          FontSize="13"
+                                          Foreground="{StaticResource FolderBrush}"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,6,0" />
                             <!--
                                 地色を敷いたときに文字が縁にくっつかないよう、
                                 余白を取る。**どの節にも同じだけ**取るので、段はずれない
@@ -589,12 +594,14 @@
                           ScrollViewer.IsDeferredScrollingEnabled="False">
                     <!--
                         行の名前。入れておかないと、支援技術には束ねている型の名前が
-                        そのまま読まれる (#109)
+                        そのまま読まれる (#109)。**行に付く印の意味も名前に入れる**
+                        (#119)。色と絵だけでは、読み上げにも、色の見え方が違う人にも
+                        伝わらない
                     -->
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="AutomationProperties.Name"
-                                    Value="{Binding Name}" />
+                                    Value="{Binding RowName}" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
@@ -654,20 +661,24 @@
                                     旗と地色が混ざっていると、同じことなのに
                                     2つの意味があるように見える
                                 -->
-                                <!-- パスが通常ではない項目に警告を添える (#36) -->
-                                <TextBlock Text="{Binding WarningGlyph}"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="12"
-                                           Foreground="{StaticResource WarningBrush}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,4,0"
-                                           ToolTip="{Binding WarningTooltip}"
-                                           Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                                <TextBlock Text="{Binding Glyph}"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="13"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,6,0">
+                                <!--
+                                    パスが通常ではない項目に警告を添える (#36)。
+                                    絵は支援技術の木に出さない (#119、GlyphText)。
+                                    伝えたい事柄は行の名前に入れてある
+                                -->
+                                <ui:GlyphText Text="{Binding WarningGlyph}"
+                                              FontFamily="Segoe MDL2 Assets"
+                                              FontSize="12"
+                                              Foreground="{StaticResource WarningBrush}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,4,0"
+                                              ToolTip="{Binding WarningTooltip}"
+                                              Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                <ui:GlyphText Text="{Binding Glyph}"
+                                              FontFamily="Segoe MDL2 Assets"
+                                              FontSize="13"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,6,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{StaticResource FolderBrush}" />
@@ -678,7 +689,7 @@
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
-                                </TextBlock>
+                                </ui:GlyphText>
                                 <!-- 通常は表示のみ。名前の変更中だけ入力欄に入れ替える (#15) -->
                                 <TextBlock Text="{Binding Name}"
                                            VerticalAlignment="Center"

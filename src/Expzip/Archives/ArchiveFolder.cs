@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Expzip.Localization;
 
 namespace Expzip.Archives;
 
@@ -67,6 +68,30 @@ internal sealed class ArchiveFolder : INotifyPropertyChanged
 
     /// <summary>フォルダ名。ルートの場合は書庫のファイル名を入れる。</summary>
     public required string Name { get; init; }
+
+    /// <summary>
+    /// 支援技術が読むこの節の名前 (#119)。
+    /// </summary>
+    /// <remarks>
+    /// 印は色と絵でしか出していないため、名前のうしろに言葉でも並べる。
+    /// 印が入れ替わるたびに読み直させる必要があるので、
+    /// <see cref="NotifyRowName"/> を呼ぶこと。
+    /// </remarks>
+    public string RowName => Strings.EntryRowName(
+        Name,
+        IsPathSuspicious ? Strings.MarkSuspiciousPath : string.Empty,
+        BreaksRules ? Strings.MarkRuleBreak : string.Empty,
+        HasEncryptedContent ? Strings.MarkEncrypted : string.Empty);
+
+    /// <summary>
+    /// 名前を読み直させる。印を付け替えたときと、言語を切り替えたときに呼ぶ。
+    /// </summary>
+    /// <remarks>
+    /// 名前に関わるものをまとめて読み直させるため、空の名前で知らせる
+    /// (<see cref="INotifyPropertyChanged"/> で「すべて」を意味する)。
+    /// </remarks>
+    public void NotifyRowName()
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
 
     /// <summary>書庫内のパス。ルートは空文字。区切りは <c>/</c>。</summary>
     public required string FullPath { get; init; }

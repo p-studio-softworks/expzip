@@ -231,6 +231,31 @@ internal static partial class Strings
     public static string SuspiciousPathTooltip
         => SuspiciousPathTooltipLine1 + Environment.NewLine + SuspiciousPathTooltipLine2;
 
+    // ------------------------------------------------------------------ 行に付く印の名前 (#119)
+
+    // 印は色と絵で出している。それだけでは、読み上げにも、色の見え方が違う人にも
+    // 伝わらない。行の名前に短い言葉で入れる。説明 (ToolTip) より短くする
+
+    public static string MarkSuspiciousPath => Pick(
+        "パスが通常と異なります", "Unusual path");
+
+    public static string MarkRuleBreak => Pick(
+        "ルールに合っていません", "Does not match the rules");
+
+    public static string MarkEncrypted => Pick(
+        "パスワードで保護されています", "Password protected");
+
+    /// <summary>
+    /// ファイルの一覧とツリーの行を、支援技術が読むときの名前 (#119)。
+    /// </summary>
+    /// <remarks>
+    /// 名前のうしろに、付いている印の意味を並べる。印が無ければ名前だけになる。
+    /// </remarks>
+    public static string EntryRowName(string name, string suspicious, string rule, string encrypted)
+        => string.Join(
+            Pick("、", ", "),
+            new[] { name, suspicious, rule, encrypted }.Where(part => part.Length > 0));
+
     // ------------------------------------------------------------------ 最近使った書庫 (#10)
 
     public static string RecentEmpty => Pick("(履歴はありません)", "(No history)");

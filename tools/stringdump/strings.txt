@@ -640,6 +640,10 @@ EncryptedTooltip
   ja  この項目はパスワードで保護されています。展開するときにパスワードを入力してください。
   en  This item is protected with a password. You will be asked for it when extracting.
 
+EntryRowName (name: 報告書.pdf, suspicious: パスが通常と異なります, rule: ルールに合っていません, encrypted: パスワードで保護されています)
+  ja  ⟦報告書.pdf⟧、⟦パスが通常と異なります⟧、⟦ルールに合っていません⟧、⟦パスワードで保護されています⟧
+  en  ⟦報告書.pdf⟧, ⟦Unusual path⟧, ⟦Does not match the rules⟧, ⟦Password protected⟧
+
 Extract
   ja  展開
   en  Extract
@@ -1021,6 +1025,18 @@ LocationHidden
 LocationInside (name: 報告書.pdf)
   ja  ⟦報告書.pdf⟧ の中
   en  Inside ⟦報告書.pdf⟧
+
+MarkEncrypted
+  ja  パスワードで保護されています
+  en  Password protected
+
+MarkRuleBreak
+  ja  ルールに合っていません
+  en  Does not match the rules
+
+MarkSuspiciousPath
+  ja  パスが通常と異なります
+  en  Unusual path
 
 MenuDelete
   ja  削除

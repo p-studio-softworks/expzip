@@ -116,8 +116,25 @@ internal sealed class EntryRow : INotifyPropertyChanged
     /// <summary>どの決まりに合っていないか。行に添える説明。</summary>
     public string? RuleTooltip { get; init; }
 
+    /// <summary>
+    /// 支援技術が読むこの行の名前 (#119)。
+    /// </summary>
+    /// <remarks>
+    /// 印は色と絵でしか出していないため、名前のうしろに言葉でも並べる。
+    /// 印が無い行は名前だけになる。
+    /// </remarks>
+    public string RowName => Strings.EntryRowName(
+        Name,
+        IsPathSuspicious ? Strings.MarkSuspiciousPath : string.Empty,
+        BreaksRules ? Strings.MarkRuleBreak : string.Empty,
+        IsEncrypted ? Strings.MarkEncrypted : string.Empty);
+
     /// <summary>言語が変わったことを行に伝える (#23)。</summary>
-    public void NotifyLanguageChanged() => Notify(nameof(WarningTooltip));
+    public void NotifyLanguageChanged()
+    {
+        Notify(nameof(WarningTooltip));
+        Notify(nameof(RowName));
+    }
 
     // NSIS のように展開後の大きさを持たない形式がある (#68)。
     // 0 と出すと「空のファイル」に見えるので、分からないことを示す

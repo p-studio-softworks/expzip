@@ -48,6 +48,9 @@ Section '怪しい書庫'
 $app = Start-Expzip @($risky)
 $warning = ById $app.Window 'SuspiciousWarningText'
 Check '開いた時点で知らせる' ($warning -and $warning.Current.Name -match '^パスが通常と異なる項目が \d+ 個あります$') $(if ($warning) { $warning.Current.Name })
+# 印の意味は一覧の行の名前にも入る (#119)。絵と色だけでは読み上げに伝わらない
+$rowNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
+Check '印の意味が行の名前に入る' ($rowNames -match '^\.\.、パスが通常と異なります$') ($rowNames -join ' / ')
 
 $window = Run-Inspection $app '検査結果 - ayashii.zip'
 Check '窓が開く' ($null -ne $window)

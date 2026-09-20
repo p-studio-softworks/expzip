@@ -68,6 +68,9 @@ var specific = new Dictionary<string, Func<object?>>
         + Environment.NewLine
         + Nested("RuleTreeBreakItem", "資料/新しいフォルダ", "フォルダ名に空白を入れない"),
     ["InspectionMessage.detail"] = () => "画像/2024/写真.jpg",
+    ["EntryRowName.suspicious"] = () => Nested("MarkSuspiciousPath"),
+    ["EntryRowName.rule"] = () => Nested("MarkRuleBreak"),
+    ["EntryRowName.encrypted"] = () => Nested("MarkEncrypted"),
     ["FindingRowName.severity"] = () => Nested(
         "SeverityName",
         Enum.Parse(assembly.GetType("Expzip.Inspection.InspectionSeverity", throwOnError: true)!, "Danger")),

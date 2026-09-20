@@ -144,6 +144,12 @@ try {
         Check '行の名前に種類と対象と内容' (
             ($rowNames -match '^含めない拡張子、.*cache\.tmp、') -and
             ($rowNames -match '^見つからない、README\.md、')) ($rowNames -join ' / ')
+        # 本体の一覧では、合っていないことを地色で出している。
+        # 色だけでは伝わらないので、行の名前にも入れる (#119)。
+        # 窓を閉じると印は「自分で対処する」と決めたものだけに絞られる (#88) ので、
+        # 閉じる前に見る
+        $listNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
+        Check '合っていない印が行の名前に入る' ($listNames -match '^src、ルールに合っていません$') ($listNames -join ' / ')
         Push (ById $audit 'CloseButton')
     }
     Stop-Expzip $app

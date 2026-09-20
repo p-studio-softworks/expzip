@@ -47,6 +47,12 @@ Stop-Expzip $app
 
 Section '開き直して書き換えるとき'
 $app = Start-Expzip @($archive)
+# 保護されていることは緑の文字で出している。色だけでは伝わらないので、
+# 行の名前にも入れる (#119)
+$rowNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
+Check '保護された項目は行の名前にも出る' (
+    ($rowNames -match '^report\.txt、パスワードで保護されています$') -and
+    ($rowNames -match '^notes\.txt、パスワードで保護されています$')) ($rowNames -join ' / ')
 Rename-Row $app 'notes.txt' 'memo.txt' | Out-Null
 $prompt = Enter-Password $app 'machigai'
 Check '尋ねる' ($prompt -match '^「資料\.zip」はパスワードで保護されています。') $prompt
