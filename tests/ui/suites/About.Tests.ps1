@@ -20,7 +20,8 @@ if ($dialog) {
     # 版は csproj の <Version>。ビルド番号 (0.1.0.0) ではない
     Check 'バージョンと作り' ($text -match 'バージョン \d+\.\d+\.\d+ \((x64|x86|arm64)\)') (ById $dialog 'VersionText').Current.Name
     Check 'リビジョン' ((ById $dialog 'RevisionText').Current.Name -match '^リビジョン [0-9a-f]{7}') (ById $dialog 'RevisionText').Current.Name
-    Check 'コピーライト' ((ById $dialog 'CopyrightText').Current.Name -match 'Copyright')
+    # 名義は P studio にそろえる。個人名を出さない
+    Check 'コピーライト' ((ById $dialog 'CopyrightText').Current.Name -match '^Copyright \(c\) \d{4} P studio$') (ById $dialog 'CopyrightText').Current.Name
     Check 'アイコンの場所が空けてある' ((ById $dialog 'IconPlaceholder').Current.Name.Length -gt 0) (ById $dialog 'IconPlaceholder').Current.Name
     Check '土台' ($text -match 'Windows' -and $text -match '\.NET')
 
