@@ -27,6 +27,9 @@ $app = Start-Expzip @($archive)
 Section '開いた直後'
 Check 'ルートの中身が並ぶ' (((Get-RowNames $app) -join ', ') -eq '資料, readme.txt, 内側.zip') ((Get-RowNames $app) -join ', ')
 Check '場所の区切りは書庫の名前だけ' ((Crumbs $app) -eq '外側.zip') (Crumbs $app)
+# 支援技術が読む行の名前。入れていないと行の型の名前が読まれる (#109)
+$rowNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
+Check '行の名前は項目の名前' (($rowNames -join ', ') -eq '資料, readme.txt, 内側.zip') ($rowNames -join ', ')
 Check '件数' ((Texts $app.Window) -match '3 個のファイル')
 
 Section 'Enter でフォルダーに入る'

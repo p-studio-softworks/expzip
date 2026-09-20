@@ -199,6 +199,11 @@ internal sealed class InspectionRow
 
     public string SeverityText => Strings.SeverityName(Severity);
 
+    /// <summary>
+    /// 支援技術が読むこの行の名前 (#109)。入れておかないと型の名前が読まれる。
+    /// </summary>
+    public string RowName => Strings.FindingRowName(SeverityText, Target, Message);
+
     public string Glyph => InspectionWindow.GlyphOf(Severity);
 
     public Brush Accent => InspectionWindow.AccentOf(Severity);

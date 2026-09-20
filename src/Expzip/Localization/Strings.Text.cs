@@ -1629,6 +1629,18 @@ internal static partial class Strings
         _ => Pick("問題なし", "All clear"),
     };
 
+    /// <summary>
+    /// 一覧の1行を、支援技術が読むときの名前 (#109)。
+    /// </summary>
+    /// <remarks>
+    /// 列の並びのまま、重大度 (種類)・対象・内容をつなぐ。空の欄は飛ばす。
+    /// ルールの検査結果の一覧も同じ形で読む。
+    /// </remarks>
+    public static string FindingRowName(string severity, string target, string what)
+        => string.Join(
+            Pick("、", ", "),
+            new[] { severity, target, what }.Where(part => part.Length > 0));
+
     /// <summary>書庫そのものが対象のときに、対象の欄へ出す文字。</summary>
     public static string InspectionArchiveItself => Pick(
         "(書庫そのもの)", "(the archive itself)");

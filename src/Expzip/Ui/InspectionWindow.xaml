@@ -92,6 +92,16 @@
                   SelectionChanged="FindingList_SelectionChanged"
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling">
+            <!--
+                行の名前。入れておかないと、支援技術には束ねている型の名前が
+                そのまま読まれる (#109)
+            -->
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="AutomationProperties.Name"
+                            Value="{Binding RowName}" />
+                </Style>
+            </ListView.ItemContainerStyle>
             <ListView.Resources>
                 <!-- 本体の一覧と同じく、列見出しは左揃えにする -->
                 <Style TargetType="GridViewColumnHeader">

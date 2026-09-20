@@ -83,6 +83,11 @@ try {
     Check '提案だと断る' ($notice -eq 'これらはAIが推定したルールです。書庫の本来のルールとは異なる場合があります。ルールとして使用したいものを選択してください。') $notice
     $rows = RuleRows $dialog
     Check '一覧に並ぶ (除外したものも見せる)' ($rows.Count -eq 4) "$($rows.Count) 行"
+    # 支援技術が読む行の名前。型の名前ではなくルールの説明を読む (#109)
+    $ruleNames = @($rows | ForEach-Object { $_.Current.Name })
+    Check '行の名前がルールの説明' (
+        (-not ($ruleNames -match 'Expzip\.')) -and
+        ($ruleNames -match '^ルート直下に README\.md がある$')) ($ruleNames -join ' / ')
     $sent = Get-AiRequests $stub
     Check '1 回だけ送る' ($sent.Count -eq 1) "$($sent.Count) 回"
     Check '送った中に中身が無い' ($sent.Count -ge 1 -and $sent[0].body -notmatch $secret)
@@ -131,6 +136,14 @@ try {
         Check '違反の場所' ($findings -match 'cache\.tmp') $findings
         Check '足りないもの' ($findings -match 'README\.md' -and $findings -match '見つからない') $findings
         Check '保存したものしか使わない' ($findings -notmatch 'docs|CHANGELOG')
+        # 支援技術が読む行の名前。種類・対象・内容をこの順に読む (#109)
+        $rowNames = @((ById $audit 'FindingList').FindAll($script:Scope::Children,
+            (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem)) |
+            ForEach-Object { $_.Current.Name })
+        Check '行の名前が型の名前でない' (-not ($rowNames -match 'Expzip\.')) ($rowNames -join ' / ')
+        Check '行の名前に種類と対象と内容' (
+            ($rowNames -match '^含めない拡張子、.*cache\.tmp、') -and
+            ($rowNames -match '^見つからない、README\.md、')) ($rowNames -join ' / ')
         Push (ById $audit 'CloseButton')
     }
     Stop-Expzip $app

@@ -74,12 +74,13 @@
                   VirtualizingPanel.VirtualizationMode="Recycling">
             <!--
                 行の名前。入れておかないと、支援技術には束ねている型の名前が
-                そのまま読まれる
+                そのまま読まれる。検査結果の一覧と同じく、種類・対象・内容を
+                この順に読む (#109)
             -->
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <Setter Property="AutomationProperties.Name"
-                            Value="{Binding Target}" />
+                            Value="{Binding RowName}" />
                 </Style>
             </ListView.ItemContainerStyle>
             <ListView.Resources>

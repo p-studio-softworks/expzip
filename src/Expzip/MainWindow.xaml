@@ -587,6 +587,16 @@
                           VirtualizingPanel.VirtualizationMode="Recycling"
                           VirtualizingPanel.ScrollUnit="Pixel"
                           ScrollViewer.IsDeferredScrollingEnabled="False">
+                    <!--
+                        行の名前。入れておかないと、支援技術には束ねている型の名前が
+                        そのまま読まれる (#109)
+                    -->
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="AutomationProperties.Name"
+                                    Value="{Binding Name}" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
                     <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
                     <ListView.ContextMenu>
                         <ContextMenu>

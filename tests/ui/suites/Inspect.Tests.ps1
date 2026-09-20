@@ -23,6 +23,14 @@ function Run-Inspection($App, [string]$Title) {
     return Find-Window $App $Title 30000
 }
 
+# 支援技術が読む行の名前 (#109)。名前を入れていないと行の型の名前が読まれる
+function FindingRowNames($Window) {
+    $list = ById $Window 'FindingList'
+    return @($list.FindAll($script:Scope::Children,
+        (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem)) |
+        ForEach-Object { $_.Current.Name })
+}
+
 Section '問題の無い書庫'
 $app = Start-Expzip @($clean)
 $window = Run-Inspection $app '検査結果 - kirei.zip'
@@ -30,6 +38,8 @@ Check '窓が開く' ($null -ne $window)
 if ($window) {
     Check '見出し' ((ById $window 'Headline').Current.Name -eq '問題は見つかりませんでした') (ById $window 'Headline').Current.Name
     Check '閉じる口' ((ById $window 'CloseButton').Current.Name -eq '閉じる')
+    $rows = FindingRowNames $window
+    Check '行の名前' (($rows -join ' / ') -eq '問題なし、kirei.zip、問題は見つかりませんでした') ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }
 Stop-Expzip $app
@@ -51,6 +61,12 @@ if ($window) {
     Check '大文字と小文字だけ違う' ($findings -match '大文字と小文字だけが異なる項目があります \([Rr]eport\.txt\)。展開すると片方が失われます')
     # 画面の文字に英語の例外文や内部の名前が混ざっていない
     Check '内部の名前が出ていない' ($findings -notmatch 'EscapingPath|ExecutableExtension|ReservedName|CaseCollision')
+    # 行そのものの名前。重大度・対象・内容をこの順に読む (#109)
+    $rows = FindingRowNames $window
+    Check '行の名前が型の名前でない' (-not ($rows -match 'Expzip\.')) ($rows -join ' / ')
+    Check '行の名前に重大度と対象と内容' (
+        ($rows -match '^危険、\.\./evil\.txt、展開先の外に書き込もうとするパスです') -and
+        ($rows -match '^注意、setup\.exe、開くとプログラムとして実行される種類のファイルです')) ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }
 Stop-Expzip $app

@@ -741,6 +741,10 @@ FileCount (count: 3, limits: (空))
   ja  3 個のファイル
   en  3 files
 
+FindingRowName (severity: 危険, target: 画像/2024/写真.jpg, what: ルート直下に README.md を置く / 拡張子は小文字にする)
+  ja  ⟦危険⟧、⟦画像/2024/写真.jpg⟧、⟦ルート直下に README.md を置く / 拡張子は小文字にする⟧
+  en  ⟦Danger⟧, ⟦画像/2024/写真.jpg⟧, ⟦ルート直下に README.md を置く / 拡張子は小文字にする⟧
+
 FolderCreated (name: 報告書.pdf)
   ja  「⟦報告書.pdf⟧」を作成しました
   en  Created "⟦報告書.pdf⟧"

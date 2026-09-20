@@ -68,6 +68,9 @@ var specific = new Dictionary<string, Func<object?>>
         + Environment.NewLine
         + Nested("RuleTreeBreakItem", "資料/新しいフォルダ", "フォルダ名に空白を入れない"),
     ["InspectionMessage.detail"] = () => "画像/2024/写真.jpg",
+    ["FindingRowName.severity"] = () => Nested(
+        "SeverityName",
+        Enum.Parse(assembly.GetType("Expzip.Inspection.InspectionSeverity", throwOnError: true)!, "Danger")),
 };
 
 // 引数の名前ごとの見本。呼び出し元で実際に渡っているものに寄せてある
@@ -78,6 +81,7 @@ var strings = new Dictionary<string, string>
     ["archiveName"] = "資料.zip",
     ["parentName"] = "外側.zip",
     ["entryPath"] = "画像/2024/写真.jpg",
+    ["target"] = "画像/2024/写真.jpg",
     ["fileName"] = "資料.zip",
     ["preview"] = "  報告書.pdf" + Environment.NewLine + "  写真.jpg" + Environment.NewLine + "  メモ.txt",
     ["names"] = "  報告書.pdf" + Environment.NewLine + "  写真.jpg",

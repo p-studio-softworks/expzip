@@ -319,5 +319,10 @@ public partial class RuleAuditWindow : Window
 
         /// <summary>飛び先の書庫内パス。飛べない行では <see langword="null"/>。</summary>
         public string? Path { get; init; }
+
+        /// <summary>
+        /// 支援技術が読むこの行の名前 (#109)。問題が無かった行は内容だけになる。
+        /// </summary>
+        public string RowName => Strings.FindingRowName(KindText, Target, Message);
     }
 }
