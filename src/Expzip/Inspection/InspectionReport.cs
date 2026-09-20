@@ -1,4 +1,4 @@
-namespace Expzip.Inspection;
+﻿namespace Expzip.Inspection;
 
 /// <summary>マルウェア検査を行えたかどうか (#56)。</summary>
 internal enum MalwareStatus

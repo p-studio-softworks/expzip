@@ -1,4 +1,4 @@
-namespace Expzip.Ui;
+﻿namespace Expzip.Ui;
 
 /// <summary>
 /// 一覧の列 (#23)。

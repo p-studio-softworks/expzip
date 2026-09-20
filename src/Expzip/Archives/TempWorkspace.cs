@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Expzip.Localization;
 
 namespace Expzip.Archives;

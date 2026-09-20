@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using ICSharpCode.SharpZipLib.Zip;
 
 // 標準ライブラリにも同じ名前の型があるため、こちら側の名前をはっきりさせる

@@ -1,4 +1,4 @@
-namespace Expzip.Inspection;
+﻿namespace Expzip.Inspection;
 
 /// <summary>
 /// 見つかった事柄を集めて、報告に出せる並びに整える (#57)。

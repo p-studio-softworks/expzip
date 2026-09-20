@@ -1,4 +1,4 @@
-namespace Expzip.Inspection;
+﻿namespace Expzip.Inspection;
 
 /// <summary>
 /// 検査で見つかった事柄の種類 (#53)。
