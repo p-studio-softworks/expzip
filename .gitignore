@@ -50,6 +50,10 @@ appsettings.Local.json
 Expzip.settings.json
 .redmine-api-key
 
+# === Claude Code ===
+# PC ごとの許可の設定は入れない。作業の決まり (.claude/CLAUDE.md) は追いかける (#129)
+.claude/settings.local.json
+
 # === OS / エディタ ===
 Thumbs.db
 ehthumbs.db

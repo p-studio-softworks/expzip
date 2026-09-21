@@ -3,7 +3,8 @@
     Expzip をビルドして、配布できる Expzip.exe を publish\win-x64 に作る。
 
 .DESCRIPTION
-    build.cmd から呼ばれる。直接動かしてもよい。
+    リポジトリの直下にある build.cmd から呼ばれる。直接動かしてもよい。
+    トップには入口の build.cmd だけを置き、中身はこのフォルダーに入れてある (#129)。
 
     必要なもの: .NET 10 SDK (https://dotnet.microsoft.com/download)
     ほかに用意するものは無い。圧縮の処理も含め、必要なものはすべて exe の中に入る。
@@ -16,8 +17,8 @@
     配布用ではなく、開発用にビルドするだけにする (発行しない)。
 
 .EXAMPLE
-    .\build.ps1
-    .\build.ps1 -Test
+    .\build\build.ps1
+    .\build\build.ps1 -Test
 #>
 param(
     [switch]$Test,
@@ -27,7 +28,8 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-$repo = $PSScriptRoot
+# このファイルは build\ の中にあるので、リポジトリはその 1 つ上
+$repo = Split-Path $PSScriptRoot -Parent
 $publish = Join-Path $repo 'publish\win-x64'
 $exe = Join-Path $publish 'Expzip.exe'
 

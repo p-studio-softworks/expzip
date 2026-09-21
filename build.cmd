@@ -7,8 +7,8 @@ rem   build.cmd -Debug   build for development only (no single-file publish)
 rem
 rem This file stays ASCII on purpose: cmd.exe reads .cmd in the ANSI code page,
 rem and some Japanese characters end in byte 0x5C, which it treats as an escape.
-rem The Japanese messages live in build.ps1.
+rem The Japanese messages live in build\build.ps1.
 
 setlocal
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build.ps1" %*
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build\build.ps1" %*
 exit /b %ERRORLEVEL%
