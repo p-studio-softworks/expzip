@@ -26,7 +26,7 @@ namespace Expzip.Archives;
 /// として不正であることが効いている。
 /// </para>
 /// <para>
-/// 読み取り専用。書き込み時は既定(UTF-8 + EFSフラグ)を使う。
+/// 読み取り専用。書き込み時はデフォルト(UTF-8 + EFSフラグ)を使う。
 /// </para>
 /// </remarks>
 internal sealed class ArchiveEntryNameEncoding(Encoding legacy) : Encoding

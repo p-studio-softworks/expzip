@@ -70,7 +70,7 @@ internal static partial class Strings
 
     public static string AboutTooltip => Pick("Expzip について", "About Expzip");
 
-    /// <summary>版と、動いている側の作り。x64 の exe を x86 の窓で見ることはない。</summary>
+    /// <summary>版と、動いている側の作り。x64 の exe を x86 のウィンドウで見ることはない。</summary>
     public static string AboutVersion(string version, string architecture) => Pick(
         $"バージョン {version} ({architecture})",
         $"Version {version} ({architecture})");
@@ -1035,7 +1035,7 @@ internal static partial class Strings
     /// </summary>
     /// <remarks>
     /// **印だけでは、直すときに何をすればよいか分からない。**どこの何が、どの
-    /// ルールに合っていないのかまで書く。結果の窓を開き直さずに済ませるための説明。
+    /// ルールに合っていないのかまで書く。結果のウィンドウを開き直さずに済ませるための説明。
     /// </remarks>
     public static string RuleTreeBreakDetail(string heading, string items) =>
         $"{heading}{Environment.NewLine}{Environment.NewLine}{items}";
@@ -1693,7 +1693,7 @@ internal static partial class Strings
     /// 何をどれだけ調べたかを開くための見出し (#57)。
     /// </summary>
     /// <remarks>
-    /// 既定では畳んでおく。変わるのは数だけで、利用者が知りたいのは結末のほう。
+    /// デフォルトでは畳んでおく。変わるのは数だけで、利用者が知りたいのは結末のほう。
     /// 見たい人が開けるようにはしておく。
     /// </remarks>
     public static string InspectionDetails => Pick("調べた内容", "What was checked");

@@ -49,11 +49,11 @@ internal static class SettingsStore
     }
 
     /// <summary>
-    /// 設定を読み込む。ファイルが無い場合や壊れている場合は既定値を返す。
+    /// 設定を読み込む。ファイルが無い場合や壊れている場合はデフォルト値を返す。
     /// </summary>
     /// <remarks>
     /// 壊れた設定ファイルで起動できなくなるのが最も困るので、
-    /// 読めなければ黙って既定値で動かす。
+    /// 読めなければ黙ってデフォルト値で動かす。
     /// </remarks>
     public static AppSettings Load()
     {

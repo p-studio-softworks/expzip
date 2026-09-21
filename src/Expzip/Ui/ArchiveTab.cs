@@ -62,7 +62,7 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// ツリーに印を出す項目 (#88)。<see langword="null"/> なら合っていないもの全部。
     /// </summary>
     /// <remarks>
-    /// 結果の窓で「直す」に印を付けて閉じると、**その項目だけ**が残る。
+    /// 結果のウィンドウで「直す」に印を付けて閉じると、**その項目だけ**が残る。
     /// 全部に印が出たままでは、どれを自分が引き受けたのかが見えない。
     /// </remarks>
     public HashSet<string>? RuleMarks { get; set; }
@@ -130,7 +130,7 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     public void MarkAttempted() => _read = _seen;
 
     /// <summary>書庫ファイルが外で書き換えられ、書き込みが落ち着いたなら true。</summary>
-    /// <param name="current">いまのファイルの状態。読めなかった場合は既定値。</param>
+    /// <param name="current">いまのファイルの状態。読めなかった場合はデフォルト値。</param>
     /// <remarks>
     /// <para>
     /// 変化を見つけてすぐに読み直すと、書き込みの途中の書庫を読んでしまう。
@@ -144,7 +144,7 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// <para>
     /// ファイルを見に行くのは呼ぶ側の仕事にしてある。ネットワーク上の書庫では
     /// 状態を1つ読むだけでも待たされることがあり、画面を動かす筋で読むと
-    /// そのたびに窓が固まるため (#39, #64)。
+    /// そのたびにウィンドウが固まるため (#39, #64)。
     /// </para>
     /// </remarks>
     public bool DetectExternalChange(FileStamp current)

@@ -18,6 +18,12 @@ Windows 向けのアーカイバ。C# / .NET 10 / WPF、配布物は単一の `E
 - `.cmd` は ASCII のみ(cmd.exe が ANSI で読むため、日本語は `.ps1` 側に置く)
 - 一括置換をしても BOM と改行コードを壊さない
 
+## 画面の色
+
+- **`Style` を書くときは、`BasedOn` で Fluent のデフォルトを継承する。**継承しないと部品は古い見た目に戻り、暗いテーマでも明るい背景色のまま残る。列のある一覧で継承するのは `GridViewItemContainerStyleKey`
+- **`ControlTemplate` を書いたら、文字色も書く。**書かないと古いデフォルトの黒が残り、暗い背景色では消える
+- 色の決まりは `docs/SPEC.md` の 4.9章
+
 ## 画面に出る文言
 
 - 文言は `Localization/Strings.Text.cs` の表に日本語と英語を並べて持つ。**XAML には書かない**

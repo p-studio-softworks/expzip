@@ -16,7 +16,7 @@ namespace Expzip.Archives;
 /// <param name="Length">大きさ。</param>
 internal readonly record struct FileStamp(DateTime LastWriteUtc, long Length)
 {
-    /// <summary>いまのファイルの状態を読む。読めない場合は既定値を返す。</summary>
+    /// <summary>いまのファイルの状態を読む。読めない場合はデフォルト値を返す。</summary>
     public static FileStamp Read(string path)
     {
         try

@@ -9,7 +9,7 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
-        // CP932 は .NET Core 以降、既定では登録されていない。
+        // CP932 は .NET Core 以降、デフォルトでは登録されていない。
         // 古い日本語書庫のファイル名を正しく読むために必要 (docs/SPEC.md 6章, #13)。
         // .NET 10 では NuGet パッケージの明示的な参照は不要。
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -20,8 +20,8 @@ public partial class App : Application
         // 操作を続けられるようにするほうが実害が少ない。
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
-        // 意味を表す色を、地の明るさに合う組にする (#121、#122)。
-        // **窓を作る前に。**最初の窓が読み込まれる時点でキーが揃っている必要がある
+        // 意味を表す色を、背景色の明るさに合う組にする (#121、#122)。
+        // **ウィンドウを作る前に。**最初のウィンドウが読み込まれる時点でキーが揃っている必要がある
         Theme.Start(Resources);
 
         base.OnStartup(e);

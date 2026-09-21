@@ -8,11 +8,11 @@ using Expzip.Localization;
 namespace Expzip.Ui;
 
 /// <summary>
-/// 書庫検査の結果を1枚にまとめて出す窓 (#57)。
+/// 書庫検査の結果を1枚にまとめて出すウィンドウ (#57)。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 別窓にして、開いたまま一覧を触れるようにしてある。行を選ぶと本体側でその項目に
+/// 別ウィンドウにして、開いたまま一覧を触れるようにしてある。行を選ぶと本体側でその項目に
 /// 飛ぶため、閉じないと先へ進めないダイアログでは用を成さない。
 /// </para>
 /// <para>
@@ -33,7 +33,7 @@ public partial class InspectionWindow : Window
     /// <summary>一覧を作り直している最中か。作り直しの拍子に飛ばないための印。</summary>
     private bool _rebuilding;
 
-    /// <param name="owner">本体の窓。閉じると一緒に閉じる。</param>
+    /// <param name="owner">本体のウィンドウ。閉じると一緒に閉じる。</param>
     /// <param name="report">出す結果。</param>
     /// <param name="jump">行が選ばれたときに、書庫内のパスを渡す先。</param>
     internal InspectionWindow(Window owner, InspectionReport report, Action<string> jump)
@@ -50,7 +50,7 @@ public partial class InspectionWindow : Window
     /// <summary>いま出している結果の書庫。飛び先のタブを決めるのに使う。</summary>
     internal string ArchivePath => _report.ArchivePath;
 
-    /// <summary>新しい検査の結果に差し替える。窓は開いたままにする。</summary>
+    /// <summary>新しい検査の結果に差し替える。ウィンドウは開いたままにする。</summary>
     internal void ShowReport(InspectionReport report)
     {
         _report = report;
@@ -163,7 +163,7 @@ public partial class InspectionWindow : Window
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
-    /// 要約の色を付ける。**名前で参照させる** (#122)。筆を代入すると、
+    /// 要約の色を付ける。**名前で参照させる** (#122)。ブラシを代入すると、
     /// テーマが切り替わったときにここだけ前の色で残る。
     /// ハイコントラストでは付けない (#121、一覧の行と同じ理由)。
     /// </summary>
@@ -224,9 +224,9 @@ internal sealed class InspectionRow
     public string Glyph => InspectionWindow.GlyphOf(Severity);
 
     /// <summary>
-    /// 重さを表す色の名前 (#122)。**筆そのものではなく名前で持つ。**
-    /// 資源に入れた筆には封がされるため、テーマが切り替わるときは筆ごと
-    /// 差し替わる。掴んだままにすると前の色で残る。
+    /// 重さを表す色の名前 (#122)。**ブラシそのものではなく名前で持つ。**
+    /// <see cref="ResourceDictionary"/> に入れたブラシは凍結されるため、テーマが
+    /// 切り替わるときはブラシごと差し替わる。持ったままにすると前の色で残る。
     /// </summary>
     public string AccentKey => InspectionWindow.AccentKeyOf(Severity);
 }

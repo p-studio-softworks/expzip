@@ -6,7 +6,7 @@ namespace Expzip.Archives;
 /// <summary>中断要求を見ながらストリームをコピーする。</summary>
 internal static class CancellableCopy
 {
-    /// <summary><see cref="Stream.CopyTo(Stream)"/> の既定と同じ大きさ。</summary>
+    /// <summary><see cref="Stream.CopyTo(Stream)"/> のデフォルトと同じ大きさ。</summary>
     private const int BufferSize = 81920;
 
     /// <summary>

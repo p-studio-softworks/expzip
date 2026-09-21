@@ -50,7 +50,7 @@ internal sealed class AmsiScanner : IDisposable
     }
 
     /// <summary>
-    /// 検査の窓口を開く。
+    /// 検査のウィンドウ口を開く。
     /// </summary>
     /// <remarks>
     /// <para>

@@ -17,14 +17,14 @@
     <DockPanel>
 
         <!--
-            要約。既定では結末だけを出す。何をどれだけ調べたかは畳んでおき、
+            要約。デフォルトでは結末だけを出す。何をどれだけ調べたかは畳んでおき、
             見たい人が開けるようにする。問題が無かったことは言い切る
         -->
         <!--
-            帯の地は ControlBrush にする (#121)。ControlLightLight は
+            帯の背景色は ControlBrush にする (#121)。ControlLightLight は
             ハイコントラスト黒では明るい灰色になるのに、この上に乗る文字は
             Windows の文字色 (白) のままで、読めなくなっていた。
-            ControlBrush なら地も文字も同じ組から来る
+            ControlBrush なら背景色も文字も同じ組から来る
         -->
         <Border DockPanel.Dock="Top"
                 Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
@@ -105,7 +105,7 @@
                 そのまま読まれる (#109)
             -->
             <ListView.ItemContainerStyle>
-                <!-- 列のある一覧なので、Fluent の既定はこちらを敷く (#122) -->
+                <!-- 列のある一覧なので、Fluent のデフォルトはこちらを継承する (#122) -->
                 <Style TargetType="ListViewItem"
                        BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                     <Setter Property="AutomationProperties.Name"
@@ -121,18 +121,18 @@
 
                 <!--
                     重さの色を付けるのは、こちらで色を決めてよいときだけ (#121)。
-                    ハイコントラストでは指定しない。行を選ぶと地が Windows の
+                    ハイコントラストでは指定しない。行を選ぶと背景色が Windows の
                     選択色に変わるので、こちらで決めた色は組にならない。
-                    指定しなければ、地に合った文字色を部品が選ぶ。
+                    指定しなければ、背景色に合った文字色を部品が選ぶ。
                     重さは印と言葉でも出している (#57、#109)
                 -->
                 <Style x:Key="AccentText" TargetType="TextBlock">
                     <Setter Property="VerticalAlignment" Value="Center" />
                     <Style.Triggers>
                         <!--
-                            **色は名前で選ぶ (#122)。**筆を束ねた値から出すと、
+                            **色は名前で選ぶ (#122)。**ブラシを束ねた値から出すと、
                             テーマが切り替わったときに前の色のまま残る。
-                            資源に入れた筆には封がされ、切り替えは筆ごとの
+                            `ResourceDictionary` に入れたブラシは凍結され、切り替えはブラシごとの
                             差し替えになるため
                         -->
                         <MultiDataTrigger>

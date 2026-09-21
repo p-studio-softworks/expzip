@@ -49,7 +49,7 @@ internal static class AiClient
 
     /// <summary>送り出す形。日本語をそのまま載せる。</summary>
     /// <remarks>
-    /// 既定では ASCII 以外が <c>\uXXXX</c> に開かれる。JSON としては正しいが、
+    /// デフォルトでは ASCII 以外が <c>\uXXXX</c> に開かれる。JSON としては正しいが、
     /// 1文字が 3バイトから 6バイトに膨らむ。送るのは書庫の中の名前で、日本語の
     /// ものが並ぶことになるため (#25)、そのまま載せる。
     /// 「Unsafe」と付くのは HTML に埋め込む場合の話で、JSON の本文では通例の選び。

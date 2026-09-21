@@ -74,7 +74,7 @@ internal sealed class InspectionContext(
     /// <summary>合言葉。要らない書庫や、入力を断られた場合は <see langword="null"/>。</summary>
     public string? Password => password;
 
-    /// <summary>マルウェア検査の窓口。使えない環境では <see langword="null"/> (#56)。</summary>
+    /// <summary>マルウェア検査のウィンドウ口。使えない環境では <see langword="null"/> (#56)。</summary>
     public AmsiScanner? Scanner => scanner;
 
     /// <summary>中断の合図。</summary>

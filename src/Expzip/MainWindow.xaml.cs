@@ -1860,7 +1860,7 @@ public partial class MainWindow : Window
     /// </summary>
     /// <remarks>
     /// 「書庫を落としたら開く」と「書庫を落としたら中に入れる」は両立しない。
-    /// 開くほうを既定にする。書庫の中に書庫を入れたい場合は
+    /// 開くほうをデフォルトにする。書庫の中に書庫を入れたい場合は
     /// Shift を押しながら落とす。使う頻度は開くほうが高いという判断。
     /// </remarks>
     private async Task HandleDropAsync(DragEventArgs e)
@@ -3359,7 +3359,7 @@ public partial class MainWindow : Window
     /// <remarks>
     /// 「はい / いいえ」ではなく「OK / キャンセル」にしている。前者では Esc も
     /// タイトルバーの×も効かず、必ずボタンを押させることになる。危ないほうを
-    /// 既定にしない確認では、何もせず閉じられることのほうが大事なため。
+    /// デフォルトにしない確認では、何もせず閉じられることのほうが大事なため。
     /// </remarks>
     private bool ConfirmExecutable(string fileName)
         => MessageBox.Show(
@@ -3772,10 +3772,10 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 書庫検査 (#53)
 
-    /// <summary>検査結果の窓。1つだけ開き、次の検査では中身を差し替える (#57)。</summary>
+    /// <summary>検査結果のウィンドウ。1つだけ開き、次の検査では中身を差し替える (#57)。</summary>
     private InspectionWindow? _inspection;
 
-    /// <summary>決まりに合っているかの結果を出している窓 (#27)。</summary>
+    /// <summary>決まりに合っているかの結果を出しているウィンドウ (#27)。</summary>
     private RuleAuditWindow? _ruleAudit;
 
     private async void InspectButton_Click(object sender, RoutedEventArgs e)
@@ -3852,7 +3852,7 @@ public partial class MainWindow : Window
         return found == 0 ? Strings.InspectClean : Strings.InspectFound(found);
     }
 
-    /// <summary>検査結果を出す。既に開いていれば、その窓の中身を差し替える (#57)。</summary>
+    /// <summary>検査結果を出す。既に開いていれば、そのウィンドウの中身を差し替える (#57)。</summary>
     private void ShowInspection(InspectionReport report)
     {
         if (_inspection is { } opened)
@@ -3872,7 +3872,7 @@ public partial class MainWindow : Window
     /// </summary>
     /// <remarks>
     /// 検査した書庫のタブに切り替えてから移動する。そのタブが既に閉じられている
-    /// 場合は何もしない。結果の窓は書庫と独立して開いたままにできるため。
+    /// 場合は何もしない。結果のウィンドウは書庫と独立して開いたままにできるため。
     /// </remarks>
     private void JumpToFinding(string entryPath)
     {
@@ -3946,7 +3946,7 @@ public partial class MainWindow : Window
     /// 大きなファイルを決まった大きさに分ける (#59)。
     /// </summary>
     /// <remarks>
-    /// 既定の対象はいま開いている書庫だが、書庫でなくても分けられる。
+    /// デフォルトの対象はいま開いている書庫だが、書庫でなくても分けられる。
     /// そのため書庫を開いていなくても使える。
     /// </remarks>
     private async Task SplitFileAsync()
@@ -4770,7 +4770,7 @@ public partial class MainWindow : Window
             && _settings.WindowHeight is { } height && height > 0
             && IsReachableOnScreen(left, top, width, height))
         {
-            // 画面構成が変わって前回の位置が画面外になっている場合は既定に任せる
+            // 画面構成が変わって前回の位置が画面外になっている場合はデフォルトに任せる
             WindowStartupLocation = WindowStartupLocation.Manual;
             Left = left;
             Top = top;
@@ -5152,11 +5152,11 @@ public partial class MainWindow : Window
 
     /// <summary>保存した決まりを、いま見ている書庫に当てて結果を出す (#27)。</summary>
     /// <remarks>
-    /// **押されたときは当て直す。**別の窓で決まりを直しているかもしれないし、
+    /// **押されたときは当て直す。**別のウィンドウで決まりを直しているかもしれないし、
     /// 設定ファイルを手で書き換えていることもある。
     /// </remarks>
     /// <summary>
-    /// 「完了」から呼ぶ。読み直して当て直し、結果の窓を入れ替える (#87)。
+    /// 「完了」から呼ぶ。読み直して当て直し、結果のウィンドウを入れ替える (#87)。
     /// </summary>
     /// <remarks>
     /// **ディスクから読み直す。**外の道具で直したかもしれないので、
@@ -5179,11 +5179,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 結果の窓を閉じたら、ツリーの印を**自分で対処すると決めたものだけ**にする (#88)。
+    /// 結果のウィンドウを閉じたら、ツリーの印を**自分で対処すると決めたものだけ**にする (#88)。
     /// </summary>
     /// <remarks>
     /// 全部に印が出たままでは、どれを引き受けたのかが見えない。何も選ばずに閉じたなら
-    /// 印は残さない。**選ばなかったことも選択**で、後から見直すのは窓を開き直せばよい。
+    /// 印は残さない。**選ばなかったことも選択**で、後から見直すのはウィンドウを開き直せばよい。
     /// </remarks>
     private void KeepChosenMarks(RuleAuditWindow window)
     {
@@ -5411,7 +5411,7 @@ public partial class MainWindow : Window
     /// <remarks>
     /// WPF の ToolBar は入りきらない項目を畳むための領域を常に確保するため、
     /// 何も畳まれていなくても矢印が表示されてしまう。かといって消したままにすると、
-    /// 窓を狭めたときや文字の長い言語 (#23) で項目がはみ出したときに、
+    /// ウィンドウを狭めたときや文字の長い言語 (#23) で項目がはみ出したときに、
     /// 畳まれたボタンへ手が届かなくなる。畳まれた項目の有無に結び付ける。
     /// </remarks>
     private void ToolBar_Loaded(object sender, RoutedEventArgs e)

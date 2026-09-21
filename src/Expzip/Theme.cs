@@ -7,42 +7,43 @@ using Microsoft.Win32;
 namespace Expzip;
 
 /// <summary>
-/// 意味を表す色を、地の明るさに合わせて選ぶ (#121、#122)。
+/// 意味を表す色を、背景色の明るさに合わせて選ぶ (#121、#122)。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 画面の色には出どころが2通りある。地・文字・枠は Fluent のテーマから採っており
+/// 画面の色には出どころが2通りある。背景色・文字・枠は Fluent のテーマから採っており
 /// (<c>ThemeMode="System"</c>)、Windows のダークモードとハイコントラストの
-/// どちらにも追随する。保護の緑やルールに合っていない行の地は、こちらで決めている。
-/// **こちらの色は勝手には変わらない。**放っておくと地だけが暗くなり、
-/// 暗い地に暗い色が乗る、という組み合わせができる。
+/// どちらにも追随する。保護の緑やルールに合っていない行の背景色は、こちらで決めている。
+/// **こちらの色は勝手には変わらない。**放っておくと背景色だけが暗くなり、
+/// 暗い背景色に暗い色が乗る、という組み合わせができる。
 /// </para>
 /// <para>
-/// **どちらの組を使うかは、地の明るさそのものから決める** (#122)。Windows の
+/// **どちらの組を使うかは、背景色の明るさそのものから決める** (#122)。Windows の
 /// 設定を読みに行かないのは、Fluent が実際に何を選んだかを見るほうが確かなため。
 /// ハイコントラストの配色は「黒」「白」の2つではなく、暗いものも明るいものもある
-/// (水生は <c>#202020</c>、砂漠は <c>#FFFAEF</c>)。地を測れば、どれであっても外さない。
+/// (水生は <c>#202020</c>、砂漠は <c>#FFFAEF</c>)。背景色を測れば、どれであっても外さない。
 /// </para>
 /// <para>
-/// **色は筆ごと差し替える。塗り替えることはできない。**資源辞書に入れた筆には
-/// その場で封がされ (<see cref="Freezable.IsFrozen"/>)、以後その色は変えられない。
-/// 塗り替えようとすると例外になり、**切り替えの処理がそこで止まる。**
+/// **色はブラシごと差し替える。ブラシの色だけを変えることはできない。**
+/// <see cref="ResourceDictionary"/> に入れたブラシはその場で凍結され
+/// (<see cref="Freezable.IsFrozen"/>)、以後 <c>Color</c> を変えられない。
+/// 変えようとすると例外になり、**切り替えの処理がそこで止まる。**
 /// </para>
 /// <para>
-/// 差し替える形になるので、**受け取る側は掴みっぱなしにしない。**XAML では
+/// 差し替える形になるので、**受け取る側はブラシを持ち続けない。**XAML では
 /// <c>DynamicResource</c>、コードでは <c>SetResourceReference</c> を使う。
-/// <c>StaticResource</c> で読んだ所や、筆そのものを代入した所は、
+/// <c>StaticResource</c> で読んだ所や、ブラシそのものを代入した所は、
 /// 差し替えても古い色のまま残る。
 /// </para>
 /// <para>
 /// **ハイコントラストでは、文字色だけを決めている色を付けない** (#121)。
-/// 地がそのとき次第なので組にできない。**色を差し替えるだけでは直らない**のがここで、
-/// 行を選ぶと地が入れ替わり、こちらが指定した文字色と食い違う。
-/// 付けなければ、地に合った文字色を部品が選ぶ。色での区別は落ちるが、
+/// 背景色がそのとき次第なので組にできない。**色を差し替えるだけでは直らない**のがここで、
+/// 行を選ぶと背景色が入れ替わり、こちらが指定した文字色と食い違う。
+/// 付けなければ、背景色に合った文字色を部品が選ぶ。色での区別は落ちるが、
 /// 意味は行の名前と印に入っている (#119)。
 /// </para>
 /// <para>
-/// 地と文字を**組で**決めてあるもの (ルールに合っていない印、アドレスバーで
+/// 背景色と文字を**組で**決めてあるもの (ルールに合っていない印、アドレスバーで
 /// 指している場所) は、ハイコントラストでも残す。組で決めてあれば崩れない。
 /// </para>
 /// </remarks>
@@ -52,7 +53,7 @@ internal sealed class Theme : INotifyPropertyChanged
     private const double DarkBelow = 0.5;
 
     /// <summary>
-    /// Fluent が地に使っている色。ここの明るさで、どちらの組を使うかを決める。
+    /// Fluent が背景に使っている色。ここの明るさで、どちらの組を使うかを決める。
     /// </summary>
     private const string BackgroundKey = "SolidBackgroundFillColorBaseBrush";
 
@@ -76,9 +77,9 @@ internal sealed class Theme : INotifyPropertyChanged
     /// **ここで見るのは「色を付けるかどうか」で、どの色かではない。**
     /// ハイコントラストで必要なのは、色を別の色に差し替えることではなく、
     /// **こちらが文字色を決める処理そのものを止めること** (#121)。
-    /// 行を選ぶと地が <see cref="SystemColors.HighlightBrush"/> に変わるため、
-    /// 窓の地に合う色を指定してあっても、その行では食い違う。
-    /// 指定しなければ、地に合った文字色を部品が選ぶ。
+    /// 行を選ぶと背景色が <see cref="SystemColors.HighlightBrush"/> に変わるため、
+    /// ウィンドウの背景色に合う色を指定してあっても、その行では食い違う。
+    /// 指定しなければ、背景色に合った文字色を部品が選ぶ。
     /// </remarks>
     public bool UseAccentColors
     {
@@ -96,22 +97,22 @@ internal sealed class Theme : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 地の明るさに合う色を入れ、以後の切り替えにも追いつくようにする。
+    /// 背景色の明るさに合う色を入れ、以後の切り替えにも追いつくようにする。
     /// </summary>
     /// <remarks>
-    /// **窓を作る前に呼ぶ。**最初の窓が読み込まれる時点で、キーが揃っている必要がある。
+    /// **ウィンドウを作る前に呼ぶ。**最初のウィンドウが読み込まれる時点で、キーが揃っている必要がある。
     /// </remarks>
     public static void Start(ResourceDictionary applicationResources)
     {
         resources = applicationResources;
         Apply();
 
-        // Windows の設定が変わったとき。Fluent は開いている窓にも色を配り直すので、
+        // Windows の設定が変わったとき。Fluent は開いているウィンドウにも色を配り直すので、
         // **こちらも配り直さないと、片方だけ入れ替わった画面になる**
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
     }
 
-    /// <summary>いま暗い地かどうか。</summary>
+    /// <summary>いま背景色が暗いかどうか。</summary>
     public static bool IsDark => resources is not null && Lightness(resources) < DarkBelow;
 
     private static void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
@@ -151,16 +152,16 @@ internal sealed class Theme : INotifyPropertyChanged
             return;
         }
 
-        // 一覧や結果の窓で、行の中に置く文字の色。選ばれていない行にしか出ない
-        // (選ばれている行では、そもそも色を指定しない) ので、窓の地に合う色でよい
+        // 一覧や結果のウィンドウで、行の中に置く文字の色。選ばれていない行にしか出ない
+        // (選ばれている行では、そもそも色を指定しない) ので、ウィンドウの背景色に合う色でよい
         Paint("EncryptedBrush", SystemColors.ControlTextColor);
         Paint("WarningBrush", SystemColors.ControlTextColor);
         Paint("CautionBrush", SystemColors.ControlTextColor);
         Paint("RuleBreakBrush", SystemColors.ControlTextColor);
 
-        // ルールに合っていない印は残す。**地と文字を組で決めてあるので、
+        // ルールに合っていない印は残す。**背景色と文字を組で決めてあるので、
         // 行を選んでも崩れない。**白黒を入れ替えた塊にすれば、どの配色でも
-        // 地との差が最大になり、名前の幅も変わらない (#88)
+        // 背景色との差が最大になり、名前の幅も変わらない (#88)
         Paint("RuleBreakBackBrush", SystemColors.WindowTextColor);
         Paint("RuleBreakTextBrush", SystemColors.WindowColor);
 
@@ -169,7 +170,7 @@ internal sealed class Theme : INotifyPropertyChanged
         Paint("HoverTextBrush", SystemColors.HighlightTextColor);
     }
 
-    /// <summary>その名前の筆を、この色のものに差し替える。</summary>
+    /// <summary>その名前のブラシを、この色のものに差し替える。</summary>
     private static void Paint(string key, Color color)
         => resources![key] = new SolidColorBrush(color);
 
@@ -177,7 +178,7 @@ internal sealed class Theme : INotifyPropertyChanged
     {
         if (from[BackgroundKey] is not SolidColorBrush brush)
         {
-            // 取れなければ明るい地として扱う。これまでの見た目がそのまま出る
+            // 取れなければ明るい背景色として扱う。これまでの見た目がそのまま出る
             return 1.0;
         }
 

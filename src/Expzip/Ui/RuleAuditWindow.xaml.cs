@@ -7,7 +7,7 @@ using Expzip.Localization;
 namespace Expzip.Ui;
 
 /// <summary>
-/// 保存した決まりを書庫に当てた結果を1枚にまとめて出す窓 (#27、仕様書 10.3節の4)。
+/// 保存した決まりを書庫に当てた結果を1枚にまとめて出すウィンドウ (#27、仕様書 10.3節の4)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,7 +21,7 @@ namespace Expzip.Ui;
 /// 読ませないための場所でもある。
 /// </para>
 /// <para>
-/// 検査結果の窓 (#57) と同じ作りにしてある。別窓にして、開いたまま一覧を
+/// 検査結果のウィンドウ (#57) と同じ作りにしてある。別ウィンドウにして、開いたまま一覧を
 /// 触れるようにする。閉じないと先へ進めないダイアログでは用を成さない。
 /// </para>
 /// </remarks>
@@ -43,7 +43,7 @@ public partial class RuleAuditWindow : Window
     /// </summary>
     /// <remarks>
     /// 拡張子ひとつの決まりが数千件に当たることがある。全部並べても読めないうえ、
-    /// 窓が固まる。切ったことは要約に書く。黙って切ると、直したのに減らない、
+    /// ウィンドウが固まる。切ったことは要約に書く。黙って切ると、直したのに減らない、
     /// という読み違いを生む。
     /// </remarks>
     private const int MaxRows = 500;
@@ -64,7 +64,7 @@ public partial class RuleAuditWindow : Window
     /// <summary>一覧を作り直している最中か。作り直しの拍子に飛ばないための印。</summary>
     private bool _rebuilding;
 
-    /// <param name="owner">本体の窓。閉じると一緒に閉じる。</param>
+    /// <param name="owner">本体のウィンドウ。閉じると一緒に閉じる。</param>
     /// <param name="audit">出す結果。</param>
     /// <param name="archivePath">当てた書庫。飛び先のタブを決めるのに使う。</param>
     /// <param name="jump">行が選ばれたときに、書庫内のパスを渡す先。</param>
@@ -96,7 +96,7 @@ public partial class RuleAuditWindow : Window
     /// </remarks>
     internal IReadOnlyCollection<string> Handled => _handled;
 
-    /// <summary>新しい結果に差し替える。窓は開いたままにする。</summary>
+    /// <summary>新しい結果に差し替える。ウィンドウは開いたままにする。</summary>
     internal void ShowAudit(RuleAudit audit, string archivePath)
     {
         _audit = audit;
@@ -285,7 +285,7 @@ public partial class RuleAuditWindow : Window
     {
         private bool _handled;
 
-        /// <summary>この行の印を覚えておく先。窓が持っている入れ物。</summary>
+        /// <summary>この行の印を覚えておく先。ウィンドウが持っている入れ物。</summary>
         public required HashSet<string> Marks { get; init; }
 
         /// <summary>自分で対処すると印を付けたか (#87)。</summary>
@@ -310,9 +310,9 @@ public partial class RuleAuditWindow : Window
         public required string Glyph { get; init; }
 
         /// <summary>
-        /// 種類を表す色の名前 (#122)。**筆そのものではなく名前で持つ。**
-        /// 資源に入れた筆には封がされるため、テーマが切り替わるときは筆ごと
-        /// 差し替わる。掴んだままにすると前の色で残る
+        /// 種類を表す色の名前 (#122)。**ブラシそのものではなく名前で持つ。**
+        /// `ResourceDictionary` に入れたブラシは凍結されるため、テーマが切り替わるときはブラシごと
+        /// 差し替わる。持ったままにすると前の色で残る
         /// </summary>
         public required string AccentKey { get; init; }
 

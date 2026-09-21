@@ -23,7 +23,7 @@ internal static class ZipArchiveReader
 
     /// <summary>
     /// エントリ名の解釈に使う <see cref="Encoding"/>。
-    /// CP932は.NET Core以降 既定では登録されていないため、初回に取得を試みる。
+    /// CP932は.NET Core以降 デフォルトでは登録されていないため、初回に取得を試みる。
     /// 展開時も同じ解釈でなければエントリを引き当てられないため、共有している。
     /// </summary>
     internal static Encoding EntryNameEncoding

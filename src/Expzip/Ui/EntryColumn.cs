@@ -9,7 +9,7 @@
 /// </remarks>
 internal enum EntryColumn
 {
-    /// <summary>名前。既定の並び順。</summary>
+    /// <summary>名前。デフォルトの並び順。</summary>
     Name,
 
     /// <summary>元の大きさ。</summary>

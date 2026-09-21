@@ -29,7 +29,7 @@
 
     <!--
         書庫詳細とルール一覧は、どちらも中身の量が書庫によって大きく変わる。
-        窓を広げた分だけ伸びるように、StackPanel ではなく Grid で組む (#75)
+        ウィンドウを広げた分だけ伸びるように、StackPanel ではなく Grid で組む (#75)
     -->
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -81,7 +81,7 @@
                 そのまま読まれる
             -->
             <ListView.ItemContainerStyle>
-                <!-- 列のある一覧なので、Fluent の既定はこちらを敷く (#122) -->
+                <!-- 列のある一覧なので、Fluent のデフォルトはこちらを継承する (#122) -->
                 <Style TargetType="ListViewItem"
                        BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                     <Setter Property="AutomationProperties.Name"
@@ -123,7 +123,7 @@
                                     DisplayMemberBinding="{Binding WhereText}" />
                     <!--
                         値・説明・根拠は中身が長い。**ここが読めないと質を判断
-                        できない**ので、窓を広げた分は3つで分け合う (#77)
+                        できない**ので、ウィンドウを広げた分は3つで分け合う (#77)
                     -->
                     <GridViewColumn x:Name="ValueColumn"
                                     Width="{Binding ActualWidth, ElementName=RuleList,
@@ -164,7 +164,7 @@
                 誤ったものが生まれる余地が無い。保存するまでファイルは変わらない
             -->
             <!--
-                押せないときこそ訳が要る (#101)。既定では押せないボタンの説明は
+                押せないときこそ訳が要る (#101)。デフォルトでは押せないボタンの説明は
                 出ないので、出す指定を入れておく
             -->
             <Button x:Name="DeleteButton" MinWidth="140" Padding="10,0" Height="26" Margin="0,0,8,0"

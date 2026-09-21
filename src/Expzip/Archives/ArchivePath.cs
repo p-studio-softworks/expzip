@@ -73,7 +73,7 @@ internal static class ArchivePath
     /// </summary>
     /// <remarks>
     /// <c>.</c> だけの区切りは対象にしない。その場を指すだけで展開先は変わらず、
-    /// GNU tar が既定で先頭に付けるため、ふつうの tar が丸ごと警告になってしまう。
+    /// GNU tar がデフォルトで先頭に付けるため、ふつうの tar が丸ごと警告になってしまう。
     /// </remarks>
     public static bool IsSuspicious(string entryName)
     {

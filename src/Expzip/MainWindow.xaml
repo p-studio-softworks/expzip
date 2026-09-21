@@ -41,15 +41,15 @@
         <!--
             アドレスバーの区切り (#90)。エクスプローラーと同じく、枠も影も無く、
             指した場所だけが色付く。押せるものだと分かるのは動きだけなので、
-            当たり判定と地色の変わり方はそちらに合わせる
+            当たり判定と背景色の変わり方はそちらに合わせる
         -->
         <Style x:Key="CrumbButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="6,2" />
             <!--
-                **文字色を必ず決める (#122)。**見た目を丸ごと差し替えているので、
-                決めないと古い既定の黒のままになる。地を暗くすると沈んで消える
+                **文字色も書く (#122)。**`ControlTemplate` を書いているので
+                Fluent の色は届かない。書かないと古いデフォルトの黒が残り、暗い背景色では消える
             -->
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="Template">
@@ -62,8 +62,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <!--
-                                一覧の選択と同じ薄い青。同じ窓で色の意味を変えない。
-                                **地を決めるなら文字色も組で決める** (#121)
+                                一覧の選択と同じ薄い青。同じウィンドウで色の意味を変えない。
+                                **背景色を決めるなら文字色も組で決める** (#121)
                             -->
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Fill" Property="Background"
@@ -120,10 +120,10 @@
                     <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
                 </DataTrigger>
                 <!--
-                    ルールに合っていない印 (#92)。ツリー (#88) と同じ地色にする。
-                    **同じことを2つの見た目で出さない。**旗と地色が混ざっていると、
+                    ルールに合っていない印 (#92)。ツリー (#88) と同じ背景色にする。
+                    **同じことを2つの見た目で出さない。**旗と背景色が混ざっていると、
                     別の意味があるように見える。
-                    **地と文字色は組で決める** (#121)。片方だけ決めると、
+                    **背景色と文字色は組で決める** (#121)。片方だけ決めると、
                     もう片方が Windows 側で入れ替わったときに読めなくなる
                 -->
                 <DataTrigger Binding="{Binding BreaksRules}" Value="True">
@@ -132,10 +132,10 @@
                     <Setter Property="ToolTip" Value="{Binding RuleTooltip}" />
                 </DataTrigger>
                 <!--
-                    保護された項目の色 (#20)。**これは文字色だけで、地はそのとき次第。**
+                    保護された項目の色 (#20)。**これは文字色だけで、背景色はそのとき次第。**
                     組にできないので、こちらで色を決めてよいときだけ付ける (#121)。
                     ハイコントラストでは付けない。付けると、行を選んだときに
-                    Windows が変えた地の上へ、こちらの色がそのまま乗る。
+                    Windows が変えた背景色の上へ、こちらの色がそのまま乗る。
                     ルールの印より後ろに置く。両方に当たる行では緑を残したい
                     (薄い赤の上でも 5.06 : 1 ある)。説明は色と関わりなく出す。
                     **色だけに頼らない** (#119)
@@ -156,12 +156,12 @@
                     <Setter Property="ToolTip" Value="{StaticResource EncryptedTooltip}" />
                 </DataTrigger>
                 <!--
-                    ルールに合っていない印 (#88)。**名前の地色を変える。**
+                    ルールに合っていない印 (#88)。**名前の背景色を変える。**
                     旗を前に置くと1文字ぶん名前がずれ、兄弟のフォルダと段が違って
                     見える。ツリーは段で親子を読ませる絵なので、そこは狂わせない。
                     説明にはフォルダごとの中身が入る。**何が合っていないのかを、
-                    結果の窓を開き直さずに読めるようにする**。
-                    地と文字色は組で決める (#121)
+                    結果のウィンドウを開き直さずに読めるようにする**。
+                    背景色と文字色は組で決める (#121)
                 -->
                 <DataTrigger Binding="{Binding BreaksRules}" Value="True">
                     <Setter Property="Background" Value="{DynamicResource RuleBreakBackBrush}" />
@@ -301,7 +301,7 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
-                <!-- バージョン情報 (#104)。Info。押すとその場で窓が出る -->
+                <!-- バージョン情報 (#104)。Info。押すとその場でウィンドウが出る -->
                 <Button x:Name="AboutButton" Click="AboutButton_Click"
                         Style="{StaticResource ToolGlyph}" Content="&#xE946;" />
             </ToolBar>
@@ -314,7 +314,7 @@
             文字の欄は消さずに**下に敷いてある。**空きを押すと上の帯が引っ込んで
             現れ、選んで写せる。支援技術から見た「場所」もこの欄のままになる
 
-            **地は透けないものにする (#122)。**下の欄を隠すのが仕事なので、
+            **背景色は透けないものにする (#122)。**下の欄を隠すのが仕事なので、
             半透明の色を使うと、下のパスが透けて二重に見える。
             Fluent のブラシは `ControlFillColor…` のように半透明のものが多い
         -->
@@ -424,7 +424,7 @@
                     </TabControl.Template>
                     <TabControl.ItemContainerStyle>
                         <!--
-                            タブの名前を支援技術に伝える。既定では型名がそのまま
+                            タブの名前を支援技術に伝える。デフォルトでは型名がそのまま
                             読み上げられ、どの書庫のタブか分からない
                         -->
                         <Style TargetType="TabItem"
@@ -544,7 +544,7 @@
                     </ContextMenu>
                 </TreeView.ContextMenu>
                 <TreeView.ItemContainerStyle>
-                    <!-- ここも Fluent の既定を敷く (#122、一覧と同じ理由) -->
+                    <!-- ここも Fluent のデフォルトを継承する (#122、一覧と同じ理由) -->
                     <Style TargetType="TreeViewItem"
                            BasedOn="{StaticResource DefaultTreeViewItemStyle}">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
@@ -560,7 +560,7 @@
                     <!--
                         選ばれている節の色を差し替えていた (#20、#65、#121)。
                         **要らなくなったので外した (#122)。**差し替えていたのは、
-                        WPF の既定ではツリーだけが濃い青地になり、一覧の薄い青地と
+                        WPF のデフォルトではツリーだけが濃い青の背景になり、一覧の薄い青の背景と
                         食い違ううえ、保護された項目の緑が沈んだため。
                         Fluent ではツリーも一覧も同じ型から選択の見た目を採るので、
                         こちらで揃える必要が無くなった
@@ -569,7 +569,7 @@
                                               ItemsSource="{Binding Folders}">
                         <StackPanel Orientation="Horizontal">
                             <!--
-                                ルールに合っていない印 (#87) は、名前の地色で出す
+                                ルールに合っていない印 (#87) は、名前の背景色で出す
                                 (#88、FolderNameText)。**配下のどこかにあれば、
                                 ここにも出る。**でないと、開いて回らないと気付けない
                             -->
@@ -594,7 +594,7 @@
                                           VerticalAlignment="Center"
                                           Margin="0,0,6,0" />
                             <!--
-                                地色を敷いたときに文字が縁にくっつかないよう、
+                                背景色を敷いたときに文字が縁にくっつかないよう、
                                 余白を取る。**どの節にも同じだけ**取るので、段はずれない
                             -->
                             <TextBlock Text="{Binding Name}"
@@ -643,13 +643,13 @@
                     -->
                     <ListView.ItemContainerStyle>
                         <!--
-                            **Fluent の既定を敷く (#122)。**敷かずに型だけ書くと、
-                            部品は古い見た目に落ちる。落ちると選択の地は明るい青のまま、
+                            **Fluent のデフォルトを継承する (#122)。**継承しないと
+                            部品は古い見た目に戻る。戻ると選択の背景色は明るい青のまま、
                             文字色だけが暗いテーマの白になり、行が読めなくなる。
 
-                            **敷くのは `GridViewItemContainerStyleKey` のほう。**
-                            `DefaultListViewItemStyle` は列を持たない一覧のための型で、
-                            これを敷くと列が組み立てられず、行に束ねている型の名前が
+                            **継承するのは `GridViewItemContainerStyleKey` のほう。**
+                            `DefaultListViewItemStyle` は列を持たない一覧のためのもので、
+                            こちらを継承すると列が組み立てられず、行に束ねている型の名前が
                             そのまま出る
                         -->
                         <Style TargetType="ListViewItem"
@@ -695,7 +695,7 @@
                     <ListView.Resources>
                         <!--
                             エクスプローラーに合わせて列見出しを左揃えにする。
-                            既定では中央揃えになり、見た目が大きく異なる。
+                            デフォルトでは中央揃えになり、見た目が大きく異なる。
                         -->
                         <Style TargetType="GridViewColumnHeader">
                             <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -704,10 +704,10 @@
                         <!--
                             数値列は見出しも値も右揃えにして桁を読みやすくする。
 
-                            **元にするのは Fluent の既定の型 (#122)。**すぐ上の暗黙の
-                            型を `{x:Type GridViewColumnHeader}` で指すと、同じ辞書の
+                            **継承するのは Fluent のデフォルト (#122)。**すぐ上の暗黙の
+                            ものを `{x:Type GridViewColumnHeader}` で指すと、同じ辞書の
                             中で自分自身を指すことになり、Fluent の見た目から外れる。
-                            外れた見出しは明るい地のまま残り、暗いテーマで白い箱になる
+                            外れた見出しは明るい背景色のまま残り、暗いテーマで白い箱になる
                         -->
                         <Style x:Key="NumericHeader" TargetType="GridViewColumnHeader"
                                BasedOn="{StaticResource DefaultGridViewColumnHeaderStyle}">
@@ -718,9 +718,9 @@
                         <DataTemplate x:Key="NameCell">
                             <StackPanel Orientation="Horizontal">
                                 <!--
-                                    ルールに合っていない印は、名前の地色で出す
+                                    ルールに合っていない印は、名前の背景色で出す
                                     (#92、EntryNameText)。ツリーと同じ形にする。
-                                    旗と地色が混ざっていると、同じことなのに
+                                    旗と背景色が混ざっていると、同じことなのに
                                     2つの意味があるように見える
                                 -->
                                 <!--
@@ -783,7 +783,7 @@
                     </ListView.Resources>
                     <ListView.View>
                         <GridView>
-                            <!-- 既定のウィンドウ幅で5列が収まるようにしてある (合計700) -->
+                            <!-- デフォルトのウィンドウ幅で5列が収まるようにしてある (合計700) -->
                             <GridViewColumn x:Name="NameColumn"       Width="280" CellTemplate="{StaticResource NameCell}" />
                             <GridViewColumn x:Name="SizeColumn"       Width="100" CellTemplate="{StaticResource SizeCell}"
                                             HeaderContainerStyle="{StaticResource NumericHeader}" />

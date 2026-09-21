@@ -12,13 +12,13 @@
 
     <!--
         決まりに合っているかの結果 (#27)。上に要約、下に「種類 / 対象 / 決まり」の一覧。
-        検査結果の窓 (#57) と同じ作りにしてある。別窓にして、開いたまま一覧を
+        検査結果のウィンドウ (#57) と同じ作りにしてある。別ウィンドウにして、開いたまま一覧を
         触れるようにする。行を選ぶと本体側でその項目に飛ぶ。
         文言はすべて ApplyLanguage が入れる (#23)
     -->
     <DockPanel>
 
-        <!-- 帯の地は ControlBrush にする (#121)。検査結果の窓と同じ理由 -->
+        <!-- 帯の背景色は ControlBrush にする (#121)。検査結果のウィンドウと同じ理由 -->
         <Border DockPanel.Dock="Top"
                 Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
                 BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
@@ -81,7 +81,7 @@
                 この順に読む (#109)
             -->
             <ListView.ItemContainerStyle>
-                <!-- 列のある一覧なので、Fluent の既定はこちらを敷く (#122) -->
+                <!-- 列のある一覧なので、Fluent のデフォルトはこちらを継承する (#122) -->
                 <Style TargetType="ListViewItem"
                        BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                     <Setter Property="AutomationProperties.Name"
@@ -102,15 +102,15 @@
 
                 <!--
                     種類の色を付けるのは、こちらで色を決めてよいときだけ (#121)。
-                    検査結果の窓と同じ理由。種類は印と言葉でも出している
+                    検査結果のウィンドウと同じ理由。種類は印と言葉でも出している
                 -->
                 <Style x:Key="AccentText" TargetType="TextBlock">
                     <Setter Property="VerticalAlignment" Value="Center" />
                     <Style.Triggers>
                         <!--
-                            **色は名前で選ぶ (#122)。**筆を束ねた値から出すと、
+                            **色は名前で選ぶ (#122)。**ブラシを束ねた値から出すと、
                             テーマが切り替わったときに前の色のまま残る。
-                            資源に入れた筆には封がされ、切り替えは筆ごとの
+                            `ResourceDictionary` に入れたブラシは凍結され、切り替えはブラシごとの
                             差し替えになるため
                         -->
                         <MultiDataTrigger>

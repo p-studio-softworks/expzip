@@ -38,7 +38,7 @@ internal sealed class AppSettings
     /// </summary>
     /// <summary>
     /// 画面の言語 (#23)。<c>auto</c> / <c>ja</c> / <c>en</c>。
-    /// 既定の <c>auto</c> は Windows の表示言語に合わせる。
+    /// デフォルトの <c>auto</c> は Windows の表示言語に合わせる。
     /// </summary>
     public string Language { get; set; } = Strings.AutoPreference;
 
@@ -46,7 +46,7 @@ internal sealed class AppSettings
     /// 前回の分割サイズ (バイト、#59)。
     /// </summary>
     /// <remarks>
-    /// 同じ人は同じ大きさで分けることが多い。既定は 100MB とする。
+    /// 同じ人は同じ大きさで分けることが多い。デフォルトは 100MB とする。
     /// </remarks>
     public long SplitChunkSize { get; set; } = 100L * 1024 * 1024;
 
