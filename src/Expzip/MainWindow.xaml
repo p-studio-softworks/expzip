@@ -665,6 +665,12 @@
                                BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                             <Setter Property="AutomationProperties.Name"
                                     Value="{Binding RowName}" />
+                            <!--
+                                行の間隔はエクスプローラーに合わせる (#125)。Fluent のままでは
+                                1.5 倍ほど広い。エクスプローラーと同じ表示倍率で実際の行を測り、
+                                同じ間隔になる値にしてある。ツリーは元から揃っている
+                            -->
+                            <Setter Property="MinHeight" Value="27" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
@@ -767,9 +773,14 @@
                                            Padding="3,0"
                                            Style="{StaticResource EntryNameText}"
                                            Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVisibility}}" />
-                                <!-- 名前と同じ余白にする。入れ替わった拍子に字が動かないように -->
+                                <!--
+                                    名前と同じ余白にする。入れ替わった拍子に字が動かないように。
+                                    最小の高さは外す (#125)。Fluent の入力欄は行より背が高く、
+                                    名前の変更中だけ行が膨らんで下の行が押し下がる
+                                -->
                                 <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
                                          MinWidth="120"
+                                         MinHeight="0"
                                          Padding="3,0"
                                          VerticalAlignment="Center"
                                          Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}"
