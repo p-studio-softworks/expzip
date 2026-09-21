@@ -62,7 +62,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <!--
-                                一覧の選択と同じ薄い青。同じウィンドウで色の意味を変えない。
+                                一覧の選択と同じ灰色 (#130)。同じウィンドウで色の意味を変えない。
                                 **背景色を決めるなら文字色も組で決める** (#121)
                             -->
                             <Trigger Property="IsMouseOver" Value="True">
@@ -571,7 +571,8 @@
                         WPF のデフォルトではツリーだけが濃い青の背景になり、一覧の薄い青の背景と
                         食い違ううえ、保護された項目の緑が沈んだため。
                         Fluent ではツリーも一覧も同じ型から選択の見た目を採るので、
-                        こちらで揃える必要が無くなった
+                        こちらで揃える必要が無くなった。
+                        色は灰色で、暗い表示では明るくしてある。決めているのは App.xaml (#130)
                     -->
                     <HierarchicalDataTemplate DataType="{x:Type archives:ArchiveFolder}"
                                               ItemsSource="{Binding Folders}">

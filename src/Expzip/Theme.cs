@@ -57,6 +57,14 @@ internal sealed class Theme : INotifyPropertyChanged
     /// </summary>
     private const string BackgroundKey = "SolidBackgroundFillColorBaseBrush";
 
+    /// <summary>選んだ行とマウスが乗った行の背景色 (#130)。<c>App.xaml</c> の両方の組にある。</summary>
+    private static readonly string[] SelectionKeys =
+    [
+        "ListViewItemBackgroundPointerOver",
+        "TreeViewItemBackgroundPointerOver",
+        "TreeViewItemBackgroundSelected",
+    ];
+
     private static ResourceDictionary? resources;
 
     private bool useAccentColors = true;
@@ -168,6 +176,13 @@ internal sealed class Theme : INotifyPropertyChanged
         // アドレスバーで指している場所
         Paint("HoverBackBrush", SystemColors.HighlightColor);
         Paint("HoverTextBrush", SystemColors.HighlightTextColor);
+
+        // 選んだ行の背景色 (#130) は Fluent に返す。こちらの灰色のままだと、
+        // 部品が選ぶ文字色と組にならない
+        foreach (var key in SelectionKeys)
+        {
+            resources.Remove(key);
+        }
     }
 
     /// <summary>その名前のブラシを、この色のものに差し替える。</summary>

@@ -79,38 +79,62 @@
                 -->
                 <SolidColorBrush x:Key="RuleBreakBackBrush" Color="#FFBAA3" />
                 <SolidColorBrush x:Key="RuleBreakTextBrush" Color="#000000" />
-                <!-- アドレスバーで指している場所 (#90、#121)。ここも背景色と文字を組で決める -->
-                <SolidColorBrush x:Key="HoverBackBrush" Color="#D9F4FF" />
+                <!--
+                    アドレスバーで指している場所 (#90、#121)。ここも背景色と文字を組で決める。
+                    一覧の選んだ行と同じ灰色 (#130)
+                -->
+                <SolidColorBrush x:Key="HoverBackBrush" Color="#EAEAEA" />
                 <SolidColorBrush x:Key="HoverTextBrush" Color="#000000" />
+                <!--
+                    選んだ行とマウスが乗った行の背景色 (#130)。ツリーも一覧も同じ色にする。
+                    **薄い青にはしない。**エクスプローラーの選択は灰色で、青にすると
+                    エクスプローラーライクでなくなる。
+                    明るい表示は Fluent と同じ灰色のまま。**これより濃くできない。**
+                    危険の赤が 4.71 : 1、注意の色が 4.36 : 1 で、もう余裕が無い。
+                    それでも書くのは、暗い表示から切り替えたときに暗いほうの色を上書きするため
+                -->
+                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#EAEAEA" />
+                <SolidColorBrush x:Key="TreeViewItemBackgroundPointerOver" Color="#EAEAEA" />
+                <SolidColorBrush x:Key="TreeViewItemBackgroundSelected" Color="#EAEAEA" />
             </ResourceDictionary>
 
             <!--
                 背景色が暗いときの組 (#122)。比はウィンドウの背景色 `#202020` と
-                選んだ行の背景色 `#2D2D2D` に対する実測。
+                選んだ行の背景色 `#404040` (#130) に対する実測。
             -->
             <ResourceDictionary x:Key="DarkColors">
-                <!-- ウィンドウの背景色 8.03 : 1 / 選んだ行 6.78 : 1 -->
+                <!-- ウィンドウの背景色 8.03 : 1 / 選んだ行 5.11 : 1 -->
                 <SolidColorBrush x:Key="WarningBrush" Color="#FF99A4" />
-                <!-- ウィンドウの背景色 12.34 : 1 / 選んだ行 10.43 : 1 -->
+                <!-- ウィンドウの背景色 12.34 : 1 / 選んだ行 7.85 : 1 -->
                 <SolidColorBrush x:Key="CautionBrush" Color="#FCE100" />
-                <!-- ウィンドウの背景色 8.03 : 1 / 選んだ行 6.78 : 1 -->
+                <!-- ウィンドウの背景色 8.03 : 1 / 選んだ行 5.11 : 1 -->
                 <SolidColorBrush x:Key="EncryptedBrush" Color="#6CCB5F" />
                 <!--
                     WinUI にルールに合っていないことを表す色は無いので、
-                    ここだけこちらで決めた。ウィンドウの背景色 7.42 : 1 / 選んだ行 6.27 : 1
+                    ここだけこちらで決めた。ウィンドウの背景色 7.42 : 1 / 選んだ行 4.72 : 1
                 -->
                 <SolidColorBrush x:Key="RuleBreakBrush" Color="#B9A3F0" />
                 <!--
                     ルールに合っていない印。明るいほうと同じく、**背景色と文字を組で持つ。**
                     白い文字が 12.26 : 1。この背景色の上でも4色すべてが 5.58 : 1 以上ある。
                     色覚特性でも、1 型・2 型・3 型のどれでもウィンドウの背景・選んだ行との
-                    色の差 (ΔE) が 24.8 以上ある (#119)。前の #5A2E2A は 1 型で 9 まで落ちていた
+                    色の差 (ΔE) が 25.3 以上ある (#119)。前の #5A2E2A は 1 型で 9 まで落ちていた
                 -->
                 <SolidColorBrush x:Key="RuleBreakBackBrush" Color="#661A00" />
                 <SolidColorBrush x:Key="RuleBreakTextBrush" Color="#FFFFFF" />
-                <!-- アドレスバーで指している場所。白い文字で 9.74 : 1 -->
-                <SolidColorBrush x:Key="HoverBackBrush" Color="#3A3A3A" />
+                <!-- アドレスバーで指している場所。一覧の選んだ行と同じ灰色。白い文字で 10.37 : 1 -->
+                <SolidColorBrush x:Key="HoverBackBrush" Color="#404040" />
                 <SolidColorBrush x:Key="HoverTextBrush" Color="#FFFFFF" />
+                <!--
+                    選んだ行とマウスが乗った行 (#130)。Fluent のままの #2D2D2D では、
+                    ウィンドウの背景色との差が 1.18 : 1 しかなく、どの行を選んだか見えにくい。
+                    **意味を表す4色が 4.5 : 1 を保てる、いちばん明るい灰色**にしてある
+                    (ルールに合っていない紫が 4.72 : 1)。ウィンドウの背景色との差は 1.57 : 1。
+                    エクスプローラーは #505050 まで明るいが、そこまで上げると紫と緑が 4 : 1 を割る
+                -->
+                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#404040" />
+                <SolidColorBrush x:Key="TreeViewItemBackgroundPointerOver" Color="#404040" />
+                <SolidColorBrush x:Key="TreeViewItemBackgroundSelected" Color="#404040" />
             </ResourceDictionary>
         </ResourceDictionary>
     </Application.Resources>
