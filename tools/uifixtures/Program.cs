@@ -10,8 +10,11 @@
 using System.Text;
 using ICSharpCode.SharpZipLib.Zip;
 
-// 7z は書けない。7-Zip の 7z.exe を借りる。無ければ 7z を使う確認だけが飛ぶ
-const string SevenZipTool = @"C:\Program Files\7-Zip\7z.exe";
+// 7z は書けないので 7z.exe を借りる。場所は環境変数 EXPZIP_7Z で指定でき、
+// 無ければ 7-Zip の標準の場所を見る。見つからなければ 7z を使う確認だけが飛ぶ
+var sevenZipTool = Environment.GetEnvironmentVariable("EXPZIP_7Z") is { Length: > 0 } configured
+    ? configured
+    : @"C:\Program Files\7-Zip\7z.exe";
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -85,13 +88,13 @@ var files = new List<(string Name, byte[] Data)>
 };
 
 // 書き換えられない形式でも中は見せる、という確認のための 7z
-if (SevenZip(Path.Combine(nest, "中身.7z"), "seven.txt", "nana no naka") is { } seven)
+if (SevenZip(sevenZipTool,Path.Combine(nest, "中身.7z"), "seven.txt", "nana no naka") is { } seven)
 {
     files.Add(("中身.7z", File.ReadAllBytes(seven)));
 }
 else
 {
-    Console.WriteLine("7z.exe が無いので 中身.7z は作りません: " + SevenZipTool);
+    Console.WriteLine("7z.exe が無いので 中身.7z は作りません: " + sevenZipTool);
 }
 
 ZipRaw(Path.Combine(nest, "nest.zip"), files);
@@ -176,9 +179,9 @@ static void ZipMixed(
 }
 
 // 7z を1つ作る。作れなければ null
-static string? SevenZip(string path, string name, string text)
+static string? SevenZip(string tool, string path, string name, string text)
 {
-    if (!File.Exists(SevenZipTool))
+    if (!File.Exists(tool))
     {
         return null;
     }
@@ -193,7 +196,7 @@ static string? SevenZip(string path, string name, string text)
 
         var run = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
-            FileName = SevenZipTool,
+            FileName = tool,
             ArgumentList = { "a", "-t7z", path, Path.Combine(stage, name) },
             RedirectStandardOutput = true,
             RedirectStandardError = true,

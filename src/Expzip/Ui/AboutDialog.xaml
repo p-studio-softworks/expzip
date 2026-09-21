@@ -58,7 +58,7 @@
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
         <!--
-            入っているソフトウェアの表示はここから (#105)。
+            入っているソフトウェアの表示はここから (#105)
         -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
             <Button x:Name="LicenseButton" Width="120"

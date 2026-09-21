@@ -583,7 +583,7 @@ public partial class MainWindow : Window
     /// <remarks>
     /// 入力欄から離れたことは <see cref="RenameBox_LostKeyboardFocus"/> でも拾えるが、
     /// 一覧の余白やツリーの空き部分を押しても入力欄はフォーカスを手放さない。
-    /// そこで終わるようにする。
+    /// エクスプローラーと同じく、そこで終わるようにする。
     /// </remarks>
     private async void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -610,7 +610,7 @@ public partial class MainWindow : Window
     /// 選択している1件の名前を、一覧の上でその場で書き換え始める。
     /// </summary>
     /// <remarks>
-    /// エクスプローラー と同じく、ダイアログは出さない。
+    /// エクスプローラーと同じく、ダイアログは出さない。
     /// </remarks>
     private Task RenameSelectedAsync()
     {
