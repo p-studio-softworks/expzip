@@ -4409,6 +4409,10 @@ public partial class MainWindow : Window
     /// <remarks>
     /// **名前の下線はそのまま出す。**献立の見出しは <c>_</c> を押し文字の印として
     /// 食べてしまうので、二重にして渡す。`usb_host_cp210x_vcp` のような名前は珍しくない。
+    ///
+    /// **書体と大きさはウィンドウのものを入れる** (#144)。こうして開いたメニューは、
+    /// 基準にしたボタンのものを受け継ぐ。区切りのボタンは絵を出すために書体を
+    /// Segoe MDL2 Assets にしてあり、そのままでは名前がすべて □ になる。
     /// </remarks>
     private void Popup(Button at, IEnumerable<(string Name, string Path)> places)
     {
@@ -4416,6 +4420,8 @@ public partial class MainWindow : Window
         {
             PlacementTarget = at,
             Placement = PlacementMode.Bottom,
+            FontFamily = FontFamily,
+            FontSize = FontSize,
         };
 
         foreach (var (name, path) in places)

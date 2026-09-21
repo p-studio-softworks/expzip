@@ -32,6 +32,28 @@ $rowNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
 Check '行の名前は項目の名前' (($rowNames -join ', ') -eq '資料, readme.txt, 内側.zip') ($rowNames -join ', ')
 Check '件数' ((Texts $app.Window) -match '3 個のファイル')
 
+Section '区切りの一覧'
+# 区切り (›) を押すと、その場所の中のフォルダーが並ぶ (#90)
+$inside = ByType (ById $app.Window 'Crumbs') $script:ControlType::Button |
+    Where-Object { $_.Current.Name -match ' の中$' } | Select-Object -First 1
+Focus-App $app
+Push $inside 900
+$menu = Find-DropDown $app
+$items = @(if ($menu) { ByType $menu $script:ControlType::MenuItem })
+Check '中のフォルダーが並ぶ' ((($items | ForEach-Object { $_.Current.Name }) -join ', ') -eq '資料') (($items | ForEach-Object { $_.Current.Name }) -join ', ')
+# 名前が読める字で描かれている (#144)。区切りのボタンは絵の書体なので、それを受け継ぐと
+# 名前がすべて □ になる。項目の名前 (支援技術が読むもの) は正しいままなので、描かれたものを見る。
+# 一覧の行に同じ名前があるので、描かれた字の幅と本来の幅の比を、行のものと比べる
+if ($items.Count -gt 0) {
+    $itemText = ByType $items[0] $script:ControlType::Text | Select-Object -First 1
+    $itemRect = if ($itemText) { $itemText.Current.BoundingRectangle } else { $items[0].Current.BoundingRectangle }
+    $rowRect = (ByName (Find-Row $app '資料') '資料').Current.BoundingRectangle
+    $menuInk = Measure-InkWidth $itemRect
+    $rowInk = Measure-InkWidth $rowRect
+    Check '一覧の名前が読める字で描かれる' ($rowInk -gt 0 -and [Math]::Abs($menuInk / $rowInk - 1) -lt 0.15) "一覧 $menuInk px / 行 $rowInk px"
+}
+Close-DropDown $app
+
 Section 'Enter でフォルダーに入る'
 Select-Row $app '資料' | Out-Null
 Send-Keys $app '{ENTER}'
