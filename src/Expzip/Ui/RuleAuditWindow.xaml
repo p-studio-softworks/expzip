@@ -170,7 +170,12 @@
             <ListView.View>
                 <GridView>
                     <!-- 自分で対処するものに印を付ける (#87) -->
-                    <GridViewColumn x:Name="HandleColumn" Width="64"
+                    <!--
+                        幅は見出しの「修正する」が収まるだけ取る (#143)。見出しを「直す」から
+                        書き換えたときに幅を見直さず、「修正す」で切れていた。
+                        言語を切り替えると見出しがその場で入れ替わるので、幅は自動にしない
+                    -->
+                    <GridViewColumn x:Name="HandleColumn" Width="80"
                                     CellTemplate="{StaticResource HandleCell}" />
                     <GridViewColumn x:Name="KindColumn" Width="150"
                                     CellTemplate="{StaticResource KindCell}" />

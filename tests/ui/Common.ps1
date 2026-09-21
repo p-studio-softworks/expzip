@@ -487,6 +487,89 @@ function Get-RowHeight($List) {
     return $row.Current.BoundingRectangle.Height
 }
 
+# 画面のその範囲に描かれた字の幅 (px)。いちばん多い色を地の色とみなし、
+# それと違う色の点がある列を、左端から続いているところまで測る。
+# 字の高さより広く空いたら、そこから先は字ではない (隣の区切り線など) とみなす
+function Measure-InkWidth($Rect) {
+    $width = [int][Math]::Floor($Rect.Width)
+    $height = [int][Math]::Floor($Rect.Height)
+    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.CopyFromScreen([int][Math]::Ceiling($Rect.X), [int][Math]::Ceiling($Rect.Y), 0, 0, $bitmap.Size)
+        $counts = @{}
+        for ($x = 0; $x -lt $width; $x += 2) {
+            for ($y = 0; $y -lt $height; $y += 2) {
+                $argb = $bitmap.GetPixel($x, $y).ToArgb()
+                $counts[$argb] = 1 + [int]$counts[$argb]
+            }
+        }
+        $back = [System.Drawing.Color]::FromArgb(($counts.GetEnumerator() |
+            Sort-Object Value -Descending | Select-Object -First 1).Key)
+        $first = -1
+        $last = -1
+        for ($x = 0; $x -lt $width; $x++) {
+            if ($first -ge 0 -and $x - $last -gt $height) { break }
+            for ($y = 0; $y -lt $height; $y++) {
+                $c = $bitmap.GetPixel($x, $y)
+                if (([Math]::Abs($c.R - $back.R) + [Math]::Abs($c.G - $back.G) + [Math]::Abs($c.B - $back.B)) -gt 90) {
+                    if ($first -lt 0) { $first = $x }
+                    $last = $x
+                    break
+                }
+            }
+        }
+        if ($first -lt 0) { return 0 }
+        return $last - $first + 1
+    } finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
+}
+
+# その字を描いたときの幅。大きさは問わない (見出しどうしの比にしか使わない)
+function Measure-TextShape([string]$Text) {
+    Add-Type -AssemblyName PresentationCore, PresentationFramework, WindowsBase
+    $formatted = New-Object System.Windows.Media.FormattedText($Text,
+        [System.Globalization.CultureInfo]::GetCultureInfo('ja-JP'),
+        [System.Windows.FlowDirection]::LeftToRight,
+        (New-Object System.Windows.Media.Typeface('Segoe UI')), 100.0,
+        [System.Windows.Media.Brushes]::Black, 1.0)
+    return $formatted.BuildGeometry((New-Object System.Windows.Point(0, 0))).Bounds.Width
+}
+
+# 字が列に収まっていない見出し (#143)。文言を長くしたときに、列の幅を見直し忘れると切れる。
+# 見出しの字の外枠は、字の幅ではなく字に割り当てた場所の幅で報告されるので、枠どうしを
+# 比べても切れたことは分からない。しかも収まらない字は次の行へ折り返されて見えなくなるので、
+# 右端にかかる線を探しても見つからない。
+# そこで、画面に描かれた字の幅と、同じ字を描いたときの幅の比を見出しごとに出す。
+# 収まっている見出しはどれもほぼ同じ比になり、切れた見出しは欠けたぶん比が小さくなる。
+# 見出しどうしで比べるので、字の大きさや表示倍率を知らなくてよい。
+# 基準は真ん中の比。字の形によって 1 割ほどはずれるので、それより欠けたものを切れたとみなす。
+# 画面に描かれたものを見るので、一覧の上にほかのウィンドウが重なっていない時に呼ぶ
+function Get-ClippedHeaders($List) {
+    $headers = @($List.FindAll($script:Scope::Descendants,
+        (Condition $script:Automation::ControlTypeProperty $script:ControlType::HeaderItem)))
+    $measured = @()
+    foreach ($header in $headers) {
+        foreach ($text in @(ByType $header $script:ControlType::Text)) {
+            $name = $text.Current.Name
+            $rect = $text.Current.BoundingRectangle
+            if (-not $name -or $rect.IsEmpty -or $rect.Width -lt 4 -or $rect.Height -lt 4) { continue }
+            $ink = Measure-InkWidth $rect
+            $shape = Measure-TextShape $name
+            if ($ink -le 0 -or $shape -le 0) { continue }
+            $measured += [pscustomobject]@{ Name = $name; Ratio = $ink / $shape; Ink = $ink }
+        }
+    }
+    # 比べる相手が無いまま「切れていない」で通らないように
+    if ($measured.Count -lt 2) { return @("見出しを測れない ($($measured.Count) 個)") }
+    $sorted = @($measured | Sort-Object Ratio)
+    $full = $sorted[[int][Math]::Floor($sorted.Count / 2)].Ratio
+    return @($measured | Where-Object { $_.Ratio -lt $full * 0.85 } |
+        ForEach-Object { "{0} (描かれた幅 {1} px、本来の {2:0}%)" -f $_.Name, $_.Ink, (100 * $_.Ratio / $full) })
+}
+
 # 行の名前。最初のセルの字を読む。前に並ぶ絵 (私用領域の記号) は飛ばす
 function Get-RowName($Row) {
     $texts = @($Row.FindAll($script:Scope::Descendants,

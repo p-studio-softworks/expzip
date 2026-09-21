@@ -87,6 +87,9 @@ try {
     $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
     $ruleHeight = Get-RowHeight (ById $dialog 'RuleList')
     Check '行の間隔がメインの一覧と同じ' ([Math]::Abs($ruleHeight - $mainHeight) -lt 1) "メイン $mainHeight / 推定 $ruleHeight"
+    # 列の見出しの字が切れていない (#143)
+    $clipped = Get-ClippedHeaders (ById $dialog 'RuleList')
+    Check '見出しが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
     $box = ByType $rows[0] $script:ControlType::CheckBox | Select-Object -First 1
     if ($box) {
         $inner = $box.Current.BoundingRectangle
@@ -146,6 +149,9 @@ try {
         $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
         $auditHeight = Get-RowHeight (ById $audit 'FindingList')
         Check '行の間隔がメインの一覧と同じ' ([Math]::Abs($auditHeight - $mainHeight) -lt 1) "メイン $mainHeight / 検査結果 $auditHeight"
+        # 列の見出しの字が切れていない (#143)。「修正する」が「修正す」で切れていた
+        $clipped = Get-ClippedHeaders (ById $audit 'FindingList')
+        Check '見出しが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
         $auditRow = (ById $audit 'FindingList').FindFirst($script:Scope::Children,
             (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem))
         $box = ByType $auditRow $script:ControlType::CheckBox | Select-Object -First 1

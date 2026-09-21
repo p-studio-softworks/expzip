@@ -60,6 +60,11 @@ $plainLeft = Get-NameLeft $app 'setup.exe'
 $warnedLeft = Get-NameLeft $app '..'
 Check '警告が付いても名前の位置は変わらない' ([Math]::Abs($warnedLeft - $plainLeft) -lt 1) "$plainLeft → $warnedLeft"
 
+# 列の見出しの字が切れていない (#143)。画面に描かれたものを見るので、
+# 検査結果のウィンドウが重なる前に見る
+$clipped = Get-ClippedHeaders (ById $app.Window 'EntryList')
+Check 'メインの一覧の見出しが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
+
 $window = Run-Inspection $app '検査結果 - ayashii.zip'
 Check '窓が開く' ($null -ne $window)
 if ($window) {
@@ -69,6 +74,9 @@ if ($window) {
     $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
     $findingHeight = Get-RowHeight (ById $window 'FindingList')
     Check '行の間隔がメインの一覧と同じ' ([Math]::Abs($findingHeight - $mainHeight) -lt 1) "メイン $mainHeight / 検査結果 $findingHeight"
+    # 列の見出しの字が切れていない (#143)
+    $clipped = Get-ClippedHeaders (ById $window 'FindingList')
+    Check '見出しが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
     $findings = Texts (ById $window 'FindingList')
     Check '外へ書き込むパス' ($findings -match '展開先の外に書き込もうとするパスです \(\.\./evil\.txt\)') $findings
     Check '実行される種類' ($findings -match 'setup\.exe \| 開くとプログラムとして実行される種類のファイルです \(\.exe\)')
