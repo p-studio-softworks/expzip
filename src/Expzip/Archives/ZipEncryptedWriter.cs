@@ -28,7 +28,7 @@ namespace Expzip.Archives;
 /// </remarks>
 internal static class ZipEncryptedWriter
 {
-    /// <summary>WinZip AES の鍵長。フェーズ3で作るのは256ビットのみ。</summary>
+    /// <summary>WinZip AES の鍵長。作るときは 256 ビットに揃える (読み取りは 128/192 ビットも扱う)。</summary>
     private const int AesKeySize = 256;
 
     /// <summary>ファイルを追加する。引数の意味は <see cref="ZipArchiveWriter.Add"/> と同じ。</summary>

@@ -4923,7 +4923,7 @@ public partial class MainWindow : Window
 
     /// <summary>AI の機能を出してよいか (#24)。</summary>
     /// <remarks>
-    /// 繋ぎ先が揃っていなければ、フェーズ4の機能は画面に出さない。
+    /// 繋ぎ先が揃っていなければ、AI の機能 (仕様書 10章) は画面に出さない。
     /// 押せるのに何も起きないボタンを作らないため (仕様書 10.4節)。
     /// </remarks>
     private bool AiConfigured => CurrentAiOptions.IsConfigured;

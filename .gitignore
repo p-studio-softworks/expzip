@@ -40,8 +40,8 @@ coverage*.json
 coverage*.xml
 
 # === 秘密情報(絶対にコミットしない) ===
-# Expzip 本体はフェーズ4で AI API のエンドポイントとキーを
-# exe と同じフォルダの設定ファイルに保存する。開発中の実データが
+# Expzip 本体は AI の機能で使う接続先とキーを
+# exe と同じフォルダーの設定ファイルに保存する。開発中の実データが
 # 作業ツリーに残ってもコミットされないようにする。
 *.key
 *.pfx
@@ -67,15 +67,15 @@ $RECYCLE.BIN/
 *.bak
 *.log
 
-# 連結プログラムの建て直しで出るもの (同梱するのは src/Expzip/Resources のほう)
+# 連結プログラムをビルドし直すと出るもの (同梱するのは src/Expzip/Resources のほう)
 tools/joiner/joiner-x86.exe
 tools/joiner/*.obj
 
-# 自己解凍書庫の取り出し部の建て直しで出るもの (#29)
+# 自己解凍書庫の取り出し部をビルドし直すと出るもの (#29)
 tools/sfx/sfx-x86.exe
 tools/sfx/*.obj
 
 # ただし同梱するほうは追いかける。上の *.exe に巻き込まれると、
-# クローンしただけでは建てられなくなる (#59, #29)
+# クローンしただけではビルドできなくなる (#59, #29)
 !src/Expzip/Resources/joiner-x86.exe
 !src/Expzip/Resources/sfx-x86.exe
