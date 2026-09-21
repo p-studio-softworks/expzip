@@ -22,7 +22,9 @@ if ($dialog) {
     Check 'リビジョン' ((ById $dialog 'RevisionText').Current.Name -match '^リビジョン [0-9a-f]{7}') (ById $dialog 'RevisionText').Current.Name
     # 名義は P studio にそろえる。個人名を出さない
     Check 'コピーライト' ((ById $dialog 'CopyrightText').Current.Name -match '^Copyright \(c\) \d{4} P studio$') (ById $dialog 'CopyrightText').Current.Name
-    Check 'アイコンの場所が空けてある' ((ById $dialog 'IconPlaceholder').Current.Name.Length -gt 0) (ById $dialog 'IconPlaceholder').Current.Name
+    # アイコンは隣に名前が並ぶので、支援技術の木に出さない (#126)。出すと名前の無い画像として読まれる
+    $images = @(ByType $dialog $script:ControlType::Image)
+    Check 'アイコンは読み上げに出さない' ($images.Count -eq 0) "画像 $($images.Count) 個"
     Check '土台' ($text -match 'Windows' -and $text -match '\.NET')
 
     Section 'ライセンス表示'

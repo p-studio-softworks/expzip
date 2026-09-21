@@ -22,6 +22,12 @@
     <Copyright>Copyright (c) 2026 P studio</Copyright>
     <!-- 画面の文言は日本語と英語を持つ (docs/SPEC.md 4.6節)。既定の言語はこちら -->
     <NeutralLanguage>ja-JP</NeutralLanguage>
+    <!--
+      アプリのアイコン (#126)。絵の正本は Ui/AppIcon.xaml で、この ico は
+      tools/icon が描き出したもの。絵を直したら tools/icon を走らせて作り直す。
+      ウィンドウのタイトルバーとタスクバーも、指定が無ければこの絵を使う
+    -->
+    <ApplicationIcon>Resources\Expzip.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

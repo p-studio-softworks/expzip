@@ -1,0 +1,53 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        アプリのアイコン (#126)。ジッパーの付いた青いフォルダー。
+        **絵の正本はここだけ。**バージョン情報はこれをそのまま出し、
+        exe に付ける Expzip.ico は tools/icon がこれを描き出して作る。
+        絵を直したら tools/icon を走らせて ico も作り直す
+
+        エクスプローラーの黄色いフォルダーと並んでも見分けられるよう、青にしてある。
+        ほかのアーカイバのアイコンには似せない。
+
+        **色みではなく明るさの差で見分けられるようにしてある。**
+        1 型・2 型・3 型の色覚と明るさだけの見え方を計算して確かめた値:
+          引き手と手前の青 3.73 : 1 / ジッパーの歯と手前の青 4.75 : 1 / 手前と奥 2.00 : 1
+        青と黄は 3 型の色覚では見分けにくいので、色みの差に頼らない。
+        色を変えるときは、この比が 3 : 1 を割らないようにする
+
+        座標は 64 × 64 の升目で書いてある
+    -->
+    <DrawingImage x:Key="AppIconImage">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <!-- 描く範囲を 64 × 64 に固定する。無いと絵の外形で切り詰められ、中心がずれる -->
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H64 V64 H0 Z" />
+                <!-- 奥の面と見出しの耳 -->
+                <GeometryDrawing Brush="#163F6B"
+                                 Geometry="M6,16 A4,4 0 0 1 10,12 H24 L29,17 H54 A4,4 0 0 1 58,21 V52 A4,4 0 0 1 54,56 H10 A4,4 0 0 1 6,52 Z" />
+                <!-- 手前の面 -->
+                <GeometryDrawing Brush="#2A6CB5">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="6,22,52,34" RadiusX="4" RadiusY="4" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- ジッパーの歯。左右に互い違いに並べる -->
+                <GeometryDrawing Brush="#EAF2FB"
+                                 Geometry="M29,24 h3 v2 h-3 Z M32,27 h3 v2 h-3 Z M29,30 h3 v2 h-3 Z M32,33 h3 v2 h-3 Z M29,36 h3 v2 h-3 Z M32,39 h3 v2 h-3 Z M29,42 h3 v2 h-3 Z" />
+                <!-- 引き手 -->
+                <GeometryDrawing Brush="#FFD24D">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="28.5,44,7,10" RadiusX="2" RadiusY="2" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- 引き手の穴 -->
+                <GeometryDrawing Brush="#7A4F00">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="31,49,2,3" RadiusX="1" RadiusY="1" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+</ResourceDictionary>

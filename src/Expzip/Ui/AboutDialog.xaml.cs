@@ -1,7 +1,6 @@
 ﻿using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Automation;
 using Expzip.Localization;
 
 namespace Expzip.Ui;
@@ -80,10 +79,6 @@ public partial class AboutDialog : Window
             RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription);
         CloseButton.Content = Strings.AboutClose;
         LicenseButton.Content = Strings.AboutLicense;
-
-        // 空の枠が何なのか分からないままにしない (#104)
-        IconSlot.ToolTip = Strings.AboutIconLater;
-        AutomationProperties.SetName(IconPlaceholder, Strings.AboutIconLater);
     }
 
     private void LicenseButton_Click(object sender, RoutedEventArgs e)

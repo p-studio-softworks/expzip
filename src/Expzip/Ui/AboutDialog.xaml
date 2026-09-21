@@ -1,6 +1,7 @@
 ﻿<Window x:Class="Expzip.Ui.AboutDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:Expzip.Ui"
         Width="440"
         SizeToContent="Height"
         ResizeMode="NoResize"
@@ -18,6 +19,10 @@
         利用者の関心事になるが、Expzip は全部入りの単一 exe なので、並べても
         中身は毎回同じになる
     -->
+    <Window.Resources>
+        <ResourceDictionary Source="AppIcon.xaml" />
+    </Window.Resources>
+
     <StackPanel Margin="18">
         <Grid>
             <Grid.ColumnDefinitions>
@@ -26,25 +31,14 @@
             </Grid.ColumnDefinitions>
 
             <!--
-                絵の置き場 (#104)。**まだ絵が無いので空けてある。**
-                後で描いたものをここへ入れる。枠だけ先に決めておけば、
-                入れ替えたときに周りの並びが動かない
+                アプリのアイコン (#126)。絵の正本は AppIcon.xaml にある。
+                大きさは空けてあった枠 (#104) と同じ 64 にして、周りの並びを動かさない。
+                隣に名前が並ぶので、絵は支援技術の木に出さない
             -->
-            <Border x:Name="IconSlot" Grid.Column="0"
-                    Width="64" Height="64" Margin="0,0,18,0"
-                    VerticalAlignment="Top"
-                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}">
-                <!--
-                    枠 (Border) は支援技術の木に出てこないので、名前はこちらに入れる。
-                    入れないと記号がそのまま読み上げられる (#102 と同じ話)
-                -->
-                <TextBlock x:Name="IconPlaceholder" Text="&#xE7B8;"
-                           FontFamily="Segoe MDL2 Assets" FontSize="30"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
+            <ui:DecorativeImage x:Name="AppIcon" Grid.Column="0"
+                                Width="64" Height="64" Margin="0,0,18,0"
+                                VerticalAlignment="Top"
+                                Source="{StaticResource AppIconImage}" />
 
             <StackPanel Grid.Column="1">
                 <TextBlock x:Name="NameText" FontSize="19" FontWeight="SemiBold" />

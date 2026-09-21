@@ -95,10 +95,6 @@ internal static partial class Strings
     public static string AboutPlatform(string os, string runtime) => Pick(
         $"{os} / {runtime}", $"{os} / {runtime}");
 
-    /// <summary>絵の置き場に添える説明 (#104)。空の枠が何なのか分からないままにしない。</summary>
-    public static string AboutIconLater => Pick(
-        "Expzipアイコン", "Expzip icon");
-
     public static string AboutClose => Pick("閉じる", "Close");
 
     // ------------------------------------------------------------------ ライセンス表示 (#105)

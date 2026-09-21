@@ -7,10 +7,6 @@ AboutClose
   ja  閉じる
   en  Close
 
-AboutIconLater
-  ja  Expzipアイコン
-  en  Expzip icon
-
 AboutLicense
   ja  ライセンス
   en  Licenses
