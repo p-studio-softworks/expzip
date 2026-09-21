@@ -31,8 +31,32 @@ function Enter-Password($App, [string]$Text) {
     return $prompt.Replace("`r`n", "`n")
 }
 
+# 見えている錠前の印 (#128)。絵は支援技術の木に出さないので、
+# 省かれたものまで含む木 (raw view) で探す
+function Get-LockMarks($Scope) {
+    $request = New-Object System.Windows.Automation.CacheRequest
+    $request.TreeFilter = [System.Windows.Automation.Automation]::RawViewCondition
+    $request.Add($script:Automation::AutomationIdProperty)
+    $active = $request.Activate()
+    try {
+        return @($Scope.FindAll($script:Scope::Descendants,
+            (Condition $script:Automation::AutomationIdProperty 'LockMark')) |
+            Where-Object { -not $_.Current.IsOffscreen -and -not $_.Current.BoundingRectangle.IsEmpty })
+    } finally {
+        $active.Dispose()
+    }
+}
+
+# 行の左端から名前の字までの距離。窓の位置は起動のたびに変わるので、行から測る
+function Get-NameLeft($App, [string]$Name) {
+    $row = Find-Row $App $Name
+    return (ByName $row $Name).Current.BoundingRectangle.X - $row.Current.BoundingRectangle.X
+}
+
 Section 'パスワードを設定する'
 $app = Start-Expzip @($archive)
+Check '保護されていなければ錠前は無い' ((Get-LockMarks (Find-Row $app 'report.txt')).Count -eq 0)
+$plainLeft = Get-NameLeft $app 'report.txt'
 Push (ById $app.Window 'PasswordButton')
 $prompt = Enter-Password $app $secret
 Check '窓が開く' ($null -ne $prompt)
@@ -47,12 +71,20 @@ Stop-Expzip $app
 
 Section '開き直して書き換えるとき'
 $app = Start-Expzip @($archive)
-# 保護されていることは緑の文字で出している。色だけでは伝わらないので、
-# 行の名前にも入れる (#119)
+# 保護されていることは緑の文字と錠前の絵で出している。読み上げには
+# どちらも届かないので、行の名前にも入れる (#119)
 $rowNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
 Check '保護された項目は行の名前にも出る' (
     ($rowNames -match '^report\.txt、パスワードで保護されています$') -and
     ($rowNames -match '^notes\.txt、パスワードで保護されています$')) ($rowNames -join ' / ')
+# 色だけでなく錠前の印でも示す (#128)
+Check '保護された行に錠前が付く' (
+    (Get-LockMarks (Find-Row $app 'report.txt')).Count -eq 1 -and
+    (Get-LockMarks (Find-Row $app 'notes.txt')).Count -eq 1)
+Check 'ツリーにも錠前が付く' ((Get-LockMarks (ById $app.Window 'FolderTree')).Count -ge 1)
+# 印を名前の前に並べると、名前が右へずれる (#88)。絵に重ねるので、ずれない
+$lockedLeft = Get-NameLeft $app 'report.txt'
+Check '錠前が付いても名前の位置は変わらない' ([Math]::Abs($lockedLeft - $plainLeft) -lt 1) "$plainLeft → $lockedLeft"
 Rename-Row $app 'notes.txt' 'memo.txt' | Out-Null
 $prompt = Enter-Password $app 'machigai'
 Check '尋ねる' ($prompt -match '^「資料\.zip」はパスワードで保護されています。') $prompt

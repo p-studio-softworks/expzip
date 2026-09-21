@@ -159,6 +159,25 @@
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
+        <!--
+            保護された項目の錠前 (#128)。**色だけで伝えない** (#119)。
+            ファイルやフォルダーの絵の右下に重ねる。名前の前に並べると、
+            印の有る行だけ名前が右へずれ、兄弟の項目と段が違って見える (#88)。
+            右と下へはみ出させ、はみ出したぶんは絵と名前の間の余白に収める。
+            余白は錠前が名前にくっつかないよう 1 つぶん広げてあり、**どの行も同じだけ**なので段はずれない。
+            絵にもっと重ねると、細い線どうしが交わって読みにくい。
+            絵は支援技術の木に出さない。伝えたい事柄は行の名前に入れてある (GlyphText)
+        -->
+        <Style x:Key="LockMark" TargetType="ui:GlyphText">
+            <Setter Property="Text" Value="&#xE72E;" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Foreground" Value="{DynamicResource EncryptedBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="Margin" Value="0,0,-4,-3" />
+            <Setter Property="AutomationProperties.AutomationId" Value="LockMark" />
+        </Style>
         <Style x:Key="FolderNameText" TargetType="TextBlock">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding HasEncryptedContent}" Value="True">
@@ -595,13 +614,18 @@
                                           Margin="0,0,4,0"
                                           ToolTip="{StaticResource SuspiciousPathTooltip}"
                                           Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                            <!-- 塗りつぶしのフォルダ。輪郭線のみだと書類と紛らわしい -->
-                            <ui:GlyphText Text="&#xE8D5;"
-                                          FontFamily="Segoe MDL2 Assets"
-                                          FontSize="13"
-                                          Foreground="{StaticResource FolderBrush}"
-                                          VerticalAlignment="Center"
-                                          Margin="0,0,6,0" />
+                            <!--
+                                塗りつぶしのフォルダ。輪郭線のみだと書類と紛らわしい。
+                                配下に保護されたファイルがあれば錠前を重ねる (#128、LockMark)
+                            -->
+                            <Grid VerticalAlignment="Center" Margin="0,0,7,0">
+                                <ui:GlyphText Text="&#xE8D5;"
+                                              FontFamily="Segoe MDL2 Assets"
+                                              FontSize="13"
+                                              Foreground="{StaticResource FolderBrush}" />
+                                <ui:GlyphText Style="{StaticResource LockMark}"
+                                              Visibility="{Binding HasEncryptedContent, Converter={StaticResource BoolToVisibility}}" />
+                            </Grid>
                             <!--
                                 背景色を敷いたときに文字が縁にくっつかないよう、
                                 余白を取る。**どの節にも同じだけ**取るので、段はずれない
@@ -751,22 +775,25 @@
                                               Margin="0,0,4,0"
                                               ToolTip="{Binding WarningTooltip}"
                                               Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                                <ui:GlyphText Text="{Binding Glyph}"
-                                              FontFamily="Segoe MDL2 Assets"
-                                              FontSize="13"
-                                              VerticalAlignment="Center"
-                                              Margin="0,0,6,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource FolderBrush}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Kind}" Value="File">
-                                                    <Setter Property="Foreground" Value="{StaticResource FileBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </ui:GlyphText>
+                                <!-- 保護された項目には錠前を重ねる (#128、LockMark) -->
+                                <Grid VerticalAlignment="Center" Margin="0,0,7,0">
+                                    <ui:GlyphText Text="{Binding Glyph}"
+                                                  FontFamily="Segoe MDL2 Assets"
+                                                  FontSize="13">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource FolderBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Kind}" Value="File">
+                                                        <Setter Property="Foreground" Value="{StaticResource FileBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </ui:GlyphText>
+                                    <ui:GlyphText Style="{StaticResource LockMark}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
                                 <!-- 通常は表示のみ。名前の変更中だけ入力欄に入れ替える (#15) -->
                                 <TextBlock Text="{Binding Name}"
                                            VerticalAlignment="Center"
