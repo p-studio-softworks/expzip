@@ -478,6 +478,15 @@ function Get-Rows($App) {
         (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem)))
 }
 
+# 一覧の行の高さ (画面の px)。行の間隔はどの一覧もエクスプローラーに合わせる (#125、#131)。
+# 表示倍率で値が変わるので、同じ画面にあるメインの一覧と比べる
+function Get-RowHeight($List) {
+    $row = $List.FindFirst($script:Scope::Children,
+        (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem))
+    if ($null -eq $row) { return 0 }
+    return $row.Current.BoundingRectangle.Height
+}
+
 # 行の名前。最初のセルの字を読む。前に並ぶ絵 (私用領域の記号) は飛ばす
 function Get-RowName($Row) {
     $texts = @($Row.FindAll($script:Scope::Descendants,

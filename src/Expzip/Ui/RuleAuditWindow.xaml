@@ -86,6 +86,8 @@
                        BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                     <Setter Property="AutomationProperties.Name"
                             Value="{Binding RowName}" />
+                    <!-- 行の間隔はメインの一覧と同じ (#131、値は App.xaml) -->
+                    <Setter Property="MinHeight" Value="{StaticResource ListRowMinHeight}" />
                 </Style>
             </ListView.ItemContainerStyle>
             <ListView.Resources>
@@ -94,9 +96,14 @@
                     <Setter Property="Padding" Value="6,2" />
                 </Style>
 
-                <!-- 自分で対処するものに印を付ける (#87) -->
+                <!--
+                    自分で対処するものに印を付ける (#87)。
+                    最小の高さは外す (#131)。Fluent のチェックボックスは行より背が高く、
+                    行の間隔がメインの一覧と揃わない
+                -->
                 <DataTemplate x:Key="HandleCell">
                     <CheckBox IsChecked="{Binding Handled, Mode=TwoWay}"
+                              MinHeight="0"
                               HorizontalAlignment="Center" />
                 </DataTemplate>
 

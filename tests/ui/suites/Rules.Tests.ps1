@@ -83,6 +83,16 @@ try {
     Check '提案だと断る' ($notice -eq 'これらはAIが推定したルールです。書庫の本来のルールとは異なる場合があります。ルールとして使用したいものを選択してください。') $notice
     $rows = RuleRows $dialog
     Check '一覧に並ぶ (除外したものも見せる)' ($rows.Count -eq 4) "$($rows.Count) 行"
+    # 行の間隔はメインの一覧と同じ (#131)。チェックボックスが収まることも見る
+    $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
+    $ruleHeight = Get-RowHeight (ById $dialog 'RuleList')
+    Check '行の間隔がメインの一覧と同じ' ([Math]::Abs($ruleHeight - $mainHeight) -lt 1) "メイン $mainHeight / 推定 $ruleHeight"
+    $box = ByType $rows[0] $script:ControlType::CheckBox | Select-Object -First 1
+    if ($box) {
+        $inner = $box.Current.BoundingRectangle
+        $outer = $rows[0].Current.BoundingRectangle
+        Check 'チェックボックスが行に収まる' (($inner.Top -ge $outer.Top) -and ($inner.Bottom -le $outer.Bottom)) ("箱 {0:0}-{1:0} / 行 {2:0}-{3:0}" -f $inner.Top, $inner.Bottom, $outer.Top, $outer.Bottom)
+    }
     # 支援技術が読む行の名前。型の名前ではなくルールの説明を読む (#109)
     $ruleNames = @($rows | ForEach-Object { $_.Current.Name })
     Check '行の名前がルールの説明' (
@@ -132,6 +142,18 @@ try {
         Check '見出し' ($headline -eq 'ルールに合っていない項目が 1 個あります。あるはずの項目が 1 個ありません') $headline
         $source = (ById $audit 'SourceLine').Current.Name
         Check 'どのルールで調べたか' ($source -match '^2 件のルールで検査しました \(お手本: otehon\.zip、\d{4}/\d{2}/\d{2} \d{2}:\d{2}\)。$') $source
+        # 行の間隔はメインの一覧と同じ (#131)。チェックボックスが収まることも見る
+        $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
+        $auditHeight = Get-RowHeight (ById $audit 'FindingList')
+        Check '行の間隔がメインの一覧と同じ' ([Math]::Abs($auditHeight - $mainHeight) -lt 1) "メイン $mainHeight / 検査結果 $auditHeight"
+        $auditRow = (ById $audit 'FindingList').FindFirst($script:Scope::Children,
+            (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem))
+        $box = ByType $auditRow $script:ControlType::CheckBox | Select-Object -First 1
+        if ($box) {
+            $inner = $box.Current.BoundingRectangle
+            $outer = $auditRow.Current.BoundingRectangle
+            Check 'チェックボックスが行に収まる' (($inner.Top -ge $outer.Top) -and ($inner.Bottom -le $outer.Bottom)) ("箱 {0:0}-{1:0} / 行 {2:0}-{3:0}" -f $inner.Top, $inner.Bottom, $outer.Top, $outer.Bottom)
+        }
         $findings = Texts (ById $audit 'FindingList')
         Check '違反の場所' ($findings -match 'cache\.tmp') $findings
         Check '足りないもの' ($findings -match 'README\.md' -and $findings -match '見つからない') $findings

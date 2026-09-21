@@ -65,6 +65,10 @@ Check '窓が開く' ($null -ne $window)
 if ($window) {
     $headline = (ById $window 'Headline').Current.Name
     Check '見出しに件数' ($headline -match '^(危険 \d+ 件、注意 \d+ 件が見つかりました|危険な項目が \d+ 件見つかりました)$') $headline
+    # 行の間隔はメインの一覧と同じ (#131)
+    $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
+    $findingHeight = Get-RowHeight (ById $window 'FindingList')
+    Check '行の間隔がメインの一覧と同じ' ([Math]::Abs($findingHeight - $mainHeight) -lt 1) "メイン $mainHeight / 検査結果 $findingHeight"
     $findings = Texts (ById $window 'FindingList')
     Check '外へ書き込むパス' ($findings -match '展開先の外に書き込もうとするパスです \(\.\./evil\.txt\)') $findings
     Check '実行される種類' ($findings -match 'setup\.exe \| 開くとプログラムとして実行される種類のファイルです \(\.exe\)')

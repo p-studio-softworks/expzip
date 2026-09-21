@@ -2,10 +2,20 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Expzip"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              ThemeMode="System"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <!--
+                列のある一覧の行の最小の高さ。行の間隔をエクスプローラーに合わせる (#125)。
+                Fluent のままでは 1.5 倍ほど広い。エクスプローラーと同じ表示倍率で実際の行を測り、
+                同じ間隔になる値にしてある (表示倍率 150% で 43 px)。ツリーは元から揃っている。
+                **どの一覧もこの 1 つを使う** (#131)。ウィンドウごとに数値を書くと、
+                メインの一覧だけ詰めてほかが広いまま残る
+            -->
+            <sys:Double x:Key="ListRowMinHeight">27</sys:Double>
+
             <!--
                 意味を表す色は、**明るい背景用と暗い背景用を組で持つ** (#122)。
                 どちらを使うかは Theme が背景色の明るさを見て決める。

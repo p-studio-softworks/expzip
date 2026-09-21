@@ -697,12 +697,8 @@
                                BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                             <Setter Property="AutomationProperties.Name"
                                     Value="{Binding RowName}" />
-                            <!--
-                                行の間隔はエクスプローラーに合わせる (#125)。Fluent のままでは
-                                1.5 倍ほど広い。エクスプローラーと同じ表示倍率で実際の行を測り、
-                                同じ間隔になる値にしてある。ツリーは元から揃っている
-                            -->
-                            <Setter Property="MinHeight" Value="27" />
+                            <!-- 行の間隔はエクスプローラーに合わせる (#125、値は App.xaml) -->
+                            <Setter Property="MinHeight" Value="{StaticResource ListRowMinHeight}" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
