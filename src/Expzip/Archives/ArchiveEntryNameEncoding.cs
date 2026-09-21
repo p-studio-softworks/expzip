@@ -47,7 +47,7 @@ internal sealed class ArchiveEntryNameEncoding(Encoding legacy) : Encoding
     /// **従来のCP932書庫でエントリごとに例外が飛ぶ**。5万件あたり93msかかっていたものが、
     /// <see cref="Utf8.IsValid(ReadOnlySpan{byte})"/> による判定では1msになった (#40)。
     /// 両者の判定が一致することは1〜3バイトの全数16,777,216通りを含む1,735万件の
-    /// バイト列で確認済み(不一致0件)で、#13 で決めた判定方式そのものは変わらない。
+    /// バイト列で確認済み(不一致0件)で、判定方式そのものは変わらない (#13)。
     /// </remarks>
     private Encoding Choose(byte[] bytes, int index, int count)
         => Utf8.IsValid(bytes.AsSpan(index, count)) ? StrictUtf8 : legacy;

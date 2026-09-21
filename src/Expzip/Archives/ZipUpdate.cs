@@ -63,8 +63,8 @@ internal static class ZipUpdate
     /// ディスク上のファイルを、中断を効かせながら渡す供給元。
     /// </summary>
     /// <remarks>
-    /// SharpZipLib が中身を読むのは <c>CommitUpdate</c> の最中で、そこに割り込む口は
-    /// 無い。読み取りの側で中断を投げると書き換えが取りやめになり、元の書庫は
+    /// SharpZipLib が中身を読むのは <c>CommitUpdate</c> の最中で、そこに割り込む
+    /// 余地は無い。読み取りの側で中断を投げると書き換えが取りやめになり、元の書庫は
     /// そのまま残る。大きなファイルの追加を途中で止められるのはこのため。
     /// </remarks>
     /// <param name="path">読み出すファイル。</param>

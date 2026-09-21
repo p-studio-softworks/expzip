@@ -7,11 +7,11 @@ using Expzip.Localization;
 
 namespace Expzip.Ai;
 
-/// <summary>AI への繋ぎ口 (#24)。</summary>
+/// <summary>AI の API (#24)。</summary>
 /// <remarks>
 /// <para>
-/// **OpenAI 互換の <c>/chat/completions</c> だけを話す** (#35で決定)。主要な提供元は
-/// どこもこの形の入口を持っていて、ローカルで動かす道具もほぼ全部が同じ形のため、
+/// **OpenAI 互換の <c>/chat/completions</c> だけを話す** (#35)。主要な提供元は
+/// どこもこの形の API を持っていて、ローカルで動かす道具もほぼ全部が同じ形のため、
 /// 1つ実装すればどこへでも繋がる。どこを使うかは利用者が URL と鍵で決める。
 /// </para>
 /// <para>
@@ -22,7 +22,7 @@ namespace Expzip.Ai;
 /// </remarks>
 internal static class AiClient
 {
-    /// <summary>OpenAI 互換の入口の、最後の部分。</summary>
+    /// <summary>OpenAI 互換の API の、最後の部分。</summary>
     private const string Path = "chat/completions";
 
     /// <summary>繋がるか確かめるときの待ち時間。</summary>
@@ -111,7 +111,7 @@ internal static class AiClient
     /// <summary>尋ねて、返ってきた文章を受け取る (#25)。</summary>
     /// <remarks>
     /// <para>
-    /// **答えの形は指定しない。**OpenAI 互換の入口には答えを JSON に縛る指定
+    /// **答えの形は指定しない。**OpenAI 互換の API には答えを JSON に縛る指定
     /// (<c>response_format</c>) があるが、**受け付ける先と受け付けない先がある**。
     /// 繋ぎ先を利用者が選ぶ作りなので、一部でしか通らない指定を送ると、
     /// 選んだ先によっては断られる。頼み方で JSON を書かせ、返ってきたものを
@@ -298,7 +298,7 @@ internal static class AiClient
 }
 
 /// <summary>AI への繋ぎ先 (#24)。</summary>
-/// <param name="Endpoint">OpenAI 互換の入口。</param>
+/// <param name="Endpoint">OpenAI 互換の API。</param>
 /// <param name="Model">使う模型の名前。</param>
 /// <param name="ApiKey">APIキー。ローカルの道具では要らないことがある。</param>
 internal sealed record AiOptions(string Endpoint, string Model, string ApiKey)

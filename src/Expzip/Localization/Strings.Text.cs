@@ -42,7 +42,7 @@ internal static partial class Strings
         "Set, change, or remove the password");
 
     // 歯車ひとつに言語と AI が同居していたのをやめた (#104)。
-    // 性質の違うものが1つの口に入っていると、何が出てくるのか開くまで分からない
+    // 性質の違うものが1つのメニューに入っていると、何が出てくるのか開くまで分からない
 
     public static string AiMenu => Pick("AI機能", "AI features");
 
@@ -116,7 +116,7 @@ internal static partial class Strings
     // ------------------------------------------------------------------ アドレスバーとタブ
 
     /// <summary>
-    /// 畳んだ区切りを出す口 (#90)。
+    /// 畳んだ区切りを出すボタン (#90)。
     /// </summary>
     /// <remarks>
     /// **「場所」の見出しは外した。**エクスプローラーのアドレスバーに見出しは無い。
@@ -125,7 +125,7 @@ internal static partial class Strings
     public static string LocationHidden => Pick(
         "隠れている場所", "Hidden parts of the path");
 
-    /// <summary>区切りの口 (#90)。押すと、その場所の中にあるフォルダが並ぶ。</summary>
+    /// <summary>区切りのボタン (#90)。押すと、その場所の中にあるフォルダが並ぶ。</summary>
     public static string LocationInside(string name) => Pick(
         $"{name} の中", $"Inside {name}");
 
@@ -792,7 +792,7 @@ internal static partial class Strings
 
     /// <summary>これは提案であって、確かめた結果ではない (仕様書 10.5節)。</summary>
     /// <remarks>
-    /// **#72 で足す・直す・消す口を外したのに、この文だけ残っていた** (#77)。
+    /// **#72 で足す・直す・消すボタンを外したのに、この文だけ残っていた** (#77)。
     /// いまできるのは「使う / 使わない」の選びだけ。無い機能を案内していた。
     /// </remarks>
     public static string RuleProposalNotice => Pick(

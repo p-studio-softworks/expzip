@@ -26,7 +26,7 @@ namespace Expzip.Ui;
 /// </para>
 /// </remarks>
 // WPF が作る相方の宣言に合わせて public にしてある。決まりの型は internal の
-// ままにしたいので、それらを受け渡す口だけ internal にする
+// ままにしたいので、それらを受け渡す所だけ internal にする
 public partial class RuleAuditWindow : Window
 {
     /// <summary>旗。一覧に立てるものと同じ形にする。</summary>

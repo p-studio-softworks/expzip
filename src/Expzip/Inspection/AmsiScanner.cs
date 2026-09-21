@@ -50,11 +50,11 @@ internal sealed class AmsiScanner : IDisposable
     }
 
     /// <summary>
-    /// 検査のウィンドウ口を開く。
+    /// 検査の受け口を開く。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// AMSI は Windows の口であって、特定の対策ソフトのものではない。Defender の
+    /// AMSI は Windows の仕組みであって、特定の対策ソフトのものではない。Defender の
     /// 代わりに別の対策ソフトを入れている環境でも、その製品が提供者として登録して
     /// いれば同じように働く。こちら側は製品名を知らないし、知る必要もない。
     /// </para>

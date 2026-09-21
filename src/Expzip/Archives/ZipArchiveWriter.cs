@@ -189,7 +189,7 @@ internal static class ZipArchiveWriter
     /// 書き換えを確定する。中断されたら取りやめる。
     /// </summary>
     /// <remarks>
-    /// 中身を読むのは <c>CommitUpdate</c> の最中で、そこに割り込む口は無い。
+    /// 中身を読むのは <c>CommitUpdate</c> の最中で、そこに割り込む余地は無い。
     /// 読み取りの側 (<see cref="ZipUpdate.FileSource"/>) が中断を投げると
     /// ここに届く。SharpZipLib は別のファイルへ書いてから差し替えるため、
     /// 取りやめても元の書庫はそのまま残る。

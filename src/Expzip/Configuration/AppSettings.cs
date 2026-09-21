@@ -50,7 +50,7 @@ internal sealed class AppSettings
     /// </remarks>
     public long SplitChunkSize { get; set; } = 100L * 1024 * 1024;
 
-    /// <summary>AI の入口 (#24)。OpenAI 互換の場所を入れる (#35)。</summary>
+    /// <summary>AI の API (#24)。OpenAI 互換の場所を入れる (#35)。</summary>
     public string AiEndpoint { get; set; } = string.Empty;
 
     /// <summary>使う模型の名前 (#24)。</summary>

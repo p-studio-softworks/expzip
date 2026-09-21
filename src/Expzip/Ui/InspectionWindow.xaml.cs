@@ -23,7 +23,7 @@ namespace Expzip.Ui;
 /// </para>
 /// </remarks>
 // WPF が作る相方の宣言に合わせて public にしてある。書庫検査の型は internal の
-// ままにしたいので、それらを受け渡す口だけ internal にする
+// ままにしたいので、それらを受け渡す所だけ internal にする
 public partial class InspectionWindow : Window
 {
     private readonly Action<string> _jump;

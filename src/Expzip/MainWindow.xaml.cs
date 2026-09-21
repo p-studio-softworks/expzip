@@ -2262,7 +2262,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>ツールバーの絵の口に、名前と説明を入れる (#102)。</summary>
+    /// <summary>ツールバーの絵のボタンに、名前と説明を入れる (#102)。</summary>
     /// <remarks>
     /// 名前は支援技術と画面のテストが拾うもの、説明はマウスを当てた人が読むもので、
     /// 相手が違う。前者は短い見出し、後者は何が起きるかの一文にする。
@@ -4361,7 +4361,7 @@ public partial class MainWindow : Window
     /// </summary>
     /// <remarks>
     /// 深いところを見ているときに要るのは**末尾のほう**なので、そちらへ寄せる。
-    /// 押せなくなった先頭は、しるしの口から辿れる。
+    /// 押せなくなった先頭は、しるしのボタンから辿れる。
     /// </remarks>
     private void FitCrumbs()
     {
@@ -4381,7 +4381,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>その場所の中にあるフォルダを出す。区切りそのものが口になる (#90)。</summary>
+    /// <summary>その場所の中にあるフォルダを出す。区切りそのものがボタンになる (#90)。</summary>
     private void CrumbInside_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string path } button
@@ -4405,7 +4405,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>行き先を並べた口を出す。</summary>
+    /// <summary>行き先を並べたメニューを出す。</summary>
     /// <remarks>
     /// **名前の下線はそのまま出す。**献立の見出しは <c>_</c> を押し文字の印として
     /// 食べてしまうので、二重にして渡す。`usb_host_cp210x_vcp` のような名前は珍しくない。
@@ -4490,10 +4490,10 @@ public partial class MainWindow : Window
         /// <summary>書庫そのものを指す先頭の区切りか。絵を添えるのはここだけ。</summary>
         public bool IsArchive { get; init; }
 
-        /// <summary>中にフォルダがあるか。区切りの口を出すかどうかに使う。</summary>
+        /// <summary>中にフォルダがあるか。区切りのボタンを出すかどうかに使う。</summary>
         public bool HasFolders { get; init; }
 
-        /// <summary>区切りの口の名前。記号だけでは、支援技術に記号として読まれる。</summary>
+        /// <summary>区切りのボタンの名前。記号だけでは、支援技術に記号として読まれる。</summary>
         public required string Inside { get; init; }
     }
 
@@ -4868,7 +4868,7 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 言語 (#23)
 
-    /// <summary>ツールバーの言語 (#104)。口そのものが言語なので、中で入れ子にしない。</summary>
+    /// <summary>ツールバーの言語 (#104)。メニューそのものが言語なので、中で入れ子にしない。</summary>
     private void LanguageButton_Click(object sender, RoutedEventArgs e)
         => DropDown(LanguageButton);
 
@@ -4890,7 +4890,7 @@ public partial class MainWindow : Window
         DropDown(AiButton);
     }
 
-    /// <summary>ツールバーの口に、ぶら下げた品書きを開く。</summary>
+    /// <summary>ツールバーのボタンに、ぶら下げた品書きを開く。</summary>
     private static void DropDown(Button button)
     {
         if (button.ContextMenu is not { } menu)
@@ -4924,7 +4924,7 @@ public partial class MainWindow : Window
     /// <summary>AI の機能を出してよいか (#24)。</summary>
     /// <remarks>
     /// 繋ぎ先が揃っていなければ、フェーズ4の機能は画面に出さない。
-    /// 押せるのに何も起きない口を作らないため (仕様書 10.4節)。
+    /// 押せるのに何も起きないボタンを作らないため (仕様書 10.4節)。
     /// </remarks>
     private bool AiConfigured => CurrentAiOptions.IsConfigured;
 
@@ -5283,7 +5283,7 @@ public partial class MainWindow : Window
     private void ApplyLanguage()
     {
         // ツールバーは絵だけになった (#102)。中身は XAML にあり、ここでは触らない。
-        // **絵の口には必ず名前を入れる。**入れないと支援技術には記号のまま読まれ、
+        // **絵のボタンには必ず名前を入れる。**入れないと支援技術には記号のまま読まれ、
         // 画面を操作するテストからも見えなくなる。名前は字だったころの見出しをそのまま使う
         NameTool(OpenButton, Strings.Open, Strings.OpenTooltip);
         NameTool(RecentButton, Strings.RecentTooltip, Strings.RecentTooltip);
@@ -5306,7 +5306,7 @@ public partial class MainWindow : Window
         LanguageEnglishItem.Header = Strings.LanguageEnglish;
         UpdateLanguageChecks();
 
-        // 記号だけの口。名前を入れておかないと、支援技術には記号のまま読まれる (#90)
+        // 記号だけのボタン。名前を入れておかないと、支援技術には記号のまま読まれる (#90)
         CrumbOverflow.ToolTip = Strings.LocationHidden;
         AutomationProperties.SetName(CrumbOverflow, Strings.LocationHidden);
 

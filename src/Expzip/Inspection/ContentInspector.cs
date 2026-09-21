@@ -23,7 +23,7 @@ namespace Expzip.Inspection;
 /// </para>
 /// <para>
 /// 7z はまとめて圧縮されている (ソリッド) ため、必ず先頭から順に読む。1件ずつ開くと
-/// そのたびに同じ塊を復号し直すことになる (#19 の実測で370倍)。
+/// そのたびに同じ塊を復号し直すことになる (実測で370倍。#19)。
 /// </para>
 /// </remarks>
 internal static class ContentInspector
