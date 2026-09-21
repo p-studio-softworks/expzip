@@ -59,10 +59,10 @@
                     何が起きるかは説明で添える
                 -->
                 <Button x:Name="DoneButton"
-                        Width="96" Height="26" Margin="0,0,8,0"
+                        Width="96" Margin="0,0,8,0"
                         Click="DoneButton_Click" />
                 <Button x:Name="CloseButton"
-                        Width="96" Height="26"
+                        Width="96"
                         IsCancel="True"
                         Click="CloseButton_Click" />
             </StackPanel>

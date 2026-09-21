@@ -869,7 +869,7 @@ InspectionHeadline (danger: 1, warning: 2)
   ja  危険 1 件、注意 2 件が見つかりました
   en  Found 1 dangerous and 2 questionable items
 InspectionHeadline (danger: 0, warning: 2)
-  ja  注意したい項目が 2 件見つかりました
+  ja  注意した方が良い項目が 2 件見つかりました
   en  Found 2 questionable items
 InspectionHeadline (danger: 1, warning: 0)
   ja  危険な項目が 1 件見つかりました

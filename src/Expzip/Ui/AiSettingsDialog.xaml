@@ -61,11 +61,11 @@
         <TextBlock x:Name="ResultText" Margin="0,12,0,0" TextWrapping="Wrap" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button x:Name="TestButton" Width="120" Height="26" Margin="0,0,8,0"
+            <Button x:Name="TestButton" Width="120" Margin="0,0,8,0"
                     Click="TestButton_Click" />
-            <Button x:Name="SaveButton" Width="96" Height="26" Margin="0,0,8,0"
+            <Button x:Name="SaveButton" Width="96" Margin="0,0,8,0"
                     IsDefault="True" Click="SaveButton_Click" />
-            <Button x:Name="CancelButton" Width="96" Height="26"
+            <Button x:Name="CancelButton" Width="96"
                     IsCancel="True" Click="CancelButton_Click" />
         </StackPanel>
     </StackPanel>

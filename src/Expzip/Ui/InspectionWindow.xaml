@@ -88,7 +88,7 @@
         <Border DockPanel.Dock="Bottom" Padding="16,10,16,12">
             <Button x:Name="CloseButton"
                     HorizontalAlignment="Right"
-                    Width="96" Height="26"
+                    Width="96"
                     IsCancel="True"
                     Click="CloseButton_Click" />
         </Border>

@@ -1683,7 +1683,7 @@ internal static partial class Strings
             $"Found {danger:N0} dangerous {Plural(danger, "item", "items")}"),
 
         (_, > 0) => Pick(
-            $"注意したい項目が {warning:N0} 件見つかりました",
+            $"注意した方が良い項目が {warning:N0} 件見つかりました",
             $"Found {warning:N0} questionable {Plural(warning, "item", "items")}"),
 
         _ => Pick("問題は見つかりませんでした", "No problems were found"),
