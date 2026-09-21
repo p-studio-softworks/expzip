@@ -178,6 +178,21 @@
             <Setter Property="Margin" Value="0,0,-4,-3" />
             <Setter Property="AutomationProperties.AutomationId" Value="LockMark" />
         </Style>
+        <!--
+            パスが通常と異なる項目の警告 (#36)。錠前と同じ理由で、名前の前には並べず絵に重ねる (#141)。
+            錠前と同じ行に付くことがあるので、錠前とぶつからない右上に置く。
+            安全に関わる印なので、錠前より小さくしない
+        -->
+        <Style x:Key="WarningMark" TargetType="ui:GlyphText">
+            <Setter Property="Text" Value="&#xE814;" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,-5,-4,0" />
+            <Setter Property="AutomationProperties.AutomationId" Value="WarningMark" />
+        </Style>
         <Style x:Key="FolderNameText" TargetType="TextBlock">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding HasEncryptedContent}" Value="True">
@@ -602,21 +617,11 @@
                                 ここにも出る。**でないと、開いて回らないと気付けない
                             -->
                             <!--
-                                パスが通常ではないフォルダに警告を添える (#36)。
+                                塗りつぶしのフォルダ。輪郭線のみだと書類と紛らわしい。
+                                配下に保護されたファイルがあれば錠前を重ねる (#128、LockMark)。
+                                パスが通常ではないフォルダには警告を重ねる (#36、#141、WarningMark)。
                                 絵は支援技術の木に出さない (#119、GlyphText)。
                                 伝えたい事柄は節の名前に入れてある
-                            -->
-                            <ui:GlyphText Text="&#xE814;"
-                                          FontFamily="Segoe MDL2 Assets"
-                                          FontSize="12"
-                                          Foreground="{DynamicResource WarningBrush}"
-                                          VerticalAlignment="Center"
-                                          Margin="0,0,4,0"
-                                          ToolTip="{StaticResource SuspiciousPathTooltip}"
-                                          Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                            <!--
-                                塗りつぶしのフォルダ。輪郭線のみだと書類と紛らわしい。
-                                配下に保護されたファイルがあれば錠前を重ねる (#128、LockMark)
                             -->
                             <Grid VerticalAlignment="Center" Margin="0,0,7,0">
                                 <ui:GlyphText Text="&#xE8D5;"
@@ -625,6 +630,9 @@
                                               Foreground="{StaticResource FolderBrush}" />
                                 <ui:GlyphText Style="{StaticResource LockMark}"
                                               Visibility="{Binding HasEncryptedContent, Converter={StaticResource BoolToVisibility}}" />
+                                <ui:GlyphText Style="{StaticResource WarningMark}"
+                                              ToolTip="{StaticResource SuspiciousPathTooltip}"
+                                              Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
                             </Grid>
                             <!--
                                 背景色を敷いたときに文字が縁にくっつかないよう、
@@ -763,19 +771,11 @@
                                     2つの意味があるように見える
                                 -->
                                 <!--
-                                    パスが通常ではない項目に警告を添える (#36)。
+                                    保護された項目には錠前を重ねる (#128、LockMark)。
+                                    パスが通常ではない項目には警告を重ねる (#36、#141、WarningMark)。
                                     絵は支援技術の木に出さない (#119、GlyphText)。
                                     伝えたい事柄は行の名前に入れてある
                                 -->
-                                <ui:GlyphText Text="{Binding WarningGlyph}"
-                                              FontFamily="Segoe MDL2 Assets"
-                                              FontSize="12"
-                                              Foreground="{DynamicResource WarningBrush}"
-                                              VerticalAlignment="Center"
-                                              Margin="0,0,4,0"
-                                              ToolTip="{Binding WarningTooltip}"
-                                              Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                                <!-- 保護された項目には錠前を重ねる (#128、LockMark) -->
                                 <Grid VerticalAlignment="Center" Margin="0,0,7,0">
                                     <ui:GlyphText Text="{Binding Glyph}"
                                                   FontFamily="Segoe MDL2 Assets"
@@ -793,6 +793,9 @@
                                     </ui:GlyphText>
                                     <ui:GlyphText Style="{StaticResource LockMark}"
                                                   Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMark}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
                                 </Grid>
                                 <!-- 通常は表示のみ。名前の変更中だけ入力欄に入れ替える (#15) -->
                                 <TextBlock Text="{Binding Name}"

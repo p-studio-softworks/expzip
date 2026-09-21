@@ -32,9 +32,6 @@ internal sealed class EntryRow : INotifyPropertyChanged
     /// <summary>書類。</summary>
     private const string GlyphFile = "\uE7C3";
 
-    /// <summary>塗りつぶしの警告三角。小さく表示しても輪郭線より目に留まる。</summary>
-    private const string GlyphWarning = "\uE814";
-
     private bool _isEditing;
     private string _editName = string.Empty;
 
@@ -99,8 +96,6 @@ internal sealed class EntryRow : INotifyPropertyChanged
     /// フォルダの行は、配下に保護されたファイルがあれば印を付ける。
     /// </summary>
     public bool IsEncrypted => Entry?.IsEncrypted ?? Folder?.HasEncryptedContent ?? false;
-
-    public string WarningGlyph => GlyphWarning;
 
     public string? WarningTooltip => IsPathSuspicious ? Strings.SuspiciousPathTooltip : null;
 

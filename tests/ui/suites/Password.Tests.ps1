@@ -31,27 +31,8 @@ function Enter-Password($App, [string]$Text) {
     return $prompt.Replace("`r`n", "`n")
 }
 
-# 見えている錠前の印 (#128)。絵は支援技術の木に出さないので、
-# 省かれたものまで含む木 (raw view) で探す
-function Get-LockMarks($Scope) {
-    $request = New-Object System.Windows.Automation.CacheRequest
-    $request.TreeFilter = [System.Windows.Automation.Automation]::RawViewCondition
-    $request.Add($script:Automation::AutomationIdProperty)
-    $active = $request.Activate()
-    try {
-        return @($Scope.FindAll($script:Scope::Descendants,
-            (Condition $script:Automation::AutomationIdProperty 'LockMark')) |
-            Where-Object { -not $_.Current.IsOffscreen -and -not $_.Current.BoundingRectangle.IsEmpty })
-    } finally {
-        $active.Dispose()
-    }
-}
-
-# 行の左端から名前の字までの距離。窓の位置は起動のたびに変わるので、行から測る
-function Get-NameLeft($App, [string]$Name) {
-    $row = Find-Row $App $Name
-    return (ByName $row $Name).Current.BoundingRectangle.X - $row.Current.BoundingRectangle.X
-}
+# 見えている錠前の印 (#128)
+function Get-LockMarks($Scope) { return Get-Marks $Scope 'LockMark' }
 
 Section 'パスワードを設定する'
 $app = Start-Expzip @($archive)

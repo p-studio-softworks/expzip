@@ -495,6 +495,28 @@ function Find-Row($App, [string]$Name) {
     return Get-Rows $App | Where-Object { (Get-RowName $_) -eq $Name } | Select-Object -First 1
 }
 
+# 見えている印 (錠前 LockMark #128、警告 WarningMark #141)。絵は支援技術の木に出さないので、
+# 省かれたものまで含む木 (raw view) で探す
+function Get-Marks($Scope, [string]$Id) {
+    $request = New-Object System.Windows.Automation.CacheRequest
+    $request.TreeFilter = [System.Windows.Automation.Automation]::RawViewCondition
+    $request.Add($script:Automation::AutomationIdProperty)
+    $active = $request.Activate()
+    try {
+        return @($Scope.FindAll($script:Scope::Descendants,
+            (Condition $script:Automation::AutomationIdProperty $Id)) |
+            Where-Object { -not $_.Current.IsOffscreen -and -not $_.Current.BoundingRectangle.IsEmpty })
+    } finally {
+        $active.Dispose()
+    }
+}
+
+# 行の左端から名前の字までの距離。窓の位置は起動のたびに変わるので、行から測る
+function Get-NameLeft($App, [string]$Name) {
+    $row = Find-Row $App $Name
+    return (ByName $row $Name).Current.BoundingRectangle.X - $row.Current.BoundingRectangle.X
+}
+
 function Select-Row($App, [string]$Name) {
     $row = Find-Row $App $Name
     if ($null -eq $row) { throw "行がありません: $Name / $((Get-RowNames $App) -join ', ')" }

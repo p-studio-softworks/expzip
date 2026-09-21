@@ -51,6 +51,14 @@ Check '開いた時点で知らせる' ($warning -and $warning.Current.Name -mat
 # 印の意味は一覧の行の名前にも入る (#119)。絵と色だけでは読み上げに伝わらない
 $rowNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
 Check '印の意味が行の名前に入る' ($rowNames -match '^\.\.、パスが通常と異なります$') ($rowNames -join ' / ')
+# 警告の絵はアイコンに重ねる (#141)。名前の前に並べると、その行だけ名前が右へずれ、
+# 1 段下の階層にあるように見える
+Check '通常と異なる行に警告が付く' ((Get-Marks (Find-Row $app '..') 'WarningMark').Count -eq 1)
+Check '通常の行には警告が無い' ((Get-Marks (Find-Row $app 'setup.exe') 'WarningMark').Count -eq 0)
+Check 'ツリーにも警告が付く' ((Get-Marks (ById $app.Window 'FolderTree') 'WarningMark').Count -ge 1)
+$plainLeft = Get-NameLeft $app 'setup.exe'
+$warnedLeft = Get-NameLeft $app '..'
+Check '警告が付いても名前の位置は変わらない' ([Math]::Abs($warnedLeft - $plainLeft) -lt 1) "$plainLeft → $warnedLeft"
 
 $window = Run-Inspection $app '検査結果 - ayashii.zip'
 Check '窓が開く' ($null -ne $window)
