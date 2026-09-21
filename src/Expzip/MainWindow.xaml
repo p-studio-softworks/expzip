@@ -97,11 +97,20 @@
 
             押せないときも説明を出す。絵だけのボタンが灰色で並んでいると、
             それが何なのかを確かめる手立てが説明のほかに無い
+
+            **アイコン用のフォントは、ボタンではなく中の文字にだけ指定する (#124)。**
+            ボタンに指定すると、ボタンに付いたメニューがそのフォントを受け継ぎ、
+            項目がすべて □ になる。Fluent のメニューは自分でフォントを指定しないため
         -->
         <Style x:Key="ToolGlyph" TargetType="Button"
                BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
-            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
-            <Setter Property="FontSize" Value="17" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" FontFamily="Segoe MDL2 Assets" FontSize="17" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Padding" Value="7,3" />
             <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         </Style>
