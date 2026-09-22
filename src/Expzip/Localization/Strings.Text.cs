@@ -837,16 +837,16 @@ internal static partial class Strings
         "選択したルールを一覧から削除します。行をクリックして選択してください"
         + "(「使用」のチェックとは別です)。"
         + "削除したルールは、次の推定で再び提案されることがあります。"
-        + "提案されないようにするには、「使用」を外して保存してください。",
+        + "提案されないようにするには、「使用」を外して適用してください。",
         "Removes the selected rules from the list. Click a row to select it "
         + "(this is not the Use box). "
         + "A removed rule can be proposed again the next time you work out the rules. "
-        + "To keep one from coming back, clear its Use box and save instead.");
+        + "To keep one from coming back, clear its Use box and apply instead.");
 
-    /// <summary>消したことの知らせ (#98)。**まだファイルは変わっていない**と言う。</summary>
+    /// <summary>消したことの知らせ (#98)。**まだ適用されていない**と言う。</summary>
     public static string RuleRemoved(int count) => Pick(
-        $"{count} 件のルールを一覧から削除しました。保存するとファイルに反映されます。",
-        $"Removed {count} rule(s) from the list. Saving writes the change to the file.");
+        $"{count} 件のルールを一覧から削除しました。「適用する」を押すと反映されます。",
+        $"Removed {count} rule(s) from the list. Press Apply to put the change into effect.");
 
     public static string RuleColumnSource => Pick("提案元", "From");
 
@@ -899,7 +899,12 @@ internal static partial class Strings
     public static string RuleDropUnchecked
         => Pick("除外 (確認できる対象なし)", "Not taken (cannot be checked)");
 
-    public static string RuleSave => Pick("保存する", "Save");
+    /// <summary>
+    /// 一覧のルールをファイルに書き、この後の検査に使う (#145)。ウィンドウは閉じない。
+    /// Windows の設定画面の「適用」と同じ働きなので、その名前にする。
+    /// 「保存する」だと、開いたときに保存済みのルールが並んでいるので、押す意味が分かりにくい
+    /// </summary>
+    public static string RuleApply => Pick("適用する", "Apply");
 
     public static string RuleLoaded(int count, string from) => from.Length == 0
         ? Pick($"保存されている {count} 件のルールを読み込みました。",
@@ -910,21 +915,33 @@ internal static partial class Strings
     public static string RuleAlreadyHad => Pick(
         "既に一覧にあるルールは追加していません。", " Ones already listed were not added again.");
 
-    public static string RuleSaved(int total, int used) => Pick(
-        $"{total:N0} 件のルールを保存しました (使用するのは {used:N0} 件)。",
-        $"Saved {total:N0} rule(s); {used:N0} of them are in use.");
+    public static string RuleApplied(int total, int used) => Pick(
+        $"{total:N0} 件のルールを適用しました (使用するのは {used:N0} 件)。",
+        $"Applied {total:N0} rule(s); {used:N0} of them are in use.");
 
-    /// <summary>保存したルールのうち、実際に使うもの。ステータスバーに出す。</summary>
+    /// <summary>適用したルールのうち、実際に使うもの。ステータスバーに出す。</summary>
     public static string RuleKept(int used) => Pick(
-        $"ルールを保存しました (使用するのは {used:N0} 件)",
-        $"Saved the rules; {used:N0} in use");
+        $"ルールを適用しました (使用するのは {used:N0} 件)",
+        $"Applied the rules; {used:N0} in use");
 
     public static string RuleCleared => Pick(
         "保存されていたルールを削除しました。", "Removed the saved rules.");
 
-    public static string RuleSaveFailed => Pick(
-        "ルールを保存できませんでした。exe と同じフォルダーに書き込めないようです。",
-        "Could not save the rules. The folder holding the exe appears not to be writable.");
+    public static string RuleApplyFailed => Pick(
+        "ルールを適用できませんでした。exe と同じフォルダーに書き込めないようです。",
+        "Could not apply the rules. The folder holding the exe appears not to be writable.");
+
+    /// <summary>
+    /// 適用せずに閉じようとしたとき (#145)。押すまではファイルに書かないので、
+    /// 黙って閉じると、チェックを付け外しただけの人は反映されたと思ってしまう。
+    /// </summary>
+    public static string RuleConfirmClose => Pick(
+        $"適用していない変更があります。{Environment.NewLine}{Environment.NewLine}"
+        + $"適用してから閉じますか?{Environment.NewLine}"
+        + "「いいえ」を選ぶと、変更内容は失われます。",
+        $"Some changes have not been applied.{Environment.NewLine}{Environment.NewLine}"
+        + $"Apply them before closing?{Environment.NewLine}"
+        + "Choosing No discards the changes.");
 
     // ------------------------------------------------ ルールに合っているか見る (#27)
 
@@ -932,7 +949,7 @@ internal static partial class Strings
         "ルールに合っているか検査…", "Check against the rules...");
 
     public static string RuleNoneSaved => Pick(
-        "ルールが保存されていません。先に「書庫のルールを推定…」で保存してください。",
+        "ルールが保存されていません。先に「書庫のルールを推定…」で適用してください。",
         "No rules are saved yet. "
         + "Set them under \"Work out the rules of this archive...\" first.");
 

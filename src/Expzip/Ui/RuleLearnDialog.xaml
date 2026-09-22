@@ -161,27 +161,47 @@
                    Visibility="Collapsed"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
+        <!--
+            ボタンは幅と高さをそろえる (#145)。幅は決め打ちせず最小の幅だけ決め、
+            字が長いものだけ字に合わせて広がる。余白は Fluent のままにする
+            (上下を 0 にすると、そのボタンだけ背が低くなる)
+        -->
         <StackPanel Grid.Row="7" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button x:Name="SendButton" Width="160" Margin="0,0,8,0"
+            <StackPanel.Resources>
+                <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                    <Setter Property="MinWidth" Value="120" />
+                    <Setter Property="Margin" Value="0,0,8,0" />
+                </Style>
+            </StackPanel.Resources>
+            <Button x:Name="SendButton"
                     IsDefault="True" Click="SendButton_Click" />
             <!--
                 選んだものを一覧から消す (#98)。推定するたびに増える一方だった。
                 足す・直す (#72 で外した) と違い、**新しい決まりを作らせない**ので、
-                誤ったものが生まれる余地が無い。保存するまでファイルは変わらない
+                誤ったものが生まれる余地が無い。適用するまでファイルは変わらない
             -->
             <!--
                 押せないときこそ訳が要る (#101)。デフォルトでは押せないボタンの説明は
                 出ないので、出す指定を入れておく
             -->
-            <Button x:Name="DeleteButton" MinWidth="140" Padding="10,0" Margin="0,0,8,0"
+            <Button x:Name="DeleteButton"
                     IsEnabled="False"
                     ToolTipService.ShowOnDisabled="True"
                     Click="DeleteButton_Click" />
-            <Button x:Name="SaveButton" Width="120" Margin="0,0,8,0"
-                    Click="SaveButton_Click" />
-            <Button x:Name="CloseButton" Width="96"
-                    IsCancel="True" Click="CloseButton_Click" />
+            <!--
+                一覧のルールをファイルに書き、この後の検査に使う。ウィンドウは閉じない。
+                Windows の設定画面の「適用」と同じ働きなので、その名前にする (#145)
+            -->
+            <Button x:Name="ApplyButton"
+                    Click="ApplyButton_Click" />
+            <!--
+                閉じるのは IsCancel に任せる。モーダルのウィンドウでは、押すと WPF が閉じる。
+                Click でも閉じると 2 回閉じにいき、閉じる前の問い (#145) で「キャンセル」を
+                選んだ直後に、もう一度問いが出る
+            -->
+            <Button x:Name="CloseButton" Margin="0"
+                    IsCancel="True" />
         </StackPanel>
     </Grid>
 </Window>

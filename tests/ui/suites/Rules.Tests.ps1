@@ -68,7 +68,14 @@ try {
     Check '中身は送るものに入っていない' ($payload -notmatch $secret)
     $size = (ById $dialog 'PayloadText').Current.Name
     Check '送る量を言う' ($size -match 'ファイルの中身は送信しません。' -and $size -match 'この書庫のすべての名前を送信します。合計 [\d,]+ バイトです。$') $size
-    Check '口の名前' ((ById $dialog 'SendButton').Current.Name -eq '推定する' -and (ById $dialog 'SaveButton').Current.Name -eq '保存する' -and (ById $dialog 'CloseButton').Current.Name -eq '閉じる')
+    Check '口の名前' ((ById $dialog 'SendButton').Current.Name -eq '推定する' -and (ById $dialog 'ApplyButton').Current.Name -eq '適用する' -and (ById $dialog 'CloseButton').Current.Name -eq '閉じる')
+    # 口は高さがそろい、短い字の口は同じ幅になる (#145)。以前は 4 つとも別の幅で、
+    # 「選択したルールを削除」だけ背が低かった
+    $buttons = @('SendButton', 'DeleteButton', 'ApplyButton', 'CloseButton' | ForEach-Object { (ById $dialog $_).Current.BoundingRectangle })
+    $heights = @($buttons | ForEach-Object { [int]$_.Height })
+    Check '口の高さがそろう' (($heights | Sort-Object -Unique).Count -eq 1) ($heights -join ' / ')
+    $short = @($buttons[0], $buttons[2], $buttons[3] | ForEach-Object { [int]$_.Width })
+    Check '短い字の口は同じ幅' (($short | Sort-Object -Unique).Count -eq 1) ($short -join ' / ')
     Check 'まだ何も送っていない' ((Get-AiRequests $stub).Count -eq 0)
 
     Section '推定する'
@@ -122,13 +129,13 @@ try {
     Check '選ぶと押せる' ((ById $dialog 'DeleteButton').Current.IsEnabled)
     Check '押したら何が起きるか' ((ById $dialog 'DeleteButton').Current.HelpText -match '^選択したルールを一覧から削除します。') (ById $dialog 'DeleteButton').Current.HelpText
     Push (ById $dialog 'DeleteButton')
-    Check '消したと言う' ((ById $dialog 'ResultText').Current.Name -eq '1 件のルールを一覧から削除しました。保存するとファイルに反映されます。') (ById $dialog 'ResultText').Current.Name
+    Check '消したと言う' ((ById $dialog 'ResultText').Current.Name -eq '1 件のルールを一覧から削除しました。「適用する」を押すと反映されます。') (ById $dialog 'ResultText').Current.Name
     Check '一覧から消える' ((RuleRows $dialog).Count -eq 3)
 
-    Section '保存する'
-    Push (ById $dialog 'SaveButton')
+    Section '適用する'
+    Push (ById $dialog 'ApplyButton')
     $saved = (ById $dialog 'ResultText').Current.Name
-    Check '保存したと言う' ($saved -eq '2 件のルールを保存しました (使用するのは 2 件)。') $saved
+    Check '適用したと言う' ($saved -eq '2 件のルールを適用しました (使用するのは 2 件)。') $saved
     Check 'ファイルができる' (Test-Path $script:RulesPath)
     Push (ById $dialog 'CloseButton')
     Check '閉じる' (Test-WindowGone $app '書庫のルールを推定')
@@ -163,7 +170,7 @@ try {
         $findings = Texts (ById $audit 'FindingList')
         Check '違反の場所' ($findings -match 'cache\.tmp') $findings
         Check '足りないもの' ($findings -match 'README\.md' -and $findings -match '見つからない') $findings
-        Check '保存したものしか使わない' ($findings -notmatch 'docs|CHANGELOG')
+        Check '適用したものしか使わない' ($findings -notmatch 'docs|CHANGELOG')
         # 支援技術が読む行の名前。種類・対象・内容をこの順に読む (#109)
         $rowNames = @((ById $audit 'FindingList').FindAll($script:Scope::Children,
             (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem)) |
@@ -180,6 +187,56 @@ try {
         Check '合っていない印が行の名前に入る' ($listNames -match '^src、ルールに合っていません$') ($listNames -join ' / ')
         Push (ById $audit 'CloseButton')
     }
+
+    Section '適用せずに閉じる'
+    # 適用するまではファイルに書かない。黙って閉じると、チェックを付け外しただけの人は
+    # 反映されたと思ってしまうので、閉じる前に尋ねる (#145)
+    $before = [System.IO.File]::ReadAllText($script:RulesPath)
+    function Open-Learn {
+        Open-AiItem $app '書庫のルールを推定…' | Out-Null
+        return Find-Window $app '書庫のルールを推定'
+    }
+    function Toggle-FirstRule($Dialog) {
+        $row = (RuleRows $Dialog)[0]
+        Toggle-Check (ByType $row $script:ControlType::CheckBox | Select-Object -First 1)
+    }
+
+    $dialog = Open-Learn
+    Toggle-FirstRule $dialog
+    Push (ById $dialog 'CloseButton')
+    $box = Find-MessageBox $app
+    Check '尋ねる' ($null -ne $box)
+    if ($box) {
+        Check '尋ね方' ($box.Text -match '^適用していない変更があります。' -and $box.Text -match '適用してから閉じますか\?' -and $box.Text -match '「いいえ」を選ぶと、変更内容は失われます。') $box.Text
+        Check '口は はい / いいえ / キャンセル' (($box.Buttons -contains 'はい(Y)') -and ($box.Buttons -contains 'いいえ(N)') -and ($box.Buttons -contains 'キャンセル')) ($box.Buttons -join ', ')
+        Close-MessageBox $box 'いいえ(N)'
+    }
+    Check 'いいえなら閉じる' (Test-WindowGone $app '書庫のルールを推定')
+    Check 'いいえならファイルは変わらない' ([System.IO.File]::ReadAllText($script:RulesPath) -eq $before)
+
+    $dialog = Open-Learn
+    Toggle-FirstRule $dialog
+    Push (ById $dialog 'CloseButton')
+    $box = Find-MessageBox $app
+    if ($box) { Close-MessageBox $box 'キャンセル' }
+    Check 'キャンセルなら閉じない' ($null -ne (Find-Window $app '書庫のルールを推定' 2000))
+
+    Push (ById $dialog 'CloseButton')
+    $box = Find-MessageBox $app
+    Check 'キャンセルの後にもう一度閉じると、また尋ねる' ($box -and $box.Text -match '^適用していない変更があります。') $(if ($box) { $box.Text })
+    if ($box -and $box.Buttons -contains 'はい(Y)') { Close-MessageBox $box 'はい(Y)' }
+    elseif ($box) { Close-MessageBox $box $box.Buttons[0] }
+    Check 'はいなら閉じる' (Test-WindowGone $app '書庫のルールを推定')
+    $after = [System.IO.File]::ReadAllText($script:RulesPath)
+    Check 'はいなら適用される' ($after -ne $before)
+
+    # 変えていなければ尋ねない。付けて外して元に戻しただけでも尋ねない
+    $dialog = Open-Learn
+    Toggle-FirstRule $dialog
+    Toggle-FirstRule $dialog
+    Push (ById $dialog 'CloseButton')
+    Check '変えていなければそのまま閉じる' (Test-WindowGone $app '書庫のルールを推定')
+    Check '変えていなければ尋ねない' ($null -eq (Find-MessageBox $app 1500))
     Stop-Expzip $app
 }
 finally {

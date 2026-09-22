@@ -29,9 +29,13 @@ namespace Expzip.Ui;
 /// ファイルを手で書けば自分の決まりは持てるので、その道は塞いでいない。
 /// </para>
 /// <para>
-/// **読み取っても、保存するまでは何も残らない。**すでに保存された決まりがあれば
+/// **読み取っても、適用するまでは何も残らない。**すでに保存された決まりがあれば
 /// 開いた時点で読み込み、読み取った決まりは**足す**。人が直したものを、
 /// もう一度読み取っただけで消さない。
+/// </para>
+/// <para>
+/// **適用せずに閉じるときは尋ねる** (#145)。黙って捨てると、チェックを付け外した
+/// だけの人は反映されたと思ってしまう。
 /// </para>
 /// </remarks>
 public partial class RuleLearnDialog : Window
@@ -42,6 +46,9 @@ public partial class RuleLearnDialog : Window
     private readonly ObservableCollection<RuleRow> _rows = [];
 
     private CancellationTokenSource? _asking;
+
+    /// <summary>最後に適用した (または開いたときに読み込んだ) 一覧の中身。</summary>
+    private HashSet<(ArchiveRule Rule, bool Enabled)> _applied = [];
 
     internal RuleLearnDialog(Window owner, AiOptions options, ArchiveContents sample)
     {
@@ -57,13 +64,14 @@ public partial class RuleLearnDialog : Window
 
         ApplyLanguage();
         LoadSaved();
+        _applied = Snapshot();
         ShowRows();
 
-        Closing += (_, _) => _asking?.Cancel();
+        Closing += Dialog_Closing;
         Loaded += (_, _) => SendButton.Focus();
     }
 
-    /// <summary>保存した決まりの数。保存していなければ 0。</summary>
+    /// <summary>適用した決まりのうち使うものの数。適用していなければ 0。</summary>
     internal int SavedCount { get; private set; }
 
     /// <summary>使うことにした決まり。</summary>
@@ -98,7 +106,7 @@ public partial class RuleLearnDialog : Window
         // 消すことと、使用を外すことは違う (#98)。押す前に分かるようにする。
         // 押せないときは、何をすれば押せるのかを出す (#101)
         ShowDeleteReady();
-        SaveButton.Content = Strings.RuleSave;
+        ApplyButton.Content = Strings.RuleApply;
         CloseButton.Content = Strings.RuleClose;
     }
 
@@ -270,8 +278,8 @@ public partial class RuleLearnDialog : Window
         RuleList.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         NoticeText.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
 
-        // 採らなかった候補しか無いなら、保存するものは無い (#80)
-        SaveButton.IsEnabled = _rows.Any(static row => row.CanUse) || RuleStore.Exists;
+        // 採らなかった候補しか無いなら、適用するものは無い (#80)
+        ApplyButton.IsEnabled = _rows.Any(static row => row.CanUse) || RuleStore.Exists;
 
         // 一覧の行は Collapsed でも * のままでは場所を取り続ける。高さも入れ替える。
         // 読み取った後は一覧のほうが主役になるので、書庫詳細より広く取る (#75)
@@ -280,14 +288,17 @@ public partial class RuleLearnDialog : Window
 
     // ------------------------------------------------------------------ 残す (#26)
 
+    private void ApplyButton_Click(object sender, RoutedEventArgs e) => Apply();
+
     /// <summary>
-    /// 決まりを exe と同じフォルダに残す。
+    /// 決まりを exe と同じフォルダに残し、この後の検査に使う (#145)。
     /// </summary>
     /// <remarks>
     /// 使わないことにしたものも、外したという印を付けて残す。消してしまうと、
     /// 一度外した決まりが次に読み取ったときにまた挙がってくる。
     /// </remarks>
-    private void SaveButton_Click(object sender, RoutedEventArgs e)
+    /// <returns>ファイルに書けたか。</returns>
+    private bool Apply()
     {
         // 採らなかった候補は残さない (#80)。画面には出すが、確かめようのないものを
         // ファイルに書いても害にしかならない
@@ -295,16 +306,17 @@ public partial class RuleLearnDialog : Window
 
         if (usable.Count == 0)
         {
-            // 1件も無い状態で保存するのは「ルールを無くす」ということ
+            // 1件も無い状態で適用するのは「ルールを無くす」ということ
             if (!RuleStore.TryDelete())
             {
-                ResultText.Text = Strings.RuleSaveFailed;
-                return;
+                ResultText.Text = Strings.RuleApplyFailed;
+                return false;
             }
 
             SavedCount = 0;
+            _applied = Snapshot();
             ResultText.Text = Strings.RuleCleared;
-            return;
+            return true;
         }
 
         var book = new RuleBook(
@@ -313,12 +325,48 @@ public partial class RuleLearnDialog : Window
 
         if (!RuleStore.TrySave(book))
         {
-            ResultText.Text = Strings.RuleSaveFailed;
-            return;
+            ResultText.Text = Strings.RuleApplyFailed;
+            return false;
         }
 
         SavedCount = InUse.Count;
-        ResultText.Text = Strings.RuleSaved(usable.Count, SavedCount);
+        _applied = Snapshot();
+        ResultText.Text = Strings.RuleApplied(usable.Count, SavedCount);
+        return true;
+    }
+
+    /// <summary>
+    /// 適用するときにファイルへ書く中身。採らなかった候補は書かないので入れない。
+    /// </summary>
+    /// <remarks>
+    /// 触ったかどうかではなく中身で比べる。チェックを付けて外して元に戻しただけなら、
+    /// 適用するものは変わっていないので尋ねない。
+    /// </remarks>
+    private HashSet<(ArchiveRule Rule, bool Enabled)> Snapshot()
+        => [.. _rows.Where(static row => row.CanUse).Select(static row => (row.Rule, row.Enabled))];
+
+    /// <summary>適用していない変更があれば、閉じる前に尋ねる (#145)。</summary>
+    /// <remarks>
+    /// 「閉じる」でも × でも Esc でもここを通る。
+    /// </remarks>
+    private void Dialog_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (!Snapshot().SetEquals(_applied))
+        {
+            var answer = MessageBox.Show(
+                this, Strings.RuleConfirmClose, "Expzip",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Question, MessageBoxResult.Yes);
+
+            // 適用できなかったときは閉じない。理由が見えないまま変更が消える
+            if (answer == MessageBoxResult.Cancel
+                || (answer == MessageBoxResult.Yes && !Apply()))
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+
+        _asking?.Cancel();
     }
 
     /// <summary>
@@ -424,6 +472,4 @@ public partial class RuleLearnDialog : Window
         ResultText.Text = Strings.RuleRemoved(chosen.Count);
         ShowRows();
     }
-
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 }

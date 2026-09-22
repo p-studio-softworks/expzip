@@ -1416,6 +1416,18 @@ RuleAlreadyHad
   ja  既に一覧にあるルールは追加していません。
   en   Ones already listed were not added again.
 
+RuleApplied (total: 120, used: 2)
+  ja  120 件のルールを適用しました (使用するのは 2 件)。
+  en  Applied 120 rule(s); 2 of them are in use.
+
+RuleApply
+  ja  適用する
+  en  Apply
+
+RuleApplyFailed
+  ja  ルールを適用できませんでした。exe と同じフォルダーに書き込めないようです。
+  en  Could not apply the rules. The folder holding the exe appears not to be writable.
+
 RuleAuditClean
   ja  ルールに合っていない項目は見つかりませんでした
   en  Nothing conflicts with the rules
@@ -1514,13 +1526,23 @@ RuleColumnVerdict
   ja  この書庫では
   en  In this archive
 
+RuleConfirmClose
+  ja  適用していない変更があります。
+      | 
+      | 適用してから閉じますか?
+      | 「いいえ」を選ぶと、変更内容は失われます。
+  en  Some changes have not been applied.
+      | 
+      | Apply them before closing?
+      | Choosing No discards the changes.
+
 RuleDelete
   ja  選択したルールを削除
   en  Remove selected rules
 
 RuleDeleteHint
-  ja  選択したルールを一覧から削除します。行をクリックして選択してください(「使用」のチェックとは別です)。削除したルールは、次の推定で再び提案されることがあります。提案されないようにするには、「使用」を外して保存してください。
-  en  Removes the selected rules from the list. Click a row to select it (this is not the Use box). A removed rule can be proposed again the next time you work out the rules. To keep one from coming back, clear its Use box and save instead.
+  ja  選択したルールを一覧から削除します。行をクリックして選択してください(「使用」のチェックとは別です)。削除したルールは、次の推定で再び提案されることがあります。提案されないようにするには、「使用」を外して適用してください。
+  en  Removes the selected rules from the list. Click a row to select it (this is not the Use box). A removed rule can be proposed again the next time you work out the rules. To keep one from coming back, clear its Use box and apply instead.
 
 RuleDeleteNone
   ja  削除するルールを選択してください。行をクリックすると選択できます(Ctrl または Shift を押すと複数選択できます)。
@@ -1644,8 +1666,8 @@ RuleIntro (archiveName: 資料.zip)
   en  Treat ⟦資料.zip⟧ as the model archive and work out its rules.
 
 RuleKept (used: 2)
-  ja  ルールを保存しました (使用するのは 2 件)
-  en  Saved the rules; 2 in use
+  ja  ルールを適用しました (使用するのは 2 件)
+  en  Applied the rules; 2 in use
 
 RuleKindForbiddenExtension
   ja  含めない拡張子
@@ -1692,7 +1714,7 @@ RuleNoneFound
   en  No rules could be worked out.
 
 RuleNoneSaved
-  ja  ルールが保存されていません。先に「書庫のルールを推定…」で保存してください。
+  ja  ルールが保存されていません。先に「書庫のルールを推定…」で適用してください。
   en  No rules are saved yet. Set them under "Work out the rules of this archive..." first.
 
 RuleNothingToCheck
@@ -1869,20 +1891,8 @@ RuleProposalNotice
   en  These are the rules the AI worked out. They may differ from the real ones. Choose which ones to use.
 
 RuleRemoved (count: 3)
-  ja  3 件のルールを一覧から削除しました。保存するとファイルに反映されます。
-  en  Removed 3 rule(s) from the list. Saving writes the change to the file.
-
-RuleSave
-  ja  保存する
-  en  Save
-
-RuleSaveFailed
-  ja  ルールを保存できませんでした。exe と同じフォルダーに書き込めないようです。
-  en  Could not save the rules. The folder holding the exe appears not to be writable.
-
-RuleSaved (total: 120, used: 2)
-  ja  120 件のルールを保存しました (使用するのは 2 件)。
-  en  Saved 120 rule(s); 2 of them are in use.
+  ja  3 件のルールを一覧から削除しました。「適用する」を押すと反映されます。
+  en  Removed 3 rule(s) from the list. Press Apply to put the change into effect.
 
 RuleScopeAll
   ja  すべての項目
