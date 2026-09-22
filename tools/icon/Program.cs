@@ -2,6 +2,7 @@
 //
 //     dotnet run --project tools/icon                        Expzip.ico を作り直す
 //     dotnet run --project tools/icon -- --png 512 <出力先>    1 枚の PNG にする (GitHub のアイコンなど)
+//     dotnet run --project tools/icon -- --card <出力先>       リポジトリの Social preview の画像を作る (#139)
 //
 // 絵の正本は src/Expzip/Ui/AppIcon.xaml。バージョン情報はそれをそのまま出し、
 // exe に付ける ico はここでそれを描き出して作る。**絵を直したらこれも走らせる。**
@@ -9,6 +10,7 @@
 //
 // **出来上がりの src/Expzip/Resources/Expzip.ico はリポジトリに入れてある。**
 // Expzip 本体のビルドにこの道具は要らない。
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Markup;
@@ -45,9 +47,17 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length == 2 && args[0] == "--card")
+        {
+            var path = Path.GetFullPath(args[1]);
+            File.WriteAllBytes(path, RenderCard(image));
+            Console.WriteLine($"書きました: {path} ({CardWidth} × {CardHeight})");
+            return 0;
+        }
+
         if (args.Length > 0)
         {
-            Console.Error.WriteLine("使い方: dotnet run --project tools/icon [-- --png <大きさ> <出力先>]");
+            Console.Error.WriteLine("使い方: dotnet run --project tools/icon [-- --png <大きさ> <出力先> | -- --card <出力先>]");
             return 2;
         }
 
@@ -82,6 +92,69 @@ internal static class Program
         using var memory = new MemoryStream();
         encoder.Save(memory);
         return memory.ToArray();
+    }
+
+    // Social preview の画像 (#139)。大きさは GitHub の勧める 1280 × 640
+    private const int CardWidth = 1280;
+    private const int CardHeight = 640;
+
+    /// <summary>
+    /// 背景は明るくする。アイコンの奥の紺を背景にすると、フォルダーの輪郭が沈む。
+    /// 名前の字はアイコンの奥の紺にそろえる (背景との明るさの差 10 : 1 ほど)
+    /// </summary>
+    private static readonly Brush CardBackground = Frozen(Color.FromRgb(0xF4, 0xF8, 0xFC));
+    private static readonly Brush CardText = Frozen(Color.FromRgb(0x16, 0x3F, 0x6B));
+
+    /// <summary>
+    /// アイコンと名前を横に並べた画像を描く。SNS では縮めて出るので、字は大きくし、飾りは足さない。
+    /// 絵は 64 × 64 の升目の中で中心より下に寄っている (フォルダーは x 6〜58、y 12〜56) ので、
+    /// 升目ではなく、フォルダーの見た目の中心で名前とそろえる
+    /// </summary>
+    private static byte[] RenderCard(DrawingImage image)
+    {
+        const double iconSize = 320;
+        const double unit = iconSize / 64;
+        const double gap = 56;
+        const double fontSize = 168;
+
+        var typeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        var text = new FormattedText("Expzip", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            typeface, fontSize, CardText, 1.0);
+        var ink = text.BuildGeometry(new Point(0, 0)).Bounds;
+
+        // 横: フォルダーの左端から字の右端までを、画像の中央に置く
+        var folderWidth = (58 - 6) * unit;
+        var left = (CardWidth - (folderWidth + gap + ink.Width)) / 2;
+        var iconX = left - 6 * unit;
+        var textX = left + folderWidth + gap - ink.Left;
+
+        // 縦: フォルダーの中心と大文字の高さの中心を、画像の中央にそろえる
+        var iconY = CardHeight / 2.0 - (12 + 56) / 2.0 * unit;
+        var textY = CardHeight / 2.0 + typeface.CapsHeight * fontSize / 2 - text.Baseline;
+
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            context.DrawRectangle(CardBackground, null, new Rect(0, 0, CardWidth, CardHeight));
+            context.DrawImage(image, new Rect(iconX, iconY, iconSize, iconSize));
+            context.DrawText(text, new Point(textX, textY));
+        }
+
+        var bitmap = new RenderTargetBitmap(CardWidth, CardHeight, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var memory = new MemoryStream();
+        encoder.Save(memory);
+        return memory.ToArray();
+    }
+
+    private static SolidColorBrush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>
