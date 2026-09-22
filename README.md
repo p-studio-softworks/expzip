@@ -175,6 +175,13 @@ build.cmd
 - [仕様書](docs/SPEC.md)
 - [セキュリティ調査レポート](docs/SECURITY_REPORT.md)
 
+## 連絡先
+
+- 不具合の報告や要望は [Issues](https://github.com/p-studio-softworks/expzip/issues) に書いてください
+- GitHub のアカウントが無い場合や、公開の場に書きたくない場合は、メールで知らせてください:
+  p-studio-softworks@outlook.com
+- 弱点(セキュリティ上の問題)は、公開の場には書かず、[知らせ方](.github/SECURITY.md) に沿って知らせてください
+
 ## ライセンス
 
 [MIT License](LICENSE)
