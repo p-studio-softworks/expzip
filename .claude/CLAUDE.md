@@ -51,6 +51,9 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 ## Writing
 
 - `README.md` is **for users**. Do not put developer instructions in it
+- **In Markdown, close bold before the punctuation: `**…**。`, not `**…。**`.** On GitHub, `**` right after 「。」 does not close
+  when a letter follows, so the text shows raw asterisks. The same goes for opening `**` before 「「」 right after a letter:
+  write `「**…**」`. Redmine renders both, so check on GitHub (the `/markdown` API shows it without pushing)
 - **Do not write 「色弱」 or 「色盲」.** Write 「色の見え方の違い」 or 「色覚特性」, and describe a type by how colors look,
   such as 「赤と緑の区別がつきにくい」. This also applies to tickets and commit messages
 - The specification `docs/SPEC.md` describes **how things are now**. **Do not write plans or phases**
