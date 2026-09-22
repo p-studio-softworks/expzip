@@ -14,6 +14,9 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 - **When you change on-screen text, regenerate the list with `dotnet run --project tools/stringdump` and commit it.**
   The diff of `tools/stringdump/strings.txt` shows whether any text changed that you did not mean to change
   (`-- --check` only checks for drift)
+- **Run `build.cmd -Debug` right before stringdump** (#147). It reads the newest `Expzip.dll` under `src/Expzip/bin`.
+  After a release build that is the release DLL, and the UI tests build somewhere else, so without a fresh Debug build
+  it reads the old text and quietly reports no change. **Check that the diff contains the text you changed**
 
 ## File formats
 
