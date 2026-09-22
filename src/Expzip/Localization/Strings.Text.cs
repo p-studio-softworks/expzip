@@ -719,9 +719,15 @@ internal static partial class Strings
     /// 知りたい気持ちは、端折りの有無では変わらない。
     /// </para>
     /// </remarks>
+    /// <summary>送る量。</summary>
+    /// <remarks>
+    /// 全部を送るときに「すべての名前を送信します」とは言わない (#146)。送るものは上に
+    /// そのまま並んでいるので自明。**省くときだけ、何が送られないかを言う。**
+    /// そちらは並びを見ても分からない。
+    /// </remarks>
     public static string RulePayload(int bytes, int omitted, int total) => omitted == 0
-        ? Pick($"この書庫のすべての名前を送信します。合計 {bytes:N0} バイトです。",
-            $"Every name in this archive is included. {bytes:N0} bytes in total.")
+        ? Pick($"送信するのは合計 {bytes:N0} バイトです。",
+            $"{bytes:N0} bytes are sent in total.")
         : Pick($"送信する名前は最大 {total:N0} 個のため、"
             + $"{omitted:N0} 個は送信しません。"
             + $"合計 {bytes:N0} バイトです。",

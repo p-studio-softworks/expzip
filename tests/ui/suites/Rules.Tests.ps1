@@ -67,7 +67,7 @@ try {
     Check '送るものを見せる' ($payload -match 'README\.md' -and $payload -match 'docs') "$($payload.Length) 文字"
     Check '中身は送るものに入っていない' ($payload -notmatch $secret)
     $size = (ById $dialog 'PayloadText').Current.Name
-    Check '送る量を言う' ($size -match 'ファイルの中身は送信しません。' -and $size -match 'この書庫のすべての名前を送信します。合計 [\d,]+ バイトです。$') $size
+    Check '送る量を言う' ($size -match 'ファイルの中身は送信しません。' -and $size -match '送信するのは合計 [\d,]+ バイトです。$' -and $size -notmatch 'すべての名前') $size
     Check '口の名前' ((ById $dialog 'SendButton').Current.Name -eq '推定する' -and (ById $dialog 'ApplyButton').Current.Name -eq '適用する' -and (ById $dialog 'CloseButton').Current.Name -eq '閉じる')
     # 口は高さがそろい、短い字の口は同じ幅になる (#145)。以前は 4 つとも別の幅で、
     # 「選択したルールを削除」だけ背が低かった

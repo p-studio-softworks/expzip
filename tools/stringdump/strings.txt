@@ -1725,8 +1725,8 @@ RulePayload (bytes: 18432, omitted: 38, total: 120)
   ja  送信する名前は最大 120 個のため、38 個は送信しません。合計 18,432 バイトです。
   en  At most 120 names are sent in all, so 38 of them are left out. 18,432 bytes in total.
 RulePayload (bytes: 18432, omitted: 0, total: 120)
-  ja  この書庫のすべての名前を送信します。合計 18,432 バイトです。
-  en  Every name in this archive is included. 18,432 bytes in total.
+  ja  送信するのは合計 18,432 バイトです。
+  en  18,432 bytes are sent in total.
 
 RulePrivacyShort
   ja  設定したAIに上記の書庫詳細を送信してルールを推定します。ファイルの中身は送信しません。
