@@ -11,7 +11,7 @@
     - 1 本ずつの記録は %TEMP%\ExpzipUiTests\results に残ります
     - 1 本が 300 秒を超えたら止めて次へ進みます (-TimeoutSeconds で変えられます)
     - Expzip は %TEMP%\ExpzipUiTests\app にビルドします。普段使っている Expzip や publish\ には触りません
-    - AI の接続先は、この PC の中に立てた偽物を使います。外へは何も送りません
+    - AI の接続先は、この PC の中に立てたテスト用のものを使います。外へは何も送りません
 
     台本を書くときは、ファイルを BOM 付き UTF-8 にしてください (PowerShell 5.1 は BOM が無いと日本語を読み違えます)。
     共通の道具は Common.ps1 にあり、1 項目の結果は Check '名前' (条件) 詳細 で出します。

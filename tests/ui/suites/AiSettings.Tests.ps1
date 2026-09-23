@@ -1,4 +1,4 @@
-﻿# AI連携の設定 (#24)。接続テストは、この PC の中に立てた偽の接続先に対して行う
+﻿# AI連携の設定 (#24)。接続テストは、この PC の中に立てたテスト用の接続先に対して行う
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'AiSettings'
 Set-Settings

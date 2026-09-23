@@ -145,7 +145,7 @@ function Get-Tabs($App) {
     return @(ByType (ById $App.Window 'ArchiveTabs') $script:ControlType::TabItem)
 }
 
-# ------------------------------------------------------------------ 偽の AI 接続先
+# ------------------------------------------------------------------ テスト用の AI 接続先
 #
 # この PC の中だけで待ち受け、決めておいた答えを順に返す。外へは何も出ない。
 # 受け取った本文は ai-requests.txt に 1 行ずつ残す
@@ -157,7 +157,7 @@ function Start-AiStub([int]$Port, [object[]]$Answers) {
     Remove-Item $log -Force -ErrorAction SilentlyContinue
     [System.IO.File]::WriteAllText($answersPath, (ConvertTo-Json @($Answers) -Depth 6), [System.Text.Encoding]::UTF8)
 
-    # ジョブで動かすと、待ち受けの最中は止めるのに数分かかる。別のプロセスにして殺せるようにする
+    # ジョブで動かすと、待ち受けの最中は止めるのに数分かかる。別のプロセスで動かし、強制的に終了できるようにする
     $stub = @'
 param($port, $answersPath, $log)
 # ConvertFrom-Json は配列を 1 つの値として返すので、並べ直して開く
