@@ -90,7 +90,7 @@ internal static class AiClient
     /// <summary>繋がるかどうかを確かめる。</summary>
     /// <remarks>
     /// いちばん短いやり取りを1回だけ投げる。答えの中身は見ない。繋がること、
-    /// 鍵が通ること、その名前の模型があることの3つが分かればよい。
+    /// 鍵が通ること、その名前のモデルがあることの3つが分かればよい。
     /// </remarks>
     public static async Task<AiTestResult> TestAsync(
         AiOptions options, CancellationToken cancellationToken = default)
@@ -299,13 +299,13 @@ internal static class AiClient
 
 /// <summary>AI への繋ぎ先 (#24)。</summary>
 /// <param name="Endpoint">OpenAI 互換の API。</param>
-/// <param name="Model">使う模型の名前。</param>
+/// <param name="Model">使うモデルの名前。</param>
 /// <param name="ApiKey">APIキー。ローカルのツールでは要らないことがある。</param>
 internal sealed record AiOptions(string Endpoint, string Model, string ApiKey)
 {
     /// <summary>繋ぎ先が揃っているか。揃っていなければ AI の機能を出さない。</summary>
     /// <remarks>
-    /// 鍵は要らないことがある (ローカルで動かすツール)。場所と模型の名前だけを見る。
+    /// 鍵は要らないことがある (ローカルで動かすツール)。場所とモデルの名前だけを見る。
     /// </remarks>
     public bool IsConfigured
         => AiClient.ToRequestUri(Endpoint) is not null && !string.IsNullOrWhiteSpace(Model);

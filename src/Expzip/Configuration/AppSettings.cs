@@ -53,7 +53,7 @@ internal sealed class AppSettings
     /// <summary>AI の API (#24)。OpenAI 互換の場所を入れる (#35)。</summary>
     public string AiEndpoint { get; set; } = string.Empty;
 
-    /// <summary>使う模型の名前 (#24)。</summary>
+    /// <summary>使うモデルの名前 (#24)。</summary>
     public string AiModel { get; set; } = string.Empty;
 
     /// <summary>

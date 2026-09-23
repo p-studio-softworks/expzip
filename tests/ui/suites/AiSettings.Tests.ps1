@@ -62,7 +62,7 @@ try {
     Check '繋がったと言う' ($result -eq '接続しました。nise-model が使えます。') $result
     $sent = Get-AiRequests $stub
     Check '鍵を付けて送る' ($sent.Count -ge 1 -and $sent[0].auth -eq "Bearer $key")
-    Check '模型の名前を送る' ($sent.Count -ge 1 -and $sent[0].body -match '"model":\s*"nise-model"')
+    Check 'モデル名を送る'($sent.Count -ge 1 -and $sent[0].body -match '"model":\s*"nise-model"')
 
     $result = Run-Test $dialog
     Check '断られたらそう言う' ($result -match '^接続先から拒否されました \(HTTP 401\)。') $result
@@ -83,7 +83,7 @@ try {
     $raw = Read-Settings
     $json = $raw | ConvertFrom-Json
     Check '接続先が残る' ($json.AiEndpoint -eq $stub.Endpoint) $json.AiEndpoint
-    Check '模型の名前が残る' ($json.AiModel -eq 'nise-model') $json.AiModel
+    Check 'モデル名が残る'($json.AiModel -eq 'nise-model') $json.AiModel
     Check '鍵は守られた形で残る' ($json.AiApiKeyProtected.Length -gt 40) "$($json.AiApiKeyProtected.Length) 文字"
     Check '鍵がそのまま書かれていない' ($raw -notmatch [regex]::Escape($key))
 
@@ -91,7 +91,7 @@ try {
     $app = Start-Expzip
     $dialog = Open-AiSettings $app
     Check '接続先が戻る' ((ValueOf (ById $dialog 'EndpointBox')) -eq $stub.Endpoint)
-    Check '模型の名前が戻る' ((ValueOf (ById $dialog 'ModelBox')) -eq 'nise-model')
+    Check 'モデル名が戻る'((ValueOf (ById $dialog 'ModelBox')) -eq 'nise-model')
     Push (ById $dialog 'CancelButton')
     Check 'キャンセルで閉じる' (Test-WindowGone $app 'AI連携の設定')
 
