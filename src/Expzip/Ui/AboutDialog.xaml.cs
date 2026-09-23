@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using Expzip.Localization;
+using Microsoft.Win32;
 
 namespace Expzip.Ui;
 
@@ -58,6 +59,47 @@ public partial class AboutDialog : Window
         Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright
             ?? string.Empty;
 
+    /// <summary>
+    /// Windows の設定と同じ形の文字列 ("Windows 11 Pro バージョン 25H2 (OS ビルド 26200.9457)")。
+    /// 読み取れなければ <see cref="RuntimeInformation.OSDescription"/> にする (#149)。
+    /// </summary>
+    /// <remarks>
+    /// Windows 11 でも、レジストリの ProductName は昔のまま「Windows 10 ...」を返す。
+    /// 文字列でこの判定をしている古いアプリを壊さないための Windows 側の仕様。
+    /// ビルド番号(22000 以降が Windows 11)で判定して直す
+    /// </remarks>
+    private static string WindowsDescription
+    {
+        get
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+
+                if (key?.GetValue("ProductName") is not string productName
+                    || key.GetValue("DisplayVersion") is not string displayVersion
+                    || key.GetValue("CurrentBuildNumber") is not string buildText
+                    || !int.TryParse(buildText, out var build)
+                    || key.GetValue("UBR") is not int ubr)
+                {
+                    return RuntimeInformation.OSDescription;
+                }
+
+                if (build >= 22000 && productName.StartsWith("Windows 10", StringComparison.Ordinal))
+                {
+                    productName = "Windows 11" + productName["Windows 10".Length..];
+                }
+
+                return Strings.AboutWindows(productName, displayVersion, $"{build}.{ubr}");
+            }
+            catch (Exception)
+            {
+                // レジストリが読めない環境(制限されたポリシーなど)でも、バージョン情報の窓自体は開けるようにする
+                return RuntimeInformation.OSDescription;
+            }
+        }
+    }
+
     private static string? Meta(string key) =>
         Assembly.GetExecutingAssembly()
             .GetCustomAttributes<AssemblyMetadataAttribute>()
@@ -76,7 +118,7 @@ public partial class AboutDialog : Window
             : Strings.AboutRevisionUnknown;
         CopyrightText.Text = Copyright;
         PlatformText.Text = Strings.AboutPlatform(
-            RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription);
+            WindowsDescription, RuntimeInformation.FrameworkDescription);
         CloseButton.Content = Strings.AboutClose;
         LicenseButton.Content = Strings.AboutLicense;
     }

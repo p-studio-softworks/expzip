@@ -95,6 +95,11 @@ internal static partial class Strings
     public static string AboutPlatform(string os, string runtime) => Pick(
         $"{os} / {runtime}", $"{os} / {runtime}");
 
+    // Windows の設定と同じ形。productName は「Windows 11 Pro」のような、レジストリの値を直したもの (#149)
+    public static string AboutWindows(string productName, string version, string build) => Pick(
+        $"{productName} バージョン {version} (OS ビルド {build})",
+        $"{productName}, Version {version} (OS Build {build})");
+
     public static string AboutClose => Pick("閉じる", "Close");
 
     // ------------------------------------------------------------------ ライセンス表示 (#105)

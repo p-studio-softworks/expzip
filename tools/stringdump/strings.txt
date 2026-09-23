@@ -39,6 +39,10 @@ AboutVersion (version: 0.1.0, architecture: x64)
   ja  バージョン ⟦0.1.0⟧ (⟦x64⟧)
   en  Version ⟦0.1.0⟧ (⟦x64⟧)
 
+AboutWindows (productName: 見本, version: 0.1.0, build: 見本)
+  ja  ⟦見本⟧ バージョン ⟦0.1.0⟧ (OS ビルド ⟦見本⟧)
+  en  ⟦見本⟧, Version ⟦0.1.0⟧ (OS Build ⟦見本⟧)
+
 Add
   ja  追加
   en  Add
