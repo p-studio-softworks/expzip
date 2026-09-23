@@ -2,11 +2,11 @@
 //
 //     dotnet run --project tools/uifixtures -- <出したい場所>
 //
-// 出したい場所の下に ui_work と nest_work を作る。確認の台本はそこを見る。
+// 出したい場所の下に ui_work と nest_work を作る。テストのスクリプトはそこを見る。
 //
 // **これらの書庫は一時領域に置いてあり、掃除で消える。**実際に消えて、
 // #15・#20・#30・#49 の確認 (128項目) が「書庫が無くて始められない」状態に
-// なった。中身は台本が名前で見ているので、作り方をここに残しておく。
+// なった。中身はテストのスクリプトが名前で見ているので、作り方をここに残しておく。
 using System.Text;
 using ICSharpCode.SharpZipLib.Zip;
 
@@ -48,7 +48,7 @@ ZipMixed(Path.Combine(ui, "mixed.zip"), "aikotoba",
     [("秘密/秘密.txt", "himitsu"), ("秘密/控え.txt", "hikae")]);
 
 // AES-256。合言葉を覚えるか、タブを閉じて忘れるかを見る。
-// **合言葉は台本が打ち込むものと同じにする**
+// **合言葉はテストのスクリプトが打ち込むものと同じにする**
 Zip(Path.Combine(ui, "aes256.zip"), "ひみつのあいことば", 256,
     ("秘密.txt", "himitsu desu"),
     ("資料/報告.txt", "houkoku desu"));
