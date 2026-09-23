@@ -3,7 +3,6 @@
 //     dotnet run --project tools/icon                        Expzip.ico を作り直す
 //     dotnet run --project tools/icon -- --png 512 <出力先>    1 枚の PNG にする (GitHub のアイコンなど)
 //     dotnet run --project tools/icon -- --card <出力先>       リポジトリの Social preview の画像を作る (#139)
-//     dotnet run --project tools/icon -- --org <出力先>        GitHub Organization の印を作る (#140)
 //
 // 絵の正本は src/Expzip/Ui/AppIcon.xaml。バージョン情報はそれをそのまま出し、
 // exe に付ける ico はここでそれを描き出して作る。**絵を直したらこれも走らせる。**
@@ -56,17 +55,9 @@ internal static class Program
             return 0;
         }
 
-        if (args.Length == 2 && args[0] == "--org")
-        {
-            var path = Path.GetFullPath(args[1]);
-            File.WriteAllBytes(path, RenderOrgIcon());
-            Console.WriteLine($"書きました: {path} ({OrgIconSize} × {OrgIconSize})");
-            return 0;
-        }
-
         if (args.Length > 0)
         {
-            Console.Error.WriteLine("使い方: dotnet run --project tools/icon [-- --png <大きさ> <出力先> | -- --card <出力先> | -- --org <出力先>]");
+            Console.Error.WriteLine("使い方: dotnet run --project tools/icon [-- --png <大きさ> <出力先> | -- --card <出力先>]");
             return 2;
         }
 
@@ -150,70 +141,6 @@ internal static class Program
         }
 
         var bitmap = new RenderTargetBitmap(CardWidth, CardHeight, 96, 96, PixelFormats.Pbgra32);
-        bitmap.Render(visual);
-
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var memory = new MemoryStream();
-        encoder.Save(memory);
-        return memory.ToArray();
-    }
-
-    // GitHub Organization (p-studio-softworks) の印 (#140)。GitHub は丸く切り抜いて表示するので、
-    // 地の色で円を敷いて、その中に収まる形にする。
-    //
-    // Expzip の絵(フォルダーとジッパー)は使わない。Organization は P studio そのものの顔で、
-    // ほかのアプリを並べたときに Expzip の絵だと合わなくなるため(#126 のノート)。
-    //
-    // 「P」の字に、火花(工房で何かを作っているひらめき)の印を添える。
-    // 色は Expzip のアイコンと同じ配色(紺・薄色・黄)を使い、シリーズとしてのつながりを持たせる。
-    //
-    // **色みではなく明るさの差で見分けられるようにしてある。**アイコンと同じ方法(Machado ほか 2009、
-    // 強さ 1.0)で、1 型・2 型・3 型の色覚での見え方を計算して確かめた値:
-    //   地の紺と字の薄色  そのまま 9.50:1 / 1型 8.94:1 / 2型 9.88:1 / 3型 8.96:1(色の差 ΔE 69〜75)
-    //   地の紺と火花の黄  そのまま 7.45:1 / 1型 6.44:1 / 2型 8.14:1 / 3型 6.52:1(色の差 ΔE 69〜118)
-    // どちらの組も、どの型でも明るさの差 6:1 以上・ΔE 20 以上あり、アイコン([4.9節](../../docs/SPEC.md))
-    // の目安を上回る
-    private const int OrgIconSize = 512;
-    private static readonly Brush OrgBackground = Frozen(Color.FromRgb(0x16, 0x3F, 0x6B));
-    private static readonly Brush OrgLetter = Frozen(Color.FromRgb(0xEA, 0xF2, 0xFB));
-    private static readonly Brush OrgSpark = Frozen(Color.FromRgb(0xFF, 0xD2, 0x4D));
-
-    private static byte[] RenderOrgIcon()
-    {
-        // 下絵は 64 の升目(円は中心 (32,32)、半径 32)で位置を決め、実際の大きさへ拡大する
-        const double grid = 64;
-        var scale = OrgIconSize / grid;
-
-        var typeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.ExtraBold, FontStretches.Normal);
-        var text = new FormattedText("P", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            typeface, 44 * scale, OrgLetter, 1.0);
-        var letter = text.BuildGeometry(new Point(0, 0));
-        var ink = letter.Bounds;
-
-        // 字の見た目の中心を円の中心にそろえる(ベースラインではなく、実際に描かれた形の中心で合わせる)
-        var centered = new PathGeometry();
-        centered.AddGeometry(letter);
-        centered.Transform = new TranslateTransform(
-            grid / 2 * scale - (ink.Left + ink.Width / 2),
-            grid / 2 * scale - (ink.Top + ink.Height / 2));
-
-        // 火花の印。縦長のレンズと横長のレンズを十字に重ね、柔らかいきらめきにする(直線の刃にはしない)
-        var spark = Geometry.Parse(
-            "M 52,13 Q 55,21 52,29 Q 49,21 52,13 Z " +
-            "M 44.5,21 Q 52,23.5 59.5,21 Q 52,18.5 44.5,21 Z").Clone();
-        spark.Transform = new ScaleTransform(scale, scale);
-
-        var visual = new DrawingVisual();
-        using (var context = visual.RenderOpen())
-        {
-            context.DrawEllipse(OrgBackground, null,
-                new Point(OrgIconSize / 2.0, OrgIconSize / 2.0), OrgIconSize / 2.0, OrgIconSize / 2.0);
-            context.DrawGeometry(OrgLetter, null, centered);
-            context.DrawGeometry(OrgSpark, null, spark);
-        }
-
-        var bitmap = new RenderTargetBitmap(OrgIconSize, OrgIconSize, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(visual);
 
         var encoder = new PngBitmapEncoder();
