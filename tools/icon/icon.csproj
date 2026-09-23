@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    アプリのアイコンを描き出す道具 (#126)。
+    アプリのアイコンを描き出すツール (#126)。
     本体の一部ではないので、Expzip.slnx には入れない。
   -->
   <PropertyGroup>

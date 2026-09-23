@@ -51,7 +51,7 @@ var japanese = Enum.Parse(language.PropertyType, "Japanese");
 var english = Enum.Parse(language.PropertyType, "English");
 var nullability = new NullabilityInfoContext();
 
-// 表の中の道具で、画面に出る文言ではないもの
+// 表の中の補助のメソッドで、画面に出る文言ではないもの
 string[] skip = ["Pick", "ToSettingValue", "Resolve", "FromSystem"];
 
 // 呼び出し元が別の文言を組み立てて渡すもの。本物の組み立て方に合わせる
@@ -249,7 +249,7 @@ foreach (var name in failures)
 
 return failures.Count == 0 ? 0 : 1;
 
-// ------------------------------------------------------------------ 道具
+// ------------------------------------------------------------------ 補助の関数
 
 void Write(string tag, string text)
 {

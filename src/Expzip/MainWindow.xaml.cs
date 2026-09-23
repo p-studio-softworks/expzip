@@ -5165,7 +5165,7 @@ public partial class MainWindow : Window
     /// 「完了」から呼ぶ。読み直して当て直し、結果のウィンドウを入れ替える (#87)。
     /// </summary>
     /// <remarks>
-    /// **ディスクから読み直す。**外の道具で直したかもしれないので、
+    /// **ディスクから読み直す。**外のツールで直したかもしれないので、
     /// 手元に持っている中身をそのまま当て直しても意味がない。
     /// </remarks>
     private async Task RecheckAsync()

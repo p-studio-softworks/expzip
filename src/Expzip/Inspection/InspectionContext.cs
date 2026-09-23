@@ -30,7 +30,7 @@ internal readonly record struct InspectProgress(
     double Percent, InspectionPhase Phase, string CurrentName);
 
 /// <summary>
-/// 検査1回分の道具立て。各検査はこれを受け取り、見つけたものをここへ入れる。
+/// 検査1回分に要るものをまとめたもの。各検査はこれを受け取り、見つけたものをここへ入れる。
 /// </summary>
 /// <remarks>
 /// 進捗は「いまの区切りの中で何割まで来たか」だけを渡せばよいようにしてある。

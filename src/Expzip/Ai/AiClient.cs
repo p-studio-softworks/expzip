@@ -11,7 +11,7 @@ namespace Expzip.Ai;
 /// <remarks>
 /// <para>
 /// **OpenAI 互換の <c>/chat/completions</c> だけを話す** (#35)。主要な提供元は
-/// どこもこの形の API を持っていて、ローカルで動かす道具もほぼ全部が同じ形のため、
+/// どこもこの形の API を持っていて、ローカルで動かすツールもほぼ全部が同じ形のため、
 /// 1つ実装すればどこへでも繋がる。どこを使うかは利用者が URL と鍵で決める。
 /// </para>
 /// <para>
@@ -300,12 +300,12 @@ internal static class AiClient
 /// <summary>AI への繋ぎ先 (#24)。</summary>
 /// <param name="Endpoint">OpenAI 互換の API。</param>
 /// <param name="Model">使う模型の名前。</param>
-/// <param name="ApiKey">APIキー。ローカルの道具では要らないことがある。</param>
+/// <param name="ApiKey">APIキー。ローカルのツールでは要らないことがある。</param>
 internal sealed record AiOptions(string Endpoint, string Model, string ApiKey)
 {
     /// <summary>繋ぎ先が揃っているか。揃っていなければ AI の機能を出さない。</summary>
     /// <remarks>
-    /// 鍵は要らないことがある (ローカルで動かす道具)。場所と模型の名前だけを見る。
+    /// 鍵は要らないことがある (ローカルで動かすツール)。場所と模型の名前だけを見る。
     /// </remarks>
     public bool IsConfigured
         => AiClient.ToRequestUri(Endpoint) is not null && !string.IsNullOrWhiteSpace(Model);

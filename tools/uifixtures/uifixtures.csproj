@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    画面を操作するテストに使う書庫を作り直す道具 (#97)。
+    画面を操作するテストに使う書庫を作り直すツール (#97)。
     本体の一部ではないので、Expzip.slnx には入れない。
   -->
   <PropertyGroup>

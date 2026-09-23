@@ -9,7 +9,7 @@
 // 外部の画像ツールは使わない。WPF で描けば、画面に出るものと同じ絵になる。
 //
 // **出来上がりの src/Expzip/Resources/Expzip.ico はリポジトリに入れてある。**
-// Expzip 本体のビルドにこの道具は要らない。
+// Expzip 本体のビルドにこのツールは要らない。
 using System.Globalization;
 using System.IO;
 using System.Windows;

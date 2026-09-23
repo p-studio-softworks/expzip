@@ -1,4 +1,4 @@
-﻿# 画面を操作するテストで共通に使う道具。テストのスクリプトそれぞれの先頭で . "$PSScriptRoot\..\Common.ps1" として読み込む。
+﻿# 画面を操作するテストで共通に使うツール。テストのスクリプトそれぞれの先頭で . "$PSScriptRoot\..\Common.ps1" として読み込む。
 #
 # - 動かす Expzip は Run-UiTests.ps1 がビルドして一時フォルダーに置いたもの。
 #   公開用の publish\ や、利用者が使っている Expzip には触らない
@@ -655,7 +655,7 @@ function Complete-FileDialog($App, [string]$Title, [string]$Path) {
     return $true
 }
 
-# 受け取った側で動く道具 (自己解凍書庫、連結プログラム) が出す知らせを読み、OK で閉じる
+# 受け取った側で動くツール (自己解凍書庫、連結プログラム) が出す知らせを読み、OK で閉じる
 function Read-NativeMessage($Process, [int]$TimeoutMs = 30000) {
     $box = Wait-Until -TimeoutMs $TimeoutMs {
         $Process.Refresh()
