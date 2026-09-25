@@ -43,12 +43,6 @@
                                TextWrapping="Wrap"
                                VerticalAlignment="Center" />
                 </StackPanel>
-                <!-- 中断された場合だけ出す -->
-                <TextBlock x:Name="CancelledLine"
-                           Margin="24,6,0,0"
-                           TextWrapping="Wrap"
-                           Visibility="Collapsed"
-                           Foreground="{DynamicResource CautionBrush}" />
                 <!--
                     検査が使えなかったことだけは畳まない (#56)。
                     結果そのものの意味が変わるため

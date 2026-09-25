@@ -785,6 +785,10 @@ Inspect
   ja  検査
   en  Inspect
 
+InspectCancelledMessage
+  ja  検査を中断しました。
+  en  The inspection was stopped.
+
 InspectCancelledStatus
   ja  検査を中断しました
   en  The inspection was stopped
@@ -825,10 +829,6 @@ Inspecting (phase: Contents, name: 報告書.pdf)
 InspectionArchiveItself
   ja  (書庫そのもの)
   en  (the archive itself)
-
-InspectionCancelledLine
-  ja  検査は途中で中断されました。ここに表示しているのは、中断するまでに検査した範囲の結果です。
-  en  The inspection was stopped partway. What follows covers only what it reached.
 
 InspectionChecksLine
   ja  行った検査: 構造 (索引・ヘッダー・CRC の照合)、安全性 (パス・名前・圧縮率)、マルウェア (AMSI)

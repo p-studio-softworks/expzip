@@ -41,7 +41,12 @@ internal sealed class AmsiScanner : IDisposable
 
     private readonly IntPtr _session;
 
+    private readonly object _gate = new();
+
     private bool _closed;
+
+    /// <summary>最後に渡した判定。中断で待つのをやめても、裏で走り続けていることがある。</summary>
+    private Task? _running;
 
     private AmsiScanner(IntPtr context, IntPtr session)
     {
@@ -142,36 +147,81 @@ internal sealed class AmsiScanner : IDisposable
     /// <summary>
     /// バイト列を判定に掛ける。
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="AmsiScanBuffer"/> は途中で止められない。書庫を丸ごと渡すと、対策ソフトは
+    /// 中を開いて1つずつ調べるため、実行ファイルの詰まった 183 MB の ZIP で 4.3 秒かかった。
+    /// その間は中断を押しても止まらなかった (#161)。
+    /// </para>
+    /// <para>
+    /// そこで判定は別のスレッドで走らせ、こちらは中断を見ながら待つ。中断されたら
+    /// 待つのをやめて先に戻る。判定そのものは裏で最後まで走り、受け口は
+    /// それが終わってから閉じる (<see cref="Dispose"/>)。
+    /// </para>
+    /// </remarks>
     /// <param name="buffer">中身。<paramref name="length"/> より長くてもよい。</param>
     /// <param name="length">実際に見てもらう長さ。</param>
     /// <param name="name">対策ソフト側の記録に残る名前。書庫内のパスを渡す。</param>
+    /// <param name="cancellationToken">中断用。</param>
     /// <returns>検出されたとき <see langword="true"/>。</returns>
-    public bool Scan(byte[] buffer, int length, string name)
+    /// <exception cref="OperationCanceledException">判定を待っている間に中断された場合。</exception>
+    public bool Scan(byte[] buffer, int length, string name, CancellationToken cancellationToken)
     {
-        if (_closed)
-        {
-            return false;
-        }
-
         // 空のファイルは渡さない。判定するものが無い
         if (length <= 0)
         {
             return false;
         }
 
-        return AmsiScanBuffer(_context, buffer, (uint)length, name, _session, out var result) == 0
-               && result >= DetectedThreshold;
+        Task<bool> scan;
+
+        lock (_gate)
+        {
+            if (_closed)
+            {
+                return false;
+            }
+
+            scan = Task.Run(() => AmsiScanBuffer(
+                           _context, buffer, (uint)length, name, _session, out var result) == 0
+                       && result >= DetectedThreshold);
+            _running = scan;
+        }
+
+        scan.Wait(cancellationToken);
+        return scan.Result;
     }
 
+    /// <summary>受け口を閉じる。判定が裏で走っていれば、それが終わってから閉じる (#161)。</summary>
+    /// <remarks>
+    /// 判定の最中に閉じると、対策ソフトに渡している途中の受け口を壊すことになる。
+    /// </remarks>
     public void Dispose()
     {
-        if (_closed)
+        Task? running;
+
+        lock (_gate)
         {
+            if (_closed)
+            {
+                return;
+            }
+
+            _closed = true;
+            running = _running is { IsCompleted: false } pending ? pending : null;
+        }
+
+        if (running is null)
+        {
+            Release();
             return;
         }
 
-        _closed = true;
+        running.ContinueWith(_ => Release(), TaskScheduler.Default);
+    }
 
+    private void Release()
+    {
         if (_session != IntPtr.Zero)
         {
             AmsiCloseSession(_context, _session);

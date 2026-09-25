@@ -94,4 +94,32 @@ if ($window) {
 }
 Stop-Expzip $app
 
+Section '中断する'
+# 書庫を丸ごと対策ソフトに渡す間は、途中で止められない。圧縮された実行ファイルが
+# たくさん詰まっていると数秒かかる (120 個 / 142 MB で 4 秒)。格納で数個では速く、試しにならない。
+# その間に中断を押してもすぐ止まること (#161)
+$heavy = Join-Path $script:Work 'omoi.zip'
+$zip = [System.IO.Compression.ZipFile]::Open($heavy, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem "$env:SystemRoot\System32\*.dll" | Sort-Object Length -Descending | Select-Object -Skip 60 -First 120 |
+        ForEach-Object {
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $zip, $_.FullName, $_.Name, [System.IO.Compression.CompressionLevel]::Fastest) | Out-Null
+        }
+}
+finally { $zip.Dispose() }
+$app = Start-Expzip @($heavy)
+Push (ById $app.Window 'InspectButton') 800
+$clock = [System.Diagnostics.Stopwatch]::StartNew()
+Push (ById $app.Window 'CancelButton') 0
+$box = Find-MessageBox $app
+$clock.Stop()
+Check '中断を知らせる' ($box -and $box.Text -eq '検査を中断しました。') $(if ($box) { $box.Text })
+Check 'すぐ止まる' ($clock.ElapsedMilliseconds -lt 1500) "$($clock.ElapsedMilliseconds) ms"
+if ($box) { Close-MessageBox $box 'OK' }
+# 中断したかったのだから、途中までの結果は出さない
+Check '結果の窓は出さない' (Test-WindowGone $app '検査結果 - omoi.zip')
+Check 'ステータスバー' ((Get-Status $app) -eq '検査を中断しました') (Get-Status $app)
+Stop-Expzip $app
+
 Complete-Suite

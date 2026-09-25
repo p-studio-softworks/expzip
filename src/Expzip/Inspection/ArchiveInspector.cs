@@ -52,7 +52,8 @@ internal static class ArchiveInspector
         }
         catch (OperationCanceledException)
         {
-            // 中断は失敗ではない。そこまでに見つけたものは報告に載せる
+            // 中断は失敗ではない。中断したことを報告に載せて返す。
+            // 途中までの結果は画面には出さない (#161)
             cancelled = true;
         }
 

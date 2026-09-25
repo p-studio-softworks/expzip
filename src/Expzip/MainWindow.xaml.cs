@@ -3884,17 +3884,22 @@ public partial class MainWindow : Window
 
         var progress = new Progress<InspectProgress>(p =>
         {
+            // 中断を押した後は「中断しています…」を残す。経過で上書きすると、
+            // 押したことが伝わらない (#161)
+            if (cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
             ProgressIndicator.Value = p.Percent;
             StatusMessage.Text = Strings.Inspecting(p.Phase, p.CurrentName);
         });
 
+        InspectionReport? report = null;
         try
         {
-            var report = await Task.Run(() => ArchiveInspector.Inspect(
+            report = await Task.Run(() => ArchiveInspector.Inspect(
                 contents, password, progress, cancellation.Token));
-
-            StatusMessage.Text = ReportSummary(report);
-            ShowInspection(report);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException)
@@ -3916,16 +3921,29 @@ public partial class MainWindow : Window
                 Close();
             }
         }
+
+        if (report is null || _closeWhenIdle)
+        {
+            return;
+        }
+
+        // 中断したかったのだから、途中までの結果は出さない。中断したことだけを知らせる (#161)
+        if (report.Cancelled)
+        {
+            StatusMessage.Text = Strings.InspectCancelledStatus;
+            MessageBox.Show(
+                this, Strings.InspectCancelledMessage, AppName,
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        StatusMessage.Text = ReportSummary(report);
+        ShowInspection(report);
     }
 
     /// <summary>検査の結末をステータスバーの一言にする。</summary>
     private static string ReportSummary(InspectionReport report)
     {
-        if (report.Cancelled)
-        {
-            return Strings.InspectCancelledStatus;
-        }
-
         var found = report.DangerCount + report.WarningCount;
         return found == 0 ? Strings.InspectClean : Strings.InspectFound(found);
     }

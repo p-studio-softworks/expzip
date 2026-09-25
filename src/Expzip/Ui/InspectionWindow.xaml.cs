@@ -87,9 +87,6 @@ public partial class InspectionWindow : Window
         Headline.Text = Strings.InspectionHeadline(_report.DangerCount, _report.WarningCount);
         ShowHeadlineAccent(worst);
 
-        CancelledLine.Text = Strings.InspectionCancelledLine;
-        CancelledLine.Visibility = _report.Cancelled ? Visibility.Visible : Visibility.Collapsed;
-
         var scanned = _report.Malware == MalwareStatus.Ran;
 
         // 使えなかったことは黙って省かない (#56)。ここだけは畳まずに出す

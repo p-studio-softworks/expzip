@@ -87,7 +87,7 @@ internal static class ContentInspector
             context.Advance(0, name);
             var bytes = File.ReadAllBytes(context.ArchivePath);
 
-            if (scanner.Scan(bytes, bytes.Length, name))
+            if (scanner.Scan(bytes, bytes.Length, name, context.Cancellation))
             {
                 context.Findings.Add(InspectionIssue.MalwareDetected, string.Empty);
             }
@@ -289,7 +289,7 @@ internal static class ContentInspector
 
         pass.Scanned++;
 
-        if (scanner.Scan(whole, filled, name))
+        if (scanner.Scan(whole, filled, name, context.Cancellation))
         {
             context.Findings.Add(InspectionIssue.MalwareDetected, name);
         }

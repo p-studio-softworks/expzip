@@ -1654,6 +1654,10 @@ internal static partial class Strings
     public static string InspectCancelledStatus => Pick(
         "検査を中断しました", "The inspection was stopped");
 
+    /// <summary>中断したときの知らせ。途中までの結果は出さない (#161)。</summary>
+    public static string InspectCancelledMessage => Pick(
+        "検査を中断しました。", "The inspection was stopped.");
+
     public static string InspectFailed(string reason) => Pick(
         $"検査できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"The archive could not be inspected.{Environment.NewLine}{Environment.NewLine}{reason}");
@@ -1753,10 +1757,6 @@ internal static partial class Strings
         + "に対応していません。ほかの検査は行っています。",
         "The malware check could not run: the antimalware software on this machine does not "
         + "answer Windows' scan interface (AMSI). The other checks did run.");
-
-    public static string InspectionCancelledLine => Pick(
-        "検査は途中で中断されました。ここに表示しているのは、中断するまでに検査した範囲の結果です。",
-        "The inspection was stopped partway. What follows covers only what it reached.");
 
     public static string InspectionElapsedLine(TimeSpan elapsed) => elapsed.TotalSeconds < 1
         ? Pick(
