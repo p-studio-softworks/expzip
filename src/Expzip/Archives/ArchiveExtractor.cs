@@ -160,7 +160,7 @@ internal static class ArchiveExtractor
                 using (var destination = new FileStream(
                     target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    CancellableCopy.Copy(source, destination, cancellationToken);
+                    CancellableCopy.CopyContent(source, destination, cancellationToken);
                 }
 
                 TryPreserveTimestamp(entry, target);

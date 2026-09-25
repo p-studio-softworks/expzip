@@ -399,6 +399,11 @@ IEnumerable<object?> Alternates(ParameterInfo parameter)
         yield return new InvalidDataException("Found invalid data while decoding.");
         yield return new System.Net.Http.HttpRequestException("No such host is known.");
         yield return new NotSupportedException("Specified method is not supported.");
+
+        // 中身を読んでいる途中で、データが壊れていると分かった (#167)。Expzip の中の型なので型の名前から作る
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.DamagedDataException", throwOnError: true)!,
+            new InvalidDataException("Block type 3 is invalid."));
     }
     else if (type.IsEnum)
     {

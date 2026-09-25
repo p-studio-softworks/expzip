@@ -12,15 +12,29 @@ internal static class SharpArchiveReader
     /// <param name="cancellationToken">中断用。</param>
     /// <exception cref="InvalidDataException">書庫として解釈できない場合。</exception>
     /// <exception cref="IOException">ファイルを読めない場合。</exception>
+    /// <exception cref="DamagedDataException">書庫のデータが壊れている場合。</exception>
     /// <exception cref="OperationCanceledException">中断された場合。</exception>
     public static ArchiveContents Open(
         string path,
         ArchiveFormat format,
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default)
-        => format == ArchiveFormat.SevenZip
-            ? OpenSevenZip(path, progress, cancellationToken)
-            : OpenTar(path, progress, cancellationToken);
+    {
+        try
+        {
+            return format == ArchiveFormat.SevenZip
+                ? OpenSevenZip(path, progress, cancellationToken)
+                : OpenTar(path, progress, cancellationToken);
+        }
+        catch (SharpCompress.Common.SharpCompressException ex)
+            when (ex is not SharpCompress.Common.CryptographicException)
+        {
+            // 圧縮された tar は、一覧を作るのにも中身を読み進める。壊れていると
+            // SharpCompress 独自の例外 (ZlibException など) になり、受け止める側を
+            // すり抜けて「処理中に問題が発生しました」と英語の文で出ていた (#167)
+            throw new DamagedDataException(ex);
+        }
+    }
 
     private static ArchiveContents OpenSevenZip(
         string path, IProgress<OpenProgress>? progress, CancellationToken cancellationToken)

@@ -83,7 +83,7 @@ internal sealed class ExtractState(
             using (var destination = new FileStream(
                        target, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                CancellableCopy.Copy(source, destination, cancellationToken);
+                CancellableCopy.CopyContent(source, destination, cancellationToken);
             }
 
             ArchiveExtractor.ApplyStamp(target, lastWriteTime ?? default, zoneIdentifier);
@@ -107,8 +107,12 @@ internal sealed class ExtractState(
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException
                                    or PathTooLongException or InvalidDataException
-                                   or InvalidFormatException or ArchiveOperationException)
+                                   or SharpCompressException)
         {
+            // 読めなかった分の書きかけを残さない。中身が途中までのファイルは、
+            // 見た目が正常なだけに何も残らないより悪い (#66、#167)
+            ArchiveExtractor.TryDelete(target);
+
             // 1件の失敗で全体を止めない。まとめて報告する
             _failed.Add((key, Strings.Reason(ex)));
         }

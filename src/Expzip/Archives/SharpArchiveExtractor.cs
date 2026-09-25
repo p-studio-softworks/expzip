@@ -150,10 +150,13 @@ internal static class SharpArchiveExtractor
     }
 
     /// <summary>書庫そのものを読み進められなくなる類の失敗か。</summary>
+    /// <remarks>
+    /// 壊れたデータでは、次のエントリへ進む段階で SharpCompress 独自の例外
+    /// (ZlibException、DataErrorException など) になる。基の型で受ける (#167)。
+    /// </remarks>
     private static bool IsReadFailure(Exception ex)
         => ex is System.Security.Cryptography.CryptographicException
-            or SharpCompress.Common.CryptographicException
-            or InvalidFormatException or ArchiveOperationException
+            or SharpCompressException
             or IOException or InvalidDataException or NotSupportedException;
 
     /// <summary>失敗の理由を、画面に出せる言葉にする。</summary>

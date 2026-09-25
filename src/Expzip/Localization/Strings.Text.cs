@@ -2072,6 +2072,13 @@ internal static partial class Strings
             IOException { HResult: DiskFull or HandleDiskFull } => Pick(
                 "ディスクの空き容量が足りません。", "There is not enough free disk space."),
 
+            // 開けた後で中身を読めなかった。方式には対応しているので、形式の話はしない (#167)。
+            // SharpCompress は壊れたデータに独自の例外を投げ、文は英語のまま出てくる
+            Expzip.Archives.DamagedDataException
+                or SharpCompress.Common.SharpCompressException
+                    and not SharpCompress.Common.CryptographicException => Pick(
+                "書庫のデータが壊れています。", "The archive data is damaged."),
+
             InvalidDataException => Pick(
                 "書庫が壊れているか、対応していない形式です。",
                 "The archive is damaged or in an unsupported format."),

@@ -1316,6 +1316,11 @@ Reason (error: System.Net.Http.HttpRequestException: No such host is known.)
 Reason (error: System.NotSupportedException: Specified method is not supported.)
   ja  Specified method is not supported.
   en  Specified method is not supported.
+Reason (error: Expzip.Archives.DamagedDataException: The archive data is damaged.
+ ---> System.IO.InvalidDataException: Block type 3 is invalid.
+   --- End of inner exception stack trace ---)
+  ja  書庫のデータが壊れています。
+  en  The archive data is damaged.
 
 Rebuilding (done: 45)
   ja  書庫を作り直しています… (45 個)

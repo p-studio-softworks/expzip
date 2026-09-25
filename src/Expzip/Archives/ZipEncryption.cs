@@ -234,7 +234,7 @@ internal static class ZipEncryption
                 using (var destination = new FileStream(
                            target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    CancellableCopy.Copy(source, destination, cancellationToken);
+                    CancellableCopy.CopyContent(source, destination, cancellationToken);
                 }
 
                 ArchiveExtractor.ApplyStamp(target, entry.DateTime, zoneIdentifier);
@@ -250,6 +250,9 @@ internal static class ZipEncryption
                                        or ArgumentException or NotSupportedException
                                        or PathTooLongException or InvalidDataException)
             {
+                // 読めなかった分の書きかけを残さない。中身が途中までのファイルは、
+                // 見た目が正常なだけに何も残らないより悪い (#66、#167)
+                ArchiveExtractor.TryDelete(target);
                 failed.Add((entry.Name, Strings.Reason(ex)));
             }
 
