@@ -635,7 +635,124 @@ function Rename-Row($App, [string]$From, [string]$To) {
     return $true
 }
 
+# エクスプローラーからドロップするのと同じ形で、ファイルやフォルダーを画面のその位置へ落とす。
+# 小さな窓を最前面に出して、そこからマウスでドラッグを始め、落とす位置まで動かして離す。
+# 落とした先が受け取ったかを返す。座標は UI Automation と同じ、画面の実際の px
+function Invoke-Drop([string[]]$Paths, [int]$X, [int]$Y) {
+    if (-not ('ExpzipUi.Dropper' -as [type])) {
+        Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Windows.Forms;
+
+namespace ExpzipUi
+{
+    public static class Dropper
+    {
+        [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+        [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
+        [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
+        [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+
+        const uint Move = 0x0001, LeftDown = 0x0002, LeftUp = 0x0004, Absolute = 0x8000;
+
+        // UI Automation の座標は画面の実際の px。表示倍率が 100% でないと、
+        // DPI を気にしないスレッドのマウスの座標とずれるので、スレッドごとに合わせる
+        static void UsePhysicalPixels()
+        {
+            SetThreadDpiAwarenessContext(new IntPtr(-4));
+        }
+
+        // 絶対座標の移動として送る。SetCursorPos だけではドラッグ中の窓に動きが伝わらない
+        static void MoveTo(int x, int y)
+        {
+            SetCursorPos(x, y);
+            mouse_event(Move | Absolute, x * 65536 / GetSystemMetrics(0), y * 65536 / GetSystemMetrics(1), 0, UIntPtr.Zero);
+        }
+
+        // 落とした先が受け取ったか。受け取らなかった場合は None
+        public static DragDropEffects Result;
+
+        public static bool Drop(string[] paths, int x, int y, int timeoutMs)
+        {
+            Result = DragDropEffects.None;
+            var thread = new Thread(() =>
+            {
+                UsePhysicalPixels();
+                // 縁の無い窓でも幅は 200 px ほどより狭くならないので、落とす位置に掛からないよう十分左に置く
+                var form = new Form
+                {
+                    FormBorderStyle = FormBorderStyle.None,
+                    ShowInTaskbar = false,
+                    TopMost = true,
+                    StartPosition = FormStartPosition.Manual,
+                    Location = new Point(x - 420, y - 20),
+                    Size = new Size(40, 40),
+                    BackColor = Color.Orange,
+                };
+                form.MouseDown += (s, e) =>
+                {
+                    Result = form.DoDragDrop(new DataObject(DataFormats.FileDrop, paths), DragDropEffects.Copy);
+                    form.Close();
+                };
+                form.Shown += (s, e) =>
+                {
+                    // 最前面の指定だけでは、直前まで前にいた窓の後ろに回ることがある
+                    form.Activate();
+                    form.BringToFront();
+                };
+                form.Shown += (s, e) => new Thread(() =>
+                {
+                    UsePhysicalPixels();
+                    Thread.Sleep(300);
+                    var startX = x - 400;
+                    MoveTo(startX, y);
+                    Thread.Sleep(200);
+                    mouse_event(LeftDown, 0, 0, 0, UIntPtr.Zero);
+                    Thread.Sleep(300);
+                    for (var i = 1; i <= 12; i++)
+                    {
+                        MoveTo(startX + (x - startX) * i / 12, y);
+                        Thread.Sleep(50);
+                    }
+                    Thread.Sleep(300);
+                    mouse_event(LeftUp, 0, 0, 0, UIntPtr.Zero);
+                }) { IsBackground = true }.Start();
+                Application.Run(form);
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            return thread.Join(timeoutMs);
+        }
+    }
+}
+'@
+    }
+    $done = [ExpzipUi.Dropper]::Drop($Paths, $X, $Y, 15000)
+    Start-Sleep -Milliseconds 500
+    return $done -and [ExpzipUi.Dropper]::Result -ne [System.Windows.Forms.DragDropEffects]::None
+}
+
+# 主窓の真ん中。書庫を開いていなくても受け取る場所
+function Get-WindowCenter($App) {
+    $rect = $App.Window.Current.BoundingRectangle
+    return [pscustomobject]@{ X = [int]($rect.X + $rect.Width / 2); Y = [int]($rect.Y + $rect.Height / 2) }
+}
+
 # ------------------------------------------------------------------ Windows の窓
+
+# 保存する窓の名前の欄に入っている値
+function Get-FileDialogName($App, [string]$Title) {
+    $dialog = Find-Window $App $Title 15000
+    if ($null -eq $dialog) { return $null }
+    $edit = Find-All $dialog ([System.Windows.Automation.Condition]::TrueCondition) |
+        Where-Object { $_.Current.ClassName -eq 'Edit' -and $_.Current.AutomationId -eq '1001' } |
+        Select-Object -First 1
+    return ValueOf $edit
+}
 
 # ファイルやフォルダーを選ぶ窓にパスを入れて確定する。
 # 名前の欄 (保存は 1001、フォルダーは 1152) に書き込み、確定の口 (1) を押す

@@ -322,6 +322,10 @@ ConfirmApplyNest (entryPath: 画像/2024/写真.jpg, parentName: 外側.zip)
       | 
       | Choosing No discards the changes.
 
+ConfirmCreateForDrop
+  ja  書庫を開いていません。新しい書庫を作成して、ドロップした項目を追加しますか?
+  en  No archive is open. Create a new archive and add the dropped items to it?
+
 ConfirmDelete (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個, detail:  ⏎  ⏎ フォルダーの中身を含めて 12 個のファイルが削除されます。)
   ja  選択した 3 個の項目を書庫から削除します。
       | 
@@ -1160,10 +1164,6 @@ NoAppFound (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否
 NoArchiveOpen
   ja  書庫が開かれていません
   en  No archive is open
-
-NoArchiveToAddTo
-  ja  追加先の書庫がありません。書庫を開くか、新規作成してください。
-  en  There is no archive to add to. Open an archive or create a new one.
 
 NoPasswordSet
   ja  この書庫にはパスワードが設定されていません

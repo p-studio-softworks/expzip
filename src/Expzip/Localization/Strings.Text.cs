@@ -529,9 +529,9 @@ internal static partial class Strings
     public static string AddDialogTitle => Pick(
         "書庫に追加するファイルを選択", "Select the files to add to the archive");
 
-    public static string NoArchiveToAddTo => Pick(
-        "追加先の書庫がありません。書庫を開くか、新規作成してください。",
-        "There is no archive to add to. Open an archive or create a new one.");
+    public static string ConfirmCreateForDrop => Pick(
+        "書庫を開いていません。新しい書庫を作成して、ドロップした項目を追加しますか?",
+        "No archive is open. Create a new archive and add the dropped items to it?");
 
     public static string FormatIsReadOnly(string format) => Pick(
         $"{format} 書庫にはファイルを追加できません。読み取りのみに対応しています。",

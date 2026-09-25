@@ -195,12 +195,15 @@ public partial class MainWindow : Window
         => await CreateArchiveAsync();
 
     /// <summary>空の書庫を作り、新しいタブで開く。</summary>
-    private async Task CreateArchiveAsync()
+    /// <param name="fileName">名前の初期値。省くと「新しい書庫.zip」。</param>
+    /// <param name="initialDirectory">保存先の初期値。省くと開いている書庫の隣。</param>
+    /// <returns>作った書庫のパス。取りやめた場合や作れなかった場合は <see langword="null"/>。</returns>
+    private async Task<string?> CreateArchiveAsync(string? fileName = null, string? initialDirectory = null)
     {
         // 何かの処理中は受け付けない。ツールバーと違って + は止められないため
         if (_cancellation is not null)
         {
-            return;
+            return null;
         }
 
         var dialog = new SaveFileDialog
@@ -209,24 +212,21 @@ public partial class MainWindow : Window
             Filter = Strings.ZipFilter,
             DefaultExt = ".zip",
             AddExtension = true,
-            FileName = Strings.NewArchiveFileName,
+            FileName = fileName ?? Strings.NewArchiveFileName,
             // 上書きの確認はダイアログ側に任せる。既存の書庫を選ぶと中身が消えるため
             OverwritePrompt = true,
         };
 
         // 書庫を開いているなら、その隣に作るのが自然
-        if (Contents is not null)
+        initialDirectory ??= Contents is null ? null : Path.GetDirectoryName(Contents.FilePath);
+        if (!string.IsNullOrEmpty(initialDirectory))
         {
-            var directory = Path.GetDirectoryName(Contents.FilePath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                dialog.InitialDirectory = directory;
-            }
+            dialog.InitialDirectory = initialDirectory;
         }
 
         if (dialog.ShowDialog(this) != true)
         {
-            return;
+            return null;
         }
 
         try
@@ -240,11 +240,12 @@ public partial class MainWindow : Window
                 this,
                 Strings.CreateArchiveFailed(dialog.FileName, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            return null;
         }
 
         // 作ったらそのまま開く。中身は空なので、ここからファイルを追加していく
         await OpenInTabAsync(dialog.FileName);
+        return dialog.FileName;
     }
 
     private async void RefreshMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1787,11 +1788,10 @@ public partial class MainWindow : Window
         var paths = DroppedPaths(e);
 
         // 自分が書庫から出したファイルを自分に落とし直すのは無意味なので受け取らない (#17)。
-        // 書庫を開いていなくても、書庫そのものが落とされたなら開ける
+        // 書庫を開いていなくても受け取る。書庫なら開き、それ以外なら新しい書庫を作るか尋ねる (#156)
         var acceptable = _cancellation is null
                          && !_draggingOut
-                         && paths.Length > 0
-                         && (Contents is not null || (paths.Length == 1 && IsArchiveFile(paths[0])));
+                         && paths.Length > 0;
 
         e.Effects = acceptable ? DragDropEffects.Copy : DragDropEffects.None;
     }
@@ -1903,10 +1903,7 @@ public partial class MainWindow : Window
 
         if (Contents is null)
         {
-            MessageBox.Show(
-                this,
-                Strings.NoArchiveToAddTo,
-                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            await CreateArchiveForDropAsync(paths);
             return;
         }
 
@@ -1921,6 +1918,59 @@ public partial class MainWindow : Window
         }
 
         await AddToArchiveAsync(paths);
+    }
+
+    /// <summary>
+    /// 書庫を開いていないときに落とされたものを、新しい書庫に入れるか尋ねる (#156)。
+    /// </summary>
+    /// <remarks>
+    /// 尋ねる前に落とす処理をいったん終わらせる。終わるまでは落とした側 (エクスプローラー) が
+    /// 待たされ、保存先を選んでいる間そのウィンドウが応答しなくなるため。
+    /// </remarks>
+    private async Task CreateArchiveForDropAsync(IReadOnlyList<string> paths)
+    {
+        await Dispatcher.Yield();
+
+        var answer = MessageBox.Show(
+            this,
+            Strings.ConfirmCreateForDrop,
+            AppName, MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+        if (answer != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var created = await CreateArchiveAsync(
+            SuggestArchiveName(paths), Path.GetDirectoryName(paths[0]));
+
+        // 開けなかった場合は、開けない理由が既に出ている
+        if (created is null || Contents is null
+            || !string.Equals(Contents.FilePath, created, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        await AddToArchiveAsync(paths);
+    }
+
+    /// <summary>
+    /// 落とされたものから作る書庫の名前 (#156)。1 個ならその名前、
+    /// 複数ならそれらが入っていたフォルダーの名前にする。
+    /// </summary>
+    private static string? SuggestArchiveName(IReadOnlyList<string> paths)
+    {
+        var first = paths[0];
+
+        var name = paths.Count > 1
+            ? Path.GetFileName(Path.GetDirectoryName(first))
+            : Directory.Exists(first)
+                // フォルダーの名前の「.」は拡張子ではないので、そのまま使う
+                ? Path.GetFileName(first)
+                : Path.GetFileNameWithoutExtension(first);
+
+        // ドライブをそのまま落とした場合など、名前が無ければ既定の名前にする
+        return string.IsNullOrEmpty(name) ? null : name + ".zip";
     }
 
     /// <summary>ディスク上のファイルやフォルダを、いま表示しているフォルダに追加する。</summary>
