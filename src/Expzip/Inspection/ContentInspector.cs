@@ -155,7 +155,7 @@ internal static class ContentInspector
                 // SharpZipLib が扱えない方式 (LZMA、PPMd、Deflate64) や鍵長 (AES-192) は
                 // 開き直して読む。読めれば CRC まで確かめられるので、
                 // 「検査できなかった」ではなく本当の判定を出せる (#66、#67)
-                Read(context, pass, name, size, ExpectedCrc(entry),
+                Read(context, pass, name, size, ZipEncryption.ExpectedCrc(entry),
                     () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)));
             }
         }
@@ -294,17 +294,6 @@ internal static class ContentInspector
             context.Findings.Add(InspectionIssue.MalwareDetected, name);
         }
     }
-
-    /// <summary>
-    /// 突き合わせに使う CRC。分からない場合は -1。
-    /// </summary>
-    /// <remarks>
-    /// WinZip AES (AE-2) は仕様として CRC の欄を 0 で書く。復号しないと元の値が
-    /// 分からないため、書庫には残さない決まりになっている。そのまま突き合わせると
-    /// パスワード付き書庫のすべてが「壊れている」ことになってしまう。
-    /// </remarks>
-    private static long ExpectedCrc(ZipEntry entry)
-        => entry.AESKeySize > 0 && entry.Crc == 0 ? -1 : entry.Crc;
 
     /// <summary>大きさを MB で表した文字。上限を超えたことを伝えるのに使う。</summary>
     private static string Megabytes(long bytes) => $"{bytes / (1024.0 * 1024.0):N0} MB";

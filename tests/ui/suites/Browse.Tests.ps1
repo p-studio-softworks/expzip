@@ -130,7 +130,8 @@ Section '開けなかったとき'
 $broken = New-TestZip (Join-Path $script:Work '壊れ.zip') ([ordered]@{
     'memo.txt'    = ('hello ' * 2000)
     'wavpack.txt' = 'wavpack'
-})
+    'stored.txt'  = ('stored ' * 200)
+}) @('stored.txt')
 # 先頭の項目の中身を壊す。中身はヘッダー (30 バイト) と名前、拡張フィールドの後ろから始まる
 $bytes = [System.IO.File]::ReadAllBytes($broken)
 $start = 30 + [BitConverter]::ToUInt16($bytes, 26) + [BitConverter]::ToUInt16($bytes, 28)
@@ -144,6 +145,12 @@ for ($i = 0; $i -lt $bytes.Length - 46; $i++) {
     else { continue }
     $name = [System.Text.Encoding]::UTF8.GetString($bytes, $i + $nameAt, [BitConverter]::ToUInt16($bytes, $i + $lengthAt))
     if ($name -eq 'wavpack.txt') { $bytes[$i + $method] = 97; $bytes[$i + $method + 1] = 0 }
+    # 3 つ目の項目は格納 (圧縮しない)。中身を 1 バイト変えても最後まで読めてしまい、
+    # CRC を照合しないと気づけない (#168)
+    if ($name -eq 'stored.txt' -and $nameAt -eq 30) {
+        $data = $i + 30 + [BitConverter]::ToUInt16($bytes, $i + 26) + [BitConverter]::ToUInt16($bytes, $i + 28)
+        $bytes[$data + 100] = $bytes[$data + 100] -bxor 0x01
+    }
 }
 [System.IO.File]::WriteAllBytes($broken, $bytes)
 
@@ -171,6 +178,18 @@ if ($box) {
     Check '理由は圧縮方式' ($box.Text -match 'この圧縮方式には対応していません$') $box.Text
     Close-MessageBox $box 'OK'
 }
+
+# 格納の項目は、読めても中身が違う。黙って開かない (#168)
+Select-Row $app 'stored.txt' | Out-Null
+Send-Keys $app '{ENTER}'
+$box = Find-MessageBox $app
+Check '格納の項目が壊れていても知らせが出る' ($null -ne $box)
+if ($box) {
+    Check '理由は格納でもデータが壊れていること' ($box.Text -match '^stored\.txt を開けませんでした。' -and $box.Text -match '書庫のデータが壊れています。$') $box.Text
+    Close-MessageBox $box 'OK'
+}
+$leftover = Join-Path $env:TEMP 'Expzip' | Get-ChildItem -Recurse -Filter 'stored.txt' -ErrorAction SilentlyContinue
+Check '壊れた中身を一時フォルダーに残さない' (@($leftover).Count -eq 0) (($leftover | ForEach-Object FullName) -join ', ')
 
 # ZIP 以外は別のライブラリで読む。壊れたときの例外もそちらのものになる (#167)。
 # 圧縮された tar は一覧を作るのにも中身を読み進めるので、書庫を開く時点で分かる

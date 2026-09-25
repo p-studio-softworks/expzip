@@ -160,7 +160,10 @@ internal static class ArchiveExtractor
                 using (var destination = new FileStream(
                     target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    CancellableCopy.CopyContent(source, destination, cancellationToken);
+                    // 暗号化された項目はこの道では読めない。照合する前に開く時点で断られる
+                    CancellableCopy.CopyContent(
+                        source, destination, cancellationToken,
+                        entry.IsEncrypted ? -1 : entry.Crc32);
                 }
 
                 TryPreserveTimestamp(entry, target);

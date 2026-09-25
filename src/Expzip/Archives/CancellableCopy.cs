@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.IO;
+using ICSharpCode.SharpZipLib.Checksum;
 
 namespace Expzip.Archives;
 
@@ -50,24 +51,46 @@ internal static class CancellableCopy
     /// SharpCompress は <c>ZlibException</c> や <c>DataErrorException</c>)。型で追いかけると
     /// 拾い漏れて画面ごと止まり、文で見分けると「対応していない圧縮方式」と取り違える。
     /// </para>
+    /// <para>
+    /// 読めても壊れていることがある。標準の ZIP の実装は CRC を照合しないため、
+    /// 格納 (圧縮しない) の項目は壊れていても最後まで読めてしまう (#168)。
+    /// 書き出しながら CRC を計算し、書庫に書かれた値と照合する。
+    /// 256 MB で 90 ms ほどで、書き出す時間より短い。
+    /// </para>
     /// </remarks>
-    /// <exception cref="DamagedDataException">中身を読めなかった場合。</exception>
+    /// <param name="source">項目の中身。</param>
+    /// <param name="destination">書き出し先。</param>
+    /// <param name="cancellationToken">中断用。</param>
+    /// <param name="expectedCrc">
+    /// 書庫に書かれた CRC。分からない場合は -1 で、照合しない
+    /// (tar は持たない。AES の ZIP は欄を 0 で書く)。
+    /// </param>
+    /// <exception cref="DamagedDataException">中身を読めなかった場合、または CRC が合わなかった場合。</exception>
     /// <exception cref="OperationCanceledException">中断が要求された場合。</exception>
-    public static void CopyContent(Stream source, Stream destination, CancellationToken cancellationToken)
+    public static void CopyContent(
+        Stream source, Stream destination, CancellationToken cancellationToken, long expectedCrc)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+        var crc = new Crc32();
         try
         {
             int read;
             while ((read = ReadContent(source, buffer)) > 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                crc.Update(new ArraySegment<byte>(buffer, 0, read));
                 destination.Write(buffer, 0, read);
             }
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+        if (expectedCrc >= 0 && crc.Value != expectedCrc)
+        {
+            throw new DamagedDataException(new InvalidDataException(
+                $"CRC mismatch: expected {expectedCrc:X8}, got {crc.Value:X8}."));
         }
     }
 

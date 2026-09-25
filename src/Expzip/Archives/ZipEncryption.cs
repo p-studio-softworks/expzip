@@ -234,7 +234,8 @@ internal static class ZipEncryption
                 using (var destination = new FileStream(
                            target, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    CancellableCopy.CopyContent(source, destination, cancellationToken);
+                    CancellableCopy.CopyContent(
+                        source, destination, cancellationToken, ExpectedCrc(entry));
                 }
 
                 ArchiveExtractor.ApplyStamp(target, entry.DateTime, zoneIdentifier);
@@ -281,6 +282,18 @@ internal static class ZipEncryption
             Password = password,
             StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
         };
+
+    /// <summary>
+    /// 突き合わせに使う CRC。分からない場合は -1。検査 (#54) と展開 (#168) で使う。
+    /// </summary>
+    /// <remarks>
+    /// WinZip AES (AE-2) は仕様として CRC の欄を 0 で書く。復号しないと元の値が
+    /// 分からないため、書庫には残さない決まりになっている。そのまま突き合わせると
+    /// パスワード付き書庫のすべてが「壊れている」ことになってしまう。
+    /// 中身が正しいかは、代わりに AES の認証コードで確かめられる。
+    /// </remarks>
+    internal static long ExpectedCrc(ZipEntry entry)
+        => entry.AESKeySize > 0 && entry.Crc == 0 ? -1 : entry.Crc;
 }
 
 /// <summary>書庫の暗号化の状態。</summary>

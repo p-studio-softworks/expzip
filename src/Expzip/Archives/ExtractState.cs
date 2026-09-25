@@ -34,9 +34,12 @@ internal sealed class ExtractState(
             : Strings.Reason(ex);
 
     /// <summary>1件を書き出す。</summary>
+    /// <param name="expectedCrc">
+    /// 書庫に書かれた CRC。持たない形式 (tar、NSIS) では -1 (#168)。
+    /// </param>
     public void Write(
         string key, long size, DateTime? lastWriteTime,
-        Func<Stream> openEntry, CancellationToken cancellationToken)
+        Func<Stream> openEntry, CancellationToken cancellationToken, long expectedCrc = -1)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -83,7 +86,7 @@ internal sealed class ExtractState(
             using (var destination = new FileStream(
                        target, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                CancellableCopy.CopyContent(source, destination, cancellationToken);
+                CancellableCopy.CopyContent(source, destination, cancellationToken, expectedCrc);
             }
 
             ArchiveExtractor.ApplyStamp(target, lastWriteTime ?? default, zoneIdentifier);

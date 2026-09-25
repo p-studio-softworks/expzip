@@ -65,7 +65,9 @@ internal static class SharpArchiveExtractor
         if (targets.Count == 1)
         {
             var only = targets[0];
-            state.Write(only.Key!, only.Size, only.LastModifiedTime, () => only.OpenEntryStream(), cancellationToken);
+            state.Write(
+                only.Key!, only.Size, only.LastModifiedTime, () => only.OpenEntryStream(), cancellationToken,
+                SevenZipCrc(only));
             return;
         }
 
@@ -95,7 +97,9 @@ internal static class SharpArchiveExtractor
                     continue;
                 }
 
-                state.Write(key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken);
+                state.Write(
+                    key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken,
+                    SevenZipCrc(entry));
             }
         }
         catch (Exception ex) when (IsReadFailure(ex))
@@ -148,6 +152,10 @@ internal static class SharpArchiveExtractor
             state.Write(key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken);
         }
     }
+
+    /// <summary>7z の項目の CRC。持たない場合は -1 (#168)。</summary>
+    /// <remarks>0 は「無い」の意味で使われる。検査 (#54) と同じ扱い。</remarks>
+    private static long SevenZipCrc(IEntry entry) => entry.Crc == 0 ? -1 : entry.Crc;
 
     /// <summary>書庫そのものを読み進められなくなる類の失敗か。</summary>
     /// <remarks>

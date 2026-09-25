@@ -94,14 +94,17 @@ function Read-Settings {
 
 # 書庫を作る。キーが / で終わるものはフォルダー、それ以外はファイル。
 # 値が文字列なら UTF-8 の中身、バイト列ならそのまま (書庫の中の書庫に使う)
-function New-TestZip([string]$Path, [System.Collections.IDictionary]$Entries) {
+# $Stored に挙げた名前は圧縮せずに入れる (格納)
+function New-TestZip([string]$Path, [System.Collections.IDictionary]$Entries, [string[]]$Stored = @()) {
     Remove-Item $Path -Force -ErrorAction SilentlyContinue
     $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::CreateNew)
     try {
         $zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Create)
         try {
             foreach ($name in $Entries.Keys) {
-                $entry = $zip.CreateEntry($name)
+                $entry = if ($Stored -contains $name) {
+                    $zip.CreateEntry($name, [System.IO.Compression.CompressionLevel]::NoCompression)
+                } else { $zip.CreateEntry($name) }
                 if ($name.EndsWith('/')) { continue }
                 $value = $Entries[$name]
                 $bytes = if ($value -is [byte[]]) { $value } else {
