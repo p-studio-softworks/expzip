@@ -6,7 +6,10 @@ $key = 'test-key-not-real-0123456789'
 
 $stub = Start-AiStub 8971 @(
     (New-AiAnswer 'pong'),
-    @{ Status = 401; Body = '{"error":{"message":"Invalid API key"}}' }
+    @{ Status = 401; Body = '{"error":{"message":"Invalid API key"}}' },
+    # Azure OpenAI と同じ断り方 (#159)
+    @{ Status = 400; Body = '{"error":{"message":"Unsupported parameter: ''max_tokens'' is not supported with this model. Use ''max_completion_tokens'' instead.","type":"invalid_request_error","param":"max_tokens","code":"unsupported_parameter"}}' },
+    (New-AiAnswer 'pong')
 )
 
 function Open-AiSettings($App) {
@@ -73,7 +76,14 @@ try {
     # 英語の例外文ではなく、何を確かめればよいかを日本語で言う
     Check '繋がらなければそう言う' ($result -eq '接続先に接続できませんでした。URL とネットワークを確認してください。') $result
 
+    # 新しいモデルは上限を max_completion_tokens で求める。断られたら、その名前で送り直す (#159)
     Set-Text (ById $dialog 'EndpointBox') $stub.Endpoint
+    $result = Run-Test $dialog
+    Check '上限の名前で断られても繋がる' ($result -eq '接続しました。nise-model が使えます。') $result
+    $sent = Get-AiRequests $stub
+    Check 'はじめは max_tokens で送る' ($sent.Count -ge 3 -and $sent[2].body -match '"max_tokens":' -and $sent[2].body -notmatch 'max_completion_tokens') $(if ($sent.Count -ge 3) { $sent[2].body })
+    Check '送り直しは max_completion_tokens' ($sent.Count -eq 4 -and $sent[3].body -match '"max_completion_tokens":' -and $sent[3].body -notmatch '"max_tokens"') $(if ($sent.Count -ge 4) { $sent[3].body })
+
     Push (ById $dialog 'SaveButton') 1200
     Check '保存すると閉じる' (Test-WindowGone $app 'AI連携の設定')
     Check 'ステータスバーに結果' ((Get-Status $app) -eq 'AI連携の設定を保存しました') (Get-Status $app)

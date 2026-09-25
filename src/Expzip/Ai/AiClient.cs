@@ -100,7 +100,7 @@ internal static class AiClient
             return new AiTestResult(false, refusal);
         }
 
-        var sent = await SendAsync(options, Body(options, "ping", null, PingLimit), Patience,
+        var sent = await ExchangeAsync(options, "ping", null, PingLimit, Patience,
             cancellationToken);
 
         return sent.Ok
@@ -131,8 +131,8 @@ internal static class AiClient
             return new AiAnswer(false, string.Empty, refusal);
         }
 
-        var sent = await SendAsync(options, Body(options, question, instruction, limit),
-            Thinking, cancellationToken);
+        var sent = await ExchangeAsync(options, question, instruction, limit, Thinking,
+            cancellationToken);
 
         if (!sent.Ok)
         {
@@ -157,8 +157,50 @@ internal static class AiClient
         return string.IsNullOrWhiteSpace(options.Model) ? Strings.AiNoModel : null;
     }
 
+    /// <summary>答えの長さの上限を伝える名前。ほとんどの繋ぎ先が受け付ける。</summary>
+    private const string LimitName = "max_tokens";
+
+    /// <summary>
+    /// 答えの長さの上限を伝える、新しい名前 (#159)。
+    /// OpenAI の新しいモデル (Azure OpenAI を含む) は、こちらでないと断る。
+    /// </summary>
+    private const string NewLimitName = "max_completion_tokens";
+
+    /// <summary>1回尋ねる。上限の名前で断られたら、求められた名前で送り直す (#159)。</summary>
+    /// <remarks>
+    /// <para>
+    /// 新しい名前を最初から送らないのは、**受け付けるかを確かめていない繋ぎ先がある**ため
+    /// (Google、Ollama や LM Studio などのローカルのツール)。古い名前は今まで
+    /// どこでも通っている。断られたときの文に新しい名前が書かれていれば、
+    /// そちらで送り直す。
+    /// </para>
+    /// <para>
+    /// どちらの名前が通ったかは覚えない。断られるのは一瞬で、覚えておくと
+    /// 設定を変えたときに古い答えを引きずる。
+    /// </para>
+    /// </remarks>
+    private static async Task<(bool Ok, string Body, string Message)> ExchangeAsync(
+        AiOptions options, string question, string? instruction, int limit, TimeSpan patience,
+        CancellationToken cancellationToken)
+    {
+        var sent = await SendAsync(options, Body(options, question, instruction, limit, LimitName),
+            patience, cancellationToken);
+
+        if (sent.Status != 400 || !sent.Body.Contains(NewLimitName, StringComparison.Ordinal))
+        {
+            return (sent.Ok, sent.Body, sent.Message);
+        }
+
+        sent = await SendAsync(options, Body(options, question, instruction, limit, NewLimitName),
+            patience, cancellationToken);
+
+        return (sent.Ok, sent.Body, sent.Message);
+    }
+
     /// <summary>送り出す中身を組み立てる。</summary>
-    private static string Body(AiOptions options, string question, string? instruction, int limit)
+    /// <param name="limitName">答えの長さの上限を伝える名前 (#159)。</param>
+    private static string Body(
+        AiOptions options, string question, string? instruction, int limit, string limitName)
     {
         var messages = new List<object>();
 
@@ -169,12 +211,22 @@ internal static class AiClient
 
         messages.Add(new { role = "user", content = question });
 
-        return JsonSerializer.Serialize(
-            new { model = options.Model, messages, max_tokens = limit }, Wire);
+        // 名前を入れ替えるので、決まった形の型ではなく名前と値の組で作る
+        var body = new Dictionary<string, object?>
+        {
+            ["model"] = options.Model,
+            ["messages"] = messages,
+            [limitName] = limit,
+        };
+
+        return JsonSerializer.Serialize(body, Wire);
     }
 
     /// <summary>実際に送る。繋ぎ先とのやり取りは、ここ1箇所だけで行う。</summary>
-    private static async Task<(bool Ok, string Body, string Message)> SendAsync(
+    /// <returns>
+    /// 返ってきた HTTP の状態 (届かなかったときは 0)、本文、断られたときに人に見せる一文。
+    /// </returns>
+    private static async Task<(bool Ok, int Status, string Body, string Message)> SendAsync(
         AiOptions options, string payload, TimeSpan patience,
         CancellationToken cancellationToken)
     {
@@ -195,21 +247,22 @@ internal static class AiClient
             using var response = await client.SendAsync(request, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
+            var status = (int)response.StatusCode;
+
             return response.IsSuccessStatusCode
-                ? (true, body, string.Empty)
-                : (false, body,
-                    Strings.AiRefused((int)response.StatusCode, Explain(body)));
+                ? (true, status, body, string.Empty)
+                : (false, status, body, Strings.AiRefused(status, Explain(body)));
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             // 待ち時間切れ。**繋がらなかったのとは違う** (#76)。
             // 相手には届いており、答えが返る前に上限に達しただけ
-            return (false, string.Empty, Strings.AiTimedOut((int)patience.TotalSeconds));
+            return (false, 0, string.Empty, Strings.AiTimedOut((int)patience.TotalSeconds));
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException
                                    or UriFormatException)
         {
-            return (false, string.Empty, Strings.Reason(ex));
+            return (false, 0, string.Empty, Strings.Reason(ex));
         }
     }
 
