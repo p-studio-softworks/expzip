@@ -124,6 +124,30 @@ Wait-Idle $app
 Check 'タブが 1 つに戻る' ((Get-Tabs $app).Count -eq 1)
 $save = ById $app.Window 'SaveButton'
 Check '保存の口が消える' (($null -eq $save) -or $save.Current.IsOffscreen)
+Stop-Expzip $app
+
+Section '開けなかったとき'
+$broken = New-TestZip (Join-Path $script:Work '壊れ.zip') ([ordered]@{
+    'memo.txt' = ('hello ' * 2000)
+})
+# 先頭の項目の中身を壊す。中身はヘッダー (30 バイト) と名前、拡張フィールドの後ろから始まる
+$bytes = [System.IO.File]::ReadAllBytes($broken)
+$start = 30 + [BitConverter]::ToUInt16($bytes, 26) + [BitConverter]::ToUInt16($bytes, 28)
+foreach ($i in ($start + 3)..($start + 23)) { $bytes[$i] = $bytes[$i] -bxor 0x5A }
+[System.IO.File]::WriteAllBytes($broken, $bytes)
+
+$app = Start-Expzip @($broken)
+$idle = Get-Status $app
+Select-Row $app 'memo.txt' | Out-Null
+Send-Keys $app '{ENTER}'
+$box = Find-MessageBox $app
+Check '知らせが出る' ($null -ne $box)
+if ($box) {
+    Check '文言' ($box.Text -match '^memo\.txt を開けませんでした。') $box.Text
+    Close-MessageBox $box 'OK'
+}
+# 「展開しています…」を残すと、まだ作業中に見える (#157)
+Check 'ステータスバーは書庫の説明に戻る' ((Get-Status $app) -eq $idle) (Get-Status $app)
 
 Stop-Expzip $app
 Complete-Suite

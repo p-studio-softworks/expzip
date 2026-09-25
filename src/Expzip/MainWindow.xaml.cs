@@ -332,6 +332,7 @@ public partial class MainWindow : Window
                 return false;
             }
 
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.OpenArchiveFailed(path, Strings.Reason(ex)),
@@ -814,6 +815,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.RenameFailed(Strings.Reason(ex)),
@@ -938,6 +940,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.CreateFolderFailed(Strings.Reason(ex)),
@@ -1111,6 +1114,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.ChangePasswordFailed(Strings.Reason(ex)),
@@ -2436,14 +2440,14 @@ public partial class MainWindow : Window
     }
 
     /// <summary>取り出したファイルを見張り始める。保存されたら書庫へ反映するか尋ねる。</summary>
-    private void StartEditing(ArchiveEntry entry, string target, string directory)
+    /// <returns>開けたときにステータスバーへ出す文。見張るかどうかで変わる。</returns>
+    private string StartEditing(ArchiveEntry entry, string target, string directory)
     {
         // 書き戻せない形式では見張らない。尋ねても応えられない (#19)
         if (Contents is not { IsEditable: true })
         {
-            StatusMessage.Text = Strings.OpenedReadOnly(
+            return Strings.OpenedReadOnly(
                 entry.Name, ArchiveFormats.DisplayName(Contents!.Format));
-            return;
         }
 
         _edits.Add(new EditSession(Contents.FilePath, entry, target, ParentFolderOf(entry.FullPath)));
@@ -2459,7 +2463,7 @@ public partial class MainWindow : Window
         }
 
         _editWatch.Start();
-        StatusMessage.Text = Strings.OpenedWatching(entry.Name);
+        return Strings.OpenedWatching(entry.Name);
     }
 
     /// <summary>書庫内のパスから、その親フォルダのパスを取り出す。</summary>
@@ -2542,6 +2546,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.ApplyEditFailed(session.EntryPath, Strings.Reason(ex)),
@@ -2553,7 +2558,13 @@ public partial class MainWindow : Window
             SetBusy(false);
         }
 
-        if (result is null || result.Cancelled)
+        // 失敗は上で知らせてある。「中断しました」で上書きしない
+        if (result is null)
+        {
+            return false;
+        }
+
+        if (result.Cancelled)
         {
             StatusMessage.Text = Strings.ApplyEditCancelled;
             return false;
@@ -2561,6 +2572,7 @@ public partial class MainWindow : Window
 
         if (result.Failed.Count > 0)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.ApplyEditFailed(session.EntryPath, result.Failed[0].Reason),
@@ -2796,6 +2808,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidOperationException or NotSupportedException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.SfxFailed(dialog.FileName, Strings.Reason(ex)),
@@ -3068,6 +3081,7 @@ public partial class MainWindow : Window
                                    or InvalidDataException or NotSupportedException
                                    or PathTooLongException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.DragExtractFailed(Strings.Reason(ex)),
@@ -3106,6 +3120,11 @@ public partial class MainWindow : Window
             if (effect == DragDropEffects.Copy)
             {
                 StatusMessage.Text = Strings.DragExtracted(paths.Length);
+            }
+            else if (effect == DragDropEffects.None)
+            {
+                // どこにも落とされなかった。「展開しています…」を残さない (#157)
+                StatusMessage.Text = Strings.DragCancelled;
             }
         }
         catch (COMException)
@@ -3263,6 +3282,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.MoveFailed(Strings.Reason(ex)),
@@ -3399,8 +3419,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        StartEditing(entry, target, directory);
-        LaunchDefaultApp(target);
+        LaunchDefaultApp(target, StartEditing(entry, target, directory));
     }
 
     /// <summary>
@@ -3525,6 +3544,7 @@ public partial class MainWindow : Window
                     ? result.Failed[0].Reason
                     : Strings.ExtractOneFailedReason;
 
+                ShowIdleStatus();
                 MessageBox.Show(
                     this,
                     Strings.OpenEntryFailed(entry.Name, reason),
@@ -3536,6 +3556,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.OpenEntryFailed(entry.Name, Strings.Reason(ex)),
@@ -3557,7 +3578,12 @@ public partial class MainWindow : Window
     }
 
     /// <summary>取り出したファイルを既定のアプリに渡す。</summary>
-    private void LaunchDefaultApp(string path)
+    /// <param name="path">渡すファイル。</param>
+    /// <param name="opened">
+    /// 開けたときにステータスバーへ出す文。省くと「既定のアプリで開きました」。
+    /// 書き戻しの案内や読み取りのみの警告を、ここで上書きして消さないため (#157)。
+    /// </param>
+    private void LaunchDefaultApp(string path, string? opened = null)
     {
         // 関連付けが無い / 利用者が「アプリを選ぶ」を取り消した場合の Win32 のエラー番号
         const int NoAssociation = 1155;
@@ -3570,7 +3596,7 @@ public partial class MainWindow : Window
             {
             }
 
-            StatusMessage.Text = Strings.OpenedWithDefaultApp(Path.GetFileName(path));
+            StatusMessage.Text = opened ?? Strings.OpenedWithDefaultApp(Path.GetFileName(path));
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == NoAssociation)
         {
@@ -3801,6 +3827,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.ExtractFailed(Strings.Reason(ex)),
@@ -3872,6 +3899,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this,
                 Strings.InspectFailed(Strings.Reason(ex)),
@@ -4049,6 +4077,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or NotSupportedException or ArgumentException)
         {
+            ShowIdleStatus();
             MessageBox.Show(
                 this, Strings.SplitFailed(Strings.Reason(ex)), AppName,
                 MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -4261,6 +4290,16 @@ public partial class MainWindow : Window
 
         Mouse.OverrideCursor = busy ? Cursors.AppStarting : null;
     }
+
+    /// <summary>
+    /// ステータスバーを、いま開いている書庫の説明に戻す。
+    /// 失敗をダイアログで知らせるときに使う。「〜しています…」を残すと、
+    /// ダイアログを閉じた後もまだ作業中のように見える (#157)。
+    /// </summary>
+    private void ShowIdleStatus()
+        => StatusMessage.Text = Contents is { } contents
+            ? DescribeArchive(contents, Tab?.Audit)
+            : Strings.NoArchiveOpen;
 
     /// <summary>指定フォルダの内容をリストビューに表示する。</summary>
     private void Navigate(ArchiveFolder folder)
