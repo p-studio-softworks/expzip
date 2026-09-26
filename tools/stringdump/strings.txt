@@ -1640,22 +1640,18 @@ RuleDropBroken
   ja  除外 (お手本の書庫が守っていない)
   en  Not taken (model breaks it)
 
-RuleDropUnchecked
-  ja  除外 (確認できる対象なし)
-  en  Not taken (cannot be checked)
-
 RuleDropped (broken: 1, unchecked_: 2, unusable: 1)
-  ja  お手本の書庫が守っていないもの 1 件、確認できる対象が無いもの 2 件、ルールとして解釈できないもの 1 件を除外しました。
-  en  Left out 1 that the model archive itself breaks and 2 with nothing to check them against and 1 that could not be read as a rule.
+  ja  お手本の書庫が守っていないもの 1 件、お手本の書庫に当てはまる項目が無いもの 2 件、ルールとして解釈できないもの 1 件を除外しました。
+  en  Left out 1 that the model archive itself breaks and 2 about things the model archive does not contain and 1 that could not be read as a rule.
 RuleDropped (broken: 0, unchecked_: 2, unusable: 1)
-  ja  確認できる対象が無いもの 2 件、ルールとして解釈できないもの 1 件を除外しました。
-  en  Left out 2 with nothing to check them against and 1 that could not be read as a rule.
+  ja  お手本の書庫に当てはまる項目が無いもの 2 件、ルールとして解釈できないもの 1 件を除外しました。
+  en  Left out 2 about things the model archive does not contain and 1 that could not be read as a rule.
 RuleDropped (broken: 1, unchecked_: 0, unusable: 1)
   ja  お手本の書庫が守っていないもの 1 件、ルールとして解釈できないもの 1 件を除外しました。
   en  Left out 1 that the model archive itself breaks and 1 that could not be read as a rule.
 RuleDropped (broken: 1, unchecked_: 2, unusable: 0)
-  ja  お手本の書庫が守っていないもの 1 件、確認できる対象が無いもの 2 件を除外しました。
-  en  Left out 1 that the model archive itself breaks and 2 with nothing to check them against.
+  ja  お手本の書庫が守っていないもの 1 件、お手本の書庫に当てはまる項目が無いもの 2 件を除外しました。
+  en  Left out 1 that the model archive itself breaks and 2 about things the model archive does not contain.
 
 RuleFilledCount (count: 3)
   ja  うち 3 件は、AI が示した場所を Expzip が確認して補いました。
@@ -1823,6 +1819,10 @@ RulePromptSystem
       |   例:「Foo-main フォルダがある」は、次の書庫では名前が変わるので役に立ちません。
       |   形が繰り返されているなら name_pattern で書いてください
       | - name_pattern は、一覧にあるその範囲の名前すべてに当てはまるものだけにしてください
+      | - 当てる相手が一覧に1つも無い決まりは挙げないでください。
+      |   例: フォルダが1つも無い書庫で、フォルダ名の形 (scope が folders の name_pattern) を挙げる。
+      |   where で指した場所が一覧に無い場合も同じです。
+      |   ただし「含めない」決まり (forbidden_extension、forbidden_name) は、無いことを言うものなので構いません
       | - 何にでも当てはまる正規表現 (".*" など) は挙げないでください
       | - 数を絞らず、気付いたものを挙げてください。多くても20件までにしてください
   en  You help read off how an archive (ZIP and the like) is put together.
@@ -1899,6 +1899,12 @@ RulePromptSystem
       |   "There is a Foo-main folder" is useless next time, when that name differs.
       |   If the shape repeats, write it as a name_pattern instead
       | - A name_pattern must match every name in its scope that appears in the listing
+      | - Do not list a rule that has nothing in the listing to apply to.
+      |   For example, a folder-name shape (a name_pattern with scope folders) for an
+      |   archive that holds no folders. The same goes when where points at a place
+      |   that does not appear in the listing.
+      |   Rules that forbid something (forbidden_extension, forbidden_name) are fine,
+      |   since they are about what is absent
       | - Do not list a regular expression that matches anything (such as ".*")
       | - Do not hold back on count. List what you notice, up to 20 rules
 

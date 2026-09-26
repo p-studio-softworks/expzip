@@ -189,11 +189,15 @@ public partial class RuleLearnDialog : Window
             added++;
         }
 
-        // 採らなかった候補も並べる (#80)。使えないが、**何が捨てられたのかは見せる。**
-        // 数だけ知らせても、AI が何を言ったのかは分からない
+        // お手本が破っていた候補も並べる (#80)。使えないが、**何が捨てられたのかは見せる。**
+        // 数だけ知らせても、AI が何を言ったのかは分からない。
+        // **当てる先が無かった候補は並べない** (#163)。お手本に無いものについての決まりで、
+        // 出てはならない AI の読み違い。選べない行を置いても「なぜ選べないのか」と迷わせるだけ。
+        // 数は上の内訳に残すので、割り出された数と一覧の数が合わない理由は分かる
         foreach (var drop in estimate.Dropped)
         {
-            if (!_rows.Any(row => Same(row.Rule, drop.Rule)))
+            if (drop.Reason == DropReason.Broken
+                && !_rows.Any(row => Same(row.Rule, drop.Rule)))
             {
                 _rows.Add(new RuleRow(drop, _sample));
             }

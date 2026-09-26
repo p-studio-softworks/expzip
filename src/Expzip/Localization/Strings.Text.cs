@@ -765,9 +765,16 @@ internal static partial class Strings
 
     /// <summary>採らなかった候補の内訳。黙って減らすと、数が合わない理由が分からない。</summary>
     /// <remarks>
-    /// **「破っている」と「確かめられない」は分けて数える** (#80)。前者は AI の
-    /// 読み違いだが、後者はこちらが評価できなかったということで、意味がまるで違う。
-    /// 混ぜて「お手本が満たさない」とだけ言うと、こちらの落ち度を相手のせいにする。
+    /// <para>
+    /// **「破っている」と「当てる先が無い」は分けて数える** (#80)。どちらも AI の
+    /// 読み違いだが、読み違え方が違う。前者はお手本にあるものを読み違え、後者は
+    /// お手本に無いものについての決まりを作っている。
+    /// </para>
+    /// <para>
+    /// 後者は一覧には並べない (#163)。ここで数だけは言う。黙って減らすと、
+    /// 割り出された数と一覧の数が合わない理由が分からない。以前は
+    /// 「確認できる対象が無い」と書いていたが、こちらが確かめ損ねたように読めた。
+    /// </para>
     /// </remarks>
     public static string RuleDropped(int broken, int unchecked_, int unusable)
     {
@@ -781,8 +788,8 @@ internal static partial class Strings
 
         if (unchecked_ > 0)
         {
-            parts.Add(Pick($"確認できる対象が無いもの {unchecked_} 件",
-                $"{unchecked_} with nothing to check them against"));
+            parts.Add(Pick($"お手本の書庫に当てはまる項目が無いもの {unchecked_} 件",
+                $"{unchecked_} about things the model archive does not contain"));
         }
 
         if (unusable > 0)
@@ -902,13 +909,6 @@ internal static partial class Strings
 
     /// <summary>採らなかった候補が、なぜ採られなかったか (#80)。</summary>
     public static string RuleDropBroken => Pick("除外 (お手本の書庫が守っていない)", "Not taken (model breaks it)");
-
-    /// <summary>
-    /// 当てる先が無くて確かめられなかった。**AI の間違いとは限らない。**
-    /// 書けないことを値に押し込まれると、ここに来る。
-    /// </summary>
-    public static string RuleDropUnchecked
-        => Pick("除外 (確認できる対象なし)", "Not taken (cannot be checked)");
 
     /// <summary>
     /// 一覧のルールをファイルに書き、この後の検査に使う (#145)。ウィンドウは閉じない。
@@ -1262,6 +1262,10 @@ internal static partial class Strings
           例:「Foo-main フォルダがある」は、次の書庫では名前が変わるので役に立ちません。
           形が繰り返されているなら name_pattern で書いてください
         - name_pattern は、一覧にあるその範囲の名前すべてに当てはまるものだけにしてください
+        - 当てる相手が一覧に1つも無い決まりは挙げないでください。
+          例: フォルダが1つも無い書庫で、フォルダ名の形 (scope が folders の name_pattern) を挙げる。
+          where で指した場所が一覧に無い場合も同じです。
+          ただし「含めない」決まり (forbidden_extension、forbidden_name) は、無いことを言うものなので構いません
         - 何にでも当てはまる正規表現 (".*" など) は挙げないでください
         - 数を絞らず、気付いたものを挙げてください。多くても20件までにしてください
         """;
@@ -1341,6 +1345,12 @@ internal static partial class Strings
           "There is a Foo-main folder" is useless next time, when that name differs.
           If the shape repeats, write it as a name_pattern instead
         - A name_pattern must match every name in its scope that appears in the listing
+        - Do not list a rule that has nothing in the listing to apply to.
+          For example, a folder-name shape (a name_pattern with scope folders) for an
+          archive that holds no folders. The same goes when where points at a place
+          that does not appear in the listing.
+          Rules that forbid something (forbidden_extension, forbidden_name) are fine,
+          since they are about what is absent
         - Do not list a regular expression that matches anything (such as ".*")
         - Do not hold back on count. List what you notice, up to 20 rules
         """;

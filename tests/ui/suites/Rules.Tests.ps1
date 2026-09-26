@@ -27,6 +27,8 @@ $answer = @'
   {"kind":"forbidden_extension","scope":"all","value":"tmp","description":".tmp を含めない","evidence":"拡張子の一覧に無い"},
   {"kind":"required_folder","scope":"root","value":"docs","description":"ルート直下に docs がある","evidence":"フォルダーの一覧"},
   {"kind":"required_entry","scope":"root","value":"CHANGELOG.md","description":"ルート直下に CHANGELOG.md がある","evidence":"思い付き"},
+  {"kind":"name_pattern","scope":"folders","where":"^nowhere$","value":"x_[0-9]+","description":"nowhere の中のフォルダー名は x_ で始まる","evidence":"思い込み"},
+  {"kind":"name_pattern","scope":"files","where":"^src$","value":"(main|helper|worker|reader|writer|parser|printer|scanner|loader|saver|cache)\\.(c|h|tmp)","description":"src のファイル名は決まった語で始まる","evidence":"src の一覧"},
   {"kind":"banana","scope":"all","value":"x","description":"知らない種類","evidence":"-"}
 ]}
 ```
@@ -97,12 +99,27 @@ try {
         $text = (ById $dialog 'ResultText').Current.Name
         if ($text -match '推定しました|推定できませんでした') { $text }
     }
-    Check '件数を言う' ($result -match '^3 件のルールを推定しました。') $result
+    Check '件数を言う' ($result -match '^4 件のルールを推定しました。') $result
     Check '除外したものも言う' ($result -match 'お手本の書庫が守っていないもの 1 件' -and $result -match 'ルールとして解釈できないもの 1 件を除外しました。') $result
+    # お手本に無いものについての決まりは、出てはならない AI の読み違い。数だけは言う (#163)
+    Check '当てる先が無いものは数だけ言う' ($result -match 'お手本の書庫に当てはまる項目が無いもの 1 件') $result
     $notice = (ById $dialog 'NoticeText').Current.Name
     Check '提案だと断る' ($notice -eq 'これらはAIが推定したルールです。書庫の本来のルールとは異なる場合があります。ルールとして使用したいものを選択してください。') $notice
     $rows = RuleRows $dialog
-    Check '一覧に並ぶ (除外したものも見せる)' ($rows.Count -eq 4) "$($rows.Count) 行"
+    Check '一覧に並ぶ (守っていないものも見せる)' ($rows.Count -eq 5) "$($rows.Count) 行"
+    Check '当てる先が無いものは並べない' (-not ((Texts (ById $dialog 'RuleList')) -match 'nowhere')) (Texts (ById $dialog 'RuleList'))
+    # 長い値は列の中で折り返す (#162)。正規表現は区切りの無い 1 語なので、はみ出して読めなかった
+    $long = ByName (ById $dialog 'RuleList') '(main|helper|worker|reader|writer|parser|printer|scanner|loader|saver|cache)\.(c|h|tmp)'
+    $short = ByName (ById $dialog 'RuleList') 'README.md'
+    if ($long -and $short) {
+        $longRect = $long.Current.BoundingRectangle
+        $cell = (ById $dialog 'RuleList').Current.BoundingRectangle
+        Check '長い値は折り返す' ($longRect.Height -gt $short.Current.BoundingRectangle.Height * 1.5 -and $longRect.Right -le $cell.Right) ("高さ {0:0} / 1 行 {1:0}" -f $longRect.Height, $short.Current.BoundingRectangle.Height)
+    }
+    else { Check '長い値は折り返す' $false '値の字が見つからない' }
+    # 説明は文なので折り返さない (折り返すと短いものまで 2 行になる)。切れたときのために全文を説明で出す
+    $desc = ByType $rows[0] $script:ControlType::Text | Where-Object { $_.Current.Name -eq 'ルート直下に README.md がある' } | Select-Object -First 1
+    Check '説明はマウスを当てると全文が出る' ($desc -and $desc.Current.HelpText -eq 'ルート直下に README.md がある') $(if ($desc) { $desc.Current.HelpText })
     # 行の間隔はメインの一覧と同じ (#131)。チェックボックスが収まることも見る
     $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
     $ruleHeight = Get-RowHeight (ById $dialog 'RuleList')
@@ -143,12 +160,12 @@ try {
     Check '押したら何が起きるか' ((ById $dialog 'DeleteButton').Current.HelpText -match '^選択したルールを一覧から削除します。') (ById $dialog 'DeleteButton').Current.HelpText
     Push (ById $dialog 'DeleteButton')
     Check '消したと言う' ((ById $dialog 'ResultText').Current.Name -eq '1 件のルールを一覧から削除しました。「適用する」を押すと反映されます。') (ById $dialog 'ResultText').Current.Name
-    Check '一覧から消える' ((RuleRows $dialog).Count -eq 3)
+    Check '一覧から消える' ((RuleRows $dialog).Count -eq 4)
 
     Section '適用する'
     Push (ById $dialog 'ApplyButton')
     $saved = (ById $dialog 'ResultText').Current.Name
-    Check '適用したと言う' ($saved -eq '2 件のルールを適用しました (使用するのは 2 件)。') $saved
+    Check '適用したと言う' ($saved -eq '3 件のルールを適用しました (使用するのは 3 件)。') $saved
     Check 'ファイルができる' (Test-Path $script:RulesPath)
     Push (ById $dialog 'CloseButton')
     Check '閉じる' (Test-WindowGone $app '書庫のルールを推定')
@@ -164,7 +181,7 @@ try {
         $headline = (ById $audit 'Headline').Current.Name
         Check '見出し' ($headline -eq 'ルールに合っていない項目が 1 個あります。あるはずの項目が 1 個ありません') $headline
         $source = (ById $audit 'SourceLine').Current.Name
-        Check 'どのルールで調べたか' ($source -match '^2 件のルールで検査しました \(お手本: otehon\.zip、\d{4}/\d{2}/\d{2} \d{2}:\d{2}\)。$') $source
+        Check 'どのルールで調べたか' ($source -match '^3 件のルールで検査しました \(お手本: otehon\.zip、\d{4}/\d{2}/\d{2} \d{2}:\d{2}\)。$') $source
         # 行の間隔はメインの一覧と同じ (#131)。チェックボックスが収まることも見る
         $mainHeight = Get-RowHeight (ById $app.Window 'EntryList')
         $auditHeight = Get-RowHeight (ById $audit 'FindingList')

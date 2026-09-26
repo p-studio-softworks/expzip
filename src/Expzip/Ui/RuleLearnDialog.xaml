@@ -100,6 +100,24 @@
                     </Style.Triggers>
                 </Style>
             </ListView.ItemContainerStyle>
+            <ListView.Resources>
+                <!--
+                    説明と根拠は文なので、折り返すと短いものまで 2 行になり、行の間隔が
+                    メインの一覧と揃わなくなる (#131)。1 行のまま、切れたら「…」を付けて
+                    切れていると分かるようにし、マウスを当てると全文を出す (#162)
+                -->
+                <Style x:Key="ClippedText" TargetType="TextBlock">
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                    <Setter Property="ToolTip"
+                            Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                    <Style.Triggers>
+                        <!-- 空の説明を出すと、中身の無い小さな枠だけが出る -->
+                        <Trigger Property="Text" Value="">
+                            <Setter Property="ToolTip" Value="{x:Null}" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </ListView.Resources>
             <ListView.View>
                 <GridView>
                     <!-- 外したルールは、保存しても当てない -->
@@ -122,12 +140,23 @@
                                     DisplayMemberBinding="{Binding KindText}" />
                     <GridViewColumn x:Name="ScopeColumn" Width="110"
                                     DisplayMemberBinding="{Binding ScopeText}" />
-                    <!-- 当てる場所 (#81)。中身は正規表現なので、幅を分け合う側に置く -->
+                    <!--
+                        当てる場所 (#81)。中身は正規表現なので、幅を分け合う側に置く。
+                        場所と値は、列に収まらなければ**列の中で折り返す** (#162)。
+                        正規表現は区切りの無い長い 1 語なので、はみ出して読めなかった。
+                        Wrap は区切りが無くても折り返す (WrapWithOverflow ははみ出す)。
+                        たいていは短いので、長いものの行だけが高くなる
+                    -->
                     <GridViewColumn x:Name="PlaceColumn"
                                     Width="{Binding ActualWidth, ElementName=RuleList,
                                                     Converter={StaticResource Share},
-                                                    ConverterParameter=0.22}"
-                                    DisplayMemberBinding="{Binding WhereText}" />
+                                                    ConverterParameter=0.22}">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding WhereText}" TextWrapping="Wrap" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <!--
                         値・説明・根拠は中身が長い。**ここが読めないと質を判断
                         できない**ので、ウィンドウを広げた分は3つで分け合う (#77)
@@ -135,18 +164,35 @@
                     <GridViewColumn x:Name="ValueColumn"
                                     Width="{Binding ActualWidth, ElementName=RuleList,
                                                     Converter={StaticResource Share},
-                                                    ConverterParameter=0.24}"
-                                    DisplayMemberBinding="{Binding Value}" />
+                                                    ConverterParameter=0.24}">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Value}" TextWrapping="Wrap" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn x:Name="DescriptionColumn"
                                     Width="{Binding ActualWidth, ElementName=RuleList,
                                                     Converter={StaticResource Share},
-                                                    ConverterParameter=0.32}"
-                                    DisplayMemberBinding="{Binding Description}" />
+                                                    ConverterParameter=0.32}">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Description}"
+                                           Style="{StaticResource ClippedText}" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn x:Name="EvidenceColumn"
                                     Width="{Binding ActualWidth, ElementName=RuleList,
                                                     Converter={StaticResource Share},
-                                                    ConverterParameter=0.22}"
-                                    DisplayMemberBinding="{Binding Evidence}" />
+                                                    ConverterParameter=0.22}">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Evidence}"
+                                           Style="{StaticResource ClippedText}" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn x:Name="SourceColumn" Width="70"
                                     DisplayMemberBinding="{Binding SourceText}" />
                     <!-- いま開いている書庫に当てるとどうなるか (#26) -->

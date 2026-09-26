@@ -33,10 +33,10 @@ internal sealed class RuleRow : INotifyPropertyChanged
         Verdict = Judge(rule, sample);
     }
 
-    /// <summary>採らなかった候補の行を作る (#80)。</summary>
+    /// <summary>お手本が破っていたので採らなかった候補の行を作る (#80)。</summary>
     /// <remarks>
     /// 使うことはできないが、**何が捨てられたのかは見せる。**数だけ知らせても、
-    /// AI が何を言ったのかは分からない。
+    /// AI が何を言ったのかは分からない。当てる先が無かった候補は行にしない (#163)。
     /// </remarks>
     public RuleRow(RuleDrop drop, ArchiveContents sample)
     {
@@ -44,9 +44,7 @@ internal sealed class RuleRow : INotifyPropertyChanged
         _enabled = false;
         _sample = sample;
         CanUse = false;
-        Verdict = drop.Reason == DropReason.Broken
-            ? Strings.RuleDropBroken
-            : Strings.RuleDropUnchecked;
+        Verdict = Strings.RuleDropBroken;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

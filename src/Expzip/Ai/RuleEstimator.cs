@@ -81,9 +81,9 @@ internal static class RuleEstimator
 
             if (result.Applied == 0)
             {
-                // 当てる先が無い。お手本が破っているのではなく、こちらが
-                // 確かめようがなかった。語彙で書けないことを AI が値に押し込むと、
-                // だいたいここに落ちる
+                // 当てる先が無い。お手本に無いもの (フォルダの無い書庫でのフォルダ名の形、
+                // など) についての決まりで、**出てはならない AI の読み違い** (#163)。
+                // 語彙で書けないことを AI が値に押し込んでも、ここに落ちる
                 dropped.Add(new RuleDrop(rule, DropReason.NothingToCheck));
             }
             else if (result.Satisfied)
@@ -238,6 +238,6 @@ internal enum DropReason
     /// <summary>お手本自身が破っていた。</summary>
     Broken,
 
-    /// <summary>当てる先が無く、確かめようがなかった。</summary>
+    /// <summary>当てる先がお手本に無かった。AI の読み違い (#163)。一覧には並べず、数だけ言う。</summary>
     NothingToCheck,
 }
