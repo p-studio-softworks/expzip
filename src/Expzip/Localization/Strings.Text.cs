@@ -1240,11 +1240,11 @@ internal static partial class Strings
         {"kind":"required_entry","scope":"all","where":"^[^/]+$",
          "value":"library.json","description":"...","evidence":"..."}
 
-        書庫全体が1つのフォルダに包まれていることがあります。その場合、
+        書庫全体が1つのフォルダに入っていることがあります。その場合、
         利用者はその**フォルダの中**を「書庫のルート」と受け取ります。
         description でもそう書いてください。
-        いっぽう scope の root は、**包んでいるフォルダそのもの**を指し、
-        その中身は指しません。中を指すには where に ^[^/]+$ を書いてください。
+        いっぽう scope の root は、**その外側のフォルダそのもの**を指し、
+        中身は指しません。中を指すには where に ^[^/]+$ を書いてください。
 
         description には、そのルールを日本語の一文で書いてください。
         evidence には、一覧のどこからそう読み取ったかを短く書いてください。
@@ -1321,13 +1321,15 @@ internal static partial class Strings
         {"kind":"name_pattern","scope":"folders","where":"^[^/]+/libraries$",
          "value":"usb_host_[a-z0-9_]+","description":"...","evidence":"..."}
 
-        Example: library.json sits directly inside the wrapping folder
+        Example: library.json sits at the root of the archive
         {"kind":"required_entry","scope":"all","where":"^[^/]+$",
          "value":"library.json","description":"...","evidence":"..."}
 
-        An archive is sometimes wrapped in a single folder. Then root means
-        that wrapping folder itself, not what is inside it. Use where to
-        point inside the wrapper.
+        A whole archive sometimes sits inside a single folder. Readers take
+        the inside of that folder as the root of the archive, so write
+        description that way.
+        The scope root, on the other hand, means that outer folder itself,
+        not what is inside it. To point inside it, write ^[^/]+$ in where.
 
         Write description as one English sentence stating the rule.
         Write evidence as a short note on where in the listing you read it.
