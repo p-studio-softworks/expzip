@@ -118,6 +118,23 @@
         </Style>
 
         <!--
+            絵を自分で描く口 (#174)。いまは自己解凍だけ。
+            **Segoe MDL2 Assets に自己解凍書庫に当たる絵が無い。**Package (E7B8) は
+            アドレスバーで「これは書庫」の印に使っており、同じ絵では操作に見えない。
+            書庫の箱に実行の印 (▶) を入れて、渡した相手がそのまま開けることを表す。
+            Windows 11 にしかない書体 (Segoe Fluent Icons) は使えない。対象は Windows 10 も含む
+
+            絵は 16 × 16 の升目で描く。Segoe MDL2 Assets の絵もその大きさなので、
+            隣に並んだときに線の重さがそろう。
+            色は文字色を継ぐ。押せないときに淡くなるのを、絵にも効かせるため
+        -->
+        <Style x:Key="ToolDrawn" TargetType="Button"
+               BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
+            <Setter Property="Padding" Value="7,3" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        </Style>
+
+        <!--
             名前の色。保護された項目だけ色を変える (#20)。
             ツリーと一覧で同じ見え方にするため、ひとつの型を両方から使う
         -->
@@ -294,9 +311,19 @@
                     自己解凍書庫として書き出す (#29)。取り出すプログラムを前に付けた
                     実行ファイルにする。受け取った人は Expzip が無くても取り出せる
                 -->
-                <!-- Package。それだけで開ける包み -->
+                <!-- 書庫の箱に実行の印。絵の訳は ToolDrawn のところに書いてある (#174) -->
                 <Button x:Name="SfxButton" Click="SfxButton_Click" IsEnabled="False"
-                        Style="{StaticResource ToolGlyph}" Content="&#xE7B8;" />
+                        Style="{StaticResource ToolDrawn}">
+                    <Grid Width="16" Height="16"
+                          SnapsToDevicePixels="True" UseLayoutRounding="True">
+                        <Path Data="M2,3.5 H14 V12.5 H2 Z M2,6 H14" StrokeThickness="1"
+                              Stroke="{Binding (TextElement.Foreground),
+                                               RelativeSource={RelativeSource Self}}" />
+                        <Path Data="M6.5,7.6 L6.5,11.6 L10.3,9.6 Z"
+                              Fill="{Binding (TextElement.Foreground),
+                                             RelativeSource={RelativeSource Self}}" />
+                    </Grid>
+                </Button>
                 <Separator />
                 <!--
                     AI の機能 (#104)。歯車ひとつに言語といっしょに入れていたが、
