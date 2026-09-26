@@ -23,6 +23,11 @@ function Enter-Password($App, [string]$Text) {
     if ($null -eq $dialog) { return $null }
     $prompt = (ByType $dialog $script:ControlType::Text | ForEach-Object { $_.Current.Name }) -join "`n"
     $box = ByType $dialog $script:ControlType::Edit | Select-Object -First 1
+    # ボタンの高さを決め打ちしていないか。26 に固定していて、字の下が切れていた。
+    # Fluent のボタンと入力欄は、決め打ちしなければ同じ高さになる。画面の倍率によらず比べられる
+    $script:ShortButtons = @(ByType $dialog $script:ControlType::Button |
+        Where-Object { $_.Current.BoundingRectangle.Height -lt $box.Current.BoundingRectangle.Height - 2 } |
+        ForEach-Object { '{0} {1:0} / 入力欄 {2:0}' -f $_.Current.Name, $_.Current.BoundingRectangle.Height, $box.Current.BoundingRectangle.Height })
     $box.SetFocus()
     Start-Sleep -Milliseconds 200
     if ($Text.Length -gt 0) { [System.Windows.Forms.SendKeys]::SendWait($Text) }
@@ -41,6 +46,7 @@ $plainLeft = Get-NameLeft $app 'report.txt'
 Push (ById $app.Window 'PasswordButton')
 $prompt = Enter-Password $app $secret
 Check '窓が開く' ($null -ne $prompt)
+Check 'ボタンの字が切れない高さ' ($script:ShortButtons.Count -eq 0) ($script:ShortButtons -join ', ')
 Check '尋ね方' ($prompt -match '^「資料\.zip」に設定するパスワードを入力してください。') $prompt
 # 忘れたときに何が起きるかは、消さずに伝える
 Check '忘れたときの注意' ($prompt -match 'パスワードを忘れると、中身を展開できなくなります。')

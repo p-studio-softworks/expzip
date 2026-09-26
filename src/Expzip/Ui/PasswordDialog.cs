@@ -50,12 +50,14 @@ internal sealed class PasswordDialog : Window
             TextWrapping = TextWrapping.Wrap,
         };
 
+        // 高さは決め打ちしない。Fluent のボタンは余白を持ち、ハイコントラストでは枠も太くなるので、
+        // 26 に固定すると字の下が切れていた。幅も最小の幅だけ決め、長い字は字に合わせて広がる
+        // (ルールの推定のウィンドウ #145 と同じ決め方)
         var ok = new Button
         {
             Content = Strings.PasswordOk,
             IsDefault = true,
-            Width = 88,
-            Height = 26,
+            MinWidth = 88,
             Margin = new Thickness(0, 0, 8, 0),
         };
 
@@ -65,8 +67,7 @@ internal sealed class PasswordDialog : Window
         {
             Content = Strings.PasswordCancel,
             IsCancel = true,
-            Width = 88,
-            Height = 26,
+            MinWidth = 88,
         };
 
         cancel.Click += (_, _) => Close(false);
