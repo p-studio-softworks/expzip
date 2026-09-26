@@ -18,6 +18,10 @@ if (-not ('ExpzipUi.Native' -as [type])) {
 [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
 [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint msg, IntPtr w, string l);
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint processId);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, System.Text.StringBuilder text, int max);
+[DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
 '@
 }
 
@@ -75,7 +79,38 @@ function Check([string]$Label, $Ok, $Detail = '') {
     else {
         $script:Failed++
         Write-Host ("  NG   " + $Label + $suffix)
+        Save-FailureShot $Label
     }
+}
+
+# 最初の NG のときの画面を撮っておく (#169)。たまにしか落ちないテストは、走らせ直すと
+# 通ってしまい、何が起きていたのか分からなかった。前に何のウィンドウがあったかが一番の手掛かりになる
+function Save-FailureShot([string]$Label) {
+    if ($script:ShotTaken) { return }
+    $script:ShotTaken = $true
+    try {
+        $folder = Join-Path $env:TEMP 'ExpzipUiTests\failed'
+        New-Item -ItemType Directory -Force -Path $folder | Out-Null
+        $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+        $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bmp.Size)
+        $g.Dispose()
+        $path = Join-Path $folder ('{0:yyyyMMdd-HHmmss}-{1}.png' -f (Get-Date), $script:SuiteName)
+        $bmp.Save($path)
+        $bmp.Dispose()
+        Write-Host ("        画面: {0} (前にあったウィンドウ: {1})" -f $path, (Get-ForegroundTitle))
+    }
+    catch {
+        Write-Host "        画面を撮れませんでした: $_"
+    }
+}
+
+# いま前にあるウィンドウの題名
+function Get-ForegroundTitle {
+    $text = New-Object System.Text.StringBuilder 256
+    [ExpzipUi.Native]::GetWindowText([ExpzipUi.Native]::GetForegroundWindow(), $text, 256) | Out-Null
+    return $text.ToString()
 }
 
 # ------------------------------------------------------------------ 用意
@@ -262,11 +297,37 @@ function Stop-Expzip($App, [switch]$Force) {
     Start-Sleep -Milliseconds 400
 }
 
+# Expzip を前に出す。**前に出たことを確かめる** (#169)。
+# テストは隠れた PowerShell から走らせているので、Windows は SetForegroundWindow を断ることがある
+# (前にいないプロセスがほかのウィンドウを前に出すのを防ぐ決まり)。断られても何も言わないので、
+# 以前はそのままキーを送り、別のウィンドウに届いて後の確認がまとめて落ちていた。
+# Alt を 1 回押して離すと断られなくなる、よく知られた手を使う
 function Focus-App($App) {
     $handle = $App.Process.MainWindowHandle
     [ExpzipUi.Native]::ShowWindow($handle, 9) | Out-Null
-    [ExpzipUi.Native]::SetForegroundWindow($handle) | Out-Null
-    Start-Sleep -Milliseconds 300
+
+    for ($attempt = 0; $attempt -lt 5; $attempt++) {
+        if ($attempt -gt 0) {
+            [ExpzipUi.Native]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
+            [ExpzipUi.Native]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+        }
+        [ExpzipUi.Native]::SetForegroundWindow($handle) | Out-Null
+        Start-Sleep -Milliseconds 300
+        if (Test-AppInFront $App) {
+            # 送り直して前に出たときは残しておく。断られていたことの手掛かりになる
+            if ($attempt -gt 0) { Write-Host ("        (Expzip を前に出すのに {0} 回かかりました)" -f ($attempt + 1)) }
+            return
+        }
+    }
+
+    throw ("Expzip を前に出せませんでした (前にあるのは「{0}」)" -f (Get-ForegroundTitle))
+}
+
+# 前にあるのが Expzip のウィンドウか。Expzip が出したダイアログ (パスワードの窓など) も含める
+function Test-AppInFront($App) {
+    $processId = 0
+    [ExpzipUi.Native]::GetWindowThreadProcessId([ExpzipUi.Native]::GetForegroundWindow(), [ref]$processId) | Out-Null
+    return $processId -eq $App.Process.Id
 }
 
 # 処理中の印 (中止ボタン) が消えるまで待つ
@@ -740,7 +801,10 @@ namespace ExpzipUi
 }
 
 # 主窓の真ん中。書庫を開いていなくても受け取る場所
+# 落とす先。落とす前に Expzip を前に出す (#169)。ほかのウィンドウが上に重なっていると、
+# そちらに落ちる
 function Get-WindowCenter($App) {
+    Focus-App $App
     $rect = $App.Window.Current.BoundingRectangle
     return [pscustomobject]@{ X = [int]($rect.X + $rect.Width / 2); Y = [int]($rect.Y + $rect.Height / 2) }
 }

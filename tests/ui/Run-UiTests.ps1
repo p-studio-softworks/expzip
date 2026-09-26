@@ -9,6 +9,7 @@
     - 走っている間はマウスとキーボードに触らないでください。ウィンドウを前に出し、キーを送って操作します
     - Windows の表示言語が日本語であることを前提にしています (MessageBox の「はい(Y)」など)
     - 1 本ずつの記録は %TEMP%\ExpzipUiTests\results に残ります
+    - 落ちた記録と、最初に落ちたときの画面は %TEMP%\ExpzipUiTests\failed にも残ります。走らせ直しても消えません (#169)
     - 1 本が 300 秒を超えたら止めて次へ進みます (-TimeoutSeconds で変えられます)
     - Expzip は %TEMP%\ExpzipUiTests\app にビルドします。普段使っている Expzip や publish\ には触りません
     - AI の接続先は、この PC の中に立てたテスト用のものを使います。外へは何も送りません
@@ -35,6 +36,8 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $root = Join-Path $env:TEMP 'ExpzipUiTests'
 $app = Join-Path $root 'app'
 $results = Join-Path $root 'results'
+$failed = Join-Path $root 'failed'
+New-Item -ItemType Directory -Force -Path $failed | Out-Null
 
 $running = @(Get-Process Expzip -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -and $_.Path.StartsWith($app, [StringComparison]::OrdinalIgnoreCase) })
@@ -102,7 +105,20 @@ foreach ($file in $chosen) {
         Write-Host "      途中で止まりました (戻り値 $($process.ExitCode))"
         $errors | Select-Object -First 8 | ForEach-Object { Write-Host "      $_" }
     }
+
+    # 落ちた記録は別の場所にも取っておく (#169)。results は走らせるたびに消すので、
+    # たまにしか落ちないテストを走らせ直すと、何が起きたのかが残らなかった
+    if ($ng -gt 0) {
+        $kept = Join-Path $failed ('{0:yyyyMMdd-HHmmss}-{1}' -f $started, $name)
+        Copy-Item $log "$kept.log" -ErrorAction SilentlyContinue
+        Copy-Item "$log.err" "$kept.log.err" -ErrorAction SilentlyContinue
+        Write-Host "      記録: $kept.log"
+    }
 }
+
+# 古いものは消す。落ちるたびに増え続けないように、新しい 60 個だけ残す
+Get-ChildItem $failed -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending |
+    Select-Object -Skip 60 | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Write-Host ''
 Write-Host "記録: $results"
