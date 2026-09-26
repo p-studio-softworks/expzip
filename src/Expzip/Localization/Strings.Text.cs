@@ -1932,7 +1932,7 @@ internal static partial class Strings
 
     /// <summary>分割しても 1 つにしかならないときの断り。</summary>
     public static string SplitNotNeeded => Pick(
-        "分割の必要はありません。1つの大きさが元のファイルより大きくなっています。",
+        "分割の必要はありません。1つの大きさが分割するファイルより大きいです。",
         "No need to split: each piece would be larger than the file itself.");
 
     public static string SplitPreview(int parts) => Pick(

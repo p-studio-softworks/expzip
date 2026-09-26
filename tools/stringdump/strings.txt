@@ -2178,7 +2178,7 @@ SplitFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒�
       | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
 
 SplitNotNeeded
-  ja  分割の必要はありません。1つの大きさが元のファイルより大きくなっています。
+  ja  分割の必要はありません。1つの大きさが分割するファイルより大きいです。
   en  No need to split: each piece would be larger than the file itself.
 
 SplitPreview (parts: 4)

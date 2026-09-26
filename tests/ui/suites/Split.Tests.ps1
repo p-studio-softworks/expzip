@@ -28,7 +28,7 @@ $unit = ById $dialog 'UnitCombo'
 Expand-Element $unit
 Select-Element (ByName $unit 'MB')
 Set-Text (ById $dialog 'SizeBox') '10'
-Check '分ける必要が無いとき' ((ById $dialog 'PreviewText').Current.Name -eq '分割の必要はありません。1つの大きさが元のファイルより大きくなっています。') (ById $dialog 'PreviewText').Current.Name
+Check '分ける必要が無いとき' ((ById $dialog 'PreviewText').Current.Name -eq '分割の必要はありません。1つの大きさが分割するファイルより大きいです。') (ById $dialog 'PreviewText').Current.Name
 Set-Text (ById $dialog 'SizeBox') '1'
 $preview = (ById $dialog 'PreviewText').Current.Name
 Check '何ができるかを言う' ($preview -eq '4 個の分割ファイルと、結合用のプログラムを作成します。元のファイルはそのまま残ります。') $preview
