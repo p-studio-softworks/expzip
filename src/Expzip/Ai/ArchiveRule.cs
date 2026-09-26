@@ -59,6 +59,16 @@ internal sealed record ArchiveRule(
     /// <summary>場所の正規表現。<see cref="Where"/> が空なら <see langword="null"/>。</summary>
     public Regex? WherePattern { get; private init; }
 
+    /// <summary>
+    /// 数え上げた場所の数 (#172)。<see cref="RuleSource.Filled"/> のみ。
+    /// 持っていなければ 0。
+    /// </summary>
+    /// <remarks>
+    /// 根拠の文を出すときに組み立て直すために持つ。数ではなく出来上がった文を
+    /// 持つと、あとで言語を切り替えても書いたときの言葉のまま残る。
+    /// </remarks>
+    public int Places { get; init; }
+
     /// <summary>種類の名前。画面に出す。</summary>
     public string KindText => Kind switch
     {
@@ -69,6 +79,35 @@ internal sealed record ArchiveRule(
         RuleKind.RequiredPattern => Strings.RuleKindRequiredPattern,
         _ => Strings.RuleKindNamePattern,
     };
+
+    /// <summary>人に見せる説明。画面に出す (#172)。</summary>
+    /// <remarks>
+    /// <para>
+    /// **Expzip が補った分は、出すときに組み立てる。**こちらが書く文なので、
+    /// そのときの言語で書ける。作ったときの文を持ち回すと、言語を切り替えても
+    /// 書いたときの言葉のまま残る。言い方を直したときも、古い文が残り続ける。
+    /// </para>
+    /// <para>
+    /// **AI と人が書いた分は、書かれたとおりに出す。**AI 自身の言葉をこちらで
+    /// 訳すと、AI が言っていないことを AI 名義にすることになる (#84、#89)。
+    /// </para>
+    /// <para>
+    /// ファイルを手で直して補った分に自分の言葉を書きたい場合は、出どころ
+    /// (<c>source</c>) を <c>hand</c> にする。そのままでは組み立て直される。
+    /// </para>
+    /// </remarks>
+    public string DescriptionText => Source == RuleSource.Filled
+        ? Strings.RuleFilledSays(Value)
+        : Description;
+
+    /// <summary>お手本のどこから読み取ったか。画面に出す (#172)。</summary>
+    /// <remarks>
+    /// 補った分は数え上げた場所の数から組み立てる。**数を持っていない古い
+    /// ファイルは、保存されている文をそのまま出す。**読み取り直せば数が入る。
+    /// </remarks>
+    public string EvidenceText => Source == RuleSource.Filled && Places > 0
+        ? Strings.RuleFilledSaw(Places)
+        : Evidence;
 
     /// <summary>出どころの名前。画面に出す。</summary>
     public string SourceText => Source switch

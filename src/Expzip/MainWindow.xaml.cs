@@ -5301,8 +5301,8 @@ public partial class MainWindow : Window
 
     /// <summary>決まりを一言で書く。AI が説明を書いていなければ、種類と値で書く。</summary>
     private static string RuleWords(ArchiveRule rule)
-        => rule.Description.Length > 0
-            ? rule.Description
+        => rule.DescriptionText.Length > 0
+            ? rule.DescriptionText
             : $"{rule.KindText}: {rule.Value}";
 
     /// <summary>保存した決まりを、いま見ている書庫に当てて結果を出す (#27)。</summary>

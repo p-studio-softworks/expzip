@@ -258,8 +258,8 @@ public partial class RuleAuditWindow : Window
 
     /// <summary>決まりを一言で書く。AI が説明を書いていなければ、種類と値で書く。</summary>
     private static string Describe(ArchiveRule rule)
-        => rule.Description.Length > 0
-            ? rule.Description
+        => rule.DescriptionText.Length > 0
+            ? rule.DescriptionText
             : $"{rule.KindText}: {rule.Value}";
 
     private void FindingList_SelectionChanged(

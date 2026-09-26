@@ -30,9 +30,16 @@ internal static class RuleStore
 
     /// <summary>いまの形式の番号。読めない番号のものは読まない。</summary>
     /// <remarks>
+    /// <para>
     /// 2 で場所 (<c>where</c>) が加わった (#81)。**1 のファイルもそのまま読める。**
     /// 場所は任意で、無ければ書庫全体に当てる。古い版で書かれたものは、
     /// これまでどおりの意味になる。
+    /// </para>
+    /// <para>
+    /// **場所の数 (<c>places</c>) を足したが、番号は上げない** (#172)。任意の項目で、
+    /// 読み落としても決まりの意味は変わらない。番号を上げると、この項目を知らない
+    /// 古い版がファイルごと読まなくなり、決まりが全部消えたように見える。
+    /// </para>
     /// </remarks>
     private const int Version = 2;
 
@@ -90,7 +97,9 @@ internal static class RuleStore
 
                 if (rule is not null)
                 {
-                    entries.Add(new RuleEntry(rule, row.Enabled));
+                    // 数え上げた場所の数。無い古いファイルは 0 のまま (#172)
+                    entries.Add(new RuleEntry(
+                        rule with { Places = row.Places ?? 0 }, row.Enabled));
                 }
             }
 
@@ -118,9 +127,13 @@ internal static class RuleStore
                 Kind = RuleWords.FromKind(entry.Rule.Kind),
                 Scope = RuleWords.FromScope(entry.Rule.Scope),
                 Value = entry.Rule.Value,
-                Description = entry.Rule.Description,
-                Evidence = entry.Rule.Evidence,
+
+                // 画面に出るのと同じ文を書く。補った分は組み立てたもの (#172)。
+                // 読むときは Places から組み立て直すので、言語を切り替えても付いてくる
+                Description = entry.Rule.DescriptionText,
+                Evidence = entry.Rule.EvidenceText,
                 Where = entry.Rule.Where.Length == 0 ? null : entry.Rule.Where,
+                Places = entry.Rule.Places == 0 ? null : entry.Rule.Places,
                 Source = entry.Rule.Source switch
                 {
                     RuleSource.Hand => "hand",
@@ -200,6 +213,9 @@ internal static class RuleStore
 
         /// <summary>当てる場所。項目を含むフォルダのパスの形 (#81)。無ければ書庫全体。</summary>
         public string? Where { get; set; }
+
+        /// <summary>数え上げた場所の数 (#172)。Expzip が補った分だけに付く。</summary>
+        public int? Places { get; set; }
 
         public string? Source { get; set; }
 

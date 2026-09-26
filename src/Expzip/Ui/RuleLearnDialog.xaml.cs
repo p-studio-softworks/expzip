@@ -263,15 +263,18 @@ public partial class RuleLearnDialog : Window
     {
         if (row.Rule.Source == RuleSource.Hand
             || (string.Equals(row.Rule.Description, fresh.Description, StringComparison.Ordinal)
-                && string.Equals(row.Rule.Evidence, fresh.Evidence, StringComparison.Ordinal)))
+                && string.Equals(row.Rule.Evidence, fresh.Evidence, StringComparison.Ordinal)
+                && row.Rule.Places == fresh.Places))
         {
             return;
         }
 
+        // 補った分は文を持たず、場所の数から組み立てる (#172)。数も入れ替える
         row.Replace(row.Rule with
         {
             Description = fresh.Description,
             Evidence = fresh.Evidence,
+            Places = fresh.Places,
         });
     }
 

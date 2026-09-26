@@ -1,5 +1,4 @@
 ﻿using Expzip.Archives;
-using Expzip.Localization;
 
 namespace Expzip.Ai;
 
@@ -76,16 +75,16 @@ internal static class RuleFiller
                     return made;
                 }
 
+                // 説明と根拠は持たせない。出すときにそのときの言語で組み立てる (#172)。
+                // 数え上げた場所の数だけを渡す
                 var built = ArchiveRule.TryCreate(
                     isFolder ? RuleKind.RequiredFolder : RuleKind.RequiredEntry,
-                    RuleScope.All, name,
-                    Strings.RuleFilledSays(name),
-                    Strings.RuleFilledSaw(folders.Count),
+                    RuleScope.All, name, string.Empty, string.Empty,
                     RuleSource.Filled, rule.Where);
 
                 if (built is not null && seen.Add(Key(built)))
                 {
-                    made.Add(built);
+                    made.Add(built with { Places = folders.Count });
                 }
             }
         }

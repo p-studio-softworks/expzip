@@ -33,7 +33,14 @@ $answer = @'
 ]}
 ```
 '@
-$stub = Start-AiStub 8972 @((New-AiAnswer $answer))
+# 2 つめは、Expzip が数え上げて補うルール (#84) を出させるためのもの。
+# libs の下の 3 つのフォルダーすべてに同じ名前が並ぶ (#172)
+$filling = @'
+{"rules":[
+  {"kind":"name_pattern","scope":"files","where":"^libs/[^/]+$","value":"(README|CHANGELOG)\\.md","description":"libs の各フォルダーに置くのは README.md と CHANGELOG.md","evidence":"libs の一覧"}
+]}
+'@
+$stub = Start-AiStub 8972 @((New-AiAnswer $answer), (New-AiAnswer $filling))
 
 function Open-AiItem($App, [string]$Item) {
     $menu = Open-DropDown $App 'AiButton'
@@ -298,6 +305,56 @@ try {
     Push (ById $dialog 'CloseButton')
     Check '変えていなければそのまま閉じる' (Test-WindowGone $app '書庫のルールを推定')
     Check '変えていなければ尋ねない' ($null -eq (Find-MessageBox $app 1500))
+    Stop-Expzip $app
+
+    # Expzip が補ったルールの文は、持ち回さずに出すときに組み立てる (#172)。
+    # 作ったときの文を保存すると、言語を切り替えても書いたときの言葉のまま残る
+    Section 'Expzip が補ったルール'
+    Remove-Item $script:RulesPath -Force -ErrorAction SilentlyContinue
+    $libs = New-TestZip (Join-Path $script:Work 'libs.zip') ([ordered]@{
+        'libs/'               = ''
+        'libs/a/'             = ''
+        'libs/a/README.md'    = 'a'
+        'libs/a/CHANGELOG.md' = 'a'
+        'libs/b/'             = ''
+        'libs/b/README.md'    = 'b'
+        'libs/b/CHANGELOG.md' = 'b'
+        'libs/c/'             = ''
+        'libs/c/README.md'    = 'c'
+        'libs/c/CHANGELOG.md' = 'c'
+    })
+    $app = Start-Expzip @($libs)
+    $dialog = Open-Learn
+    Push (ById $dialog 'SendButton')
+    $result = Wait-Until -TimeoutMs 20000 {
+        $text = (ById $dialog 'ResultText').Current.Name
+        if ($text -match '推定しました|推定できませんでした') { $text }
+    }
+    Check '補ったと言う' ($result -match 'うち 2 件は、AI が示した場所を Expzip が確認して補いました。') $result
+    $texts = Texts (ById $dialog 'RuleList')
+    Check '補った分の説明' ($texts -match 'この場所のすべてのフォルダーに README\.md がある。') $texts
+    Check '補った分の根拠に数が入る' ($texts -match '同じ場所の 3 個すべてにある \(Expzip が確認\)') $texts
+    Push (ById $dialog 'ApplyButton')
+    Push (ById $dialog 'CloseButton')
+    Stop-Expzip $app
+    $saved = [System.IO.File]::ReadAllText($script:RulesPath)
+    Check '数え上げた場所の数を保存する' ($saved -match '"Places":\s*3') $saved
+
+    Section '英語にしても補った分は英語'
+    Set-Settings @{ AiEndpoint = $stub.Endpoint; AiModel = 'nise-model'; Language = 'en' }
+    $app = Start-Expzip @($libs)
+    Open-AiItem $app 'Work out the rules of this archive...' | Out-Null
+    $dialog = Find-Window $app "Work out the archive's rules"
+    Check '窓が開く' ($null -ne $dialog)
+    if ($dialog) {
+        $texts = Texts (ById $dialog 'RuleList')
+        Check '説明が英語' ($texts -match 'Every folder in this place holds README\.md\.') $texts
+        Check '根拠が英語' ($texts -match 'present in all 3 of them \(counted\)') $texts
+        Check '日本語が残っていない' ($texts -notmatch 'この場所|同じ場所') $texts
+        # AI が書いた分はそのまま。こちらで訳すと、言っていないことを AI 名義にすることになる
+        Check 'AI が書いた分は書かれたまま' ($texts -match 'libs の各フォルダーに置くのは') $texts
+        Push (ById $dialog 'CloseButton')
+    }
     Stop-Expzip $app
 }
 finally {

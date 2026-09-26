@@ -79,9 +79,9 @@ internal sealed class RuleRow : INotifyPropertyChanged
 
     public string Value => Rule.Value;
 
-    public string Description => Rule.Description;
+    public string Description => Rule.DescriptionText;
 
-    public string Evidence => Rule.Evidence;
+    public string Evidence => Rule.EvidenceText;
 
     public string SourceText => Rule.SourceText;
 
