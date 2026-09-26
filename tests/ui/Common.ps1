@@ -592,6 +592,40 @@ function Measure-InkWidth($Rect) {
     }
 }
 
+# 画面のその範囲に描かれた絵の濃さ。いちばん多い色を地の色とみなし、
+# それといちばん違う点の差を返す (0〜765)。押せるときと押せないときの
+# 比べにだけ使う (#175)。絵の形は見ない
+function Measure-Ink($Rect) {
+    $width = [int][Math]::Floor($Rect.Width)
+    $height = [int][Math]::Floor($Rect.Height)
+    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.CopyFromScreen([int][Math]::Ceiling($Rect.X), [int][Math]::Ceiling($Rect.Y), 0, 0, $bitmap.Size)
+        $counts = @{}
+        for ($x = 0; $x -lt $width; $x++) {
+            for ($y = 0; $y -lt $height; $y++) {
+                $argb = $bitmap.GetPixel($x, $y).ToArgb()
+                $counts[$argb] = 1 + [int]$counts[$argb]
+            }
+        }
+        $back = [System.Drawing.Color]::FromArgb(($counts.GetEnumerator() |
+            Sort-Object Value -Descending | Select-Object -First 1).Key)
+        $ink = 0
+        for ($x = 0; $x -lt $width; $x++) {
+            for ($y = 0; $y -lt $height; $y++) {
+                $c = $bitmap.GetPixel($x, $y)
+                $far = [Math]::Abs($c.R - $back.R) + [Math]::Abs($c.G - $back.G) + [Math]::Abs($c.B - $back.B)
+                if ($far -gt $ink) { $ink = $far }
+            }
+        }
+        return $ink
+    } finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
+}
+
 # その字を描いたときの幅。大きさは問わない (見出しどうしの比にしか使わない)
 function Measure-TextShape([string]$Text) {
     Add-Type -AssemblyName PresentationCore, PresentationFramework, WindowsBase

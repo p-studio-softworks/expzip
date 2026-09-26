@@ -46,6 +46,12 @@ foreach ($id in 'OpenButton', 'SplitButton', 'AiButton', 'LanguageButton', 'Abou
 }
 Test-NoGlyphNames $app '記号が名前になっていない'
 
+# 押せないボタンの絵は淡くする (#175)。ここで測り、書庫を開いたあとの濃さと比べる
+$dim = [ordered]@{}
+foreach ($id in 'ExtractButton', 'SfxButton') {
+    $dim[$id] = Measure-Ink (ById $app.Window $id).Current.BoundingRectangle
+}
+
 # 絵にしたぶん横に縮む。畳まれて隠れていないこと
 $overflow = ById $app.Window 'OverflowButton'
 Check 'ツールバーがはみ出していない' (($null -eq $overflow) -or $overflow.Current.IsOffscreen)
@@ -77,6 +83,11 @@ Section '書庫を開いたとき'
 $app = Start-Expzip @($sample)
 foreach ($id in $needArchive) {
     Check "押せる: $id" ((ById $app.Window $id).Current.IsEnabled)
+}
+# 押せるようになったぶん濃くなる。同じ絵・同じ場所どうしで比べる (#175)
+foreach ($id in $dim.Keys) {
+    $lit = Measure-Ink (ById $app.Window $id).Current.BoundingRectangle
+    Check "押せないときは絵が淡い: $id" ($dim[$id] -lt $lit * 0.8) "押せないとき $($dim[$id]) / 押せるとき $lit"
 }
 $close = ByName $app.Window 'このタブを閉じる (Ctrl+W)'
 Check 'タブを閉じる口に名前がある' ($null -ne $close)
