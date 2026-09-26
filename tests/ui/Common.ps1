@@ -22,6 +22,7 @@ if (-not ('ExpzipUi.Native' -as [type])) {
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint processId);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, System.Text.StringBuilder text, int max);
 [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+[DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int width, int height, bool repaint);
 '@
 }
 
@@ -702,7 +703,8 @@ function Rename-Row($App, [string]$From, [string]$To) {
 # エクスプローラーからドロップするのと同じ形で、ファイルやフォルダーを画面のその位置へ落とす。
 # 小さな窓を最前面に出して、そこからマウスでドラッグを始め、落とす位置まで動かして離す。
 # 落とした先が受け取ったかを返す。座標は UI Automation と同じ、画面の実際の px
-function Invoke-Drop([string[]]$Paths, [int]$X, [int]$Y) {
+# マウスでつかんで運ぶ仕掛けを用意する。落とす (Invoke-Drop) と持ち出す (Invoke-MouseDrag) で使う
+function Initialize-Dropper {
     if (-not ('ExpzipUi.Dropper' -as [type])) {
         Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
 using System;
@@ -791,18 +793,58 @@ namespace ExpzipUi
             thread.Start();
             return thread.Join(timeoutMs);
         }
+
+        // ある位置から別の位置へ、マウスでつかんで運ぶ (#157)。Expzip から外へ持ち出すのに使う。
+        // 運ぶ途中を細かく刻むのは、ドラッグの始まりと、落とす先の上に来たことを相手に伝えるため
+        public static void Drag(int fromX, int fromY, int toX, int toY)
+        {
+            var thread = new Thread(() =>
+            {
+                UsePhysicalPixels();
+                MoveTo(fromX, fromY);
+                Thread.Sleep(300);
+                mouse_event(LeftDown, 0, 0, 0, UIntPtr.Zero);
+                Thread.Sleep(300);
+                for (var i = 1; i <= 60; i++)
+                {
+                    MoveTo(fromX + (toX - fromX) * i / 60, fromY + (toY - fromY) * i / 60);
+                    Thread.Sleep(30);
+                }
+                // 相手の上で少し動かす。着いてすぐ離すと、相手が「上に来た」と受け取る前に落ちる
+                for (var i = 0; i < 10; i++)
+                {
+                    MoveTo(toX + (i % 2 == 0 ? 4 : -4), toY);
+                    Thread.Sleep(100);
+                }
+                MoveTo(toX, toY);
+                Thread.Sleep(800);
+                mouse_event(LeftUp, 0, 0, 0, UIntPtr.Zero);
+            });
+            thread.Start();
+            thread.Join();
+        }
     }
 }
 '@
     }
+}
+
+function Invoke-Drop([string[]]$Paths, [int]$X, [int]$Y) {
+    Initialize-Dropper
     $done = [ExpzipUi.Dropper]::Drop($Paths, $X, $Y, 15000)
     Start-Sleep -Milliseconds 500
     return $done -and [ExpzipUi.Dropper]::Result -ne [System.Windows.Forms.DragDropEffects]::None
 }
 
-# 主窓の真ん中。書庫を開いていなくても受け取る場所
-# 落とす先。落とす前に Expzip を前に出す (#169)。ほかのウィンドウが上に重なっていると、
-# そちらに落ちる
+# 画面のある位置から別の位置へ、マウスでつかんで運ぶ (#157)
+function Invoke-MouseDrag([int]$FromX, [int]$FromY, [int]$ToX, [int]$ToY) {
+    Initialize-Dropper
+    [ExpzipUi.Dropper]::Drag($FromX, $FromY, $ToX, $ToY)
+    Start-Sleep -Milliseconds 800
+}
+
+# 主窓の真ん中。書庫を開いていなくても受け取る場所。
+# 落とす前に Expzip を前に出す (#169)。ほかのウィンドウが上に重なっていると、そちらに落ちる
 function Get-WindowCenter($App) {
     Focus-App $App
     $rect = $App.Window.Current.BoundingRectangle

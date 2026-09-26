@@ -110,4 +110,48 @@ Check 'タブで開く' ((Get-Tabs $app).Count -eq 1) (Get-Tabs $app).Count
 Check '一覧に並ぶ' ((Get-RowNames $app) -contains '資料') ((Get-RowNames $app) -join ', ')
 Stop-Expzip $app
 
+Section 'エクスプローラーへ持ち出す'
+# 書庫の項目をつかんでエクスプローラーへ落とす (#17)。同じドライブへ落とすと、エクスプローラーは
+# コピーではなく移動を選ぶ。以前は移動のとき、ステータスバーが「展開しています…」のまま残っていた (#157)
+$outZip = New-TestZip (Join-Path $script:Work 'motidasi.zip') ([ordered]@{ 'motidasi.txt' = 'out' })
+$dest = Join-Path $script:Work 'okiba'
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+$app = Start-Expzip @($outZip)
+
+Start-Process explorer.exe "`"$dest`""
+$explorer = Wait-Until -TimeoutMs 15000 {
+    $script:Automation::RootElement.FindAll($script:Scope::Children,
+        (Condition $script:Automation::ClassNameProperty 'CabinetWClass')) |
+        Where-Object { $_.Current.Name -match '^okiba' } | Select-Object -First 1
+}
+Check 'エクスプローラーが開く' ($null -ne $explorer)
+if ($explorer) {
+    # Expzip の横に並べる。重なっていると、運ぶ途中で相手が隠れる
+    # 大きさは Expzip に合わせる (画面の倍率によらず、左の一覧と右のファイルの欄が十分に広くなる)
+    $appRect = $app.Window.Current.BoundingRectangle
+    $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $width = [int]$appRect.Width
+    $left = if ($appRect.Right + 20 + $width -le $screen.Right) { $appRect.Right + 20 } else { [Math]::Max($screen.Left, $appRect.Left - $width - 20) }
+    [ExpzipUi.Native]::MoveWindow([IntPtr]$explorer.Current.NativeWindowHandle, [int]$left, [int]$appRect.Top, $width, [int]$appRect.Height, $true) | Out-Null
+    Start-Sleep -Milliseconds 800
+
+    Focus-App $app
+    $name = (ByName (Find-Row $app 'motidasi.txt') 'motidasi.txt').Current.BoundingRectangle
+    # 落とすのはファイルの一覧 (項目ビュー) の真ん中。位置を決め打ちすると、左のナビゲーション
+    # (デスクトップなどに届く) や、右の詳細ウィンドウ (受け取らない) に当たることがある
+    $items = Find-One $explorer (Condition $script:Automation::ClassNameProperty 'UIItemsView')
+    $target = if ($items) { $items.Current.BoundingRectangle } else { $explorer.Current.BoundingRectangle }
+    Invoke-MouseDrag ([int]($name.X + $name.Width / 2)) ([int]($name.Y + $name.Height / 2)) `
+        ([int]($target.X + $target.Width / 2)) ([int]($target.Y + $target.Height / 2))
+
+    $arrived = Wait-Until -TimeoutMs 10000 { Test-Path (Join-Path $dest 'motidasi.txt') }
+    Check 'エクスプローラーに届く' ([bool]$arrived)
+    $status = Wait-Until -TimeoutMs 5000 { $text = Get-Status $app; if ($text -notmatch '展開しています') { $text } }
+    Check '展開したと言う' ($status -eq '1 個の項目を展開しました') (Get-Status $app)
+
+    # 開いたエクスプローラーの窓だけを閉じる
+    [ExpzipUi.Native]::PostMessage([IntPtr]$explorer.Current.NativeWindowHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+}
+Stop-Expzip $app
+
 Complete-Suite

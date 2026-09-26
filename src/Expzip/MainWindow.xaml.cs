@@ -127,6 +127,9 @@ public partial class MainWindow : Window
     /// <summary>自分が始めたドラッグの最中。自分の一覧に落とし直されるのを防ぐ。</summary>
     private bool _draggingOut;
 
+    /// <summary>持ち出したドラッグが、外ではなく書庫の中に落とされたか (#43、#157)。</summary>
+    private bool _droppedInside;
+
     /// <summary>ツリーで押されたフォルダ。動かされたらドラッグアウトを始める (#17)。</summary>
     private ArchiveFolder? _treeDragFolder;
 
@@ -1877,6 +1880,8 @@ public partial class MainWindow : Window
 
             if (ResolveMoveTarget(e, move) is { } target)
             {
+                // 持ち出した側に、外ではなく書庫の中に落とされたことを伝える (#157)
+                _droppedInside = true;
                 await MoveInArchiveAsync(move, target);
             }
 
@@ -3113,18 +3118,21 @@ public partial class MainWindow : Window
                     r.Folder is not null))
                 .ToList()));
 
+            _droppedInside = false;
+
             var effect = DragDrop.DoDragDrop(
                 dragSource, data, DragDropEffects.Copy | DragDropEffects.Move);
 
             // 書庫の中へ落とされた場合は移動の側で知らせる
-            if (effect == DragDropEffects.Copy)
+            if (!_droppedInside)
             {
-                StatusMessage.Text = Strings.DragExtracted(paths.Length);
-            }
-            else if (effect == DragDropEffects.None)
-            {
-                // どこにも落とされなかった。「展開しています…」を残さない (#157)
-                StatusMessage.Text = Strings.DragCancelled;
+                // 外に落とされたなら、コピーでも移動でも展開したことになる。
+                // 移動を許しているのは書庫の中での移動 (#43) のためで、同じドライブへ落とすと
+                // エクスプローラーは移動を選ぶ。以前はコピーのときしか言わず、
+                // 「展開しています…」が残っていた (#157)
+                StatusMessage.Text = PerformedEffect(effect, data) == DragDropEffects.None
+                    ? Strings.DragCancelled
+                    : Strings.DragExtracted(paths.Length);
             }
         }
         catch (COMException)
@@ -3137,6 +3145,37 @@ public partial class MainWindow : Window
         {
             _draggingOut = false;
         }
+    }
+
+    /// <summary>ドラッグの結果、実際に行われたこと (#157)。</summary>
+    /// <remarks>
+    /// エクスプローラーは、移動を自分で済ませたとき (同じドライブへの移動など) に
+    /// 「何もしなかった」と返し、本当の結果を <c>Performed DropEffect</c> で別に知らせてくる。
+    /// 返り値だけを見ると、展開したのに「中止しました」と言ってしまう。
+    /// </remarks>
+    private static DragDropEffects PerformedEffect(DragDropEffects returned, DataObject data)
+    {
+        if (returned != DragDropEffects.None)
+        {
+            return returned;
+        }
+
+        try
+        {
+            if (data.GetData("Performed DropEffect") is MemoryStream { Length: >= 4 } stream)
+            {
+                var bytes = new byte[4];
+                stream.Position = 0;
+                stream.ReadExactly(bytes);
+                return (DragDropEffects)BitConverter.ToInt32(bytes, 0);
+            }
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or IOException)
+        {
+            // 知らせが無い、または読めないなら、返り値のとおりとみなす
+        }
+
+        return returned;
     }
 
     /// <summary>
