@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Windows.Media;
 using Expzip.Archives;
 using Expzip.Localization;
 
@@ -20,18 +21,6 @@ internal enum EntryRowKind
 /// </summary>
 internal sealed class EntryRow : INotifyPropertyChanged
 {
-    /// <summary>フォルダに上矢印を重ねた「一つ上へ」のアイコン。</summary>
-    private const string GlyphParent = "\uE197";
-
-    /// <summary>
-    /// 塗りつぶしのフォルダ。輪郭線だけのフォルダ (E8B7) は
-    /// 書類アイコンと形が似ており、一覧の中で見分けがつかない。
-    /// </summary>
-    private const string GlyphFolder = "\uE8D5";
-
-    /// <summary>書類。</summary>
-    private const string GlyphFile = "\uE7C3";
-
     private bool _isEditing;
     private string _editName = string.Empty;
 
@@ -80,8 +69,13 @@ internal sealed class EntryRow : INotifyPropertyChanged
     /// <summary>ファイル行の実体。それ以外では <see langword="null"/>。</summary>
     public ArchiveEntry? Entry { get; init; }
 
-    /// <summary>Segoe MDL2 Assets のアイコン。</summary>
-    public string Glyph => Kind == EntryRowKind.Folder ? GlyphFolder : GlyphFile;
+    /// <summary>
+    /// エクスプローラーと同じ絵 (#158)。文書・画像・実行ファイルなどで絵が違うので、
+    /// 見分けやすい。以前は Segoe MDL2 Assets の字で、ファイルは種類によらず全部同じだった。
+    /// </summary>
+    public ImageSource? Icon => Kind == EntryRowKind.Folder
+        ? ShellIcons.Folder
+        : ShellIcons.ForFile(Name);
 
     /// <summary>
     /// パスが通常ではない項目かどうか (#36)。

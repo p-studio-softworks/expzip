@@ -32,6 +32,30 @@ $rowNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
 Check '行の名前は項目の名前' (($rowNames -join ', ') -eq '資料, readme.txt, 内側.zip') ($rowNames -join ', ')
 Check '件数' ((Texts $app.Window) -match '3 個のファイル')
 
+Section 'ファイルの絵'
+# 絵はエクスプローラーと同じもの (#158)。以前はファイルなら種類によらず全部同じ絵だった。
+# 絵そのものは支援技術の木に出さないので、省かれたものまで含む木で探し、描かれた点を比べる
+function Get-IconPixels($App, [string]$Name) {
+    $icon = Get-Marks (Find-Row $App $Name) 'EntryIcon' | Select-Object -First 1
+    if ($null -eq $icon) { return $null }
+    $r = $icon.Current.BoundingRectangle
+    $bmp = New-Object System.Drawing.Bitmap ([int]$r.Width), ([int]$r.Height)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen([int]$r.X, [int]$r.Y, 0, 0, $bmp.Size)
+    $g.Dispose()
+    $stream = New-Object System.IO.MemoryStream
+    $bmp.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
+    return [Convert]::ToBase64String($stream.ToArray())
+}
+Focus-App $app
+$text = Get-IconPixels $app 'readme.txt'
+$zip = Get-IconPixels $app '内側.zip'
+$folder = Get-IconPixels $app '資料'
+Check '絵が出ている' ($text -and $zip -and $folder)
+Check '種類が違えば絵も違う' ($text -and $zip -and $text -ne $zip)
+Check 'フォルダーとファイルの絵が違う' ($folder -and $text -and $folder -ne $text)
+
 Section '区切りの一覧'
 # 区切り (›) を押すと、その場所の中のフォルダーが並ぶ (#90)
 $inside = ByType (ById $app.Window 'Crumbs') $script:ControlType::Button |

@@ -19,9 +19,11 @@
         Closing="Window_Closing">
 
     <Window.Resources>
-        <!-- フォルダの黄色。エクスプローラーの配色に寄せる -->
+        <!--
+            フォルダの黄色。エクスプローラーの配色に寄せる。
+            一覧とツリーの絵はエクスプローラーのものにした (#158) ので、いまは場所の区切りの書庫の印だけが使う
+        -->
         <SolidColorBrush x:Key="FolderBrush" Color="#E8B44A" />
-        <SolidColorBrush x:Key="FileBrush" Color="#7A7A7A" />
         <!--
             警告色 (#36) と保護された項目の色 (#20) は App.xaml にある。
             検査結果の画面 (#57) から同じものを使うため
@@ -617,17 +619,14 @@
                                 ここにも出る。**でないと、開いて回らないと気付けない
                             -->
                             <!--
-                                塗りつぶしのフォルダ。輪郭線のみだと書類と紛らわしい。
+                                フォルダーの絵は、一覧と同じくエクスプローラーのもの (#158、ShellIcons)。
                                 配下に保護されたファイルがあれば錠前を重ねる (#128、LockMark)。
                                 パスが通常ではないフォルダには警告を重ねる (#36、#141、WarningMark)。
-                                絵は支援技術の木に出さない (#119、GlyphText)。
+                                絵は支援技術の木に出さない (#119、IconImage)。
                                 伝えたい事柄は節の名前に入れてある
                             -->
                             <Grid VerticalAlignment="Center" Margin="0,0,7,0">
-                                <ui:GlyphText Text="&#xE8D5;"
-                                              FontFamily="Segoe MDL2 Assets"
-                                              FontSize="13"
-                                              Foreground="{StaticResource FolderBrush}" />
+                                <ui:IconImage Source="{x:Static ui:ShellIcons.Folder}" Width="16" Height="16" />
                                 <ui:GlyphText Style="{StaticResource LockMark}"
                                               Visibility="{Binding HasEncryptedContent, Converter={StaticResource BoolToVisibility}}" />
                                 <ui:GlyphText Style="{StaticResource WarningMark}"
@@ -772,21 +771,12 @@
                                     絵は支援技術の木に出さない (#119、GlyphText)。
                                     伝えたい事柄は行の名前に入れてある
                                 -->
+                                <!--
+                                    絵はエクスプローラーと同じもの (#158、ShellIcons)。拡張子から Windows に
+                                    尋ねるので、文書・画像・実行ファイルなどで見分けられる
+                                -->
                                 <Grid VerticalAlignment="Center" Margin="0,0,7,0">
-                                    <ui:GlyphText Text="{Binding Glyph}"
-                                                  FontFamily="Segoe MDL2 Assets"
-                                                  FontSize="13">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource FolderBrush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Kind}" Value="File">
-                                                        <Setter Property="Foreground" Value="{StaticResource FileBrush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </ui:GlyphText>
+                                    <ui:IconImage Source="{Binding Icon}" Width="16" Height="16" />
                                     <ui:GlyphText Style="{StaticResource LockMark}"
                                                   Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
                                     <ui:GlyphText Style="{StaticResource WarningMark}"
