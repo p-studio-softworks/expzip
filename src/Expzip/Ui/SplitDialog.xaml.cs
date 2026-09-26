@@ -20,8 +20,8 @@ internal enum SplitUnit
 /// ファイルの分割を尋ねるダイアログ (#59)。
 /// </summary>
 /// <remarks>
-/// <b>設定は3つだけにする。</b> 対象・置き場・大きさ。連結方法の
-/// 選択肢は出さない。作るものは常に「断片 + 自己連結プログラム (CRC付き)」に
+/// <b>設定は3つだけにする。</b> 対象・置き場・大きさ。結合方法の
+/// 選択肢は出さない。作るものは常に「断片 + 結合用のプログラム (CRC付き)」に
 /// 決めてあるため、選ばせても迷わせるだけになる。
 /// </remarks>
 public partial class SplitDialog : Window
@@ -55,7 +55,7 @@ public partial class SplitDialog : Window
     /// <summary>分ける対象。</summary>
     internal string SourcePath => SourceBox.Text.Trim();
 
-    /// <summary>断片と連結プログラムの置き場。</summary>
+    /// <summary>断片と結合用のプログラムの置き場。</summary>
     internal string DestinationDirectory => DestinationBox.Text.Trim();
 
     /// <summary>1つあたりの大きさ。読めない場合は 0。</summary>

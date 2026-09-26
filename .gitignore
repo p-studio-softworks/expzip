@@ -67,7 +67,7 @@ $RECYCLE.BIN/
 *.bak
 *.log
 
-# 連結プログラムをビルドし直すと出るもの (同梱するのは src/Expzip/Resources のほう)
+# 結合用のプログラムをビルドし直すと出るもの (同梱するのは src/Expzip/Resources のほう)
 tools/joiner/joiner-x86.exe
 tools/joiner/*.obj
 

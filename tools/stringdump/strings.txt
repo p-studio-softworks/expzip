@@ -2141,7 +2141,7 @@ SplitDone (parts: 4, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\
       | 保存先: ⟦C:\Users\user\Desktop\資料⟧
       | 
       | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
-      | 7-Zip などほかのソフトでもつなぎ直せます。
+      | 7-Zip などほかのソフトでも結合できます。
   en  Split into 4 pieces.
       | 
       | Location: ⟦C:\Users\user\Desktop\資料⟧
@@ -2154,7 +2154,7 @@ SplitDone (parts: 1, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\
       | 保存先: ⟦C:\Users\user\Desktop\資料⟧
       | 
       | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
-      | 7-Zip などほかのソフトでもつなぎ直せます。
+      | 7-Zip などほかのソフトでも結合できます。
   en  Split into 1 piece.
       | 
       | Location: ⟦C:\Users\user\Desktop\資料⟧
@@ -2182,10 +2182,10 @@ SplitNotNeeded
   en  No need to split: each piece would be larger than the file itself.
 
 SplitPreview (parts: 4)
-  ja  4 個の分割ファイルと、つなぎ直すためのプログラムを作成します。元のファイルはそのまま残ります。
+  ja  4 個の分割ファイルと、結合用のプログラムを作成します。元のファイルはそのまま残ります。
   en  This makes 4 pieces plus one program to put them back together. The original file is left alone.
 SplitPreview (parts: 1)
-  ja  1 個の分割ファイルと、つなぎ直すためのプログラムを作成します。元のファイルはそのまま残ります。
+  ja  1 個の分割ファイルと、結合用のプログラムを作成します。元のファイルはそのまま残ります。
   en  This makes 1 piece plus one program to put them back together. The original file is left alone.
 
 SplitSizeLabel
@@ -2221,7 +2221,7 @@ SplitTooSmall (minimum: 1048576)
   en  Each piece must be at least 1,024 KB.
 
 SplitTooltip
-  ja  ファイルを指定した大きさに分割する。つなぎ直すためのプログラムも作成する
+  ja  ファイルを指定した大きさに分割する。結合用のプログラムも作成する
   en  Split a large file into fixed-size pieces, with a program to put them back together
 
 SplitUnitGigabytes

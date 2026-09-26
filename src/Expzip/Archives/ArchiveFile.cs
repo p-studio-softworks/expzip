@@ -9,7 +9,7 @@ namespace Expzip.Archives;
 /// </remarks>
 internal static class ArchiveFile
 {
-    /// <summary>書庫を読むための流れを開く。分割されていれば繋いで1本に見せる。</summary>
+    /// <summary>書庫を読むための流れを開く。分割されていれば結合して1本に見せる。</summary>
     /// <exception cref="InvalidDataException">断片が揃っていない場合。</exception>
     /// <exception cref="IOException">ファイルを読めない場合。</exception>
     public static Stream OpenRead(string path)

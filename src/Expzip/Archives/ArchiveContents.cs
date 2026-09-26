@@ -48,7 +48,7 @@ internal sealed class ArchiveContents
     public bool IsSelfExtracting { get; init; }
 
     /// <summary>
-    /// 分割された書庫の断片を繋いで開いているか (#61)。
+    /// 分割された書庫の断片を結合して開いているか (#61)。
     /// </summary>
     /// <remarks>
     /// <para>

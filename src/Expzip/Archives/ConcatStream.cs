@@ -3,12 +3,12 @@
 namespace Expzip.Archives;
 
 /// <summary>
-/// 複数のファイルを順に繋いで、1本の読み取り用の流れに見せる (#61)。
+/// 複数のファイルを順に結合して、1本の読み取り用の流れに見せる (#61)。
 /// </summary>
 /// <remarks>
 /// <para>
-/// 分割された書庫の断片 (<c>.001</c> <c>.002</c> …) を繋ぐために使う。断片は
-/// ただ切っただけなので、順に繋げば元のファイルそのものになる。
+/// 分割された書庫の断片 (<c>.001</c> <c>.002</c> …) を結合するために使う。断片は
+/// ただ切っただけなので、順に結合すれば元のファイルそのものになる。
 /// </para>
 /// <para>
 /// 開いたままにする実体は常に1つだけにしている。断片の数は書庫の大きさと
@@ -28,7 +28,7 @@ internal sealed class ConcatStream : Stream
     private long _position;
     private bool _closed;
 
-    /// <param name="paths">繋ぐ順に並んだ断片のパス。</param>
+    /// <param name="paths">結合する順に並んだ断片のパス。</param>
     /// <exception cref="IOException">断片を読めない場合。</exception>
     public ConcatStream(IReadOnlyList<string> paths)
     {

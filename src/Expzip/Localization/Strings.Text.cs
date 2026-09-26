@@ -1888,7 +1888,7 @@ internal static partial class Strings
     public static string Split => Pick("分割", "Split");
 
     public static string SplitTooltip => Pick(
-        "ファイルを指定した大きさに分割する。つなぎ直すためのプログラムも作成する",
+        "ファイルを指定した大きさに分割する。結合用のプログラムも作成する",
         "Split a large file into fixed-size pieces, with a program to put them back together");
 
     public static string SplitTitle => Pick("ファイルの分割", "Split a file");
@@ -1936,7 +1936,7 @@ internal static partial class Strings
         "No need to split: each piece would be larger than the file itself.");
 
     public static string SplitPreview(int parts) => Pick(
-        $"{parts:N0} 個の分割ファイルと、つなぎ直すためのプログラムを作成します。元のファイルはそのまま残ります。",
+        $"{parts:N0} 個の分割ファイルと、結合用のプログラムを作成します。元のファイルはそのまま残ります。",
         $"This makes {parts:N0} {Plural(parts, "piece", "pieces")} plus one program to put "
         + "them back together. The original file is left alone.");
 
@@ -1955,7 +1955,7 @@ internal static partial class Strings
         + $"保存先: {destination}{Environment.NewLine}{Environment.NewLine}"
         + $"元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「{joiner}」を実行してください。"
         + $"{Environment.NewLine}"
-        + "7-Zip などほかのソフトでもつなぎ直せます。",
+        + "7-Zip などほかのソフトでも結合できます。",
         $"Split into {parts:N0} {Plural(parts, "piece", "pieces")}."
         + $"{Environment.NewLine}{Environment.NewLine}"
         + $"Location: {destination}{Environment.NewLine}{Environment.NewLine}"

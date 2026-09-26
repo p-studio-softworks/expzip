@@ -14,7 +14,7 @@ internal readonly record struct SplitProgress(long Done, long Total, string Curr
 
 /// <summary>分割の結果。</summary>
 /// <param name="Parts">作った断片の数。</param>
-/// <param name="JoinerName">作った連結プログラムの名前。</param>
+/// <param name="JoinerName">作った結合用のプログラムの名前。</param>
 /// <param name="Cancelled">途中で中断されたか。</param>
 internal sealed record SplitResult(int Parts, string JoinerName, bool Cancelled);
 
@@ -24,10 +24,10 @@ internal sealed record SplitResult(int Parts, string JoinerName, bool Cancelled)
 /// <remarks>
 /// <para>
 /// 断片は <c>&lt;元の名前&gt;.001</c> <c>.002</c> … とする。7-Zip と同じ形で、
-/// 受け取った人が別のソフトでも連結できる。
+/// 受け取った人が別のソフトでも結合できる。
 /// </para>
 /// <para>
-/// あわせて、断片をつなぎ直す小さな実行ファイルを <c>&lt;元の名前&gt;.exe</c> として作る。
+/// あわせて、断片を結合する小さな実行ファイルを <c>&lt;元の名前&gt;.exe</c> として作る。
 /// 受け取った人が Expzip を持っていなくても元に戻せるようにするため。中身は
 /// <c>tools/joiner</c> にある C のプログラムで、末尾に元の名前と照合用の値を書き足して配る。
 /// </para>
@@ -43,18 +43,18 @@ internal static class FileSplitter
     /// <summary>まとめて読み書きする大きさ。</summary>
     private const int BufferSize = 1024 * 1024;
 
-    /// <summary>連結プログラムの末尾に書き足す印。</summary>
+    /// <summary>結合用のプログラムの末尾に書き足す印。</summary>
     private static ReadOnlySpan<byte> FooterMagic => "EXPZSPLT"u8;
 
-    /// <summary>書き足す固定部の大きさ。連結プログラム側と揃えること。</summary>
+    /// <summary>書き足す固定部の大きさ。結合用のプログラム側と揃えること。</summary>
     private const int FooterSize = 32;
 
-    /// <summary>同梱してある連結プログラムの置き場。</summary>
+    /// <summary>同梱してある結合用のプログラムの置き場。</summary>
     private const string JoinerResource = "Expzip.Resources.joiner-x86.exe";
 
     /// <summary>ファイルを分ける。</summary>
     /// <param name="sourcePath">分ける対象。</param>
-    /// <param name="destinationDirectory">断片と連結プログラムの置き場。</param>
+    /// <param name="destinationDirectory">断片と結合用のプログラムの置き場。</param>
     /// <param name="chunkSize">1つあたりの大きさ。</param>
     /// <param name="progress">経過の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
@@ -128,7 +128,7 @@ internal static class FileSplitter
         }
         catch (OperationCanceledException)
         {
-            // 中断したら書きかけを片付ける。中途半端な断片は連結に使えず、
+            // 中断したら書きかけを片付ける。中途半端な断片は結合に使えず、
             // 残しておくと「揃っている」と勘違いさせる
             Discard(written);
             return new SplitResult(0, string.Empty, true);
@@ -144,7 +144,7 @@ internal static class FileSplitter
     /// 断片の名前。7-Zip と同じく最低3桁にする。
     /// </summary>
     /// <remarks>
-    /// 1000 個を超えると4桁になる。連結プログラム側も同じ数え方をしている。
+    /// 1000 個を超えると4桁になる。結合用のプログラム側も同じ数え方をしている。
     /// </remarks>
     public static string PartPath(string target, int number)
         => $"{target}.{number:D3}";
@@ -154,7 +154,7 @@ internal static class FileSplitter
         => (int)Math.Min(int.MaxValue, (length + chunkSize - 1) / Math.Max(1, chunkSize));
 
     /// <summary>
-    /// 連結プログラムを書き出す。
+    /// 結合用のプログラムを書き出す。
     /// </summary>
     /// <remarks>
     /// 同梱の実行ファイルの後ろに、元の名前と照合用の値を書き足す。形は

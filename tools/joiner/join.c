@@ -1,9 +1,9 @@
 /*
- * 分割された断片を連結して元のファイルに戻す、小さな Win32 プログラム (#60)。
+ * 分割された断片を結合して元のファイルに戻す、小さな Win32 プログラム (#60)。
  *
  * Expzip はこの実行ファイルの後ろに「元の名前・断片の数・大きさ・CRC」を書き足して
  * 配る。起動すると自分自身の末尾からそれを読み、隣にある .001 .002 ... を順に
- * つないで元のファイルを作り、CRC で確かめる。
+ * 結合して元のファイルを作り、CRC で確かめる。
  *
  * C ランタイムを使わない。使うと 100KB を超えてしまい、分割のたびに書き出す
  * ものとしては大きすぎるため。かわりに Win32 API だけで書く。
@@ -162,14 +162,14 @@ int WINAPI WinMainCRTStartup(void)
 
     if (GetModuleFileNameW(NULL, self, MAX_PATH) == 0)
     {
-        Say(L"連結プログラムの場所を取得できませんでした。", L"ファイルの連結", MB_ICONERROR);
+        Say(L"結合用のプログラムの場所を取得できませんでした。", L"ファイルの結合", MB_ICONERROR);
         ExitProcess(1);
     }
 
     h = CreateFileW(self, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (h == INVALID_HANDLE_VALUE)
     {
-        Say(L"連結プログラムを読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
+        Say(L"結合用のプログラムを読み込めませんでした。", L"ファイルの結合", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -178,7 +178,7 @@ int WINAPI WinMainCRTStartup(void)
     if (!ReadFile(h, footer, FOOTER_SIZE, &got, NULL) || got != FOOTER_SIZE)
     {
         CloseHandle(h);
-        Say(L"分割の情報を読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
+        Say(L"分割の情報を読み込めませんでした。", L"ファイルの結合", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -187,7 +187,7 @@ int WINAPI WinMainCRTStartup(void)
         if (footer[i] != (unsigned char)FOOTER_MAGIC[i])
         {
             CloseHandle(h);
-            Say(L"分割の情報が見つかりません。", L"ファイルの連結", MB_ICONERROR);
+            Say(L"分割の情報が見つかりません。", L"ファイルの結合", MB_ICONERROR);
             ExitProcess(1);
         }
     }
@@ -200,7 +200,7 @@ int WINAPI WinMainCRTStartup(void)
     if (nameLength == 0 || nameLength >= MAX_PATH || count == 0)
     {
         CloseHandle(h);
-        Say(L"分割の情報が壊れています。", L"ファイルの連結", MB_ICONERROR);
+        Say(L"分割の情報が壊れています。", L"ファイルの結合", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -209,7 +209,7 @@ int WINAPI WinMainCRTStartup(void)
     if (!ReadFile(h, name, nameLength * 2, &got, NULL) || got != nameLength * 2)
     {
         CloseHandle(h);
-        Say(L"元のファイル名を読み込めませんでした。", L"ファイルの連結", MB_ICONERROR);
+        Say(L"元のファイル名を読み込めませんでした。", L"ファイルの結合", MB_ICONERROR);
         ExitProcess(1);
     }
     name[nameLength] = 0;
@@ -238,8 +238,8 @@ int WINAPI WinMainCRTStartup(void)
     out = CreateFileW(target, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
     if (out == INVALID_HANDLE_VALUE)
     {
-        Say(L"ファイルを連結できませんでした。既に同じ名前のファイルが存在する可能性があります。",
-            L"ファイルの連結", MB_ICONERROR);
+        Say(L"ファイルを結合できませんでした。既に同じ名前のファイルが存在する可能性があります。",
+            L"ファイルの結合", MB_ICONERROR);
         ExitProcess(1);
     }
 
@@ -259,7 +259,7 @@ int WINAPI WinMainCRTStartup(void)
             CloseHandle(out);
             DeleteFileW(target);
             Say(L"分割ファイルが足りません。すべての分割ファイルを同じフォルダーに置いてから、もう一度実行してください。",
-                L"ファイルの連結", MB_ICONERROR);
+                L"ファイルの結合", MB_ICONERROR);
             ExitProcess(1);
         }
 
@@ -274,7 +274,7 @@ int WINAPI WinMainCRTStartup(void)
                 CloseHandle(h);
                 CloseHandle(out);
                 DeleteFileW(target);
-                Say(L"書き込みに失敗しました。ディスクの空き容量を確認してください。", L"ファイルの連結", MB_ICONERROR);
+                Say(L"書き込みに失敗しました。ディスクの空き容量を確認してください。", L"ファイルの結合", MB_ICONERROR);
                 ExitProcess(1);
             }
             crc = UpdateCrc(crc, g_chunk, got);
@@ -290,11 +290,11 @@ int WINAPI WinMainCRTStartup(void)
     if (total != wantSize || crc != wantCrc)
     {
         DeleteFileW(target);
-        Say(L"連結したファイルが元のファイルと一致しませんでした。分割ファイルが壊れているか、揃っていない可能性があります。",
-            L"ファイルの連結", MB_ICONERROR);
+        Say(L"結合したファイルが元のファイルと一致しませんでした。分割ファイルが壊れているか、揃っていない可能性があります。",
+            L"ファイルの結合", MB_ICONERROR);
         ExitProcess(1);
     }
 
-    Say(L"連結完了し、元のファイルと一致することを確認しました。", L"ファイルの連結", MB_ICONINFORMATION);
+    Say(L"結合が完了し、元のファイルと一致することを確認しました。", L"ファイルの結合", MB_ICONINFORMATION);
     ExitProcess(0);
 }

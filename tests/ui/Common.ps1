@@ -775,7 +775,7 @@ function Complete-FileDialog($App, [string]$Title, [string]$Path) {
     return $true
 }
 
-# 受け取った側で動くツール (自己解凍書庫、連結プログラム) が出す知らせを読み、OK で閉じる
+# 受け取った側で動くツール (自己解凍書庫、結合用のプログラム) が出す知らせを読み、OK で閉じる
 function Read-NativeMessage($Process, [int]$TimeoutMs = 30000) {
     $box = Wait-Until -TimeoutMs $TimeoutMs {
         $Process.Refresh()

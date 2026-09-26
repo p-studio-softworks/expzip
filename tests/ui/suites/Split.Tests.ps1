@@ -1,4 +1,4 @@
-﻿# ファイルの分割 (#59) と、受け取った側で動く連結プログラム (#61, #106)
+﻿# ファイルの分割 (#59) と、受け取った側で動く結合用のプログラム (#61, #106, #160)
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'Split'
 Set-Settings
@@ -31,7 +31,7 @@ Set-Text (ById $dialog 'SizeBox') '10'
 Check '分ける必要が無いとき' ((ById $dialog 'PreviewText').Current.Name -eq '分割の必要はありません。1つの大きさが元のファイルより大きくなっています。') (ById $dialog 'PreviewText').Current.Name
 Set-Text (ById $dialog 'SizeBox') '1'
 $preview = (ById $dialog 'PreviewText').Current.Name
-Check '何ができるかを言う' ($preview -eq '4 個の分割ファイルと、つなぎ直すためのプログラムを作成します。元のファイルはそのまま残ります。') $preview
+Check '何ができるかを言う' ($preview -eq '4 個の分割ファイルと、結合用のプログラムを作成します。元のファイルはそのまま残ります。') $preview
 Check '口の名前' ((ById $dialog 'SplitButton').Current.Name -eq '分割' -and (ById $dialog 'CancelButton').Current.Name -eq 'キャンセル')
 
 Section '分割する'
@@ -42,31 +42,32 @@ if ($box) {
     Check '件数' ($box.Text -match '^4 個に分割しました。') $box.Text
     Check '保存先' ($box.Text -match [regex]::Escape("保存先: $output"))
     Check '戻し方' ($box.Text -match 'すべての分割ファイルを同じフォルダーに置いて「資料\.bin\.exe」を実行してください。')
+    Check 'ほかのソフトでも結合できる' ($box.Text -match '7-Zip などほかのソフトでも結合できます。') $box.Text
     Close-MessageBox $box 'OK'
 }
 Check 'ステータスバー' ((Get-Status $app) -eq '4 個に分割しました') (Get-Status $app)
 Stop-Expzip $app
 
 $files = @(Get-ChildItem $output | ForEach-Object { $_.Name } | Sort-Object)
-Check '分割ファイルと連結プログラムができる' ($files.Count -eq 5 -and $files -contains '資料.bin.exe') ($files -join ', ')
+Check '分割ファイルと結合用のプログラムができる' ($files.Count -eq 5 -and $files -contains '資料.bin.exe') ($files -join ', ')
 Check '元のファイルは残る' ((Get-FileHash $source -Algorithm SHA256).Hash -eq $hash)
 
-Section '連結プログラム'
+Section '結合用のプログラム'
 $joiner = Start-Process (Join-Path $output '資料.bin.exe') -WorkingDirectory $output -PassThru
 $message = Read-NativeMessage $joiner
 Check '知らせが出る' ($null -ne $message)
 if ($message) {
-    Check '見出し' ($message.Title -eq 'ファイルの連結') $message.Title
-    Check '文言' ($message.Text -eq '連結完了し、元のファイルと一致することを確認しました。') $message.Text
+    Check '見出し' ($message.Title -eq 'ファイルの結合') $message.Title
+    Check '文言' ($message.Text -eq '結合が完了し、元のファイルと一致することを確認しました。') $message.Text
 }
-Check '連結プログラムが終わる' ($joiner.WaitForExit(10000))
+Check '結合用のプログラムが終わる' ($joiner.WaitForExit(10000))
 $joined = Join-Path $output '資料.bin'
 Check '元と同じファイルができる' ((Test-Path $joined) -and (Get-FileHash $joined -Algorithm SHA256).Hash -eq $hash)
 
 Section 'もう一度実行したとき'
 $joiner = Start-Process (Join-Path $output '資料.bin.exe') -WorkingDirectory $output -PassThru
 $message = Read-NativeMessage $joiner
-Check '同じ名前があると言う' ($message -and $message.Text -eq 'ファイルを連結できませんでした。既に同じ名前のファイルが存在する可能性があります。') $(if ($message) { $message.Text })
+Check '同じ名前があると言う' ($message -and $message.Text -eq 'ファイルを結合できませんでした。既に同じ名前のファイルが存在する可能性があります。') $(if ($message) { $message.Text })
 $joiner.WaitForExit(10000) | Out-Null
 if (-not $joiner.HasExited) { $joiner.Kill() }
 Check '元のファイルを壊さない' ((Get-FileHash $joined -Algorithm SHA256).Hash -eq $hash)
