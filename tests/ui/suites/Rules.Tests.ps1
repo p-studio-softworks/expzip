@@ -45,6 +45,19 @@ function Open-AiItem($App, [string]$Item) {
     return $entry
 }
 
+# ルールの検査結果で、対象が $Pattern に合う行の「修正する」のチェックボックス
+function Get-FixBox($Audit, [string]$Pattern) {
+    $row = @((ById $Audit 'FindingList').FindAll($script:Scope::Children,
+        (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem))) |
+        Where-Object { $_.Current.Name -match $Pattern } | Select-Object -First 1
+    if ($null -eq $row) { return $null }
+    return ByType $row $script:ControlType::CheckBox | Select-Object -First 1
+}
+
+if (-not ('ExpzipUi.Foreground' -as [type])) {
+    Add-Type -Namespace ExpzipUi -Name Foreground -MemberDefinition '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();'
+}
+
 function RuleRows($Dialog) {
     $list = ById $Dialog 'RuleList'
     return @($list.FindAll($script:Scope::Children,
@@ -185,7 +198,38 @@ try {
         # 閉じる前に見る
         $listNames = @(Get-Rows $app | ForEach-Object { $_.Current.Name })
         Check '合っていない印が行の名前に入る' ($listNames -match '^src、ルールに合っていません$') ($listNames -join ' / ')
+
+        Section '修正する印を適用する'
+        # 「更新」は何を更新するのか分かりにくかった。推定のウィンドウと同じ「適用する」にする (#166)
+        Check '口の名前' ((ById $audit 'ApplyButton').Current.Name -eq '適用する' -and (ById $audit 'CloseButton').Current.Name -eq '閉じる')
+        Check '押すと何が起きるか' ((ById $audit 'ApplyButton').Current.HelpText -match '^「修正する」に印を付けた項目だけにツリーの印を絞り、') (ById $audit 'ApplyButton').Current.HelpText
+        Toggle-Check (Get-FixBox $audit 'cache\.tmp')
+        Push (ById $audit 'ApplyButton') 1500
+        $result = Wait-Until { $text = (ById $audit 'ResultText').Current.Name; if ($text) { $text } }
+        # チェックを入れても見た目が変わらず、効いたかどうか分からなかった (#165)
+        Check '適用したと言う' ($result -eq '「修正する」に印を付けた 1 個に、ツリーで印を付けました。') $result
+        Check '窓は閉じない' ($null -ne (Find-Window $app 'ルールの検査結果 - ihan.zip' 2000))
+
+        Section '適用せずに閉じる (検査結果)'
+        Toggle-Check (Get-FixBox $audit 'cache\.tmp')
         Push (ById $audit 'CloseButton')
+        $box = Find-MessageBox $app
+        Check '尋ねる' ($box -and $box.Text -match '^適用していない変更があります。') $(if ($box) { $box.Text })
+        if ($box) { Close-MessageBox $box 'いいえ(N)' }
+        Check 'いいえなら閉じる' (Test-WindowGone $app 'ルールの検査結果 - ihan.zip')
+        # 閉じたあとに Expzip が後ろに回らない (#164)
+        Start-Sleep -Milliseconds 500
+        Check '閉じたあとも Expzip が前にある' ([ExpzipUi.Foreground]::GetForegroundWindow() -eq $app.Process.MainWindowHandle)
+
+        # 外したのは適用していないので、開き直すと適用したときの印のまま
+        Open-AiItem $app 'ルールに合っているか検査…' | Out-Null
+        $audit = Find-Window $app 'ルールの検査結果 - ihan.zip'
+        $fix = if ($audit) { Get-FixBox $audit 'cache\.tmp' }
+        Check '開き直すと適用した印が付いている' ($fix -and (IsChecked $fix))
+        if ($audit) { Push (ById $audit 'CloseButton') }
+        Check '変えていなければ尋ねずに閉じる' (Test-WindowGone $app 'ルールの検査結果 - ihan.zip')
+        Start-Sleep -Milliseconds 500
+        Check '尋ねずに閉じたあとも Expzip が前にある' ([ExpzipUi.Foreground]::GetForegroundWindow() -eq $app.Process.MainWindowHandle)
     }
 
     Section '適用せずに閉じる'

@@ -51,21 +51,31 @@
         </Border>
 
         <Border DockPanel.Dock="Bottom" Padding="16,10,16,12">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <!--
+                        「修正する」の印を確定し、書庫を読み直して検査し直す (#166)。
+                        Windows の設定画面の「適用」と同じ働きで、ウィンドウは閉じない。
+                        ルールの推定のウィンドウ (#145) と同じ名前にする
+                    -->
+                    <Button x:Name="ApplyButton"
+                            Width="96" Margin="0,0,8,0"
+                            Click="ApplyButton_Click" />
+                    <!-- 何も反映せずに閉じる。適用していない印があれば尋ねる (#166) -->
+                    <Button x:Name="CloseButton"
+                            Width="96"
+                            IsCancel="True"
+                            Click="CloseButton_Click" />
+                </StackPanel>
                 <!--
-                    直したら押す (#87)。押すと**検査し直す。**
-                    直っていれば印が消え、直っていなければそう言う。
-                    名前は「更新」(#88)。することは書庫の読み直しで、
-                    何が起きるかは説明で添える
+                    適用したら何が起きたかを言う (#165)。チェックを入れても一覧の見た目は
+                    変わらないので、ここで言わないと効いたかどうかが分からない
                 -->
-                <Button x:Name="DoneButton"
-                        Width="96" Margin="0,0,8,0"
-                        Click="DoneButton_Click" />
-                <Button x:Name="CloseButton"
-                        Width="96"
-                        IsCancel="True"
-                        Click="CloseButton_Click" />
-            </StackPanel>
+                <TextBlock x:Name="ResultText"
+                           Margin="0,0,16,0"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+            </DockPanel>
         </Border>
 
         <!-- 行を選ぶと、本体側でその項目に飛ぶ -->

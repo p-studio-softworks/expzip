@@ -4141,6 +4141,9 @@ public partial class MainWindow : Window
 
             _editWatch?.Stop();
 
+            // ルールの検査結果の印は、本体と一緒に消える。適用していないか尋ねても意味がない (#166)
+            _ruleAudit?.CloseWithoutAsking();
+
             // 保存できなくてもアプリを止めない。書き込めない場所に置かれている
             // 場合は設定が残らないだけで、動作そのものには影響しない (#2)
             CaptureSettings();
@@ -5292,23 +5295,26 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 結果のウィンドウを閉じたら、ツリーの印を**自分で対処すると決めたものだけ**にする (#88)。
+    /// 結果のウィンドウで「適用する」を押したら、ツリーの印を**自分で対処すると決めたものだけ**にする
+    /// (#88、#166)。
     /// </summary>
     /// <remarks>
-    /// 全部に印が出たままでは、どれを引き受けたのかが見えない。何も選ばずに閉じたなら
+    /// 全部に印が出たままでは、どれを引き受けたのかが見えない。何も選ばずに適用したなら
     /// 印は残さない。**選ばなかったことも選択**で、後から見直すのはウィンドウを開き直せばよい。
+    /// 以前は閉じたときに反映していたが、閉じるまで何も起きないので、効いたかどうかが
+    /// 分からなかった (#165)。
     /// </remarks>
-    private void KeepChosenMarks(RuleAuditWindow window)
+    private void ApplyRuleMarks(string archivePath, IReadOnlyCollection<string> handled)
     {
         var tab = _tabs.FirstOrDefault(t => string.Equals(
-            t.FilePath, window.ArchivePath, StringComparison.OrdinalIgnoreCase));
+            t.FilePath, archivePath, StringComparison.OrdinalIgnoreCase));
 
         if (tab is null)
         {
             return;
         }
 
-        tab.RuleMarks = new HashSet<string>(window.Handled, StringComparer.OrdinalIgnoreCase);
+        tab.RuleMarks = new HashSet<string>(handled, StringComparer.OrdinalIgnoreCase);
         MarkTree(tab.Contents.Root, tab.Audit, tab.RuleMarks);
 
         // 一覧の印も同じ絞りで出す (#92)。片方だけ残っていては読めない
@@ -5330,8 +5336,8 @@ public partial class MainWindow : Window
         tab.Audit = null;
         tab.AuditDone = false;
 
-        // 見直すのだから、絞りは解く (#88)。閉じるときに付け直す
-        tab.RuleMarks = null;
+        // 絞った印はそのまま残す。「閉じる」は何も反映しない (#166) ので、
+        // 開いただけで印が変わってはいけない。ウィンドウのチェックもこれに揃える
         EnsureAudit(tab);
         Navigate(tab.CurrentFolder);
 
@@ -5349,18 +5355,15 @@ public partial class MainWindow : Window
 
         if (_ruleAudit is { } opened)
         {
-            opened.ShowAudit(audit, tab.FilePath);
+            opened.ShowAudit(audit, tab.FilePath, tab.RuleMarks ?? []);
             return;
         }
 
         var window = new RuleAuditWindow(
-            this, audit, tab.FilePath, JumpToRulePath, () => _ = RecheckAsync());
+            this, audit, tab.FilePath, tab.RuleMarks, JumpToRulePath, ApplyRuleMarks,
+            () => _ = RecheckAsync());
 
-        window.Closed += (_, _) =>
-        {
-            KeepChosenMarks(window);
-            _ruleAudit = null;
-        };
+        window.Closed += (_, _) => _ruleAudit = null;
         _ruleAudit = window;
         window.Show();
     }

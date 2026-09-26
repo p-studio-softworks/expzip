@@ -50,14 +50,29 @@ public partial class RuleAuditWindow : Window
 
     private readonly Action<string> _jump;
 
-    /// <summary>「完了」で呼ぶ先。書庫を読み直して当て直す (#87)。</summary>
+    /// <summary>
+    /// 「修正する」の印を本体のツリーと一覧に反映する先 (#88、#166)。
+    /// 渡した項目だけに印を絞る。書庫のパスも渡す。
+    /// </summary>
+    private readonly Action<string, IReadOnlyCollection<string>> _applyMarks;
+
+    /// <summary>書庫を読み直して当て直す先 (#87)。「適用する」で呼ぶ。</summary>
     private readonly Action _recheck;
 
     /// <summary>自分で対処すると印を付けたもの。行の並べ直しをまたいで覚える。</summary>
-    private readonly HashSet<string> _handled = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _handled = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>「完了」を押して、当て直しの結果を待っているか。</summary>
+    /// <summary>
+    /// 最後に反映した印 (#166)。これと違えば、閉じる前に尋ねる。
+    /// 触ったかどうかではなく中身で比べる。付けて外しただけなら尋ねない。
+    /// </summary>
+    private HashSet<string> _applied = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>「適用する」を押して、当て直しの結果を待っているか。</summary>
     private bool _waiting;
+
+    /// <summary>尋ねずに閉じるか。本体ごと閉じるときに立てる。</summary>
+    private bool _discarding;
 
     private RuleAudit _audit;
 
@@ -67,42 +82,66 @@ public partial class RuleAuditWindow : Window
     /// <param name="owner">本体のウィンドウ。閉じると一緒に閉じる。</param>
     /// <param name="audit">出す結果。</param>
     /// <param name="archivePath">当てた書庫。飛び先のタブを決めるのに使う。</param>
+    /// <param name="marks">いま本体で印を絞っている項目。絞っていなければ <see langword="null"/>。</param>
     /// <param name="jump">行が選ばれたときに、書庫内のパスを渡す先。</param>
-    /// <param name="recheck">「完了」が押されたときに呼ぶ先 (#87)。</param>
+    /// <param name="applyMarks">「修正する」の印を本体に反映する先 (#166)。</param>
+    /// <param name="recheck">書庫を読み直して当て直す先 (#87)。</param>
     internal RuleAuditWindow(
-        Window owner, RuleAudit audit, string archivePath, Action<string> jump,
+        Window owner, RuleAudit audit, string archivePath, IEnumerable<string>? marks,
+        Action<string> jump, Action<string, IReadOnlyCollection<string>> applyMarks,
         Action recheck)
     {
         InitializeComponent();
 
         _audit = audit;
         _jump = jump;
+        _applyMarks = applyMarks;
         _recheck = recheck;
         ArchivePath = archivePath;
         Owner = owner;
+        Closing += Window_Closing;
 
+        TakeMarks(marks);
         ApplyLanguage();
     }
 
     /// <summary>いま出している結果の書庫。飛び先のタブを決めるのに使う。</summary>
     internal string ArchivePath { get; private set; }
 
-    /// <summary>
-    /// 自分で対処すると印を付けたもの (#88)。
-    /// </summary>
-    /// <remarks>
-    /// 閉じたあとに、**ツリーの印をこれだけに絞る**のに使う。全部に印が出たままでは、
-    /// どれを引き受けたのかが見えない。
-    /// </remarks>
-    internal IReadOnlyCollection<string> Handled => _handled;
-
     /// <summary>新しい結果に差し替える。ウィンドウは開いたままにする。</summary>
-    internal void ShowAudit(RuleAudit audit, string archivePath)
+    /// <param name="marks">
+    /// 開き直したときに、本体で印を絞っている項目。当て直しの結果を出すときは省き、
+    /// いまのチェックを残す。
+    /// </param>
+    internal void ShowAudit(RuleAudit audit, string archivePath, IEnumerable<string>? marks = null)
     {
+        if (marks is not null || !string.Equals(archivePath, ArchivePath, StringComparison.OrdinalIgnoreCase))
+        {
+            TakeMarks(marks);
+        }
+
         _audit = audit;
         ArchivePath = archivePath;
         ApplyLanguage();
         Activate();
+    }
+
+    /// <summary>本体ごと閉じるときに呼ぶ。印は本体と一緒に消えるので、尋ねない。</summary>
+    internal void CloseWithoutAsking()
+    {
+        _discarding = true;
+        Close();
+    }
+
+    /// <summary>本体で絞っている印を、チェックの初めの状態にする (#166)。</summary>
+    /// <remarks>
+    /// 「閉じる」は何も反映しないので、開いたときのチェックは本体の印と揃えておく。
+    /// 揃っていないと、開いて閉じただけで印が変わったように見える。
+    /// </remarks>
+    private void TakeMarks(IEnumerable<string>? marks)
+    {
+        _handled = new HashSet<string>(marks ?? [], StringComparer.OrdinalIgnoreCase);
+        _applied = new HashSet<string>(_handled, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>文字をいまの言語で入れ直す (#23)。</summary>
@@ -110,14 +149,17 @@ public partial class RuleAuditWindow : Window
     {
         Title = Strings.RuleAuditTitle(Path.GetFileName(ArchivePath));
         CloseButton.Content = Strings.InspectionClose;
-        DoneButton.Content = Strings.RuleDone;
+        ApplyButton.Content = Strings.RuleApply;
 
-        // 「更新」だけでは何をするか分からない (#88)
-        DoneButton.ToolTip = Strings.RuleDoneHint;
+        // 名前だけでは、書庫を読み直すことまでは分からない (#88)
+        ApplyButton.ToolTip = Strings.RuleAuditApplyHint;
         HandleColumn.Header = Strings.RuleColumnHandle;
 
-        // 合っていないものが何も無ければ、押しても言うことがない
-        DoneButton.IsEnabled = !_audit.Clean;
+        // 前の結果の知らせは残さない。当て直した結果なら、一覧を作り直した後で言い直す
+        ResultText.Text = string.Empty;
+
+        // 合っていないものが何も無ければ、印を付ける相手も、確かめ直すものも無い
+        ApplyButton.IsEnabled = !_audit.Clean;
         KindColumn.Header = Strings.RuleColumnKind;
         TargetColumn.Header = Strings.RuleAuditColumnTarget;
         MessageColumn.Header = Strings.RuleAuditColumnRule;
@@ -232,19 +274,35 @@ public partial class RuleAuditWindow : Window
     }
 
     /// <summary>
-    /// 直し終えたので、当て直す (#87)。
+    /// 「修正する」の印を確定し、書庫を読み直して当て直す (#87、#166)。
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// 印を付けたときと、書庫を直したあとの確かめ直しの、どちらもこのボタンで行う。
+    /// 本体の F5 に任せると、このウィンドウの中で結果が変わらず、直ったかが見えない。
+    /// </para>
+    /// <para>
     /// **確かめずに印を消さない。**消してしまうと、直したつもりで直せていない
     /// ことに気付けない。書庫を読み直して当て直し、その結果で言う。
+    /// </para>
     /// </remarks>
-    private void DoneButton_Click(object sender, RoutedEventArgs e)
+    private void ApplyButton_Click(object sender, RoutedEventArgs e) => Apply();
+
+    private void Apply()
     {
+        _applyMarks(ArchivePath, _handled);
+        _applied = new HashSet<string>(_handled, StringComparer.OrdinalIgnoreCase);
         _waiting = true;
         _recheck();
     }
 
-    /// <summary>当て直したあとに、印を付けたものがどうなったかを言う。</summary>
+    /// <summary>
+    /// 当て直したあとに、印を付けたものがどうなったかを言う。
+    /// </summary>
+    /// <remarks>
+    /// ダイアログではなくウィンドウの中に書く (#165)。押すたびに閉じさせる知らせは、
+    /// 印を付けただけのときには邪魔になる。
+    /// </remarks>
     private void TellWhatHappened()
     {
         if (!_waiting)
@@ -256,20 +314,55 @@ public partial class RuleAuditWindow : Window
 
         if (_handled.Count == 0)
         {
+            ResultText.Text = Strings.RuleAuditAppliedNone;
             return;
         }
+
+        var marked = _handled.Count;
 
         // まだ残っているもの。印を付けたのに直っていない
         var left = _handled.Count(Still);
 
         // 直ったものは、もう覚えておく必要がない
         _handled.RemoveWhere(target => !Still(target));
+        _applied = new HashSet<string>(_handled, StringComparer.OrdinalIgnoreCase);
 
-        MessageBox.Show(
-            this,
-            left == 0 ? Strings.RuleDoneAll : Strings.RuleDoneLeft(left),
-            "Expzip", MessageBoxButton.OK,
-            left == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        ResultText.Text = left == marked
+            ? Strings.RuleAuditAppliedMarks(marked)
+            : left == 0 ? Strings.RuleDoneAll : Strings.RuleDoneLeft(left);
+    }
+
+    /// <summary>適用していない印があれば、閉じる前に尋ねる (#166)。</summary>
+    /// <remarks>
+    /// 「閉じる」でも × でも Esc でもここを通る。ルールの推定のウィンドウ (#145) と同じ尋ね方。
+    /// 閉じるときは書庫を読み直さない。印を本体に反映するだけにする。
+    /// </remarks>
+    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_discarding && !_handled.SetEquals(_applied))
+        {
+            var answer = MessageBox.Show(
+                this, Strings.RuleConfirmClose, "Expzip",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Question, MessageBoxResult.Yes);
+
+            if (answer == MessageBoxResult.Cancel)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                _applyMarks(ArchivePath, _handled);
+            }
+        }
+
+        // 閉じる前に本体を前に出す (#164)。このウィンドウからダイアログを出したあとに閉じると、
+        // Windows は本体ではなく、その下にある別のアプリのウィンドウを前に出していた
+        if (!_discarding)
+        {
+            Owner?.Activate();
+        }
     }
 
     /// <summary>その項目が、いまも合っていないままか。</summary>

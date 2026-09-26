@@ -62,7 +62,7 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// ツリーに印を出す項目 (#88)。<see langword="null"/> なら合っていないもの全部。
     /// </summary>
     /// <remarks>
-    /// 結果のウィンドウで「直す」に印を付けて閉じると、**その項目だけ**が残る。
+    /// 結果のウィンドウで「修正する」に印を付けて「適用する」を押すと、**その項目だけ**が残る (#166)。
     /// 全部に印が出たままでは、どれを自分が引き受けたのかが見えない。
     /// </remarks>
     public HashSet<string>? RuleMarks { get; set; }

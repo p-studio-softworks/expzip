@@ -1437,6 +1437,21 @@ RuleApplyFailed
   ja  ルールを適用できませんでした。exe と同じフォルダーに書き込めないようです。
   en  Could not apply the rules. The folder holding the exe appears not to be writable.
 
+RuleAuditAppliedMarks (count: 3)
+  ja  「修正する」に印を付けた 3 個に、ツリーで印を付けました。
+  en  Marked the 3 checked items in the tree.
+RuleAuditAppliedMarks (count: 1)
+  ja  「修正する」に印を付けた 1 個に、ツリーで印を付けました。
+  en  Marked the 1 checked item in the tree.
+
+RuleAuditAppliedNone
+  ja  「修正する」に印を付けた項目が無いため、ツリーの印を外しました。
+  en  Nothing is checked under Fix, so the marks in the tree were removed.
+
+RuleAuditApplyHint
+  ja  「修正する」に印を付けた項目だけにツリーの印を絞り、書庫を読み込み直してもう一度検査します。
+  en  Keeps the marks in the tree only on the items checked under Fix, then reads the archive again and re-checks it.
+
 RuleAuditClean
   ja  ルールに合っていない項目は見つかりませんでした
   en  Nothing conflicts with the rules
@@ -1613,17 +1628,9 @@ RuleDigestSamples
   ja  ## 各フォルダーのファイル名
   en  ## File names per folder
 
-RuleDone
-  ja  更新
-  en  Refresh
-
 RuleDoneAll
   ja  「修正する」に印を付けた項目は、すべてルールに合うようになりました。
   en  Everything you marked now matches the rules.
-
-RuleDoneHint
-  ja  書庫を読み込み直して、もう一度ルールに合っているか検査します。
-  en  Reads the archive again and re-checks it against the rules.
 
 RuleDoneLeft (count: 3)
   ja  「修正する」に印を付けた項目のうち、3 個はまだルールに合っていません。

@@ -1016,19 +1016,25 @@ internal static partial class Strings
     public static string RuleColumnHandle => Pick("修正する", "Fix");
 
     /// <summary>
-    /// 直し終えたときに押す (#87)。
+    /// ルールの検査結果の「適用する」に添える説明 (#166)。押すと何が起きるかを言う。
     /// </summary>
     /// <remarks>
-    /// **「更新」にした** (#88)。押してすることは書庫の読み直しで、他の画面の
-    /// 「更新」と同じ。長い文にしても、そこは伝わらない。何をするかは
-    /// <see cref="RuleDoneHint"/> で添える。
+    /// ボタンの名前はルールの推定のウィンドウ (#145) と同じ <see cref="RuleApply"/>。
+    /// 以前は「更新」で、何を更新するのかが分かりにくかった。
     /// </remarks>
-    public static string RuleDone => Pick("更新", "Refresh");
+    public static string RuleAuditApplyHint => Pick(
+        "「修正する」に印を付けた項目だけにツリーの印を絞り、書庫を読み込み直してもう一度検査します。",
+        "Keeps the marks in the tree only on the items checked under Fix, then reads the archive again and re-checks it.");
 
-    /// <summary>「更新」に添える説明 (#88)。押すと何が起きるかを言う。</summary>
-    public static string RuleDoneHint => Pick(
-        "書庫を読み込み直して、もう一度ルールに合っているか検査します。",
-        "Reads the archive again and re-checks it against the rules.");
+    /// <summary>何も印を付けずに適用した (#165)。</summary>
+    public static string RuleAuditAppliedNone => Pick(
+        "「修正する」に印を付けた項目が無いため、ツリーの印を外しました。",
+        "Nothing is checked under Fix, so the marks in the tree were removed.");
+
+    /// <summary>印を付けて適用し、まだ直っていない (#165)。印が効いたことを言う。</summary>
+    public static string RuleAuditAppliedMarks(int count) => Pick(
+        $"「修正する」に印を付けた {count} 個に、ツリーで印を付けました。",
+        $"Marked the {count} checked {Plural(count, "item", "items")} in the tree.");
 
     /// <summary>印を付けたものが全部直っていた (#87)。</summary>
     public static string RuleDoneAll => Pick(
