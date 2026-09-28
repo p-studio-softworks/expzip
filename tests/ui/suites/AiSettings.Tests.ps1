@@ -38,7 +38,7 @@ try {
     Check '何の設定か' ((ById $dialog 'IntroText').Current.Name -eq '書庫のルールをAIに推定させる機能の設定です。') (ById $dialog 'IntroText').Current.Name
     $privacy = (ById $dialog 'PrivacyText').Current.Name
     Check '中身は送らないと断る' ($privacy -match 'ファイルの中身は送信しません。') $privacy
-    Check '鍵の置き場を断る' ($privacy -match 'APIキーは本アプリケーションと同じフォルダーに保存されますが、移動した場合には無効になります。')
+    Check '鍵の置き場を断る' ($privacy -match 'APIキーは設定ファイルに保存されますが、別の PC に移した場合には無効になります。')
     Check '口の名前' (((ById $dialog 'TestButton').Current.Name -eq '接続テスト') -and ((ById $dialog 'SaveButton').Current.Name -eq '保存') -and ((ById $dialog 'CancelButton').Current.Name -eq 'キャンセル'))
     Check '空のうちはテストできない' (-not (ById $dialog 'TestButton').Current.IsEnabled)
 

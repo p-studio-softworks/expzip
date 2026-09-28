@@ -6,8 +6,8 @@ namespace Expzip.Configuration;
 /// <summary>設定ファイルの読み書き。</summary>
 /// <remarks>
 /// <para>
-/// 保存先は exe と同じフォルダ (docs/SPEC.md 7章)。<c>%APPDATA%</c> は使わない。
-/// フォルダにコピーするだけで動き、消すときはフォルダごと消せる状態を保つため。
+/// 保存先は <see cref="DataFolder"/> が決める。exe 単体の版は exe と同じフォルダ、
+/// Store 版は <c>%LOCALAPPDATA%\Expzip</c> (docs/SPEC.md 7章)。
 /// </para>
 /// <para>
 /// exe を書き込めない場所 (Program Files や読み取り専用のUSBメモリなど) に
@@ -26,27 +26,7 @@ internal static class SettingsStore
     };
 
     /// <summary>設定ファイルのパス。</summary>
-    public static string FilePath { get; } = Path.Combine(BaseDirectory(), FileName);
-
-    /// <summary>
-    /// exe が置かれているフォルダ。
-    /// 単一ファイルとして発行した場合、実行時に展開される一時フォルダではなく
-    /// exe 自身の場所を指す必要があるため <see cref="Environment.ProcessPath"/> を使う。
-    /// </summary>
-    private static string BaseDirectory()
-    {
-        var processPath = Environment.ProcessPath;
-        if (!string.IsNullOrEmpty(processPath))
-        {
-            var directory = Path.GetDirectoryName(processPath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                return directory;
-            }
-        }
-
-        return AppContext.BaseDirectory;
-    }
+    public static string FilePath { get; } = Path.Combine(DataFolder.Path, FileName);
 
     /// <summary>
     /// 設定を読み込む。ファイルが無い場合や壊れている場合はデフォルト値を返す。

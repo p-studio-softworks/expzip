@@ -635,13 +635,13 @@ internal static partial class Strings
         "設定したAIに書庫のファイル名とフォルダー構成を送信してルールを推定します。"
         + "ファイルの中身は送信しません。"
         + "無料枠では送信したものが提供元の製品改善に使用される可能性がありますのでご注意ください。"
-        + "入力したAPIキーは本アプリケーションと同じフォルダーに保存されますが、"
-        + "移動した場合には無効になります。",
+        + "入力したAPIキーは設定ファイルに保存されますが、"
+        + "別の PC に移した場合には無効になります。",
         "The AI you set up receives the file names and folder structure of the archive "
         + "and works out the rules from them. File contents are never sent. "
         + "On a free tier, what you send may be used to improve the provider's products. "
-        + "The API key you enter is stored in the same folder as this application, "
-        + "and stops working if it is moved elsewhere.");
+        + "The API key you enter is stored in the settings file, "
+        + "and stops working if it is moved to another PC.");
 
     public static string AiCancel => Pick("キャンセル", "Cancel");
 
@@ -938,9 +938,12 @@ internal static partial class Strings
     public static string RuleCleared => Pick(
         "保存されていたルールを削除しました。", "Removed the saved rules.");
 
-    public static string RuleApplyFailed => Pick(
-        "ルールを適用できませんでした。exe と同じフォルダーに書き込めないようです。",
-        "Could not apply the rules. The folder holding the exe appears not to be writable.");
+    /// <summary>
+    /// 置き場は版によって違う (#176)。exe の隣とは限らないので、フォルダーを名指しする。
+    /// </summary>
+    public static string RuleApplyFailed(string folder) => Pick(
+        $"ルールを適用できませんでした。{folder} に書き込めないようです。",
+        $"Could not apply the rules. {folder} appears not to be writable.");
 
     /// <summary>
     /// 適用せずに閉じようとしたとき (#145)。押すまではファイルに書かないので、

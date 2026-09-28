@@ -155,8 +155,8 @@ AiPresetOpenAi
   en  OpenAI
 
 AiPrivacyNotice
-  ja  設定したAIに書庫のファイル名とフォルダー構成を送信してルールを推定します。ファイルの中身は送信しません。無料枠では送信したものが提供元の製品改善に使用される可能性がありますのでご注意ください。入力したAPIキーは本アプリケーションと同じフォルダーに保存されますが、移動した場合には無効になります。
-  en  The AI you set up receives the file names and folder structure of the archive and works out the rules from them. File contents are never sent. On a free tier, what you send may be used to improve the provider's products. The API key you enter is stored in the same folder as this application, and stops working if it is moved elsewhere.
+  ja  設定したAIに書庫のファイル名とフォルダー構成を送信してルールを推定します。ファイルの中身は送信しません。無料枠では送信したものが提供元の製品改善に使用される可能性がありますのでご注意ください。入力したAPIキーは設定ファイルに保存されますが、別の PC に移した場合には無効になります。
+  en  The AI you set up receives the file names and folder structure of the archive and works out the rules from them. File contents are never sent. On a free tier, what you send may be used to improve the provider's products. The API key you enter is stored in the settings file, and stops working if it is moved to another PC.
 
 AiReachable (model: gemini-2.5-flash)
   ja  接続しました。⟦gemini-2.5-flash⟧ が使えます。
@@ -1433,9 +1433,9 @@ RuleApply
   ja  適用する
   en  Apply
 
-RuleApplyFailed
-  ja  ルールを適用できませんでした。exe と同じフォルダーに書き込めないようです。
-  en  Could not apply the rules. The folder holding the exe appears not to be writable.
+RuleApplyFailed (folder: 見本)
+  ja  ルールを適用できませんでした。⟦見本⟧ に書き込めないようです。
+  en  Could not apply the rules. ⟦見本⟧ appears not to be writable.
 
 RuleAuditAppliedMarks (count: 3)
   ja  「修正する」に印を付けた 3 個に、ツリーで印を付けました。

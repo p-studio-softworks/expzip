@@ -2,13 +2,14 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Expzip.Configuration;
 
 namespace Expzip.Ai;
 
 /// <summary>確かめた決まりの読み書き (#26)。</summary>
 /// <remarks>
 /// <para>
-/// 置き場は exe と同じフォルダで、設定ファイルとは**別の1枚**にする。設定は
+/// 置き場は設定ファイルと同じフォルダ (<see cref="DataFolder"/>) で、**別の1枚**にする。設定は
 /// ウィンドウの大きさや言語といった「使い勝手」で、決まりは書庫の中身についての取り決め。
 /// 混ぜると、どちらかを配りたいときに片方が付いてくる。
 /// </para>
@@ -51,7 +52,7 @@ internal static class RuleStore
     };
 
     /// <summary>決まりを書いたファイルのパス。</summary>
-    public static string FilePath { get; } = Path.Combine(BaseDirectory(), FileName);
+    public static string FilePath { get; } = Path.Combine(DataFolder.Path, FileName);
 
     /// <summary>決まりが保存されているか。</summary>
     public static bool Exists => File.Exists(FilePath);
@@ -168,23 +169,6 @@ internal static class RuleStore
         {
             return false;
         }
-    }
-
-    /// <summary>
-    /// exe が置かれているフォルダ。単一ファイルとして発行した場合、実行時に
-    /// 展開される一時フォルダではなく exe 自身の場所を指す必要がある。
-    /// </summary>
-    private static string BaseDirectory()
-    {
-        var processPath = Environment.ProcessPath;
-
-        if (!string.IsNullOrEmpty(processPath)
-            && Path.GetDirectoryName(processPath) is { Length: > 0 } directory)
-        {
-            return directory;
-        }
-
-        return AppContext.BaseDirectory;
     }
 
     /// <summary>ファイルに書く形。人が開いて直せるように、素直な名前で並べる。</summary>

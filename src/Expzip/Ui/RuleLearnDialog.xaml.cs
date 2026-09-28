@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Expzip.Ai;
 using Expzip.Archives;
+using Expzip.Configuration;
 using Expzip.Localization;
 
 namespace Expzip.Ui;
@@ -316,7 +317,7 @@ public partial class RuleLearnDialog : Window
             // 1件も無い状態で適用するのは「ルールを無くす」ということ
             if (!RuleStore.TryDelete())
             {
-                ResultText.Text = Strings.RuleApplyFailed;
+                ResultText.Text = Strings.RuleApplyFailed(DataFolder.Path);
                 return false;
             }
 
@@ -332,7 +333,7 @@ public partial class RuleLearnDialog : Window
 
         if (!RuleStore.TrySave(book))
         {
-            ResultText.Text = Strings.RuleApplyFailed;
+            ResultText.Text = Strings.RuleApplyFailed(DataFolder.Path);
             return false;
         }
 
