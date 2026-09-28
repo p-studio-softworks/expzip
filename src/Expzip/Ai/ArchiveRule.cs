@@ -80,6 +80,20 @@ internal sealed record ArchiveRule(
         _ => Strings.RuleKindNamePattern,
     };
 
+    /// <summary>
+    /// 種類に添える説明。マウスを当てると出す (#177)。無い種類は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 名前の付け方の 2 つは、名前だけでは「すべて」と「1 つ以上」の違いが伝わりきらない。
+    /// ほかの種類は名前で言い切れているので添えない。
+    /// </remarks>
+    public string? KindHint => Kind switch
+    {
+        RuleKind.NamePattern => Strings.RuleKindNamePatternHint,
+        RuleKind.RequiredPattern => Strings.RuleKindRequiredPatternHint,
+        _ => null,
+    };
+
     /// <summary>人に見せる説明。画面に出す (#172)。</summary>
     /// <remarks>
     /// <para>

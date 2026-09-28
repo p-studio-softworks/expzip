@@ -20,6 +20,11 @@ namespace Expzip.Ai;
 /// **「必ずある」が無い場合は、指させる項目が無い。**一覧に印を付けられないため、
 /// 別に持って報告のほうで出す。印が付かないことを「問題なし」と読ませない。
 /// </para>
+/// <para>
+/// **当てはまる場所が無かった決まりも別に持つ** (#178)。違反には数えないが、
+/// 黙って飛ばすと、調べて問題が無かったのか、調べられなかったのかが分からない。
+/// 別の作りの書庫に当てると、ほとんどの決まりがここに来る。
+/// </para>
 /// </remarks>
 internal sealed class RuleAudit
 {
@@ -28,13 +33,15 @@ internal sealed class RuleAudit
         DateTimeOffset learnedAt,
         IReadOnlyList<RuleResult> results,
         Dictionary<string, List<ArchiveRule>> broken,
-        List<ArchiveRule> unmet)
+        List<ArchiveRule> unmet,
+        List<ArchiveRule> skipped)
     {
         LearnedFrom = learnedFrom;
         LearnedAt = learnedAt;
         Results = results;
         Broken = broken;
         Unmet = unmet;
+        Skipped = skipped;
     }
 
     /// <summary>お手本にした書庫の名前。</summary>
@@ -51,6 +58,11 @@ internal sealed class RuleAudit
 
     /// <summary>「必ずある」はずのものが無かった決まり。指させる項目が無い。</summary>
     public IReadOnlyList<ArchiveRule> Unmet { get; }
+
+    /// <summary>
+    /// 当てはまる場所が無く、調べられなかった決まり (#178)。違反には数えない。
+    /// </summary>
+    public IReadOnlyList<ArchiveRule> Skipped { get; }
 
     /// <summary>当てた決まりの数。</summary>
     public int RuleCount => Results.Count;
@@ -87,9 +99,17 @@ internal sealed class RuleAudit
         // 書庫内パスの大文字小文字は、一覧の見え方と同じく区別しない
         var broken = new Dictionary<string, List<ArchiveRule>>(StringComparer.OrdinalIgnoreCase);
         var unmet = new List<ArchiveRule>();
+        var skipped = new List<ArchiveRule>();
 
         foreach (var result in results)
         {
+            // 当てる先が無い。守られているとも破られているとも言えない (#178)
+            if (result.Applied == 0)
+            {
+                skipped.Add(result.Rule);
+                continue;
+            }
+
             if (result.Satisfied)
             {
                 continue;
@@ -113,7 +133,7 @@ internal sealed class RuleAudit
             }
         }
 
-        return new RuleAudit(learnedFrom, learnedAt, results, broken, unmet);
+        return new RuleAudit(learnedFrom, learnedAt, results, broken, unmet, skipped);
     }
 
     /// <summary>その項目が破っている決まり。破っていなければ <see langword="null"/>。</summary>

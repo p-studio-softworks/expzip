@@ -14,11 +14,12 @@
 
     <Window.Resources>
         <!--
-            幅の決まっている列: 使う 48 + 種類 110 + 対象 110 + 出どころ 70
-            + この書庫では 110 = 448。縦スクロール棒と余白で 40 を見込む。
-            残りを 場所 22 : 値 24 : 説明 32 : 根拠 22 で分ける (#77、#81)
+            幅の決まっている列: 使う 48 + 種類 150 + 対象 110 + 出どころ 70
+            + この書庫では 110 = 488。縦スクロール棒と余白で 40 を見込む。
+            残りを 場所 22 : 値 24 : 説明 32 : 根拠 22 で分ける (#77、#81)。
+            種類は「名前の付け方 (1 つ以上)」が収まる幅にする (#177)
         -->
-        <ui:ShareWidth x:Key="Share" Fixed="488" />
+        <ui:ShareWidth x:Key="Share" Fixed="528" />
     </Window.Resources>
 
     <!--
@@ -136,8 +137,18 @@
                             </DataTemplate>
                         </GridViewColumn.CellTemplate>
                     </GridViewColumn>
-                    <GridViewColumn x:Name="KindColumn" Width="110"
-                                    DisplayMemberBinding="{Binding KindText}" />
+                    <!--
+                        名前の付け方の 2 つは、名前だけでは違いが伝わりきらないので、
+                        マウスを当てると説明を出す (#177)。説明の無い種類では何も出さない
+                    -->
+                    <GridViewColumn x:Name="KindColumn" Width="150">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding KindText}"
+                                           ToolTip="{Binding KindHint}" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
                     <GridViewColumn x:Name="ScopeColumn" Width="110"
                                     DisplayMemberBinding="{Binding ScopeText}" />
                     <!--

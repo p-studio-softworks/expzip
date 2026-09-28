@@ -72,6 +72,9 @@ internal sealed class RuleRow : INotifyPropertyChanged
 
     public string KindText => Rule.KindText;
 
+    /// <summary>種類に添える説明 (#177)。</summary>
+    public string? KindHint => Rule.KindHint;
+
     public string ScopeText => Rule.ScopeText;
 
     /// <summary>当てる場所 (#81)。</summary>
@@ -92,7 +95,7 @@ internal sealed class RuleRow : INotifyPropertyChanged
         Verdict = Judge(rule, _sample);
 
         foreach (var name in (string[])
-            [nameof(KindText), nameof(ScopeText), nameof(WhereText), nameof(Value),
+            [nameof(KindText), nameof(KindHint), nameof(ScopeText), nameof(WhereText), nameof(Value),
                 nameof(Description), nameof(Evidence), nameof(SourceText), nameof(Verdict)])
         {
             Notify(name);

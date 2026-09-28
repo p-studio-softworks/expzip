@@ -5279,14 +5279,24 @@ public partial class MainWindow : Window
     /// **旗は見ているフォルダの中しか出ない** (#27)。深いところにあるものは
     /// そこへ行くまで気付けないので、数だけはここで言う。件数のほうも残す。
     /// 決まりの話だけにすると、書庫そのものの大きさが読めなくなる。
+    /// 調べられなかった決まりの数も言う (#178)。違反が無いのが、調べられなかった
+    /// からなのかを、検査結果のウィンドウを閉じたあとも読めるようにする。
     /// </remarks>
     private string DescribeArchive(ArchiveContents contents, RuleAudit? audit)
     {
-        var counted = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
+        var text = Strings.FileCount(contents.FileCount, DescribeLimits(contents));
 
-        return audit is { Clean: false }
-            ? counted + " / " + Strings.RuleAuditFound(audit.BrokenCount, audit.Unmet.Count)
-            : counted;
+        if (audit is { Clean: false })
+        {
+            text += " / " + Strings.RuleAuditFound(audit.BrokenCount, audit.Unmet.Count);
+        }
+
+        if (audit is { Skipped.Count: > 0 })
+        {
+            text += " / " + Strings.RuleAuditSkippedShort(audit.Skipped.Count, audit.RuleCount);
+        }
+
+        return text;
     }
 
     /// <summary>ツリーの説明に並べる違反の上限 (#88)。</summary>

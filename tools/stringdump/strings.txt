@@ -1478,6 +1478,14 @@ RuleAuditMenu
   ja  ルールに合っているか検査…
   en  Check against the rules...
 
+RuleAuditSkipped (skipped: 3, rules: 5)
+  ja  ただし、5 件のルールのうち 3 件は、この書庫に当てはまる場所がなく、調べられませんでした。ルールは、お手本と同じ作りの書庫を検査するためのものです。作りの違う書庫には、その書庫に合うお手本からルールを推定し直してください。
+  en  However, 3 of the 5 rules could not be checked, because this archive has no place they apply to. The rules are for archives built the same way as the model. For an archive built differently, work out the rules again from a model that suits it.
+
+RuleAuditSkippedShort (skipped: 3, rules: 5)
+  ja  5 件のルールのうち 3 件は調べられませんでした
+  en  3 of 5 rules could not be checked
+
 RuleAuditSource (rules: 5, from: 見本.zip, at: 2026-09-10 14:30)
   ja  5 件のルールで検査しました (お手本: ⟦見本.zip⟧、2026/09/10 14:30)。
   en  Applied 5 rule(s) (learned from ⟦見本.zip⟧ on 2026/09/10 14:30).
@@ -1690,8 +1698,12 @@ RuleKindForbiddenName
   en  Name not allowed
 
 RuleKindNamePattern
-  ja  名前の形
-  en  Name pattern
+  ja  名前の付け方 (すべて)
+  en  Naming (all)
+
+RuleKindNamePatternHint
+  ja  この場所の名前が、すべて値の付け方に合っているかを見ます
+  en  Checks that every name in this place follows the naming in Value
 
 RuleKindRequiredEntry
   ja  必ずある
@@ -1702,8 +1714,12 @@ RuleKindRequiredFolder
   en  Folder must exist
 
 RuleKindRequiredPattern
-  ja  この形の名前が必ずある
-  en  A shape must exist
+  ja  名前の付け方 (1 つ以上)
+  en  Naming (at least one)
+
+RuleKindRequiredPatternHint
+  ja  この場所に、値の付け方に合う名前が 1 つ以上あるかを見ます
+  en  Checks that at least one name in this place follows the naming in Value
 
 RuleLoaded (count: 3, from: 見本.zip)
   ja  保存されている 3 件のルールを読み込みました (お手本: ⟦見本.zip⟧)。
@@ -1720,6 +1736,10 @@ RuleMissing
 RuleNeedsAi
   ja  先に「AI連携の設定…」で接続先を設定してください。
   en  Set up the connection under AI settings... first.
+
+RuleNoPlace
+  ja  当てはまる場所が無い
+  en  No place to check
 
 RuleNoneFound
   ja  ルールを推定できませんでした。

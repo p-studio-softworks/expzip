@@ -997,6 +997,45 @@ internal static partial class Strings
                 $"Applied {rules:N0} rule(s) "
                 + $"(learned from {from} on {at.LocalDateTime:yyyy/MM/dd HH:mm}).");
 
+    /// <summary>
+    /// 当てはまる場所が無く、調べられなかったルールがあるとき (#178)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// **違反が無いことと、調べられなかったことを分けて言う。**黙って飛ばしていたため、
+    /// 別の作りの書庫に当てると「見つかりませんでした」とだけ出て、調べて問題が
+    /// 無かったのか、そもそも調べられなかったのかが分からなかった。
+    /// </para>
+    /// <para>
+    /// ルールはお手本と同じ作りの書庫を検査するためのもの。作りの違う書庫には
+    /// 推定し直しが要ることも、ここで言う。
+    /// </para>
+    /// </remarks>
+    public static string RuleAuditSkipped(int skipped, int rules) => skipped == rules
+        ? Pick("ただし、どのルールもこの書庫に当てはまる場所がなく、調べられませんでした。"
+            + "ルールは、お手本と同じ作りの書庫を検査するためのものです。"
+            + "作りの違う書庫には、その書庫に合うお手本からルールを推定し直してください。",
+            "However, none of the rules could be checked, because this archive has no place they apply to. "
+            + "The rules are for archives built the same way as the model. "
+            + "For an archive built differently, work out the rules again from a model that suits it.")
+        : Pick($"ただし、{rules:N0} 件のルールのうち {skipped:N0} 件は、この書庫に当てはまる場所がなく、調べられませんでした。"
+            + "ルールは、お手本と同じ作りの書庫を検査するためのものです。"
+            + "作りの違う書庫には、その書庫に合うお手本からルールを推定し直してください。",
+            $"However, {skipped:N0} of the {rules:N0} rules could not be checked, because this archive has no place they apply to. "
+            + "The rules are for archives built the same way as the model. "
+            + "For an archive built differently, work out the rules again from a model that suits it.");
+
+    /// <summary>
+    /// 調べられなかったルールの数。ステータスバーに出す (#178)。
+    /// 検査結果のウィンドウを閉じたあとも、違反が無いのは調べられなかったからだと分かるようにする。
+    /// </summary>
+    public static string RuleAuditSkippedShort(int skipped, int rules) => Pick(
+        $"{rules:N0} 件のルールのうち {skipped:N0} 件は調べられませんでした",
+        $"{skipped:N0} of {rules:N0} rules could not be checked");
+
+    /// <summary>調べられなかったルールの行に出す種類 (#178)。</summary>
+    public static string RuleNoPlace => Pick("当てはまる場所が無い", "No place to check");
+
     /// <summary>多すぎて出し切れなかったときだけ出す (#27)。</summary>
     public static string RuleAuditTrimmed(int count) => Pick(
         $"ほかに {count:N0} 件のルールがありますが、数が多すぎるため表示していません。修正してから、もう一度検査してください。",
@@ -1091,10 +1130,22 @@ internal static partial class Strings
     public static string RuleColumnPlace => Pick("場所", "Where");
 
     /// <summary>
-    /// 「この形のものが必ずある」(#83)。「必ずある」は名前しか取らないので、
+    /// 「この付け方の名前が 1 つはある」(#83)。「必ずある」は名前しか取らないので、
     /// 名前が場所ごとに違うもの (examples の各フォルダの `.ino` など) が書けなかった。
     /// </summary>
-    public static string RuleKindRequiredPattern => Pick("この形の名前が必ずある", "A shape must exist");
+    /// <remarks>
+    /// 以前は「この形の名前が必ずある」で、「形」が何を指すのか分からなかった (#177)。
+    /// 「形」は中で使っている正規表現のことで、それがそのまま画面に出ていた。
+    /// 「すべて」の側 (<see cref="RuleKindNamePattern"/>) と並べて違いが見えるようにする。
+    /// </remarks>
+    public static string RuleKindRequiredPattern => Pick("名前の付け方 (1 つ以上)", "Naming (at least one)");
+
+    /// <summary>
+    /// 種類「名前の付け方 (1 つ以上)」に添える説明 (#177)。名前だけでは「すべて」との違いが伝わりきらない。
+    /// </summary>
+    public static string RuleKindRequiredPatternHint => Pick(
+        "この場所に、値の付け方に合う名前が 1 つ以上あるかを見ます",
+        "Checks that at least one name in this place follows the naming in Value");
 
     /// <summary>場所が決まっていないとき、その列に出す言葉 (#81)。</summary>
     public static string RuleWhereAnywhere => Pick("書庫全体", "Whole archive");
@@ -1113,7 +1164,13 @@ internal static partial class Strings
 
     public static string RuleKindForbiddenName => Pick("含めない名前", "Name not allowed");
 
-    public static string RuleKindNamePattern => Pick("名前の形", "Name pattern");
+    /// <remarks>以前は「名前の形」で、何のことか分からなかった (#177)。</remarks>
+    public static string RuleKindNamePattern => Pick("名前の付け方 (すべて)", "Naming (all)");
+
+    /// <summary>種類「名前の付け方 (すべて)」に添える説明 (#177)。</summary>
+    public static string RuleKindNamePatternHint => Pick(
+        "この場所の名前が、すべて値の付け方に合っているかを見ます",
+        "Checks that every name in this place follows the naming in Value");
 
     public static string RuleScopeRoot => Pick("ルート直下", "Directly under the root");
 

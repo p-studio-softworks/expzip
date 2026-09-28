@@ -38,6 +38,9 @@ public partial class RuleAuditWindow : Window
     /// <summary>チェック。合っていないものが無かったことを表す。</summary>
     private const string GlyphClean = "\uE73E";
 
+    /// <summary>丸に i。当てはまる場所が無く、調べられなかったことを表す (#178)。</summary>
+    private const string GlyphSkipped = "";
+
     /// <summary>
     /// 一度に並べる上限。
     /// </summary>
@@ -181,6 +184,11 @@ public partial class RuleAuditWindow : Window
             ? Strings.RuleAuditClean
             : Strings.RuleAuditFound(_audit.BrokenCount, _audit.Unmet.Count);
 
+        // 調べられなかったものがあれば、見出しのすぐ下で断る (#178)
+        var skipped = _audit.Skipped.Count;
+        SkippedLine.Text = skipped > 0 ? Strings.RuleAuditSkipped(skipped, _audit.RuleCount) : string.Empty;
+        SkippedLine.Visibility = skipped > 0 ? Visibility.Visible : Visibility.Collapsed;
+
         SourceLine.Text = Strings.RuleAuditSource(
             _audit.RuleCount, _audit.LearnedFrom, _audit.LearnedAt);
     }
@@ -220,6 +228,7 @@ public partial class RuleAuditWindow : Window
                 Glyph = GlyphFlag,
                 AccentKey = "RuleBreakBrush",
                 KindText = rules[0].KindText,
+                KindHint = rules[0].KindHint,
                 Target = path,
                 Message = string.Join(" / ", rules.Select(Describe)),
                 Path = path,
@@ -240,11 +249,29 @@ public partial class RuleAuditWindow : Window
                 KindText = string.Empty,
                 Target = string.Empty,
                 Message = Strings.RuleAuditClean,
+                CanHandle = false,
+            });
+        }
+
+        // 当てはまる場所が無く、調べられなかったものは最後に並べる (#178)。
+        // 違反ではないので色は付けず、直す印も付けさせない。場所の列には、
+        // ルールがどこを見るつもりだったかを出す
+        foreach (var rule in _audit.Skipped)
+        {
+            rows.Add(new Row
+            {
+                Marks = _handled,
+                Glyph = GlyphSkipped,
+                AccentKey = string.Empty,
+                KindText = Strings.RuleNoPlace,
+                Target = rule.WhereText,
+                Message = Describe(rule),
+                CanHandle = false,
             });
         }
 
         // 並べ直しても、付けた印は残す (#87)
-        foreach (var row in rows)
+        foreach (var row in rows.Where(static row => row.CanHandle))
         {
             row.Handled = _handled.Contains(row.Target);
         }
@@ -368,7 +395,7 @@ public partial class RuleAuditWindow : Window
     /// <summary>その項目が、いまも合っていないままか。</summary>
     private bool Still(string target)
         => FindingList.ItemsSource is IEnumerable<Row> rows
-            && rows.Any(row => string.Equals(
+            && rows.Any(row => row.CanHandle && string.Equals(
                 row.Target, target, StringComparison.OrdinalIgnoreCase));
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
@@ -410,6 +437,17 @@ public partial class RuleAuditWindow : Window
         public required string AccentKey { get; init; }
 
         public required string KindText { get; init; }
+
+        /// <summary>種類に添える説明 (#177)。無ければ <see langword="null"/>。</summary>
+        public string? KindHint { get; init; }
+
+        /// <summary>
+        /// 「修正する」の印を付けられるか (#178)。問題が無かった行と、
+        /// 調べられなかった行には、直す相手が無い。
+        /// </summary>
+        public bool CanHandle { get; init; } = true;
+
+        public Visibility HandleVisibility => CanHandle ? Visibility.Visible : Visibility.Hidden;
 
         public required string Target { get; init; }
 

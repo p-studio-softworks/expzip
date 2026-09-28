@@ -36,6 +36,14 @@
                                TextWrapping="Wrap"
                                VerticalAlignment="Center" />
                 </StackPanel>
+                <!--
+                    当てはまる場所が無く、調べられなかったルールがあるときだけ出す (#178)。
+                    見出しの「見つかりませんでした」を、調べて問題が無かったと読ませない
+                -->
+                <TextBlock x:Name="SkippedLine"
+                           Margin="24,6,0,0"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
                 <!-- どの決まりを、いつ、どの書庫から作ったものを当てたか -->
                 <TextBlock x:Name="SourceLine"
                            Margin="24,6,0,0"
@@ -111,9 +119,13 @@
                     最小の高さは外す (#131)。Fluent のチェックボックスは行より背が高く、
                     行の間隔がメインの一覧と揃わない
                 -->
+                <!--
+                    直す相手の無い行 (問題が無かった・調べられなかった) には出さない (#178)
+                -->
                 <DataTemplate x:Key="HandleCell">
                     <CheckBox IsChecked="{Binding Handled, Mode=TwoWay}"
                               MinHeight="0"
+                              Visibility="{Binding HandleVisibility}"
                               HorizontalAlignment="Center" />
                 </DataTemplate>
 
@@ -157,8 +169,10 @@
                     </Style.Triggers>
                 </Style>
 
+                <!-- 名前の付け方の 2 つは、マウスを当てると説明を出す (#177) -->
                 <DataTemplate x:Key="KindCell">
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel Orientation="Horizontal"
+                                ToolTip="{Binding KindHint}">
                         <TextBlock Text="{Binding Glyph}"
                                    FontFamily="Segoe MDL2 Assets"
                                    FontSize="12"
@@ -187,9 +201,10 @@
                     -->
                     <GridViewColumn x:Name="HandleColumn" Width="80"
                                     CellTemplate="{StaticResource HandleCell}" />
-                    <GridViewColumn x:Name="KindColumn" Width="150"
+                    <!-- 種類は「名前の付け方 (1 つ以上)」が印と並んで収まる幅にする (#177) -->
+                    <GridViewColumn x:Name="KindColumn" Width="190"
                                     CellTemplate="{StaticResource KindCell}" />
-                    <GridViewColumn x:Name="TargetColumn" Width="330"
+                    <GridViewColumn x:Name="TargetColumn" Width="290"
                                     CellTemplate="{StaticResource TargetCell}" />
                     <GridViewColumn x:Name="MessageColumn" Width="380"
                                     CellTemplate="{StaticResource MessageCell}" />

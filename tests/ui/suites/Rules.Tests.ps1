@@ -145,6 +145,11 @@ try {
     Check '行の名前がルールの説明' (
         (-not ($ruleNames -match 'Expzip\.')) -and
         ($ruleNames -match '^ルート直下に README\.md がある$')) ($ruleNames -join ' / ')
+    # 種類の名前は内部の言い方 (「形」= 正規表現) を出さず、マウスを当てると違いを説明する (#177)
+    $kind = ByName (ById $dialog 'RuleList') '名前の付け方 (すべて)'
+    Check '名前の付け方の種類' ($null -ne $kind) (Texts (ById $dialog 'RuleList'))
+    Check '種類に説明が付く' ($kind -and $kind.Current.HelpText -eq 'この場所の名前が、すべて値の付け方に合っているかを見ます') $(if ($kind) { $kind.Current.HelpText })
+    Check '古い種類の名前が残っていない' (-not ((Texts (ById $dialog 'RuleList')) -match '名前の形')) (Texts (ById $dialog 'RuleList'))
     $sent = Get-AiRequests $stub
     Check '1 回だけ送る' ($sent.Count -eq 1) "$($sent.Count) 回"
     Check '送った中に中身が無い' ($sent.Count -ge 1 -and $sent[0].body -notmatch $secret)
@@ -255,6 +260,38 @@ try {
         Start-Sleep -Milliseconds 500
         Check '尋ねずに閉じたあとも Expzip が前にある' ([ExpzipUi.Foreground]::GetForegroundWindow() -eq $app.Process.MainWindowHandle)
     }
+
+    # 当てはまる場所が無いルールを黙って飛ばさない (#178)。src の無い書庫では、
+    # 「src のファイル名」のルールは調べようがない。違反には数えないが、そう言う
+    Section '当てはまる場所が無いルール'
+    Stop-Expzip $app
+    $other = New-TestZip (Join-Path $script:Work 'betsu.zip') ([ordered]@{
+        'README.md'   = 'x'
+        'other/'      = ''
+        'other/a.txt' = 'x'
+    })
+    $app = Start-Expzip @($other)
+    Open-AiItem $app 'ルールに合っているか検査…' | Out-Null
+    $audit = Find-Window $app 'ルールの検査結果 - betsu.zip'
+    Check '窓が開く' ($null -ne $audit)
+    if ($audit) {
+        $headline = (ById $audit 'Headline').Current.Name
+        Check '違反は無い' ($headline -eq 'ルールに合っていない項目は見つかりませんでした') $headline
+        $skipped = (ById $audit 'SkippedLine').Current.Name
+        Check '調べられなかった数を言う' ($skipped -match '^ただし、3 件のルールのうち 1 件は、この書庫に当てはまる場所がなく、調べられませんでした。') $skipped
+        Check '推定し直すよう言う' ($skipped -match 'その書庫に合うお手本からルールを推定し直してください。$') $skipped
+        $rowNames = @((ById $audit 'FindingList').FindAll($script:Scope::Children,
+            (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem)) |
+            ForEach-Object { $_.Current.Name })
+        Check '調べられなかったルールも並べる' ($rowNames -match '^当てはまる場所が無い、\^src\$、src のファイル名は') ($rowNames -join ' / ')
+        $fix = Get-FixBox $audit '^当てはまる場所が無い'
+        Check '修正する印は付けられない' ($null -eq $fix -or $fix.Current.IsOffscreen)
+        $status = Get-Status $app
+        Check 'ステータスバーでも言う' ($status -match ' / 3 件のルールのうち 1 件は調べられませんでした$') $status
+        Push (ById $audit 'CloseButton')
+    }
+    Stop-Expzip $app
+    $app = Start-Expzip @($bad)
 
     Section '適用せずに閉じる'
     # 適用するまではファイルに書かない。黙って閉じると、チェックを付け外しただけの人は
