@@ -5339,7 +5339,7 @@ public partial class MainWindow : Window
 
         if (Tab is { Audit: { } audit } tab && _ruleAudit is { } window)
         {
-            window.ShowAudit(audit, tab.FilePath);
+            window.ShowAudit(audit, tab.FilePath, tab.RuleMarks, reopen: false);
         }
     }
 
@@ -5404,7 +5404,7 @@ public partial class MainWindow : Window
 
         if (_ruleAudit is { } opened)
         {
-            opened.ShowAudit(audit, tab.FilePath, tab.RuleMarks ?? []);
+            opened.ShowAudit(audit, tab.FilePath, tab.RuleMarks, reopen: true);
             return;
         }
 

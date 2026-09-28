@@ -232,7 +232,17 @@ try {
         # 「更新」は何を更新するのか分かりにくかった。推定のウィンドウと同じ「適用する」にする (#166)
         Check '口の名前' ((ById $audit 'ApplyButton').Current.Name -eq '適用する' -and (ById $audit 'CloseButton').Current.Name -eq '閉じる')
         Check '押すと何が起きるか' ((ById $audit 'ApplyButton').Current.HelpText -match '^「修正する」に印を付けた項目だけにツリーの印を絞り、') (ById $audit 'ApplyButton').Current.HelpText
-        Toggle-Check (Get-FixBox $audit 'cache\.tmp')
+        # 開いた時点では、合っていないもの全部にツリーの印が出ている。チェックもそれに揃える (#179)。
+        # 空で始めていたため、「チェックを入れて適用すると印が付く」と読めてしまっていた
+        # 全部に入れたチェックは、いまの印そのもの。開いて閉じただけでは尋ねない
+        Push (ById $audit 'CloseButton')
+        Check '全部に入ったまま閉じても尋ねない' ((Test-WindowGone $app 'ルールの検査結果 - ihan.zip') -and $null -eq (Find-MessageBox $app 1500))
+        Open-AiItem $app 'ルールに合っているか検査…' | Out-Null
+        $audit = Find-Window $app 'ルールの検査結果 - ihan.zip'
+        $tmpBox = Get-FixBox $audit 'cache\.tmp'
+        $readmeBox = Get-FixBox $audit '^見つからない、README\.md'
+        Check '最初は全部にチェックが入っている' ($tmpBox -and (IsChecked $tmpBox) -and $readmeBox -and (IsChecked $readmeBox))
+        Toggle-Check $readmeBox
         Push (ById $audit 'ApplyButton') 1500
         $result = Wait-Until { $text = (ById $audit 'ResultText').Current.Name; if ($text) { $text } }
         # チェックを入れても見た目が変わらず、効いたかどうか分からなかった (#165)
@@ -255,6 +265,8 @@ try {
         $audit = Find-Window $app 'ルールの検査結果 - ihan.zip'
         $fix = if ($audit) { Get-FixBox $audit 'cache\.tmp' }
         Check '開き直すと適用した印が付いている' ($fix -and (IsChecked $fix))
+        $readme = if ($audit) { Get-FixBox $audit '^見つからない、README\.md' }
+        Check '外して適用したものは外れたまま' ($readme -and -not (IsChecked $readme))
         if ($audit) { Push (ById $audit 'CloseButton') }
         Check '変えていなければ尋ねずに閉じる' (Test-WindowGone $app 'ルールの検査結果 - ihan.zip')
         Start-Sleep -Milliseconds 500

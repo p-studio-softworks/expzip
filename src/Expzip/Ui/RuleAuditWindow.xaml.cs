@@ -71,6 +71,12 @@ public partial class RuleAuditWindow : Window
     /// </summary>
     private HashSet<string> _applied = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 次に行を作るときに、直す相手のある行すべてにチェックを入れるか (#179)。
+    /// 本体がまだ印を絞っていないときに立てる。
+    /// </summary>
+    private bool _checkAll;
+
     /// <summary>「適用する」を押して、当て直しの結果を待っているか。</summary>
     private bool _waiting;
 
@@ -112,13 +118,15 @@ public partial class RuleAuditWindow : Window
     internal string ArchivePath { get; private set; }
 
     /// <summary>新しい結果に差し替える。ウィンドウは開いたままにする。</summary>
-    /// <param name="marks">
-    /// 開き直したときに、本体で印を絞っている項目。当て直しの結果を出すときは省き、
-    /// いまのチェックを残す。
+    /// <param name="marks">本体で印を絞っている項目。絞っていなければ <see langword="null"/>。</param>
+    /// <param name="reopen">
+    /// 開き直したか。開き直したときは本体の印からチェックを取り直す。当て直しの結果を
+    /// 出すときは、別の書庫に替わったときを除いて、いまのチェックを残す。
     /// </param>
-    internal void ShowAudit(RuleAudit audit, string archivePath, IEnumerable<string>? marks = null)
+    internal void ShowAudit(
+        RuleAudit audit, string archivePath, IEnumerable<string>? marks, bool reopen)
     {
-        if (marks is not null || !string.Equals(archivePath, ArchivePath, StringComparison.OrdinalIgnoreCase))
+        if (reopen || !string.Equals(archivePath, ArchivePath, StringComparison.OrdinalIgnoreCase))
         {
             TakeMarks(marks);
         }
@@ -140,9 +148,14 @@ public partial class RuleAuditWindow : Window
     /// <remarks>
     /// 「閉じる」は何も反映しないので、開いたときのチェックは本体の印と揃えておく。
     /// 揃っていないと、開いて閉じただけで印が変わったように見える。
+    /// **まだ絞っていなければ、本体では合っていないもの全部に印が出ている。**そのときは
+    /// 直す相手のある行すべてにチェックを入れる (#179)。空で始めていたため、
+    /// 「チェックを入れて適用すると印が付く」と読めてしまっていた。
+    /// 行はまだ作っていないので、ここでは覚えておくだけにして <see cref="BuildRows"/> で入れる。
     /// </remarks>
     private void TakeMarks(IEnumerable<string>? marks)
     {
+        _checkAll = marks is null;
         _handled = new HashSet<string>(marks ?? [], StringComparer.OrdinalIgnoreCase);
         _applied = new HashSet<string>(_handled, StringComparer.OrdinalIgnoreCase);
     }
@@ -268,6 +281,17 @@ public partial class RuleAuditWindow : Window
                 Message = Describe(rule),
                 CanHandle = false,
             });
+        }
+
+        // 本体が合っていないもの全部に印を出しているなら、チェックも全部に入れる (#179)。
+        // 反映済みとしても覚え、開いて閉じただけでは尋ねない。
+        // 多すぎて並べなかったものも入れる。行から取ると、そのまま適用したときに印が消える
+        if (_checkAll)
+        {
+            _checkAll = false;
+            _handled.UnionWith(_audit.Unmet.Select(static rule => rule.Value));
+            _handled.UnionWith(_audit.Broken.Keys);
+            _applied = new HashSet<string>(_handled, StringComparer.OrdinalIgnoreCase);
         }
 
         // 並べ直しても、付けた印は残す (#87)
