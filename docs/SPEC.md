@@ -45,6 +45,12 @@
   - トリミング(`PublishTrimmed`)はWPFでは非サポートのため使用しない
   - 代わりに単一ファイル圧縮(`EnableCompressionInSingleFile`)を有効にする。**実測で134MB → 61.8MB**まで削減できた(v0.1.0時点)
   - レジストリ書き込み・インストーラは一切使用しない
+- **Microsoft Store 用のパッケージ**(#176): `build.cmd -Msix` で、上の exe をそのまま入れた MSIX を `publish/msix` に作る
+  - 設計図は `build/msix/AppxManifest.xml`。Identity の Name・Publisher と PublisherDisplayName は Partner Center の「製品 ID」に出た値そのもので、大文字小文字まで一致させる。バージョンは exe と同じで、4つ目は Store が使うので 0
+  - 絵は `build/msix/Assets`。アイコンと同じく `tools/icon` で描き出したもの
+  - Windows SDK の `makeappx.exe` で固める。Visual Studio は使わない。**署名はしない**。Store に出すと Microsoft が署名する
+  - 手元で試すときは、開発者モードで `publish/msix/layout/AppxManifest.xml` を `Add-AppxPackage -Register` する。署名は要らない
+  - 設定とルールのファイルの置き場所が変わる([7章](#7-非機能要件))。一時展開先の `%TEMP%` は振り替えられず、外のソフトからもそのまま見える
 - **ライセンス表示**(#105)。**入れているものは MIT だが、MIT は無条件ではない。**「上記の著作権表示とこの許諾条文を、複製物に含めること」を求めている
   - 対象は3つ。**SharpCompress**、**SharpZipLib**、そして **.NET ランタイムそのもの**
     - **3つ目を落としやすい**。自己完結で発行しているので、ランタイムを実行ファイルに入れて配っている = 再配布している。ランタイムが含む第三者のぶん (zlib-ng、Brotli、Json.NET、mimalloc など約40件) も、Microsoft の `THIRD-PARTY-NOTICES.TXT` をそのまま載せる

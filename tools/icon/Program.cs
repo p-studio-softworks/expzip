@@ -4,6 +4,9 @@
 //     dotnet run --project tools/icon -- --png 512 <出力先>    1 枚の PNG にする (GitHub のアイコンなど)
 //     dotnet run --project tools/icon -- --card <出力先>       リポジトリの Social preview の画像を作る (#139)
 //
+// Store 用の MSIX に入れる絵 (build/msix/Assets、#176) も --png で作る。
+// Square44x44Logo は 44、StoreLogo は 50、Square150x150Logo は 150。
+//
 // 絵の正本は src/Expzip/Ui/AppIcon.xaml。バージョン情報はそれをそのまま出し、
 // exe に付ける ico はここでそれを描き出して作る。**絵を直したらこれも走らせる。**
 // 外部の画像ツールは使わない。WPF で描けば、画面に出るものと同じ絵になる。

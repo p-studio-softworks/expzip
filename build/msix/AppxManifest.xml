@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Microsoft Store で配る MSIX の設計図 (#176)。build.cmd -Msix が {VERSION} を埋めて使う。
+
+  **Identity の Name と Publisher、PublisherDisplayName は Partner Center の
+  「製品 ID」に出た値そのもの。**大文字小文字まで一致していないと申請が通らない。
+  バージョンの 4 つ目は Store が使うので 0 にする。
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="Pstudio.Expzip"
+    Publisher="CN=97F27945-B936-4DAE-B1B2-53E7910B53CF"
+    Version="{VERSION}"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Expzip</DisplayName>
+    <PublisherDisplayName>P studio</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <!-- 対象は Windows 10/11 (docs/SPEC.md 1章)。MSIX を入れられるのは 1809 から -->
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="ja-JP" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Expzip" Executable="Expzip.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Expzip"
+        Description="Windows 向けのアーカイバ (書庫ソフト)"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+
+  <!-- ふつうのデスクトップアプリとして動かす。これが無いと exe を起動できない -->
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

@@ -16,13 +16,20 @@
 .PARAMETER Debug
     配布用ではなく、開発用にビルドするだけにする (発行しない)。
 
+.PARAMETER Msix
+    配布用の Expzip.exe を作ったあと、Microsoft Store に出す MSIX も publish\msix に作る (#176)。
+    Windows SDK (makeappx.exe) が要る。署名はしない。Store に出すと Microsoft が署名する。
+    手元で試すときは、publish\msix\layout を開発者モードで登録する。
+
 .EXAMPLE
     .\build\build.ps1
     .\build\build.ps1 -Test
+    .\build\build.ps1 -Msix
 #>
 param(
     [switch]$Test,
-    [switch]$Debug
+    [switch]$Debug,
+    [switch]$Msix
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,6 +77,47 @@ else {
     Write-Host ("できました: {0}" -f $built.FullName)
     Write-Host ("大きさ: {0:N0} バイト" -f $built.Length)
     Write-Host 'この 1 つのファイルをコピーするだけで動きます。'
+}
+
+if ($Msix -and -not $Debug) {
+    # makeappx は Windows SDK に入っている。いちばん新しいものを使う
+    $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+    $makeappx = Get-ChildItem $kits -Filter makeappx.exe -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.Directory.Name -eq 'x64' } |
+        Sort-Object { [version]$_.Directory.Parent.Name } -ErrorAction SilentlyContinue |
+        Select-Object -Last 1
+    if (-not $makeappx) {
+        Write-Host 'Windows SDK の makeappx.exe が見つかりません。https://developer.microsoft.com/windows/downloads/windows-sdk/ から入れてください。'
+        exit 1
+    }
+
+    # バージョンは exe と同じもの。4 つ目は Store が使うので 0 にする
+    $version = (Get-Item $exe).VersionInfo
+    $packageVersion = '{0}.{1}.{2}.0' -f $version.FileMajorPart, $version.FileMinorPart, $version.FileBuildPart
+
+    $msixDir = Join-Path $repo 'publish\msix'
+    $layout = Join-Path $msixDir 'layout'
+    if (Test-Path $layout) { Remove-Item $layout -Recurse -Force }
+    New-Item -ItemType Directory $layout | Out-Null
+
+    Copy-Item $exe $layout
+    Copy-Item (Join-Path $PSScriptRoot 'msix\Assets') $layout -Recurse
+    $manifest = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'msix\AppxManifest.xml'))
+    [System.IO.File]::WriteAllText((Join-Path $layout 'AppxManifest.xml'),
+        $manifest.Replace('{VERSION}', $packageVersion), (New-Object System.Text.UTF8Encoding $false))
+
+    $package = Join-Path $msixDir ("Expzip_{0}_x64.msix" -f $packageVersion)
+    Write-Host ''
+    Write-Host 'MSIX を作っています…'
+    & $makeappx.FullName pack /o /h SHA256 /d $layout /p $package | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'MSIX を作れませんでした。makeappx の出力を確かめてください。'
+        & $makeappx.FullName pack /o /h SHA256 /d $layout /p $package
+        exit 1
+    }
+
+    Write-Host ("できました: {0}" -f $package)
+    Write-Host 'Store に出すものです。署名していないので、このままでは手元に入れられません。'
 }
 
 if ($Test) {
