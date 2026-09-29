@@ -62,6 +62,23 @@ if ($running.Count -gt 0) {
     exit 1
 }
 
+# 配るものは、コミットしたあと何も変えていない状態から作る。変えたままだと
+# バージョン情報のリビジョンに「変更あり」と出て、あとから同じソースを取り出せず、
+# 問い合わせを受けても調べられない。Store に出す MSIX はこの経路でしか作らないので断る
+if ($Msix) {
+    $changes = & git -C $repo status --porcelain 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'git でコミットの状態を確かめられません。MSIX は git のリポジトリの中で作ってください。'
+        exit 1
+    }
+    if ($changes) {
+        Write-Host 'コミットしていない変更があります。Store に出すものは「変更あり」にしないため、MSIX を作りません。'
+        Write-Host 'コミットしてから、もう一度実行してください:'
+        $changes | ForEach-Object { Write-Host "  $_" }
+        exit 1
+    }
+}
+
 if ($Debug) {
     Write-Host '開発用にビルドしています…'
     & dotnet build (Join-Path $repo 'Expzip.slnx') -nologo

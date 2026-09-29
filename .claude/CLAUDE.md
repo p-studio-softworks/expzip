@@ -9,6 +9,9 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 ## Build and test
 
 - Build with `build.cmd` at the repository root (`-Debug` for development / `-Test` to also run the UI tests). The script itself is `build/build.ps1`. Do not call `dotnet publish` directly
+- **Never release a build whose revision shows 「変更あり」**, on GitHub Releases or the Microsoft Store (#176, #180).
+  The source can no longer be reproduced, so reports against it cannot be investigated.
+  Commit first, then build without touching any file. `build.cmd -Msix` refuses to run with uncommitted changes
 - UI tests are `tests/ui/Run-UiTests.ps1`. They launch and drive Expzip for real, so do not touch the mouse or keyboard while they run
 - **When you change on-screen text, also update the expectations in `tests/ui/suites`.** The tests check the text
 - **When you change on-screen text, regenerate the list with `dotnet run --project tools/stringdump` and commit it.**
