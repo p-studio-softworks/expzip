@@ -9,8 +9,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap uap3 rescap">
 
   <Identity
     Name="Pstudio.Expzip"
@@ -42,6 +43,32 @@
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png" />
+
+      <!--
+        Store 版だけの関連付け (#176)。exe 単体の版はレジストリを書かないので持たない。
+        入れると「プログラムから開く」の候補に出る。既定にするかは利用者が選ぶ。
+
+        拡張子は src/Expzip/Archives/ArchiveFormat.cs の表から。Windows は最後の
+        拡張子しか見ないので、.tar.gz などは .gz として宣言するしかない。
+        それでは tar でない .gz まで候補に出て、開けないと言われることになるので、
+        .gz .bz2 .xz は入れない。.tgz などの 1 つにまとめた名前は入れる。
+        自己解凍書庫 (.exe) と分割ファイル (.001) も入れない
+      -->
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap3:FileTypeAssociation Name="archive">
+            <uap:SupportedFileTypes>
+              <uap:FileType>.zip</uap:FileType>
+              <uap:FileType>.7z</uap:FileType>
+              <uap:FileType>.tar</uap:FileType>
+              <uap:FileType>.tgz</uap:FileType>
+              <uap:FileType>.tbz</uap:FileType>
+              <uap:FileType>.tbz2</uap:FileType>
+              <uap:FileType>.txz</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap3:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

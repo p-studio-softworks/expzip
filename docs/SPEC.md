@@ -48,6 +48,8 @@
 - **Microsoft Store 用のパッケージ**(#176): `build.cmd -Msix` で、上の exe をそのまま入れた MSIX を `publish/msix` に作る
   - 設計図は `build/msix/AppxManifest.xml`。Identity の Name・Publisher と PublisherDisplayName は Partner Center の「製品 ID」に出た値そのもので、大文字小文字まで一致させる。バージョンは exe と同じで、4つ目は Store が使うので 0
   - 絵は `build/msix/Assets`。アイコンと同じく `tools/icon` で描き出したもの
+  - **Store 版だけ拡張子の関連付けを宣言する**。exe 単体の版はレジストリを書かないので持たない。入れると「プログラムから開く」の候補に出て、既定にするかは利用者が選ぶ。関連付けは Windows がパッケージと一緒に登録し、アンインストールで消す
+    - 対象は `.zip` `.7z` `.tar` `.tgz` `.tbz` `.tbz2` `.txz`。Windows は最後の拡張子しか見ないので、`.tar.gz` などは `.gz` として宣言するしかない。それでは tar でない `.gz` まで候補に出て開けないと言われるので、`.gz` `.bz2` `.xz` は入れない。自己解凍書庫 (`.exe`) と分割ファイル (`.001`) も入れない
   - Windows SDK の `makeappx.exe` で固める。Visual Studio は使わない。**署名はしない**。Store に出すと Microsoft が署名する
   - 手元で試すときは、開発者モードで `publish/msix/layout/AppxManifest.xml` を `Add-AppxPackage -Register` する。署名は要らない
   - 設定とルールのファイルの置き場所が変わる([7章](#7-非機能要件))。一時展開先の `%TEMP%` は振り替えられず、外のソフトからもそのまま見える
