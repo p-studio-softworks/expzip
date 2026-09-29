@@ -174,6 +174,7 @@ build.cmd
 
 - [仕様書](docs/SPEC.md)
 - [セキュリティ調査レポート](docs/SECURITY_REPORT.md)
+- [プライバシーポリシー](PRIVACY.md)
 
 ## 連絡先
 
