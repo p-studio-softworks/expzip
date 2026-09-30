@@ -543,9 +543,12 @@ internal static partial class Strings
         "書庫を開いていません。新しい書庫を作成して、ドロップした項目を追加しますか?",
         "No archive is open. Create a new archive and add the dropped items to it?");
 
+    /// <remarks>
+    /// 形式の名前に「書庫」を付けない。MSIX、exe / dll、MSI が入った exe などは書庫と呼ばれていない (#182)。
+    /// </remarks>
     public static string FormatIsReadOnly(string format) => Pick(
-        $"{format} 書庫にはファイルを追加できません。読み取りのみに対応しています。",
-        $"Files cannot be added to {format} archives. This format is supported for reading only.");
+        $"{format} にはファイルを追加できません。読み取りのみに対応しています。",
+        $"Files cannot be added to {format}. This format is supported for reading only.");
 
     public static string ConfirmReplace(int count, string preview, string more) => Pick(
         $"同じ名前の項目が書庫内に {count:N0} 個あります。置き換えますか?"
@@ -2115,6 +2118,7 @@ internal static partial class Strings
         ArchiveFormat.Cab => "CAB",
         ArchiveFormat.Msi => "MSI",
         ArchiveFormat.Burn => "WiX Burn",
+        ArchiveFormat.MsiExe => Pick("MSI が入った exe", "exe with MSI"),
         _ => FormatUnknown,
     };
 

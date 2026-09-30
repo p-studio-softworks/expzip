@@ -68,6 +68,10 @@ internal static class ContentInspector
         {
             InspectBurn(context, pass);
         }
+        else if (context.Contents.Format == ArchiveFormat.MsiExe)
+        {
+            InspectMsiExe(context, pass);
+        }
         else
         {
             InspectSharp(context, pass);
@@ -305,6 +309,36 @@ internal static class ContentInspector
             throw;
         }
         catch (Exception ex) when (IsReadFailure(ex) || ex is OutOfMemoryException)
+        {
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
+        }
+    }
+
+    /// <summary>MSI が入った exe の、中の MSI を 1 つずつ読む (#182)。CRC は持たない。</summary>
+    /// <remarks>中の MSI の中身までは見ない。書庫の中の書庫と同じく、開いた先で検査する。</remarks>
+    private static void InspectMsiExe(InspectionContext context, Pass pass)
+    {
+        try
+        {
+            var items = MsiExeReader.Find(context.ArchivePath, cancellationToken: context.Cancellation);
+            using var source = ArchiveFile.OpenRead(context.ArchivePath);
+
+            foreach (var item in items)
+            {
+                if (context.Stopped)
+                {
+                    return;
+                }
+
+                pass.Entry(context, item.Name);
+                Read(context, pass, item.Name, item.Length, -1, () => MsiExeReader.Slice(source, item));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsReadFailure(ex))
         {
             context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }

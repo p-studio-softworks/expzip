@@ -201,6 +201,26 @@ internal static class PeReader
         return null;
     }
 
+    /// <summary>
+    /// 区画の後ろに付け足されたデータの始まり。exe / dll でなければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>MSI が入った exe の読み取りに使う (#182)。</remarks>
+    internal static long? OverlayStart(Stream stream)
+    {
+        if (ReadHeaders(stream) is not { } headers)
+        {
+            return null;
+        }
+
+        long end = 0;
+        foreach (var section in headers.Sections)
+        {
+            end = Math.Max(end, (long)section.RawPointer + section.RawSize);
+        }
+
+        return Math.Min(end, stream.Length);
+    }
+
     /// <summary>ファイル名に使えない文字を置き換える。部品の名前はどんな文字でも入れられる。</summary>
     internal static string SafeName(string name)
     {

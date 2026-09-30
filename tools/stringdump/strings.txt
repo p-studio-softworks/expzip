@@ -762,8 +762,8 @@ FolderCreated (name: 報告書.pdf)
   en  Created "⟦報告書.pdf⟧"
 
 FormatIsReadOnly (format: 7z)
-  ja  ⟦7z⟧ 書庫にはファイルを追加できません。読み取りのみに対応しています。
-  en  Files cannot be added to ⟦7z⟧ archives. This format is supported for reading only.
+  ja  ⟦7z⟧ にはファイルを追加できません。読み取りのみに対応しています。
+  en  Files cannot be added to ⟦7z⟧. This format is supported for reading only.
 
 FormatName (format: Unknown)
   ja  不明
@@ -795,6 +795,9 @@ FormatName (format: Msi)
 FormatName (format: Burn)
   ja  WiX Burn
   en  WiX Burn
+FormatName (format: MsiExe)
+  ja  MSI が入った exe
+  en  exe with MSI
 
 FormatUnknown
   ja  不明

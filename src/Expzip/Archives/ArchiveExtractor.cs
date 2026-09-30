@@ -79,6 +79,9 @@ internal static class ArchiveExtractor
             : format == ArchiveFormat.Burn
             ? BurnReader.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+            : format == ArchiveFormat.MsiExe
+            ? MsiExeReader.Extract(archivePath, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : !ArchiveFormats.IsZipBased(format)
             ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)

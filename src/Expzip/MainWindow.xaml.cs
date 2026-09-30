@@ -3409,7 +3409,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (RiskyFileTypes.IsExecutable(entry.Name) && !ConfirmExecutable(entry.Name))
+        // 中身が書庫なら、外のアプリには渡さず自分で開く (#30)。
+        // MSI (#182) のように実行されうる種類でも、自分で開くものは実行しないので確かめない。
+        // 確かめると「実行する」ように読めて、開くのをためらわせる
+        var nested = ArchiveFormats.FromPath(entry.Name) != ArchiveFormat.Unknown;
+
+        if (!nested && RiskyFileTypes.IsExecutable(entry.Name) && !ConfirmExecutable(entry.Name))
         {
             return;
         }
@@ -3448,11 +3453,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 中身が書庫なら、外のアプリには渡さず自分で開く (#30)。
-        // 既に開いているならそのタブへ移る。取り出し直すと、そのタブが見ている
+        // 書庫なら、既に開いているときはそのタブへ移る。取り出し直すと、そのタブが見ている
         // 書庫を下から差し替えることになる
-        var nested = ArchiveFormats.FromPath(entry.Name) != ArchiveFormat.Unknown;
-
         if (nested && TrySwitchToOpenArchive(target))
         {
             return;
