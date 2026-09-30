@@ -227,12 +227,12 @@ internal static class MsiReader
     }
 
     /// <summary>MSI に埋め込まれた流れ (_Streams 表) を受ける。</summary>
-    /// <exception cref="InvalidDataException">その名前の流れが無い場合 (インストール後に控えられた MSI など)。</exception>
+    /// <exception cref="ContentsRemovedException">その名前の流れが無い場合 (インストール後に控えられた MSI など)。</exception>
     private static Received ReadStream(string archivePath, string name, CancellationToken cancellationToken)
     {
         using var database = Native.OpenDatabase(archivePath);
         using var view = database.Query("SELECT `Data` FROM `_Streams` WHERE `Name` = ?", name);
-        using var record = view.Fetch() ?? throw new InvalidDataException();
+        using var record = view.Fetch() ?? throw new ContentsRemovedException();
 
         var size = record.DataSize(1);
         var received = new Received(size <= InMemoryLimit ? null : Path.Combine(

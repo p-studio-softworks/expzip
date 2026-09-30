@@ -2114,6 +2114,7 @@ internal static partial class Strings
         ArchiveFormat.Pe => "exe / dll",
         ArchiveFormat.Cab => "CAB",
         ArchiveFormat.Msi => "MSI",
+        ArchiveFormat.Burn => "WiX Burn",
         _ => FormatUnknown,
     };
 
@@ -2182,6 +2183,15 @@ internal static partial class Strings
             _ => error.Message,
         };
     }
+
+    /// <summary>
+    /// インストーラーの中身が抜かれているとき (#182)。WiX Burn の exe や MSI を、インストール後に
+    /// Windows が控えたもの。壊れているのではないので、「壊れている」とは言わない。
+    /// </summary>
+    public static string ContentsRemoved => Pick(
+        "中身が入っていません。インストール後に Windows が控えたものなど、中身を抜いた形のようです。",
+        "The contents are not included. This looks like a copy with its contents removed, "
+        + "such as one Windows keeps after installation.");
 
     /// <summary>
     /// 実行ファイルに入れてあるはずのものが無いとき (#106)。組み立てを間違えない限り出ない。

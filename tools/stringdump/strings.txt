@@ -517,6 +517,10 @@ ConfirmReplace (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ
       | 
       | Choosing No leaves what is already in the archive.
 
+ContentsRemoved
+  ja  中身が入っていません。インストール後に Windows が控えたものなど、中身を抜いた形のようです。
+  en  The contents are not included. This looks like a copy with its contents removed, such as one Windows keeps after installation.
+
 CreateArchiveFailed (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
   ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を作成できませんでした。
       | 
@@ -788,6 +792,9 @@ FormatName (format: Cab)
 FormatName (format: Msi)
   ja  MSI
   en  MSI
+FormatName (format: Burn)
+  ja  WiX Burn
+  en  WiX Burn
 
 FormatUnknown
   ja  不明

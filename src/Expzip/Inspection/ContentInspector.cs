@@ -64,6 +64,10 @@ internal static class ContentInspector
         {
             InspectMsi(context, pass);
         }
+        else if (context.Contents.Format == ArchiveFormat.Burn)
+        {
+            InspectBurn(context, pass);
+        }
         else
         {
             InspectSharp(context, pass);
@@ -272,6 +276,28 @@ internal static class ContentInspector
                 var name = ArchiveTreeBuilder.Trim(file.Path);
                 pass.Entry(context, name);
                 Read(context, pass, name, file.Length, -1, open);
+            }, context.Cancellation);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsReadFailure(ex) || ex is OutOfMemoryException)
+        {
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
+        }
+    }
+
+    /// <summary>WiX Burn でまとめた exe の中身を 1 つずつ読む (#182)。入れ物の CAB から読む。</summary>
+    private static void InspectBurn(InspectionContext context, Pass pass)
+    {
+        try
+        {
+            BurnReader.Visit(context.ArchivePath, null, (payload, _, open) =>
+            {
+                var name = ArchiveTreeBuilder.Trim(payload.Path);
+                pass.Entry(context, name);
+                Read(context, pass, name, payload.Length, -1, open);
             }, context.Cancellation);
         }
         catch (OperationCanceledException)

@@ -46,6 +46,11 @@ internal enum ArchiveFormat
     /// MSI (#182)。表は Windows の msi.dll で読み、中身は CAB から取り出す。読み取りのみ。
     /// </summary>
     Msi,
+
+    /// <summary>
+    /// WiX Burn でまとめた exe (#182)。入れ物は CAB。読み取りのみ。
+    /// </summary>
+    Burn,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -156,6 +161,7 @@ internal static class ArchiveFormats
     /// NSIS が先。しるしが DEADBEEF + NullsoftInst と具体的なのに対し、ZIP の
     /// 見分けは「末尾に終端レコードがある」だけ。NSIS の中身に ZIP が入っていると、
     /// そちらを拾って中身をまるごと取り違える (実測で確認)。
+    /// WiX Burn (#182) はその次。しるしが <c>.wixburn</c> 区画と具体的なので、ZIP / 7z より先に見る。
     /// exe / dll の部品 (#183) は最後。自己解凍書庫もインストーラーも exe なので、
     /// 先に見ると必ずこちらに当たってしまう。
     /// </remarks>
@@ -168,6 +174,8 @@ internal static class ArchiveFormats
 
         var format = !libraryOnly && NsisReader.IsNsis(path)
             ? ArchiveFormat.Nsis
+            : !libraryOnly && BurnReader.IsBurn(path)
+                ? ArchiveFormat.Burn
             : !libraryOnly && ZipPrefix.LooksLikeZip(path)
                 ? ArchiveFormat.Zip
                 : !libraryOnly && SharpArchiveAccess.SevenZipOffset(path) > 0

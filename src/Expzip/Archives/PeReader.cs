@@ -179,6 +179,28 @@ internal static class PeReader
         return items;
     }
 
+    /// <summary>
+    /// 名前で区画を探し、ファイルの中の位置と大きさを返す。exe / dll でないか、無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>WiX Burn の見分けと読み取りに使う (#182)。</remarks>
+    internal static (long Offset, long Length)? FindSection(Stream stream, string name)
+    {
+        if (ReadHeaders(stream) is not { } headers)
+        {
+            return null;
+        }
+
+        foreach (var section in headers.Sections)
+        {
+            if (section.Name == name && section.RawPointer < stream.Length)
+            {
+                return (section.RawPointer, Math.Min(section.RawSize, stream.Length - section.RawPointer));
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>ファイル名に使えない文字を置き換える。部品の名前はどんな文字でも入れられる。</summary>
     internal static string SafeName(string name)
     {

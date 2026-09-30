@@ -26,6 +26,7 @@ internal static class ArchiveReader
             ArchiveFormat.Pe => PeReader.Open(path, progress, cancellationToken),
             ArchiveFormat.Cab => CabReader.Open(path, progress, cancellationToken),
             ArchiveFormat.Msi => MsiReader.Open(path, progress, cancellationToken),
+            ArchiveFormat.Burn => BurnReader.Open(path, progress, cancellationToken),
             ArchiveFormat.SevenZip or ArchiveFormat.Tar
                 => SharpArchiveReader.Open(path, format, progress, cancellationToken),
             ArchiveFormat.Msix => ZipArchiveReader.Open(path, progress, cancellationToken, format),
