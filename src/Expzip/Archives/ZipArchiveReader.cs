@@ -55,6 +55,7 @@ internal static class ZipArchiveReader
     /// <param name="path">書庫ファイルのパス。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
+    /// <param name="format">中身が ZIP の形式のどれとして開くか (#182)。</param>
     /// <remarks>
     /// 中断できるのはエントリを組み立てる段階から。その手前の中央ディレクトリの
     /// 読み取りは <see cref="ZipArchive"/> の内部で一息に行われるため割り込めない。
@@ -66,7 +67,8 @@ internal static class ZipArchiveReader
     public static ArchiveContents Open(
         string path,
         IProgress<OpenProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ArchiveFormat format = ArchiveFormat.Zip)
     {
         var builder = new ArchiveTreeBuilder(path);
 
@@ -100,15 +102,17 @@ internal static class ZipArchiveReader
                 progress?.Report(new OpenProgress(done, entries.Count));
             }
 
+            var name = ArchiveFormats.EntryName(format, entry.FullName);
+
             // 末尾が区切り文字のエントリはフォルダそのものを表す
-            if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'))
+            if (name.EndsWith('/') || name.EndsWith('\\'))
             {
-                builder.AddFolder(entry.FullName);
+                builder.AddFolder(name);
                 continue;
             }
 
             builder.AddFile(
-                entry.FullName,
+                name,
                 entry.Length,
                 entry.CompressedLength,
                 compressedLengthKnown: true,
@@ -122,7 +126,7 @@ internal static class ZipArchiveReader
         progress?.Report(new OpenProgress(entries.Count, entries.Count));
 
         return builder.Build(
-            path, ArchiveFormat.Zip,
+            path, format,
             hasEncryptedEntries: encryption.IsEncrypted,
             requiresPassword: encryption.IsEncrypted,
             usesAes: encryption.UsesAes,

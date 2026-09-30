@@ -25,6 +25,7 @@ internal static class ArchiveReader
             ArchiveFormat.Nsis => NsisReader.Open(path, progress, cancellationToken),
             ArchiveFormat.SevenZip or ArchiveFormat.Tar
                 => SharpArchiveReader.Open(path, format, progress, cancellationToken),
+            ArchiveFormat.Msix => ZipArchiveReader.Open(path, progress, cancellationToken, format),
 
             // 拡張子で判別できなかったものは ZIP として試す。
             // 拡張子を変えただけの ZIP は珍しくなく、開けるなら開く

@@ -20,6 +20,14 @@ internal enum ArchiveFormat
 
     /// <summary>NSIS 製インストーラー (#68)。一覧のみ。</summary>
     Nsis,
+
+    /// <summary>
+    /// アプリのパッケージ (MSIX / AppX、#182)。中身は ZIP。読み取りのみ。
+    /// </summary>
+    /// <remarks>
+    /// 電子署名が付いていて、書き換えると入れられなくなる。
+    /// </remarks>
+    Msix,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -38,6 +46,10 @@ internal static class ArchiveFormats
         (".tbz2", ArchiveFormat.Tar),
         (".tar.xz", ArchiveFormat.Tar),
         (".txz", ArchiveFormat.Tar),
+        (".msix", ArchiveFormat.Msix),
+        (".msixbundle", ArchiveFormat.Msix),
+        (".appx", ArchiveFormat.Msix),
+        (".appxbundle", ArchiveFormat.Msix),
     ];
 
     /// <summary>「開く」ダイアログで使う絞り込み。</summary>
@@ -143,6 +155,23 @@ internal static class ArchiveFormats
     /// できず、書庫全体を作り直すことになる。まず読み取りを確実にする。
     /// </remarks>
     public static bool IsEditable(ArchiveFormat format) => format == ArchiveFormat.Zip;
+
+    /// <summary>中身が ZIP で、ZIP の読み方で読める形式か (#182)。</summary>
+    public static bool IsZipBased(ArchiveFormat format)
+        => format is ArchiveFormat.Zip or ArchiveFormat.Msix;
+
+    /// <summary>
+    /// 書庫の中の名前を、画面に出す・書き出すときの名前にする (#182)。
+    /// </summary>
+    /// <remarks>
+    /// MSIX の中の名前は、空白や日本語などが <c>%20</c> のような形に置き換えられて
+    /// 入っている (makeappx で作って確かめた)。元の名前に戻す。
+    /// 戻した結果 <c>../</c> などが現れても、ほかの形式と同じ確認で弾かれる。
+    /// </remarks>
+    public static string EntryName(ArchiveFormat format, string rawName)
+        => format == ArchiveFormat.Msix && rawName.Contains('%')
+            ? Uri.UnescapeDataString(rawName)
+            : rawName;
 
     /// <summary>画面に出す形式の名前。</summary>
     public static string DisplayName(ArchiveFormat format) => Strings.FormatName(format);

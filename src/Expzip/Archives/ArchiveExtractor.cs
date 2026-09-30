@@ -51,7 +51,7 @@ internal static class ArchiveExtractor
     /// 展開先には <c>画像\…</c> が並ぶ。<see langword="null"/> なら書庫のルートからの
     /// 階層をそのまま作る。
     /// </param>
-    /// <param name="format">書庫の形式 (#19)。ZIP 以外は SharpCompress 側へ回す。</param>
+    /// <param name="format">書庫の形式 (#19)。中身が ZIP でないものは SharpCompress 側へ回す。</param>
     /// <param name="password">パスワード付きZIPの合言葉 (#20)。要らない書庫では <see langword="null"/>。</param>
     public static ExtractResult Extract(
         string archivePath,
@@ -67,17 +67,18 @@ internal static class ArchiveExtractor
         => format == ArchiveFormat.Nsis
             ? NsisExtractor.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
-            : format != ArchiveFormat.Zip
+            : !ArchiveFormats.IsZipBased(format)
             ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : password is null
-                ? ExtractZip(archivePath, sourceNames, destinationDirectory, overwrite,
+                ? ExtractZip(archivePath, format, sourceNames, destinationDirectory, overwrite,
                     progress, cancellationToken, zoneIdentifier, basePath)
                 : ZipEncryption.Extract(archivePath, password, sourceNames, destinationDirectory,
                     overwrite, progress, cancellationToken, zoneIdentifier, basePath);
 
     private static ExtractResult ExtractZip(
         string archivePath,
+        ArchiveFormat format,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
         bool overwrite,
@@ -97,12 +98,14 @@ internal static class ArchiveExtractor
         // 標準の実装が復号できない方式のエントリ用 (#66)。要るまで開かない
         using var fallback = new ZipMethodFallback(archivePath);
 
+        // 名前は一覧に出したものと同じ形で扱う。MSIX では元の名前に戻す (#182)
         var targets = zip.Entries
-            .Where(e => !e.FullName.EndsWith('/') && !e.FullName.EndsWith('\\'))
-            .Where(e => sourceNames is null || sourceNames.Contains(e.FullName))
+            .Select(e => (Entry: e, Name: ArchiveFormats.EntryName(format, e.FullName)))
+            .Where(t => !t.Name.EndsWith('/') && !t.Name.EndsWith('\\'))
+            .Where(t => sourceNames is null || sourceNames.Contains(t.Name))
             .ToList();
 
-        var totalBytes = targets.Sum(static e => e.Length);
+        var totalBytes = targets.Sum(static t => t.Entry.Length);
         long doneBytes = 0;
 
         var extracted = 0;
@@ -116,7 +119,7 @@ internal static class ArchiveExtractor
 
         var cancelled = false;
 
-        foreach (var entry in targets)
+        foreach (var (entry, name) in targets)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -124,10 +127,10 @@ internal static class ArchiveExtractor
                 break;
             }
 
-            var relative = ArchivePath.ToSafeRelativePath(StripBase(entry.FullName, basePath));
+            var relative = ArchivePath.ToSafeRelativePath(StripBase(name, basePath));
             if (relative is null)
             {
-                rejected.Add(entry.FullName);
+                rejected.Add(name);
                 continue;
             }
 
@@ -137,7 +140,7 @@ internal static class ArchiveExtractor
             // Path.GetFullPath で解決したうえで、展開先の配下にあることを確認する。
             if (!IsInside(destinationRoot, target))
             {
-                rejected.Add(entry.FullName);
+                rejected.Add(name);
                 continue;
             }
 
@@ -192,15 +195,15 @@ internal static class ArchiveExtractor
                 TryDelete(target);
 
                 // 1件の失敗で全体を止めない。まとめて報告する
-                failed.Add((entry.FullName, Describe(ex)));
+                failed.Add((name, Describe(ex)));
             }
 
             doneBytes += entry.Length;
 
-            if (progress is not null && (doneBytes >= nextReport || ReferenceEquals(entry, targets[^1])))
+            if (progress is not null && (doneBytes >= nextReport || ReferenceEquals(entry, targets[^1].Entry)))
             {
                 nextReport = doneBytes + reportStep;
-                progress.Report(new ExtractProgress(doneBytes, totalBytes, entry.FullName));
+                progress.Report(new ExtractProgress(doneBytes, totalBytes, name));
             }
         }
 

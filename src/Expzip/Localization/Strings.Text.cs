@@ -288,16 +288,20 @@ internal static partial class Strings
     /// </remarks>
     public static string OpenFilter => Pick(
         "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001"
+        + ";*.msix;*.msixbundle;*.appx;*.appxbundle"
         + "|ZIP書庫 (*.zip)|*.zip"
         + "|7z書庫 (*.7z)|*.7z"
         + "|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        + "|MSIX パッケージ (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle"
         + "|自己解凍書庫 (*.exe)|*.exe"
         + "|分割された書庫 (*.001)|*.001"
         + "|すべてのファイル (*.*)|*.*",
         "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001"
+        + ";*.msix;*.msixbundle;*.appx;*.appxbundle"
         + "|ZIP archives (*.zip)|*.zip"
         + "|7z archives (*.7z)|*.7z"
         + "|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        + "|MSIX packages (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle"
         + "|Self-extracting archives (*.exe)|*.exe"
         + "|Split archives (*.001)|*.001"
         + "|All files (*.*)|*.*");
@@ -2100,6 +2104,7 @@ internal static partial class Strings
         ArchiveFormat.SevenZip => "7z",
         ArchiveFormat.Tar => "tar",
         ArchiveFormat.Nsis => "NSIS",
+        ArchiveFormat.Msix => "MSIX",
         _ => FormatUnknown,
     };
 

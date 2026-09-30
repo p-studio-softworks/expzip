@@ -24,7 +24,7 @@ internal static class StructureInspector
 
         CheckDuplicateNames(context);
 
-        if (context.Contents.Format == ArchiveFormat.Zip)
+        if (ArchiveFormats.IsZipBased(context.Contents.Format))
         {
             CheckTail(context);
             CheckHeaders(context);
@@ -115,9 +115,12 @@ internal static class StructureInspector
 
                 var name = status.Entry?.Name ?? string.Empty;
 
+                // 画面に出すのは一覧と同じ名前。MSIX では元の名前に戻す (#182)
+                var shown = ArchiveFormats.EntryName(context.Contents.Format, name);
+
                 if (status.Operation == TestOperation.EntryComplete)
                 {
-                    context.Advance(++done / (double)total, name);
+                    context.Advance(++done / (double)total, shown);
                 }
 
                 // 名前そのものが Windows で使えない項目も、ここでは食い違いとして
@@ -126,7 +129,7 @@ internal static class StructureInspector
                 if (message is not null && ZipNameTransform.IsValidName(name))
                 {
                     context.Findings.Add(
-                        InspectionIssue.HeaderMismatch, ArchiveTreeBuilder.Trim(name), message);
+                        InspectionIssue.HeaderMismatch, ArchiveTreeBuilder.Trim(shown), message);
                 }
             });
 
@@ -167,7 +170,7 @@ internal static class StructureInspector
 
             context.Findings.Add(
                 InspectionIssue.UnsupportedMethod,
-                ArchiveTreeBuilder.Trim(entry.Name),
+                ArchiveTreeBuilder.Trim(ArchiveFormats.EntryName(context.Contents.Format, entry.Name)),
                 entry.CompressionMethod.ToString());
         }
     }

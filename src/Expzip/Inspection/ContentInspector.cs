@@ -44,7 +44,7 @@ internal static class ContentInspector
 
         ScanArchiveItself(context);
 
-        if (context.Contents.Format == ArchiveFormat.Zip)
+        if (ArchiveFormats.IsZipBased(context.Contents.Format))
         {
             InspectZip(context, pass);
         }
@@ -139,7 +139,8 @@ internal static class ContentInspector
                     continue;
                 }
 
-                var name = ArchiveTreeBuilder.Trim(entry.Name);
+                var name = ArchiveTreeBuilder.Trim(
+                    ArchiveFormats.EntryName(context.Contents.Format, entry.Name));
                 var size = Math.Max(0, entry.Size);
                 pass.Entry(context, name);
 
