@@ -39,6 +39,7 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 - Verbs for operations are written in kanji (入力する、設定する、削除する、作成する、選択する、使用する、展開する)
 - Do not use developer jargon (断片 → 分割ファイル、置き場 → 保存先). **Write 「ビルド」, not 「建てる」**
 - Use the words people actually say: 「ウィンドウ」, not 「窓」; 「バージョン」, not 「版」 (#142). This also applies to `README.md` and `THIRD-PARTY-NOTICES.txt`
+- For one file inside another, write 「MSI が入った exe」, not 「MSI を包んだ exe」 (#182). Also in tickets, the wiki and replies to the user
 - **In comments, documents, tickets and the wiki too, write 「ツール」, not 「道具」 (#154); 「スクリプト」, not 「台本」 (#153); and 「モデル」, not 「模型」 (#155).** Loanwords that people use every day are clearer than a literal Japanese translation
 - Put a half-width space between a number and its unit (`3 件`). Files and items are counted with 「個」; rules, violations and detections with 「件」
 - Write the long vowel: `フォルダー` `ヘッダー`. Write `既に` in kanji
