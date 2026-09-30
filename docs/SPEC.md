@@ -712,6 +712,10 @@ Expzip を持っていない相手にも渡せるように、**取り出すプ�
   - **Store 版 (MSIX) だけは `%LOCALAPPDATA%\Expzip` に置く**(#176)。MSIX はインストール先に書き込めない。AppData への書き込みは Windows がパッケージ専用の場所へ振り替え、アンインストールで一緒に消える
   - **exe は 1 つのまま、起動したときに見分ける**。MSIX で入れられたかどうかは `GetCurrentPackageFullName` で分かる。版ごとにビルドを分けない
   - exe 単体の版から Store 版へ乗り換えても、設定は引き継がない
+- **Windows の DLL は System32 からだけ読み込む**(#185)。アセンブリ全体に `DefaultDllImportSearchPaths(DllImportSearchPath.System32)` を付けてあり、新しく足す DllImport にも効く
+  - 指定が無いと exe の隣を先に探す。実測で、exe の隣に置いた偽の `amsi.dll` を、検査のときに読み込んだ (0.2.0 まで)。ダウンロードフォルダーに同じ名前の DLL を先に置かれると、そこから Expzip を動かしただけで、そのプログラムが動く
+  - `crypt32.dll` と `kernel32.dll` は、指定が無くても System32 のものだった (Windows が特別に守っている DLL の一覧に入っている)
+  - 画面テスト (`Dll.Tests.ps1`) で、隣に偽の `amsi.dll` を置いても System32 のものを読むことを確かめている
 - ローカライズ: 日本語・英語に対応する([4.6節](#46-表示言語23))。デフォルトはOSの表示言語に合わせ、設定で固定もできる。文言は表としてexeに埋め込み、サテライトアセンブリは使わない
 
 ## 8. 明示的にスコープ外とする項目
