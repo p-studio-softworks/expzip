@@ -48,6 +48,10 @@ internal static class ContentInspector
         {
             InspectZip(context, pass);
         }
+        else if (context.Contents.Format == ArchiveFormat.Pe)
+        {
+            InspectPe(context, pass);
+        }
         else
         {
             InspectSharp(context, pass);
@@ -159,6 +163,36 @@ internal static class ContentInspector
                 Read(context, pass, name, size, ZipEncryption.ExpectedCrc(entry),
                     () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)));
             }
+        }
+    }
+
+    /// <summary>exe / dll の区画と部品を 1 つずつ読む (#183)。CRC は持たない。</summary>
+    private static void InspectPe(InspectionContext context, Pass pass)
+    {
+        try
+        {
+            var items = PeReader.ReadLayout(context.ArchivePath, context.Cancellation);
+            using var source = ArchiveFile.OpenRead(context.ArchivePath);
+
+            foreach (var item in items)
+            {
+                if (context.Stopped)
+                {
+                    return;
+                }
+
+                var name = ArchiveTreeBuilder.Trim(item.Path);
+                pass.Entry(context, name);
+                Read(context, pass, name, item.Length, -1, () => item.Open(source));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsReadFailure(ex))
+        {
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }
     }
 

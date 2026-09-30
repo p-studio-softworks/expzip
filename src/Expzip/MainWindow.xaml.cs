@@ -1771,13 +1771,28 @@ public partial class MainWindow : Window
     private static string[] DroppedPaths(DragEventArgs e)
         => e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
 
-    /// <summary>開ける書庫として扱う拡張子か (#19)。</summary>
+    /// <summary>落とされたときに開くファイルか (#19、#41)。</summary>
     /// <remarks>
+    /// <para>
     /// 自己解凍書庫は名前が .exe なので、中身も見て判断する (#32)。
-    /// ドラッグ中に何度も呼ばれるが、同じファイルの答えは覚えてある。
+    /// 同じファイルの答えは覚えてある。
+    /// </para>
+    /// <para>
+    /// exe / dll の部品を見る形 (#183) は、書庫を開いていないときだけ開く。
+    /// 書庫を開いているときに落とした exe / dll は、その書庫に入れたいもの。
+    /// 自己解凍書庫と NSIS 製インストーラーは、今までどおり書庫として開く。
+    /// </para>
     /// </remarks>
-    private static bool IsArchiveFile(string path)
-        => File.Exists(path) && ArchiveFormats.IsArchive(path);
+    private bool OpensOnDrop(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        var format = ArchiveFormats.Detect(path);
+        return format != ArchiveFormat.Unknown && (format != ArchiveFormat.Pe || Contents is null);
+    }
 
     private void HandleDragOver(DragEventArgs e)
     {
@@ -1903,7 +1918,7 @@ public partial class MainWindow : Window
 
         var addInstead = (e.KeyStates & DragDropKeyStates.ShiftKey) != 0;
 
-        if (!addInstead && paths.Length == 1 && IsArchiveFile(paths[0]))
+        if (!addInstead && paths.Length == 1 && OpensOnDrop(paths[0]))
         {
             // 開いた結果 (件数) をそのまま出す。落とし方の説明は添えない (#51)
             await OpenInTabAsync(paths[0]);

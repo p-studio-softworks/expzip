@@ -28,6 +28,16 @@ internal enum ArchiveFormat
     /// 電子署名が付いていて、書き換えると入れられなくなる。
     /// </remarks>
     Msix,
+
+    /// <summary>
+    /// exe / dll (#183)。書庫ではないが、中の区画と埋め込みの部品 (アイコン、
+    /// バージョン情報など) を並べて見せる。読み取りのみ。
+    /// </summary>
+    /// <remarks>
+    /// 自己解凍書庫と NSIS 製インストーラーも exe だが、そちらは書庫として扱う。
+    /// どれにも当たらない exe / dll だけがこれになる。
+    /// </remarks>
+    Pe,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -80,6 +90,9 @@ internal static class ArchiveFormats
     /// <summary>自己解凍書庫でありうる拡張子。</summary>
     private const string Program = ".exe";
 
+    /// <summary>中身を部品として見る (#183) だけの拡張子。書庫でありうるとは考えない。</summary>
+    private const string Library = ".dll";
+
     /// <summary>直前に中身を見たファイルと、その答え。</summary>
     /// <remarks>
     /// ドラッグ中の判定は動かすたびに何度も呼ばれる。同じファイルを繰り返し
@@ -94,6 +107,7 @@ internal static class ArchiveFormats
     /// 自己解凍書庫は拡張子が <c>.exe</c> なので、名前だけでは書庫と分からない。
     /// かといって <c>.exe</c> をすべて書庫扱いにはできないため、
     /// <c>.exe</c> のときだけ末尾に終端レコードがあるかを見る。
+    /// どれにも当たらない <c>.exe</c> と <c>.dll</c> は、中の部品を見せる (#183)。
     /// </remarks>
     public static ArchiveFormat Detect(string path)
     {
@@ -105,45 +119,56 @@ internal static class ArchiveFormats
         {
             var stripped = FromPath(path[..^4]);
 
-            return stripped != ArchiveFormat.Unknown ? stripped : Sniff(path);
+            return stripped != ArchiveFormat.Unknown
+                ? stripped
+                : Sniff(path, path[..^4].EndsWith(Library, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (byName != ArchiveFormat.Unknown
-            || !path.EndsWith(Program, StringComparison.OrdinalIgnoreCase))
+        if (byName != ArchiveFormat.Unknown)
         {
             return byName;
         }
 
-        return Sniff(path);
+        if (path.EndsWith(Program, StringComparison.OrdinalIgnoreCase))
+        {
+            return Sniff(path, libraryOnly: false);
+        }
+
+        return path.EndsWith(Library, StringComparison.OrdinalIgnoreCase)
+            ? Sniff(path, libraryOnly: true)
+            : ArchiveFormat.Unknown;
     }
 
     /// <summary>中身を見て形式を決める。</summary>
+    /// <param name="path">ファイルのパス。</param>
+    /// <param name="libraryOnly">dll のとき。書庫でありうるとは考えず、部品を見られるかだけを見る。</param>
     /// <remarks>
     /// NSIS が先。しるしが DEADBEEF + NullsoftInst と具体的なのに対し、ZIP の
     /// 見分けは「末尾に終端レコードがある」だけ。NSIS の中身に ZIP が入っていると、
     /// そちらを拾って中身をまるごと取り違える (実測で確認)。
+    /// exe / dll の部品 (#183) は最後。自己解凍書庫もインストーラーも exe なので、
+    /// 先に見ると必ずこちらに当たってしまう。
     /// </remarks>
-    private static ArchiveFormat Sniff(string path)
+    private static ArchiveFormat Sniff(string path, bool libraryOnly)
     {
         if (string.Equals(_sniffed.Path, path, StringComparison.OrdinalIgnoreCase))
         {
             return _sniffed.Format;
         }
 
-        var format = NsisReader.IsNsis(path)
+        var format = !libraryOnly && NsisReader.IsNsis(path)
             ? ArchiveFormat.Nsis
-            : ZipPrefix.LooksLikeZip(path)
+            : !libraryOnly && ZipPrefix.LooksLikeZip(path)
                 ? ArchiveFormat.Zip
-                : SharpArchiveAccess.SevenZipOffset(path) > 0
+                : !libraryOnly && SharpArchiveAccess.SevenZipOffset(path) > 0
                     ? ArchiveFormat.SevenZip
-                    : ArchiveFormat.Unknown;
+                    : PeReader.IsPe(path)
+                        ? ArchiveFormat.Pe
+                        : ArchiveFormat.Unknown;
 
         _sniffed = (path, format);
         return format;
     }
-
-    /// <summary>書庫として開けるファイルか。中身も見る (#32)。</summary>
-    public static bool IsArchive(string path) => Detect(path) != ArchiveFormat.Unknown;
 
     /// <summary>
     /// 中身を書き換えられる形式か。

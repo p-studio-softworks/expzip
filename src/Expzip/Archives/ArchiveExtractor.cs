@@ -67,6 +67,9 @@ internal static class ArchiveExtractor
         => format == ArchiveFormat.Nsis
             ? NsisExtractor.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+            : format == ArchiveFormat.Pe
+            ? PeReader.Extract(archivePath, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : !ArchiveFormats.IsZipBased(format)
             ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
