@@ -73,6 +73,9 @@ internal static class ArchiveExtractor
             : format == ArchiveFormat.Cab
             ? CabReader.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+            : format == ArchiveFormat.Msi
+            ? MsiReader.Extract(archivePath, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : !ArchiveFormats.IsZipBased(format)
             ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)

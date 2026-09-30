@@ -41,6 +41,11 @@ internal enum ArchiveFormat
 
     /// <summary>CAB (#182)。展開は Windows の cabinet.dll に任せる。読み取りのみ。</summary>
     Cab,
+
+    /// <summary>
+    /// MSI (#182)。表は Windows の msi.dll で読み、中身は CAB から取り出す。読み取りのみ。
+    /// </summary>
+    Msi,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -64,6 +69,7 @@ internal static class ArchiveFormats
         (".appx", ArchiveFormat.Msix),
         (".appxbundle", ArchiveFormat.Msix),
         (".cab", ArchiveFormat.Cab),
+        (".msi", ArchiveFormat.Msi),
     ];
 
     /// <summary>「開く」ダイアログで使う絞り込み。</summary>

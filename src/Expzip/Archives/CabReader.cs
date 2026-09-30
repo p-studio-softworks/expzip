@@ -118,10 +118,27 @@ internal static class CabReader
         Action<CabEntry, Func<Stream>> visit,
         CancellationToken cancellationToken)
     {
-        Run(archivePath,
+        Visit(() => ArchiveFile.OpenRead(archivePath), FolderOf(archivePath), sourceNames, visit, cancellationToken);
+    }
+
+    /// <summary>
+    /// ファイルではなく流れで渡された CAB を読む。MSI に埋め込まれた CAB などに使う (#182)。
+    /// </summary>
+    /// <param name="openFirst">CAB の流れを開く。呼ぶたびに頭から読める新しい流れを返す。</param>
+    /// <param name="siblingFolder">
+    /// 続きの CAB を探すフォルダー。<see langword="null"/> なら続きは開かない (欠けているものとして断る)。
+    /// </param>
+    public static void Visit(
+        Func<Stream> openFirst,
+        string? siblingFolder,
+        IReadOnlySet<string>? sourceNames,
+        Action<CabEntry, Func<Stream>> visit,
+        CancellationToken cancellationToken)
+    {
+        new Session(openFirst, siblingFolder,
             entry => sourceNames is null || sourceNames.Contains(entry.Name),
             (entry, content) => visit(entry, () => new KeepOpenStream(content)),
-            cancellationToken);
+            cancellationToken).Run();
     }
 
     /// <summary><c>cabinet.dll</c> に書庫を頭から読ませる。</summary>
@@ -133,13 +150,25 @@ internal static class CabReader
         Action<CabEntry, Stream> done,
         CancellationToken cancellationToken)
     {
-        var session = new Session(path, wanted, done, cancellationToken);
+        var session = new Session(() => ArchiveFile.OpenRead(path), FolderOf(path), wanted, done, cancellationToken);
         session.Run();
     }
 
+    private static string FolderOf(string path) => Path.GetDirectoryName(Path.GetFullPath(path)) ?? string.Empty;
+
+    /// <summary>
+    /// フォルダーの中の、名前で指されたファイルのパス。区切りを含む名前などは開かない
+    /// (名前は書庫の中に書かれているので、<c>..\</c> などで別の場所を読ませない)。
+    /// </summary>
+    internal static string? SiblingOf(string folder, string name)
+        => name.Length == 0 || name.IndexOfAny(['\\', '/', ':']) >= 0 || name is "." or ".."
+            ? null
+            : Path.Combine(folder, name);
+
     /// <summary>1 回の読み取り。<c>cabinet.dll</c> から呼び戻される関数と、開いたファイルを持つ。</summary>
     private sealed class Session(
-        string path,
+        Func<Stream> openFirst,
+        string? siblingFolder,
         Func<CabEntry, bool> wanted,
         Action<CabEntry, Stream> done,
         CancellationToken cancellationToken)
@@ -278,15 +307,7 @@ internal static class CabReader
 
         /// <summary>同じフォルダーにある、続きの CAB のパス。区切りを含む名前などは開かない。</summary>
         private string? SiblingOf(string name)
-        {
-            if (name.Length == 0 || name.IndexOfAny(['\\', '/', ':']) >= 0 || name is "." or "..")
-            {
-                return null;
-            }
-
-            var directory = Path.GetDirectoryName(Path.GetFullPath(path)) ?? string.Empty;
-            return Path.Combine(directory, name);
-        }
+            => siblingFolder is null ? null : CabReader.SiblingOf(siblingFolder, name);
 
         /// <summary>続きの CAB が見つからないこと。理由の文にパスが出るよう、引用符で囲んで渡す。</summary>
         private Exception Missing(string name)
@@ -323,7 +344,7 @@ internal static class CabReader
 
                 if (relative == First)
                 {
-                    stream = ArchiveFile.OpenRead(path);
+                    stream = openFirst();
                 }
                 else
                 {

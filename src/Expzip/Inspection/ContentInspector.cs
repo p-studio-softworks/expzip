@@ -60,6 +60,10 @@ internal static class ContentInspector
         {
             InspectCab(context, pass);
         }
+        else if (context.Contents.Format == ArchiveFormat.Msi)
+        {
+            InspectMsi(context, pass);
+        }
         else
         {
             InspectSharp(context, pass);
@@ -246,6 +250,28 @@ internal static class ContentInspector
                 var name = ArchiveTreeBuilder.Trim(entry.Name);
                 pass.Entry(context, name);
                 Read(context, pass, name, entry.Length, -1, open);
+            }, context.Cancellation);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsReadFailure(ex) || ex is OutOfMemoryException)
+        {
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
+        }
+    }
+
+    /// <summary>MSI の中身を 1 つずつ読む (#182)。取り出しと同じ道筋で、CAB から読む。</summary>
+    private static void InspectMsi(InspectionContext context, Pass pass)
+    {
+        try
+        {
+            MsiReader.Visit(context.ArchivePath, null, (file, _, open) =>
+            {
+                var name = ArchiveTreeBuilder.Trim(file.Path);
+                pass.Entry(context, name);
+                Read(context, pass, name, file.Length, -1, open);
             }, context.Cancellation);
         }
         catch (OperationCanceledException)
