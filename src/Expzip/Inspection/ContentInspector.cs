@@ -56,6 +56,10 @@ internal static class ContentInspector
         {
             InspectNsis(context, pass);
         }
+        else if (context.Contents.Format == ArchiveFormat.Cab)
+        {
+            InspectCab(context, pass);
+        }
         else
         {
             InspectSharp(context, pass);
@@ -223,6 +227,32 @@ internal static class ContentInspector
             throw;
         }
         catch (Exception ex) when (IsReadFailure(ex))
+        {
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
+        }
+    }
+
+    /// <summary>CAB の中身を 1 つずつ読む (#182)。</summary>
+    /// <remarks>
+    /// CAB は塊ごとに照合の値を持っていて、cabinet.dll が展開しながら確かめる。
+    /// 合わなければ読み取りが失敗し、書庫そのものの問題として報告する。
+    /// </remarks>
+    private static void InspectCab(InspectionContext context, Pass pass)
+    {
+        try
+        {
+            CabReader.Visit(context.ArchivePath, null, (entry, open) =>
+            {
+                var name = ArchiveTreeBuilder.Trim(entry.Name);
+                pass.Entry(context, name);
+                Read(context, pass, name, entry.Length, -1, open);
+            }, context.Cancellation);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsReadFailure(ex) || ex is OutOfMemoryException)
         {
             context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }

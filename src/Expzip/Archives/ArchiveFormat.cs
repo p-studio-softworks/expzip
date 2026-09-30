@@ -38,6 +38,9 @@ internal enum ArchiveFormat
     /// どれにも当たらない exe / dll だけがこれになる。
     /// </remarks>
     Pe,
+
+    /// <summary>CAB (#182)。展開は Windows の cabinet.dll に任せる。読み取りのみ。</summary>
+    Cab,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -60,6 +63,7 @@ internal static class ArchiveFormats
         (".msixbundle", ArchiveFormat.Msix),
         (".appx", ArchiveFormat.Msix),
         (".appxbundle", ArchiveFormat.Msix),
+        (".cab", ArchiveFormat.Cab),
     ];
 
     /// <summary>「開く」ダイアログで使う絞り込み。</summary>

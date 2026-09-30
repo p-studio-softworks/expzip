@@ -70,6 +70,9 @@ internal static class ArchiveExtractor
             : format == ArchiveFormat.Pe
             ? PeReader.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+            : format == ArchiveFormat.Cab
+            ? CabReader.Extract(archivePath, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : !ArchiveFormats.IsZipBased(format)
             ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)

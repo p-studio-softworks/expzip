@@ -24,6 +24,7 @@ internal static class ArchiveReader
         {
             ArchiveFormat.Nsis => NsisReader.Open(path, progress, cancellationToken),
             ArchiveFormat.Pe => PeReader.Open(path, progress, cancellationToken),
+            ArchiveFormat.Cab => CabReader.Open(path, progress, cancellationToken),
             ArchiveFormat.SevenZip or ArchiveFormat.Tar
                 => SharpArchiveReader.Open(path, format, progress, cancellationToken),
             ArchiveFormat.Msix => ZipArchiveReader.Open(path, progress, cancellationToken, format),
