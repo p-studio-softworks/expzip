@@ -166,8 +166,9 @@ USB メモリーなどに入れて持ち運べます。
 
 ## ビルド
 
-[.NET 10 SDK](https://dotnet.microsoft.com/download) を入れてから、リポジトリの直下で
-次を実行してください。
+Windows で [.NET 10 SDK](https://dotnet.microsoft.com/download) を入れてから、リポジトリの直下で
+次を実行してください。**`dotnet build` ではなく `build.cmd` を使ってください**。
+`dotnet build` でできる `Expzip.dll` や小さな `Expzip.exe` は開発用で、単独では動きません。
 
 ```
 build.cmd

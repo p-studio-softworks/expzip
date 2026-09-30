@@ -138,6 +138,17 @@
   </Target>
 
   <!--
+    build.cmd を通さずにビルドしたときに、配布用の exe の作り方を知らせる。
+    dotnet build でできる Expzip.dll や小さな Expzip.exe を、できあがりと取り違えないため
+    (AI にビルドさせたときに起きた)。build.cmd は ExpzipBuildScript を渡すので出さない
+  -->
+  <Target Name="ExplainDevelopmentBuild" AfterTargets="Build"
+          Condition="'$(PublishProfile)' == '' and '$(ExpzipBuildScript)' != 'true'">
+    <Message Importance="high"
+             Text="Expzip: ここにできるのは開発用で、単独では動きません。配布用の Expzip.exe は、リポジトリの直下で build.cmd を実行すると publish\win-x64\Expzip.exe にできます。" />
+  </Target>
+
+  <!--
     発行設定は Properties/PublishProfiles/win-x64.pubxml にある。
     ここに RuntimeIdentifier を書くと通常のビルドまで RID 固有になり
     開発時のビルドが遅くなるため、発行プロファイル側に分離している。

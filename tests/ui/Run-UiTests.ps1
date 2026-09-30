@@ -46,7 +46,7 @@ foreach ($p in $running) { $p.Kill(); $p.WaitForExit(5000) | Out-Null }
 if (-not $NoBuild) {
     Write-Host 'ビルドしています…'
     Remove-Item $app -Recurse -Force -ErrorAction SilentlyContinue
-    & dotnet build (Join-Path $repo 'src\Expzip\Expzip.csproj') -c Release -o $app -v q -nologo | Out-Host
+    & dotnet build (Join-Path $repo 'src\Expzip\Expzip.csproj') -c Release -o $app -v q -nologo -p:ExpzipBuildScript=true | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'ビルドに失敗しました' }
 }
 

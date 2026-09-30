@@ -81,7 +81,8 @@ if ($Msix) {
 
 if ($Debug) {
     Write-Host '開発用にビルドしています…'
-    & dotnet build (Join-Path $repo 'Expzip.slnx') -nologo
+    # ExpzipBuildScript: 直接ビルドしたときに出す案内 (Expzip.csproj) を止める
+    & dotnet build (Join-Path $repo 'Expzip.slnx') -nologo -p:ExpzipBuildScript=true
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 else {
