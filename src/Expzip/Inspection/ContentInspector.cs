@@ -52,6 +52,10 @@ internal static class ContentInspector
         {
             InspectPe(context, pass);
         }
+        else if (context.Contents.Format == ArchiveFormat.Nsis)
+        {
+            InspectNsis(context, pass);
+        }
         else
         {
             InspectSharp(context, pass);
@@ -196,6 +200,34 @@ internal static class ContentInspector
         }
     }
 
+    /// <summary>NSIS 製インストーラーの中身を 1 つずつ読む (#68)。CRC は持たない。</summary>
+    /// <remarks>
+    /// 取り出しと同じ道筋で読む。以前は tar の読み方に回っていて、壊れていない
+    /// インストーラーでも「中身を読み出せませんでした」と出し、中身を検査していなかった。
+    /// </remarks>
+    private static void InspectNsis(InspectionContext context, Pass pass)
+    {
+        try
+        {
+            var layout = NsisReader.ReadLayout(context.ArchivePath, context.Cancellation);
+
+            NsisExtractor.Visit(context.ArchivePath, layout, layout.Files, (file, size, open) =>
+            {
+                var name = ArchiveTreeBuilder.Trim(NsisReader.ToArchivePath(file.Name));
+                pass.Entry(context, name);
+                Read(context, pass, name, size, -1, open);
+            }, context.Cancellation);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsReadFailure(ex))
+        {
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
+        }
+    }
+
     private static void InspectSharp(InspectionContext context, Pass pass)
     {
         IArchive? archive = null;
@@ -279,6 +311,12 @@ internal static class ContentInspector
         }
 
         var whole = scan ? new byte[size] : null;
+
+        // 大きさが読むまで分からないもの (size が -1。NSIS の塊ごとの圧縮) は、
+        // 読みながら溜めて、上限に収まれば検査に渡す
+        var growing = scanner is not null && size < 0 ? new MemoryStream() : null;
+        long total = 0;
+
         var crc = new Crc32();
         var filled = 0;
 
@@ -296,6 +334,21 @@ internal static class ContentInspector
             {
                 crc.Update(new ArraySegment<byte>(buffer, whole is null ? 0 : filled, read));
                 filled += read;
+                total += read;
+
+                if (growing is not null)
+                {
+                    if (total <= AmsiScanner.SizeLimit)
+                    {
+                        growing.Write(buffer, 0, read);
+                    }
+                    else
+                    {
+                        growing.Dispose();
+                        growing = null;
+                    }
+                }
+
                 pass.Bytes(context, read, name);
                 context.Cancellation.ThrowIfCancellationRequested();
             }
@@ -317,16 +370,29 @@ internal static class ContentInspector
             context.Findings.Add(InspectionIssue.CrcMismatch, name);
         }
 
-        if (whole is null || scanner is null)
+        if (size < 0 && scanner is not null && total > AmsiScanner.SizeLimit)
         {
-            return;
+            context.Findings.Add(InspectionIssue.TooLargeToScan, name, Megabytes(total));
         }
 
-        pass.Scanned++;
-
-        if (scanner.Scan(whole, filled, name, context.Cancellation))
+        using (growing)
         {
-            context.Findings.Add(InspectionIssue.MalwareDetected, name);
+            // 大きさが先に分かったものは whole に、読んでから分かったものは growing に溜まっている
+            var (data, length) = growing is not null
+                ? (growing.GetBuffer(), (int)growing.Length)
+                : (whole, filled);
+
+            if (data is null || length == 0 || scanner is null)
+            {
+                return;
+            }
+
+            pass.Scanned++;
+
+            if (scanner.Scan(data, length, name, context.Cancellation))
+            {
+                context.Findings.Add(InspectionIssue.MalwareDetected, name);
+            }
         }
     }
 
