@@ -2119,6 +2119,7 @@ internal static partial class Strings
         ArchiveFormat.Msi => "MSI",
         ArchiveFormat.Burn => "WiX Burn",
         ArchiveFormat.MsiExe => Pick("MSI が入った exe", "exe with MSI"),
+        ArchiveFormat.CabExe => Pick("CAB が入った exe", "exe with CAB"),
         _ => FormatUnknown,
     };
 

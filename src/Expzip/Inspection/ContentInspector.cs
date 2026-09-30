@@ -56,7 +56,7 @@ internal static class ContentInspector
         {
             InspectNsis(context, pass);
         }
-        else if (context.Contents.Format == ArchiveFormat.Cab)
+        else if (context.Contents.Format is ArchiveFormat.Cab or ArchiveFormat.CabExe)
         {
             InspectCab(context, pass);
         }
@@ -244,7 +244,7 @@ internal static class ContentInspector
         }
     }
 
-    /// <summary>CAB の中身を 1 つずつ読む (#182)。</summary>
+    /// <summary>CAB と、CAB が入った exe の中身を 1 つずつ読む (#182)。</summary>
     /// <remarks>
     /// CAB は塊ごとに照合の値を持っていて、cabinet.dll が展開しながら確かめる。
     /// 合わなければ読み取りが失敗し、書庫そのものの問題として報告する。
@@ -258,7 +258,7 @@ internal static class ContentInspector
                 var name = ArchiveTreeBuilder.Trim(entry.Name);
                 pass.Entry(context, name);
                 Read(context, pass, name, entry.Length, -1, open);
-            }, context.Cancellation);
+            }, context.Cancellation, context.Contents.Format);
         }
         catch (OperationCanceledException)
         {

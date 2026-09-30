@@ -48,16 +48,18 @@ internal static class CabReader
     }
 
     /// <summary>中身を一覧にする。</summary>
+    /// <param name="format">CAB か、CAB が入った exe (#182)。</param>
     /// <exception cref="InvalidDataException">CAB として読めない場合。</exception>
     public static ArchiveContents Open(
         string path,
         IProgress<OpenProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ArchiveFormat format = ArchiveFormat.Cab)
     {
         var builder = new ArchiveTreeBuilder(path);
         var count = 0;
 
-        Run(path, entry =>
+        Run(path, format, entry =>
         {
             builder.AddFile(entry.Name, entry.Length, compressedLength: 0,
                 compressedLengthKnown: false, entry.LastWriteTime);
@@ -72,7 +74,7 @@ internal static class CabReader
 
         progress?.Report(new OpenProgress(count, count));
 
-        return builder.Build(path, ArchiveFormat.Cab, totalCompressedLength: new FileInfo(path).Length);
+        return builder.Build(path, format, totalCompressedLength: new FileInfo(path).Length);
     }
 
     /// <summary>指定したエントリを展開する。引数の意味は <see cref="ArchiveExtractor.Extract"/> と同じ。</summary>
@@ -84,7 +86,8 @@ internal static class CabReader
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
-        string? basePath = null)
+        string? basePath = null,
+        ArchiveFormat format = ArchiveFormat.Cab)
     {
         var state = new ExtractState(
             Path.GetFullPath(destinationDirectory), overwrite, zoneIdentifier, basePath, progress);
@@ -95,7 +98,7 @@ internal static class CabReader
             {
                 state.TotalBytes += entry.Length;
                 state.Write(entry.Name, entry.Length, entry.LastWriteTime, open, cancellationToken);
-            }, cancellationToken);
+            }, cancellationToken, format);
         }
         catch (OperationCanceledException)
         {
@@ -116,9 +119,11 @@ internal static class CabReader
         string archivePath,
         IReadOnlySet<string>? sourceNames,
         Action<CabEntry, Func<Stream>> visit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ArchiveFormat format = ArchiveFormat.Cab)
     {
-        Visit(() => ArchiveFile.OpenRead(archivePath), FolderOf(archivePath), sourceNames, visit, cancellationToken);
+        var (openFirst, siblingFolder) = Source(archivePath, format);
+        Visit(openFirst, siblingFolder, sourceNames, visit, cancellationToken);
     }
 
     /// <summary>
@@ -146,13 +151,24 @@ internal static class CabReader
     /// <param name="done">取り出したものを受け取る。流れはこの後で閉じる。</param>
     private static void Run(
         string path,
+        ArchiveFormat format,
         Func<CabEntry, bool> wanted,
         Action<CabEntry, Stream> done,
         CancellationToken cancellationToken)
     {
-        var session = new Session(() => ArchiveFile.OpenRead(path), FolderOf(path), wanted, done, cancellationToken);
+        var (openFirst, siblingFolder) = Source(path, format);
+        var session = new Session(openFirst, siblingFolder, wanted, done, cancellationToken);
         session.Run();
     }
+
+    /// <summary>
+    /// CAB を頭から読む流れの開き方と、続きの CAB を探すフォルダー。
+    /// CAB が入った exe (#182) では、exe の中の CAB を読み、続きは探さない。
+    /// </summary>
+    private static (Func<Stream> OpenFirst, string? SiblingFolder) Source(string path, ArchiveFormat format)
+        => format == ArchiveFormat.CabExe
+            ? (CabExeReader.Opener(path), null)
+            : (() => ArchiveFile.OpenRead(path), FolderOf(path));
 
     private static string FolderOf(string path) => Path.GetDirectoryName(Path.GetFullPath(path)) ?? string.Empty;
 

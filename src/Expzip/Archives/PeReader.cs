@@ -221,6 +221,55 @@ internal static class PeReader
         return Math.Min(end, stream.Length);
     }
 
+    /// <summary>
+    /// 読み込まれたときに使われる中身の終わり。exe / dll でなければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 区画はファイルの中の大きさ (RawSize) と、読み込まれたときの大きさ (VirtualSize) を持つ。
+    /// ファイルの中の方が大きければ、その差は読み込まれない。そこにデータを置く exe がある
+    /// (Microsoft の再配布パッケージなど。CAB が入った exe の読み取りに使う、#182)。
+    /// </remarks>
+    internal static long? MappedEnd(Stream stream)
+    {
+        if (ReadHeaders(stream) is not { } headers)
+        {
+            return null;
+        }
+
+        long end = 0;
+        foreach (var section in headers.Sections)
+        {
+            // 読み込まれたときの大きさが 0 のものは、ファイルの中の大きさをそのまま使う決まり
+            var used = section.VirtualSize == 0 ? section.RawSize : Math.Min(section.RawSize, section.VirtualSize);
+            end = Math.Max(end, (long)section.RawPointer + used);
+        }
+
+        return Math.Min(end, stream.Length);
+    }
+
+    /// <summary>
+    /// 種類の番号と名前で部品を探し、ファイルの中の位置と大きさを返す。無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>CAB が入った exe の読み取りに使う (#182)。</remarks>
+    internal static (long Offset, int Size)? FindResource(Stream stream, int type, string name)
+    {
+        if (ReadHeaders(stream) is not { } headers)
+        {
+            return null;
+        }
+
+        foreach (var resource in ReadResources(stream, headers, CancellationToken.None))
+        {
+            if (resource.Type.Name is null && resource.Type.Id == type
+                && string.Equals(resource.Name.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return (resource.Offset, resource.Size);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>ファイル名に使えない文字を置き換える。部品の名前はどんな文字でも入れられる。</summary>
     internal static string SafeName(string name)
     {

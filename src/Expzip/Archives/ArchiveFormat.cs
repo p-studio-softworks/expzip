@@ -56,6 +56,11 @@ internal enum ArchiveFormat
     /// MSI が入った exe (#182)。後ろに付け足された MSI を並べる。読み取りのみ。
     /// </summary>
     MsiExe,
+
+    /// <summary>
+    /// CAB が入った exe (#182)。IExpress で作ったものなど。中の CAB のファイルを並べる。読み取りのみ。
+    /// </summary>
+    CabExe,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -167,7 +172,11 @@ internal static class ArchiveFormats
     /// 見分けは「末尾に終端レコードがある」だけ。NSIS の中身に ZIP が入っていると、
     /// そちらを拾って中身をまるごと取り違える (実測で確認)。
     /// WiX Burn (#182) はその次。しるしが <c>.wixburn</c> 区画と具体的なので、ZIP / 7z より先に見る。
+    /// IExpress で作った exe (#182) も、部品の名前が決まっていて具体的なので ZIP より先に見る。
+    /// 中に入れた ZIP の終端レコードが末尾近くに見えることがある (実物で確認)。
     /// MSI が入った exe (#182) は、しるしが付け足されたデータの途中にあるので、ZIP / 7z の後。
+    /// そのほかの CAB が入った exe (#182) はその後。MSI の中にも CAB が入っていて、MSI が入った exe の
+    /// 頭の近くにたまたま出てくる (実物で確認)。
     /// exe / dll の部品 (#183) は最後。自己解凍書庫もインストーラーも exe なので、
     /// 先に見ると必ずこちらに当たってしまう。
     /// </remarks>
@@ -182,12 +191,16 @@ internal static class ArchiveFormats
             ? ArchiveFormat.Nsis
             : !libraryOnly && BurnReader.IsBurn(path)
                 ? ArchiveFormat.Burn
+            : !libraryOnly && CabExeReader.IsIExpress(path)
+                ? ArchiveFormat.CabExe
             : !libraryOnly && ZipPrefix.LooksLikeZip(path)
                 ? ArchiveFormat.Zip
                 : !libraryOnly && SharpArchiveAccess.SevenZipOffset(path) > 0
                     ? ArchiveFormat.SevenZip
                     : !libraryOnly && MsiExeReader.IsMsiExe(path)
                         ? ArchiveFormat.MsiExe
+                    : !libraryOnly && CabExeReader.IsCabExe(path)
+                        ? ArchiveFormat.CabExe
                     : PeReader.IsPe(path)
                         ? ArchiveFormat.Pe
                         : ArchiveFormat.Unknown;

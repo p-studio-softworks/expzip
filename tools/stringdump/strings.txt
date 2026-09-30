@@ -798,6 +798,9 @@ FormatName (format: Burn)
 FormatName (format: MsiExe)
   ja  MSI が入った exe
   en  exe with MSI
+FormatName (format: CabExe)
+  ja  CAB が入った exe
+  en  exe with CAB
 
 FormatUnknown
   ja  不明
