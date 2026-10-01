@@ -18,7 +18,7 @@ internal enum ArchiveFormat
     /// <summary>tar。圧縮されたもの (tar.gz / tar.bz2 / tar.xz) を含む。読み取りのみ。</summary>
     Tar,
 
-    /// <summary>NSIS 製インストーラー (#68)。一覧のみ。</summary>
+    /// <summary>NSIS インストーラー (#68)。一覧のみ。</summary>
     Nsis,
 
     /// <summary>
@@ -34,7 +34,7 @@ internal enum ArchiveFormat
     /// バージョン情報など) を並べて見せる。読み取りのみ。
     /// </summary>
     /// <remarks>
-    /// 自己解凍書庫と NSIS 製インストーラーも exe だが、そちらは書庫として扱う。
+    /// 自己解凍書庫と NSIS インストーラーも exe だが、そちらは書庫として扱う。
     /// どれにも当たらない exe / dll だけがこれになる。
     /// </remarks>
     Pe,

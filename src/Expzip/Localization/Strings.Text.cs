@@ -283,7 +283,7 @@ internal static partial class Strings
 
     public static string FormatUnknown => Pick("不明", "Unknown");
 
-    /// <summary>NSIS 製インストーラーとして読めなかったときの断り (#68)。</summary>
+    /// <summary>NSIS インストーラーとして読めなかったときの断り (#68)。</summary>
     public static string NsisNotSupported => Pick(
         "このインストーラーには対応していません。",
         "This installer is not supported.");

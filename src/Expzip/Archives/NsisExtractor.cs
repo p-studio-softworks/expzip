@@ -3,7 +3,7 @@ using System.IO;
 
 namespace Expzip.Archives;
 
-/// <summary>NSIS 製インストーラーから中身を取り出す (#68)。</summary>
+/// <summary>NSIS インストーラーから中身を取り出す (#68)。</summary>
 /// <remarks>
 /// <para>
 /// 中身は 4バイトの大きさに続いて並んでいて、どの塊がどのファイルかは命令の並びから

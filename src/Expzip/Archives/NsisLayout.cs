@@ -11,7 +11,7 @@ namespace Expzip.Archives;
 internal readonly record struct NsisFile(string Name, uint DataOffset, long StoredLength);
 
 /// <summary>
-/// NSIS 製インストーラーの組み立て (#68)。一覧と取り出しで共通に使う。
+/// NSIS インストーラーの組み立て (#68)。一覧と取り出しで共通に使う。
 /// </summary>
 /// <param name="DataStart">
 /// 中身の領域が始まる位置。ファイルの先頭からの絶対位置。

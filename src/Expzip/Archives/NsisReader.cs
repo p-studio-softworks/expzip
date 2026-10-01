@@ -5,7 +5,7 @@ using System.IO.Compression;
 namespace Expzip.Archives;
 
 /// <summary>
-/// NSIS 製インストーラーの中身を一覧にする (#68)。
+/// NSIS インストーラーの中身を一覧にする (#68)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -83,7 +83,7 @@ internal static class NsisReader
     /// <summary>ヘッダの展開後がこれを超えるものは扱わない。細工された値への備え。</summary>
     private const int HeaderLimit = 64 * 1024 * 1024;
 
-    /// <summary>NSIS 製の実行ファイルなら、先頭ヘッダの位置を返す。違えば -1。</summary>
+    /// <summary>NSIS の実行ファイルなら、先頭ヘッダの位置を返す。違えば -1。</summary>
     public static long FindHeader(string path)
     {
         try
@@ -112,7 +112,7 @@ internal static class NsisReader
         }
     }
 
-    /// <summary>NSIS 製かどうか。</summary>
+    /// <summary>NSIS かどうか。</summary>
     public static bool IsNsis(string path) => FindHeader(path) >= 0;
 
     /// <summary>中身を一覧にする。</summary>

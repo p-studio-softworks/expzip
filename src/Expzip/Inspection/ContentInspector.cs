@@ -216,7 +216,7 @@ internal static class ContentInspector
         }
     }
 
-    /// <summary>NSIS 製インストーラーの中身を 1 つずつ読む (#68)。CRC は持たない。</summary>
+    /// <summary>NSIS インストーラーの中身を 1 つずつ読む (#68)。CRC は持たない。</summary>
     /// <remarks>
     /// 取り出しと同じ道筋で読む。以前は tar の読み方に回っていて、壊れていない
     /// インストーラーでも「中身を読み出せませんでした」と出し、中身を検査していなかった。

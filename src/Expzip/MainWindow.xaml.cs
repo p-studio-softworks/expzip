@@ -1807,7 +1807,7 @@ public partial class MainWindow : Window
     /// <para>
     /// exe / dll の部品を見る形 (#183) は、書庫を開いていないときだけ開く。
     /// 書庫を開いているときに落とした exe / dll は、その書庫に入れたいもの。
-    /// 自己解凍書庫と NSIS 製インストーラーは、今までどおり書庫として開く。
+    /// 自己解凍書庫と NSIS インストーラーは、今までどおり書庫として開く。
     /// </para>
     /// </remarks>
     private bool OpensOnDrop(string path)
