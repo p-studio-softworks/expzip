@@ -187,26 +187,23 @@ internal static partial class Strings
         $"パスが通常と異なる項目が {count:N0} 個あります",
         $"{count:N0} {Plural(count, "entry has", "entries have")} an unusual path");
 
-    /// <summary>書庫にできることの断り書き。件数の後ろに添える。</summary>
-    public static string LimitEncryptedAes => Pick(" (パスワード付き / AES)", " (password protected / AES)");
+    /// <summary>
+    /// 書庫にできることの断り書き。当てはまるものを「 / 」で繋ぎ、かっこで囲んで件数の後ろに添える (#188)。
+    /// </summary>
+    public static string LimitEncryptedAes => Pick("パスワード付き / AES", "password protected / AES");
 
-    public static string LimitEncrypted => Pick(" (パスワード付き)", " (password protected)");
+    public static string LimitEncrypted => Pick("パスワード付き", "password protected");
 
-    public static string LimitReadOnly(string format) => Pick(
-        $" ({format} は読み取りのみに対応)", $" ({format} is read-only)");
+    public static string LimitReadOnly => Pick("読み取りのみ", "read-only");
 
-    /// <summary>自己解凍書庫であることの断り書き (#32)。</summary>
-    /// <remarks>
-    /// 形式名では言えない。ZIP そのものは書き換えられるが、前に取り出すプログラムが
-    /// 付いている状態では書き換えない、という話のため。
-    /// </remarks>
-    public static string LimitSelfExtracting => Pick(
-        " (自己解凍書庫 / 読み取りのみ)", " (self-extracting / read-only)");
+    /// <summary>自己解凍書庫であることの断り書き (#32)。中の形式も言う (#188)。</summary>
+    public static string LimitSelfExtracting(string format) => Pick(
+        $"{format} の自己解凍書庫", $"self-extracting {format}");
 
     /// <summary>分割された書庫であることの断り書き (#61)。</summary>
     public static string LimitSplit(int count) => Pick(
-        $" (分割された書庫 / {count:N0} 個の分割ファイル / 読み取りのみ)",
-        $" (split archive / {count:N0} volumes / read-only)");
+        $"分割された書庫 / {count:N0} 個の分割ファイル",
+        $"split archive / {count:N0} volumes");
 
     /// <summary>断片が揃っていない場合 (#61)。</summary>
     public static string SplitVolumeMissing(string name) => Pick(
@@ -215,7 +212,7 @@ internal static partial class Strings
 
     /// <summary>書庫の中の書庫であることの断り書き (#30)。</summary>
     public static string LimitInside(string parentName) => Pick(
-        $" ({parentName} の中)", $" (inside {parentName})");
+        $"{parentName} の中", $"inside {parentName}");
 
     public static string EncryptedTooltip => Pick(
         "この項目はパスワードで保護されています。展開するときにパスワードを入力してください。",

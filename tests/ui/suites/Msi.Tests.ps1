@@ -90,7 +90,7 @@ $app = Start-Expzip @($msi)
 
 Section '開く'
 Check '元の置き場所の名前で並ぶ' (((Get-RowNames $app) -join ', ') -eq 'PFiles') ((Get-RowNames $app) -join ', ')
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'MSI は読み取りのみに対応')
+Check '読み取りのみと添える' ((Texts $app.Window) -match 'MSI / 読み取りのみ')
 Check '追加できない' (-not (ById $app.Window 'AddButton').Current.IsEnabled)
 Check '件数' ((Texts $app.Window) -match '4 個のファイル')
 Select-Row $app 'PFiles' | Out-Null

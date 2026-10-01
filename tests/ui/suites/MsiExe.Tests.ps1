@@ -66,7 +66,7 @@ $app = Start-Expzip @($setup)
 
 Section '開く'
 Check 'exe の名前で MSI が並ぶ' (((Get-RowNames $app) -join ', ') -eq 'setup.msi') ((Get-RowNames $app) -join ', ')
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'MSI が入った exe は読み取りのみに対応')
+Check '読み取りのみと添える' ((Texts $app.Window) -match 'MSI が入った exe / 読み取りのみ')
 
 Section '取り出す'
 $out = Join-Path $script:Work 'out'

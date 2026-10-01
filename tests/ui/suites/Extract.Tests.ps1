@@ -77,4 +77,9 @@ if (-not $run.HasExited) { $run.Kill() }
 $unpacked = Join-Path (Split-Path $sfx) '資料'
 Check '自分の名前のフォルダーに出る' ((Get-Content (Join-Path $unpacked '報告\本文.txt') -Raw -Encoding UTF8) -eq 'honbun')
 
+# 開くと、中の形式まで分かる (#188)
+$app = Start-Expzip @($sfx)
+Check '中の形式と読み取りのみを添える' ((Texts $app.Window) -match '\(ZIP の自己解凍書庫 / 読み取りのみ\)')
+Stop-Expzip $app
+
 Complete-Suite

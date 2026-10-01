@@ -147,8 +147,8 @@ internal static class NsisReader
 
         progress?.Report(new OpenProgress(done, done));
 
-        return builder.Build(path, ArchiveFormat.Nsis, totalCompressedLength: null,
-            isSelfExtracting: true);
+        // 自己解凍書庫とはしない (#188)。ステータスバーに NSIS ではなく「自己解凍書庫」と出ていた
+        return builder.Build(path, ArchiveFormat.Nsis, totalCompressedLength: null);
     }
 
     /// <summary>組み立てを読む。一覧と取り出しで共通に使う。</summary>

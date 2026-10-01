@@ -22,7 +22,7 @@ $app = Start-Expzip @($package)
 Section '開く'
 $names = Sorted (Get-RowNames $app)
 Check '元の名前で並ぶ' ($names -eq (Sorted @('sub dir', '[Content_Types].xml', 'AppxManifest.xml'))) $names
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'MSIX は読み取りのみに対応')
+Check '読み取りのみと添える' ((Texts $app.Window) -match 'MSIX / 読み取りのみ')
 Check '追加できない' (-not (ById $app.Window 'AddButton').Current.IsEnabled)
 
 Section '検査'

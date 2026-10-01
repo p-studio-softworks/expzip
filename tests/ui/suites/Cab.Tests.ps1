@@ -44,7 +44,7 @@ $app = Start-Expzip @($cab)
 Section '開く'
 $names = (@(Get-RowNames $app) | Sort-Object) -join ', '
 Check '中身が並ぶ' ($names -eq ((@('sub', 'メモ.txt') | Sort-Object) -join ', ')) $names
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'CAB は読み取りのみに対応')
+Check '読み取りのみと添える' ((Texts $app.Window) -match 'CAB / 読み取りのみ')
 Check '追加できない' (-not (ById $app.Window 'AddButton').Current.IsEnabled)
 
 Section '書庫全体を展開する'

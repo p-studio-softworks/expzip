@@ -1486,36 +1486,51 @@ public partial class MainWindow : Window
     }
 
     /// <summary>書庫にできることの断り書き。件数の後ろに添える。</summary>
+    /// <remarks>
+    /// 当てはまるものをすべて並べる (#188)。以前は 1 つだけを選んでいて、パスワード付きの 7z や
+    /// 書庫の中の MSI では、何の形式を開いているのかが出なかった。
+    /// 普通の ZIP は何も出さない (利用者と決めた)。
+    /// </remarks>
     private string DescribeLimits(ArchiveContents contents)
     {
+        var parts = new List<string>();
+        var format = ArchiveFormats.DisplayName(contents.Format);
+
+        // 自己解凍書庫は、中の形式も言う。ZIP そのものは書き換えられるが、
+        // 前に取り出すプログラムが付いている状態では書き換えない (#32)
+        if (contents.IsSelfExtracting)
+        {
+            parts.Add(Strings.LimitSelfExtracting(format));
+        }
+        else if (contents.Format != ArchiveFormat.Zip)
+        {
+            parts.Add(format);
+        }
+
         if (contents.RequiresPassword)
         {
-            return contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted;
+            parts.Add(contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted);
         }
 
         // 分割された書庫は、断片が何個あるかまで出す (#61)。揃っていないと
         // 開けないため、開けている時点で全部そろっている
         if (contents.IsSplit)
         {
-            return Strings.LimitSplit(SplitVolumes.Count(contents.FilePath));
+            parts.Add(Strings.LimitSplit(SplitVolumes.Count(contents.FilePath)));
         }
 
         // 書庫の中の書庫では、どこの中を見ているのかを添える (#30)
         if (Tab?.Nest is { } nest)
         {
-            return Strings.LimitInside(Path.GetFileName(nest.ArchivePath));
+            parts.Add(Strings.LimitInside(Path.GetFileName(nest.ArchivePath)));
         }
 
-        if (contents.IsEditable)
+        if (!contents.IsEditable)
         {
-            return string.Empty;
+            parts.Add(Strings.LimitReadOnly);
         }
 
-        // 自己解凍書庫は形式名では言えない。ZIP そのものは書き換えられるが、
-        // 前に取り出すプログラムが付いている状態では書き換えない (#32)
-        return contents.IsSelfExtracting
-            ? Strings.LimitSelfExtracting
-            : Strings.LimitReadOnly(ArchiveFormats.DisplayName(contents.Format));
+        return parts.Count == 0 ? string.Empty : $" ({string.Join(" / ", parts)})";
     }
 
     /// <summary>

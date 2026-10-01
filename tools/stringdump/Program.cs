@@ -61,7 +61,7 @@ var specific = new Dictionary<string, Func<object?>>
     ["ConfirmOverwrite.more"] = () => Nested("More", 7),
     ["ConfirmReplace.more"] = () => Nested("More", 7),
     ["ConfirmDelete.detail"] = () => Nested("DeleteFolderDetail", 12),
-    ["FileCount.limits"] = () => Nested("LimitEncryptedAes"),
+    ["FileCount.limits"] = () => " (" + Nested("LimitEncryptedAes") + ")",
     ["RuleTreeBreakDetail.heading"] = () => Nested("RuleTreeBreakTooltip"),
     ["RuleTreeBreakDetail.items"] = () =>
         Nested("RuleTreeBreakItem", "資料/報告書.PDF", "拡張子は小文字にする")

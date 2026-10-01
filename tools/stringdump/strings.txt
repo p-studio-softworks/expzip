@@ -1024,28 +1024,28 @@ LicenseTitle
   en  Third-Party Notices
 
 LimitEncrypted
-  ja   (パスワード付き)
-  en   (password protected)
+  ja  パスワード付き
+  en  password protected
 
 LimitEncryptedAes
-  ja   (パスワード付き / AES)
-  en   (password protected / AES)
+  ja  パスワード付き / AES
+  en  password protected / AES
 
 LimitInside (parentName: 外側.zip)
-  ja   (⟦外側.zip⟧ の中)
-  en   (inside ⟦外側.zip⟧)
+  ja  ⟦外側.zip⟧ の中
+  en  inside ⟦外側.zip⟧
 
-LimitReadOnly (format: 7z)
-  ja   (⟦7z⟧ は読み取りのみに対応)
-  en   (⟦7z⟧ is read-only)
+LimitReadOnly
+  ja  読み取りのみ
+  en  read-only
 
-LimitSelfExtracting
-  ja   (自己解凍書庫 / 読み取りのみ)
-  en   (self-extracting / read-only)
+LimitSelfExtracting (format: 7z)
+  ja  ⟦7z⟧ の自己解凍書庫
+  en  self-extracting ⟦7z⟧
 
 LimitSplit (count: 3)
-  ja   (分割された書庫 / 3 個の分割ファイル / 読み取りのみ)
-  en   (split archive / 3 volumes / read-only)
+  ja  分割された書庫 / 3 個の分割ファイル
+  en  split archive / 3 volumes
 
 LocationHidden
   ja  隠れている場所

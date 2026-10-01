@@ -15,7 +15,7 @@ $app = Start-Expzip @($program)
 Section '開く'
 $names = @(Get-RowNames $app)
 Check '区画と部品のフォルダーが並ぶ' (($names -contains '.text') -and ($names -contains '.rsrc')) ($names -join ', ')
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'exe / dll は読み取りのみに対応')
+Check '読み取りのみと添える' ((Texts $app.Window) -match 'exe / dll / 読み取りのみ')
 Check '追加できない' (-not (ById $app.Window 'AddButton').Current.IsEnabled)
 Select-Row $app '.rsrc' | Out-Null
 Send-Keys $app '{ENTER}'

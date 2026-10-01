@@ -95,7 +95,7 @@ $names = (@(Get-RowNames $app) | Sort-Object) -join ', '
 Check '画面の部品と本体が並ぶ' ($names -eq ((@('UX', 'packages') | Sort-Object) -join ', ')) $names
 Check 'ダウンロードするものは並ばない' ((Get-RowNames $app) -notcontains 'download.msi')
 Check '同じ中身は 1 つにまとめる' ((Texts $app.Window) -match '3 個のファイル')
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'WiX Burn は読み取りのみに対応')
+Check '読み取りのみと添える' ((Texts $app.Window) -match 'WiX Burn / 読み取りのみ')
 
 Section '書庫全体を展開する'
 $all = Join-Path $script:Work 'all'

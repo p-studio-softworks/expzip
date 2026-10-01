@@ -69,7 +69,7 @@ Section 'IExpress で作った exe'
 $app = Start-Expzip @($iexpress)
 $names = (@(Get-RowNames $app) | Sort-Object) -join ', '
 Check '中の CAB のファイルが並ぶ' ($names -eq 'data.bin, readme.txt') $names
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'CAB が入った exe は読み取りのみに対応')
+Check '読み取りのみと添える' ((Texts $app.Window) -match 'CAB が入った exe / 読み取りのみ')
 $destination = Join-Path $script:Work 'packed-out'
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
 Push (ById $app.Window 'ExtractButton')
@@ -109,7 +109,7 @@ Stop-Expzip $app
 
 Section '奥にある CAB'
 $app = Start-Expzip @($far)
-Check 'exe / dll として開く' ((Texts $app.Window) -match 'exe / dll は読み取りのみに対応')
+Check 'exe / dll として開く' ((Texts $app.Window) -match 'exe / dll / 読み取りのみ')
 Stop-Expzip $app
 
 Complete-Suite
