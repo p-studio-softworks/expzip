@@ -196,6 +196,16 @@ internal static partial class Strings
 
     public static string LimitReadOnly => Pick("読み取りのみ", "read-only");
 
+    /// <summary>exe / dll の後ろに、開けない大きなデータが付いていることの断り書き (#188)。</summary>
+    public static string LimitTailUnopened => Pick("後ろのデータは開けません", "appended data cannot be opened");
+
+    /// <summary>開けない形式のインストーラーだと分かったときの断り書き (#188)。</summary>
+    public static string LimitInstallerUnopened(string name) => Pick(
+        $"{name} の中身は開けません", $"{name} contents cannot be opened");
+
+    /// <summary>タイトルバーの、場所の後ろに添える形式 (#188)。</summary>
+    public static string TitleFormat(string location, string format) => $"{location} [{format}]";
+
     /// <summary>自己解凍書庫であることの断り書き (#32)。中の形式も言う (#188)。</summary>
     public static string LimitSelfExtracting(string format) => Pick(
         $"{format} の自己解凍書庫", $"self-extracting {format}");

@@ -15,7 +15,8 @@ $app = Start-Expzip @($program)
 Section '開く'
 $names = @(Get-RowNames $app)
 Check '区画と部品のフォルダーが並ぶ' (($names -contains '.text') -and ($names -contains '.rsrc')) ($names -join ', ')
-Check '読み取りのみと添える' ((Texts $app.Window) -match 'exe / dll / 読み取りのみ')
+Check '読み取りのみと添える' ((Texts $app.Window) -match '\(exe / dll / 読み取りのみ\)')
+Check 'タイトルバーに形式が出る' ($app.Window.Current.Name -eq "$program [exe / dll] - Expzip") $app.Window.Current.Name
 Check '追加できない' (-not (ById $app.Window 'AddButton').Current.IsEnabled)
 Select-Row $app '.rsrc' | Out-Null
 Send-Keys $app '{ENTER}'
@@ -75,6 +76,19 @@ Invoke-Drop @($program) $center.X $center.Y | Out-Null
 Wait-Idle $app
 Check 'タブは増えない' ((Get-Tabs $app).Count -eq 1) (Get-Tabs $app).Count
 Check '開いている書庫に入る' ((Get-ZipNames $archive) -contains '見本.exe') ((Get-ZipNames $archive) -join ', ')
+Check 'ZIP もタイトルバーに形式が出る' ($app.Window.Current.Name -eq "$archive [ZIP] - Expzip") $app.Window.Current.Name
+Stop-Expzip $app
+
+Section '後ろに開けない大きなデータが付いた exe (#188)'
+# 開けない形式のインストーラーの代わり。Windows に付いている小さな exe の写しの後ろに、意味の無いデータを付け足す
+$padded = Join-Path $script:Work 'padded.exe'
+$stream = [System.IO.File]::Create($padded)
+$image = [System.IO.File]::ReadAllBytes((Join-Path $env:SystemRoot 'System32\find.exe'))
+$stream.Write($image, 0, $image.Length)
+$stream.Write((New-Object byte[] 300000), 0, 300000)
+$stream.Dispose()
+$app = Start-Expzip @($padded)
+Check '開けていないデータがあると断る' ((Texts $app.Window) -match '\(exe / dll / 後ろのデータは開けません / 読み取りのみ\)')
 Stop-Expzip $app
 
 Complete-Suite

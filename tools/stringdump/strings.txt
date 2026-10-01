@@ -1035,6 +1035,10 @@ LimitInside (parentName: 外側.zip)
   ja  ⟦外側.zip⟧ の中
   en  inside ⟦外側.zip⟧
 
+LimitInstallerUnopened (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ の中身は開けません
+  en  ⟦報告書.pdf⟧ contents cannot be opened
+
 LimitReadOnly
   ja  読み取りのみ
   en  read-only
@@ -1046,6 +1050,10 @@ LimitSelfExtracting (format: 7z)
 LimitSplit (count: 3)
   ja  分割された書庫 / 3 個の分割ファイル
   en  split archive / 3 volumes
+
+LimitTailUnopened
+  ja  後ろのデータは開けません
+  en  appended data cannot be opened
 
 LocationHidden
   ja  隠れている場所
@@ -2343,6 +2351,10 @@ TempWorkspaceFailed (root: C:\Users\user\AppData\Local\Temp\Expzip)
       | ⟦C:\Users\user\AppData\Local\Temp\Expzip⟧
   en  Could not create a place to put temporary files.
       | ⟦C:\Users\user\AppData\Local\Temp\Expzip⟧
+
+TitleFormat (location: 見本, format: 7z)
+  ja  ⟦見本⟧ [⟦7z⟧]
+  en  ⟦見本⟧ [⟦7z⟧]
 
 TotalSize (total: 52428800, compressed: 20971520)
   ja  合計 52,428,800 バイト (圧縮後 20,971,520 バイト)

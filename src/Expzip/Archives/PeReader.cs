@@ -111,8 +111,53 @@ internal static class PeReader
 
         progress?.Report(new OpenProgress(items.Count, items.Count));
 
-        return builder.Build(path, ArchiveFormat.Pe, totalCompressedLength: new FileInfo(path).Length);
+        return builder.Build(path, ArchiveFormat.Pe, totalCompressedLength: new FileInfo(path).Length,
+            unopenedTail: UnopenedTail(path));
     }
+
+    /// <summary>後ろに付いたデータを「大きい」と見る境目。電子署名 (数十 KB) だけなら言わない。</summary>
+    private const long LargeTail = 256 * 1024;
+
+    /// <summary>Inno Setup が、中身の位置を書いておく部品 (RCDATA の 11111) としるし。</summary>
+    private const int InnoSetupResource = 11111;
+
+    /// <summary>
+    /// 後ろに付いた、開けないデータ (#188)。無ければ <see langword="null"/>、
+    /// 何か分かればその名前、分からなければ空の文字。
+    /// </summary>
+    /// <remarks>
+    /// 開けない形式のインストーラー (Inno Setup など) は、中身を exe の後ろに付け足している。
+    /// インストーラーでないものにも付いていることがあるので (1 つにまとめた .NET のアプリなど)、
+    /// 「インストーラー」とは言わず、付いていることだけを言う。
+    /// </remarks>
+    private static string? UnopenedTail(string path)
+    {
+        try
+        {
+            using var stream = ArchiveFile.OpenRead(path);
+
+            if (FindResource(stream, RawData, InnoSetupResource) is { Size: >= 6 } table)
+            {
+                Span<byte> mark = stackalloc byte[6];
+                stream.Position = table.Offset;
+                stream.ReadExactly(mark);
+
+                if (mark.SequenceEqual("rDlPtS"u8))
+                {
+                    return "Inno Setup";
+                }
+            }
+
+            return OverlayStart(stream) is { } start && stream.Length - start >= LargeTail ? string.Empty : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>部品の種類 RCDATA の番号。</summary>
+    private const int RawData = 10;
 
     /// <summary>指定したエントリを展開する。引数の意味は <see cref="ArchiveExtractor.Extract"/> と同じ。</summary>
     public static ExtractResult Extract(
@@ -252,6 +297,13 @@ internal static class PeReader
     /// </summary>
     /// <remarks>CAB が入った exe の読み取りに使う (#182)。</remarks>
     internal static (long Offset, int Size)? FindResource(Stream stream, int type, string name)
+        => FindResource(stream, type, key => string.Equals(key.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>名前ではなく番号で付けられた部品を探す。</summary>
+    internal static (long Offset, int Size)? FindResource(Stream stream, int type, int id)
+        => FindResource(stream, type, key => key.Name is null && key.Id == id);
+
+    private static (long Offset, int Size)? FindResource(Stream stream, int type, Func<ResourceKey, bool> named)
     {
         if (ReadHeaders(stream) is not { } headers)
         {
@@ -260,8 +312,7 @@ internal static class PeReader
 
         foreach (var resource in ReadResources(stream, headers, CancellationToken.None))
         {
-            if (resource.Type.Name is null && resource.Type.Id == type
-                && string.Equals(resource.Name.Name, name, StringComparison.OrdinalIgnoreCase))
+            if (resource.Type.Name is null && resource.Type.Id == type && named(resource.Name))
             {
                 return (resource.Offset, resource.Size);
             }

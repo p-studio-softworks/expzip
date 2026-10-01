@@ -48,6 +48,17 @@ internal sealed class ArchiveContents
     public bool IsSelfExtracting { get; init; }
 
     /// <summary>
+    /// exe / dll の後ろに、開けない大きなデータが付いているか (#188)。
+    /// 付いていなければ <see langword="null"/>。何のデータか分かれば その名前 (<c>Inno Setup</c> など)、
+    /// 分からなければ空の文字。
+    /// </summary>
+    /// <remarks>
+    /// 開けない形式のインストーラーは exe / dll として開き、区画と部品だけが並ぶ。
+    /// 断りが無いと、壊れているのか対応していないのかが分からない。
+    /// </remarks>
+    public string? UnopenedTail { get; init; }
+
+    /// <summary>
     /// 分割された書庫の断片を結合して開いているか (#61)。
     /// </summary>
     /// <remarks>

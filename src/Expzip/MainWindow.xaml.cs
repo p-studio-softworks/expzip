@@ -1494,17 +1494,16 @@ public partial class MainWindow : Window
     private string DescribeLimits(ArchiveContents contents)
     {
         var parts = new List<string>();
-        var format = ArchiveFormats.DisplayName(contents.Format);
 
-        // 自己解凍書庫は、中の形式も言う。ZIP そのものは書き換えられるが、
-        // 前に取り出すプログラムが付いている状態では書き換えない (#32)
-        if (contents.IsSelfExtracting)
+        if (contents.IsSelfExtracting || contents.Format != ArchiveFormat.Zip)
         {
-            parts.Add(Strings.LimitSelfExtracting(format));
+            parts.Add(FormatLabel(contents));
         }
-        else if (contents.Format != ArchiveFormat.Zip)
+
+        // 開けない形式のインストーラーは、区画と部品だけが並ぶ。開けていないものがあると断る
+        if (contents.UnopenedTail is { } tail)
         {
-            parts.Add(format);
+            parts.Add(tail.Length > 0 ? Strings.LimitInstallerUnopened(tail) : Strings.LimitTailUnopened);
         }
 
         if (contents.RequiresPassword)
@@ -1531,6 +1530,19 @@ public partial class MainWindow : Window
         }
 
         return parts.Count == 0 ? string.Empty : $" ({string.Join(" / ", parts)})";
+    }
+
+    /// <summary>
+    /// 形式の呼び名。タイトルバーとステータスバーで同じものを使う (#188)。
+    /// </summary>
+    /// <remarks>
+    /// 自己解凍書庫は、中の形式も言う。ZIP そのものは書き換えられるが、
+    /// 前に取り出すプログラムが付いている状態では書き換えない (#32)。
+    /// </remarks>
+    private static string FormatLabel(ArchiveContents contents)
+    {
+        var format = ArchiveFormats.DisplayName(contents.Format);
+        return contents.IsSelfExtracting ? Strings.LimitSelfExtracting(format) : format;
     }
 
     /// <summary>
@@ -4497,7 +4509,10 @@ public partial class MainWindow : Window
         AddressBar.Text = text;
         AddressBar.ToolTip = text;
         ShowCrumbs();
-        UpdateTitle(text);
+
+        // 何の形式を開いているかを、消えない場所に出す (#188)。ステータスバーの添え書きは、
+        // 操作の知らせが出ている間は見えない
+        UpdateTitle(Strings.TitleFormat(text, FormatLabel(Contents)));
 
         // 収まるかどうかは、並べ終わってからでないと分からない
         Dispatcher.BeginInvoke(FitCrumbs, DispatcherPriority.Loaded);
