@@ -62,7 +62,8 @@
   -->
   <Target Name="CheckNotices" BeforeTargets="Build">
     <PropertyGroup>
-      <NoticesPath>$(MSBuildProjectDirectory)\..\..\THIRD-PARTY-NOTICES.txt</NoticesPath>
+      <!-- 区切りは / にする。Windows 以外では \ を区切りと見ないので、ファイルを読むところで見つからなくなる -->
+      <NoticesPath>$(MSBuildProjectDirectory)/../../THIRD-PARTY-NOTICES.txt</NoticesPath>
     </PropertyGroup>
 
     <Error Condition="!Exists('$(NoticesPath)')"
