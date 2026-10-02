@@ -7,7 +7,7 @@
 
 ## 出来上がりをリポジトリに置いてある理由
 
-`src/Expzip/Resources/joiner-x86.exe` (4,608 バイト) を同梱してある。**Expzip 本体をビルドするのに
+`src/Expzip.Core/Resources/joiner-x86.exe` (4,608 バイト) を同梱してある。**Expzip 本体をビルドするのに
 C のツールチェーンは要らない。** `dotnet build` だけで通る。
 
 バイナリをリポジトリに置くのは避けたいが、代わりの案はどれも高くついた (#60 で実測)。
@@ -27,7 +27,7 @@ PE を自前で書き出す案は、壊れやすく保守できないため採�
 ## ビルドし直す方法
 
 `join.c` を直したときだけ、`build.cmd` を走らせる。
-出来上がりは `src/Expzip/Resources/joiner-x86.exe` へ自動で複写される。
+出来上がりは `src/Expzip.Core/Resources/joiner-x86.exe` へ自動で複写される。
 
     tools\joiner\build.cmd
 

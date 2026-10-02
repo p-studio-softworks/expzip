@@ -3,7 +3,8 @@
 //     dotnet run --project tools/stringdump              一覧を作り直す
 //     dotnet run --project tools/stringdump -- --check    一覧とずれていないか見る
 //
-// ソースを読んで推し量るのではなく、ビルドした Expzip.dll の中の本物を呼ぶ。
+// ソースを読んで推し量るのではなく、ビルドした Expzip.Core.dll の中の本物を呼ぶ。
+// 文言の表は、画面以外の部分 (Expzip.Core) に入っている (#191)。
 // switch 式も三項演算子も改行の差し込みも、画面に出るのと同じ形になる。
 //
 // 件数や名前を受け取るものには、引数の名前から見本を入れる。見本は ⟦ ⟧ で囲む。
@@ -33,7 +34,7 @@ if (repo is null)
 var dll = rest.Length > 0 ? Path.GetFullPath(rest[0]) : FindAssembly(repo);
 if (dll is null || !File.Exists(dll))
 {
-    Console.Error.WriteLine("Expzip.dll が見つかりません。先に build.cmd -Debug を走らせてください");
+    Console.Error.WriteLine("Expzip.Core.dll が見つかりません。先に build.cmd -Debug を走らせてください");
     return 2;
 }
 
@@ -466,7 +467,7 @@ static string? FindAssembly(string repo)
     var bin = Path.Combine(repo, "src", "Expzip", "bin");
 
     return Directory.Exists(bin)
-        ? Directory.EnumerateFiles(bin, "Expzip.dll", SearchOption.AllDirectories)
+        ? Directory.EnumerateFiles(bin, "Expzip.Core.dll", SearchOption.AllDirectories)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault()
         : null;

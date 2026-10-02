@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace Expzip.Ui;
+namespace Expzip.Inspection;
 
 /// <summary>
 /// ダブルクリックで開くと、内容を見るのではなくそのまま実行されてしまう拡張子 (#12)。

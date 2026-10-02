@@ -7,7 +7,7 @@
 
 ## 出来上がりをリポジトリに置いてある理由
 
-`src/Expzip/Resources/sfx-x86.exe` (8,704 バイト) を同梱してある。**Expzip 本体をビルドするのに
+`src/Expzip.Core/Resources/sfx-x86.exe` (8,704 バイト) を同梱してある。**Expzip 本体をビルドするのに
 C のツールチェーンは要らない。** `dotnet build` だけで通る。結合用のプログラム (`tools/joiner`) と
 同じ考え方で、理由もそちらの README に書いてある。
 
@@ -45,7 +45,7 @@ Expzip はこの実行ファイルの後ろに ZIP を**そのまま繋ぐ**。�
 ## ビルドし直す方法
 
 `sfx.c` を直したときだけ、`build.cmd` を走らせる。
-出来上がりは `src/Expzip/Resources/sfx-x86.exe` へ自動で複写される。
+出来上がりは `src/Expzip.Core/Resources/sfx-x86.exe` へ自動で複写される。
 
     tools\sfx\build.cmd
 

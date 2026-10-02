@@ -76,6 +76,12 @@ internal sealed class AmsiScanner : IDisposable
     /// </returns>
     public static AmsiScanner? TryCreate()
     {
+        // AMSI は Windows の仕組み。ほかの OS では、マルウェア検査だけを「利用できません」とする (#191)
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
         try
         {
             // 初期化に成功しただけでは、判定が働いているとは言えない。
@@ -126,6 +132,7 @@ internal sealed class AmsiScanner : IDisposable
     /// 報告では「安全です」とは言わず「判定に掛けました」と書く。
     /// </para>
     /// </remarks>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static bool HasProvider()
     {
         try

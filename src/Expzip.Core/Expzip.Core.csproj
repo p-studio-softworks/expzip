@@ -1,0 +1,87 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    画面以外の部分 (#191)。書庫の読み書き、検査、文言、AI のルール。
+    **画面の仕組み (WPF) を使わない。**Windows 以外でもビルドできるようにしてある。
+    Windows の機能に頼る箇所 (cabinet.dll、msi.dll、amsi.dll など) は、Windows の上でだけ動く。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Expzip.Core</AssemblyName>
+    <RootNamespace>Expzip</RootNamespace>
+    <Product>Expzip</Product>
+    <Copyright>Copyright (c) 2026 P studio</Copyright>
+    <!-- 画面の文言は日本語と英語を持つ (docs/SPEC.md 4.6節)。既定の言語はこちら -->
+    <NeutralLanguage>ja-JP</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 中の型は公開していない (internal)。画面の側からは見えるようにする -->
+    <InternalsVisibleTo Include="Expzip" />
+    <InternalsVisibleTo Include="Expzip.Mac" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      7z / tar の読み取りに使う (#19)。MITライセンスの純マネージド実装で、
+      ネイティブDLLを持ち込まずに済む。ZIP は標準ライブラリのまま扱う。
+    -->
+    <PackageReference Include="SharpCompress" Version="0.50.4" />
+    <!--
+      パスワード付きZIPの読み書きに使う (#20)。MITライセンスの純マネージド実装で、
+      WinZip AES (128/256) と旧方式の ZipCrypto の両方を扱える。
+      暗号化されていない ZIP はこれまでどおり標準ライブラリで扱う。
+    -->
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      分割した断片を結合する小さな Win32 実行ファイル (#59)。受け取った人が
+      Expzip を持っていなくても元に戻せるよう、断片といっしょに書き出す。
+      出来上がり (4.6KB) をリポジトリに置いてあるため、Expzip をビルドするのに
+      C のツールチェーンは要らない。ソースとビルドし直す方法は tools/joiner にある。
+    -->
+    <EmbeddedResource Include="Resources\joiner-x86.exe" LogicalName="Expzip.Resources.joiner-x86.exe" />
+
+    <!--
+      自己解凍書庫の取り出し部 (#29)。この後ろに ZIP をそのまま繋いで配る。
+      伸長器を内蔵しているため結合用のプログラムより大きいが、それでも 8.5KB。
+      ソースとビルドし直す方法は tools/sfx にある。
+    -->
+    <EmbeddedResource Include="Resources\sfx-x86.exe" LogicalName="Expzip.Resources.sfx-x86.exe" />
+  </ItemGroup>
+
+  <!--
+    表示と、実際に入れている版がずれていないか確かめる (#105)。
+
+    **ずれても動いてしまうのが厄介なところ。**版を上げたときに表示を直し忘れると、
+    入っていないものの表示を配ることになる。気付く手立てをここに置く。
+  -->
+  <Target Name="CheckNotices" BeforeTargets="Build">
+    <PropertyGroup>
+      <NoticesPath>$(MSBuildProjectDirectory)\..\..\THIRD-PARTY-NOTICES.txt</NoticesPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(NoticesPath)')"
+           Text="THIRD-PARTY-NOTICES.txt がありません。配るものに入れる表示なので、無いままではビルドできません (#105)" />
+
+    <PropertyGroup>
+      <NoticesText>$([System.IO.File]::ReadAllText('$(NoticesPath)'))</NoticesText>
+    </PropertyGroup>
+
+    <!-- 名前と版をつないだ「あるはずの一行」を作り、それが表示にあるかを見る -->
+    <ItemGroup>
+      <NoticeCheck Include="@(PackageReference)"
+                   Condition="'%(Identity)' == 'SharpCompress' or '%(Identity)' == 'SharpZipLib'">
+        <Wanted>%(Identity) %(Version)</Wanted>
+      </NoticeCheck>
+    </ItemGroup>
+
+    <Error Condition="!$(NoticesText.Contains('%(NoticeCheck.Wanted)'))"
+           Text="THIRD-PARTY-NOTICES.txt に「%(NoticeCheck.Wanted)」がありません。版を上げたら表示も直してください (#105)" />
+  </Target>
+
+</Project>

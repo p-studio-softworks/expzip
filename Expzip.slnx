@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Expzip.Core/Expzip.Core.csproj" />
     <Project Path="src/Expzip/Expzip.csproj" />
   </Folder>
 </Solution>

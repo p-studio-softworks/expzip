@@ -48,7 +48,7 @@
         Store 版だけの関連付け (#176)。exe 単体の版はレジストリを書かないので持たない。
         入れると「プログラムから開く」の候補に出る。既定にするかは利用者が選ぶ。
 
-        拡張子は src/Expzip/Archives/ArchiveFormat.cs の表から。Windows は最後の
+        拡張子は src/Expzip.Core/Archives/ArchiveFormat.cs の表から。Windows は最後の
         拡張子しか見ないので、.tar.gz などは .gz として宣言するしかない。
         それでは tar でない .gz まで候補に出て、開けないと言われることになるので、
         .gz .bz2 .xz は入れない。.tgz などの 1 つにまとめた名前は入れる。

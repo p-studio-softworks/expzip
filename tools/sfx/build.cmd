@@ -2,7 +2,7 @@
 rem Rebuild the SFX stub (sfx-x86.exe). See README.md for the reasoning.
 rem
 rem Building Expzip itself does NOT need this: the result is checked in as
-rem src\Expzip\Resources\sfx-x86.exe, so "dotnet build" is enough.
+rem src\Expzip.Core\Resources\sfx-x86.exe, so "dotnet build" is enough.
 rem Run this only after editing sfx.c.
 rem
 rem Needs: Visual Studio 2022 with the C++ workload (cl.exe and link.exe).
@@ -43,6 +43,6 @@ if errorlevel 1 (
 )
 
 del /q join.obj 2>nul
-copy /y sfx-x86.exe "..\..\src\Expzip\Resources\sfx-x86.exe" >nul
+copy /y sfx-x86.exe "..\..\src\Expzip.Core\Resources\sfx-x86.exe" >nul
 for %%s in (sfx-x86.exe) do echo Built sfx-x86.exe: %%~zs bytes
 endlocal

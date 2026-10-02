@@ -17,7 +17,7 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 - **When you change on-screen text, regenerate the list with `dotnet run --project tools/stringdump` and commit it.**
   The diff of `tools/stringdump/strings.txt` shows whether any text changed that you did not mean to change
   (`-- --check` only checks for drift)
-- **Run `build.cmd -Debug` right before stringdump** (#147). It reads the newest `Expzip.dll` under `src/Expzip/bin`.
+- **Run `build.cmd -Debug` right before stringdump** (#147). It reads the newest `Expzip.Core.dll` under `src/Expzip/bin`.
   After a release build that is the release DLL, and the UI tests build somewhere else, so without a fresh Debug build
   it reads the old text and quietly reports no change. **Check that the diff contains the text you changed**
 
@@ -35,7 +35,7 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 
 ## On-screen text
 
-- Text lives in the table in `Localization/Strings.Text.cs`, with Japanese and English side by side. **Never write it in XAML**
+- Text lives in the table in `src/Expzip.Core/Localization/Strings.Text.cs`, with Japanese and English side by side. **Never write it in XAML**
 - Verbs for operations are written in kanji (入力する、設定する、削除する、作成する、選択する、使用する、展開する)
 - Do not use developer jargon (断片 → 分割ファイル、置き場 → 保存先). **Write 「ビルド」, not 「建てる」**
 - Use the words people actually say: 「ウィンドウ」, not 「窓」; 「バージョン」, not 「版」 (#142). This also applies to `README.md` and `THIRD-PARTY-NOTICES.txt`

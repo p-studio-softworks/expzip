@@ -40,6 +40,11 @@
 
 - **言語/フレームワーク**: C# / .NET 10 (LTS、サポート2028年まで) + WPF
   - .NET 8はLTSサポートが2026年11月に終了するため採用しない
+- **コードは 2 つの部品に分けてある**(#191)
+  - `src/Expzip.Core`: 画面以外の部分(書庫の読み書き、検査、文言、AI のルール)。**画面の仕組み(WPF)を使わない**。`net10.0` で、Windows 以外でもビルドできる。Windows の機能に頼る箇所(`cabinet.dll`、`msi.dll`、`amsi.dll`、ネットから来たファイルの印、AI の鍵の暗号化)は、Windows の上でだけ動く
+  - `src/Expzip`: Windows の画面(WPF)。Core を使う。配るものは今までどおり単一の `Expzip.exe` で、Core はその中に入る
+  - 中の型は公開していない(internal)。画面の側からだけ見えるようにしてある
+  - **Windows の DLL を System32 からだけ読み込む指定([7章](#7-非機能要件)の DLL の決まり)は、部品ごとに効く**。両方の部品に書いてある
 - **圧縮ライブラリ**:
   - ZIP: **読み取りは `System.IO.Compression`**(標準)をベースに、Shift-JISファイル名対応のためエンコーディング処理を独自にラップする。**書き換えは SharpZipLib**(#38)。`ZipArchiveMode.Update` は書庫全体をメモリに載せるため、大きな書庫では1件消すだけでも書庫の大きさぶんのメモリを使い、数GB級では失敗する
   - 7z/tar等: [SharpCompress](https://github.com/adamhathcock/sharpcompress) 0.50.4(マネージド、MIT)。ネイティブDLLを持ち込まずに済む。**単一exeは62MB→63MB、起動は524ms→546msに増えた**(#19)
@@ -476,7 +481,7 @@
 | PE を自前で組み立てる | 最小 | なし |
 
 - NativeAOT でも結局 MSVC が要るため、**「C を持ち込まない」という利点が無い**。そのうえ 160 倍大きい。PE を自前で書き出す案は壊れやすく保守できないため採らない
-- **Expzip 本体をビルドするのに C のツールチェーンは要らない**。出来上がり(4.6KB)を `src/Expzip/Resources/joiner-x86.exe` として同梱し、`dotnet build` だけで通るようにしてある。ソースとビルドし直す方法は `tools/joiner` にある
+- **Expzip 本体をビルドするのに C のツールチェーンは要らない**。出来上がり(4.6KB)を `src/Expzip.Core/Resources/joiner-x86.exe` として同梱し、`dotnet build` だけで通るようにしてある。ソースとビルドし直す方法は `tools/joiner` にある
 - **x86 でビルドする**。32bit と 64bit のどちらの Windows でも動くため
 - 元の名前・断片の数・大きさ・CRC は、実行ファイルの**末尾に書き足す**。形は `tools/joiner/README.md` にある
 - **対策ソフトの誤検知は出なかった**(Defender で実測。出所の印を付けた場合も同じ。#160 で文言を変えて作り直したときも確かめた)。ただし**署名していないため、受け取った人の環境では SmartScreen が警告することがある**。断片そのものは 7-Zip などでも結合できる形にしてあるので、結合用のプログラムが使えなくても行き止まりにはならない
@@ -489,7 +494,7 @@
 - ツールバーの **言語のメニュー** で `Windows の表示言語に合わせる` / `日本語` / `English` を選ぶ (#104)。選んだ内容は設定ファイルの `Language`(`auto` / `ja` / `en`)に残る
 - 切り替えは**その場で反映する**。再起動は要らない。開いている書庫やタブ、選択、並び順はそのまま
 - 処理の最中に切り替えた場合、進行中の経過表示だけは書き換えない。次に何か表示した時点で切り替わる
-- **文言は `Localization/Strings.cs` の表に日本語と英語を並べて持つ**。.resx とサテライトアセンブリは使わない
+- **文言は `src/Expzip.Core/Localization/Strings.cs` の表に日本語と英語を並べて持つ**。.resx とサテライトアセンブリは使わない
   - 単一exeで配布するため([3章](#3-技術スタック))。サテライトを増やすと発行物がexe1つでなくなる
   - 片方だけ書くことが文法上できないため、訳の抜けが起きない
   - 件数や名前を差し込む文言をメソッドで書けるため、語順や英語の複数形を素直に扱える(`1 file` / `2 files`)
@@ -769,7 +774,7 @@ Expzip を持っていない相手にも渡せるように、**取り出すプ�
   - **Store 版 (MSIX) だけは `%LOCALAPPDATA%\Expzip` に置く**(#176)。MSIX はインストール先に書き込めない。AppData への書き込みは Windows がパッケージ専用の場所へ振り替え、アンインストールで一緒に消える
   - **exe は 1 つのまま、起動したときに見分ける**。MSIX で入れられたかどうかは `GetCurrentPackageFullName` で分かる。版ごとにビルドを分けない
   - exe 単体の版から Store 版へ乗り換えても、設定は引き継がない
-- **Windows の DLL は System32 からだけ読み込む**(#185)。アセンブリ全体に `DefaultDllImportSearchPaths(DllImportSearchPath.System32)` を付けてあり、新しく足す DllImport にも効く
+- **Windows の DLL は System32 からだけ読み込む**(#185)。アセンブリ全体に `DefaultDllImportSearchPaths(DllImportSearchPath.System32)` を付けてあり(指定は部品ごとに効くので、`Expzip.Core` と `Expzip` の両方に)、新しく足す DllImport にも効く
   - 指定が無いと exe の隣を先に探す。実測で、exe の隣に置いた偽の `amsi.dll` を、検査のときに読み込んだ (0.2.0 まで)。ダウンロードフォルダーに同じ名前の DLL を先に置かれると、そこから Expzip を動かしただけで、そのプログラムが動く
   - `crypt32.dll` と `kernel32.dll` は、指定が無くても System32 のものだった (Windows が特別に守っている DLL の一覧に入っている)
   - 画面テスト (`Dll.Tests.ps1`) で、隣に偽の `amsi.dll` を置いても System32 のものを読むことを確かめている

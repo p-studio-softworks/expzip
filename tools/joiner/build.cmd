@@ -2,7 +2,7 @@
 rem Rebuild the joiner stub (joiner-x86.exe). See README.md for the reasoning.
 rem
 rem Building Expzip itself does NOT need this: the result is checked in as
-rem src\Expzip\Resources\joiner-x86.exe, so "dotnet build" is enough.
+rem src\Expzip.Core\Resources\joiner-x86.exe, so "dotnet build" is enough.
 rem Run this only after editing join.c.
 rem
 rem Needs: Visual Studio 2022 with the C++ workload (cl.exe and link.exe).
@@ -43,6 +43,6 @@ if errorlevel 1 (
 )
 
 del /q join.obj 2>nul
-copy /y joiner-x86.exe "..\..\src\Expzip\Resources\joiner-x86.exe" >nul
+copy /y joiner-x86.exe "..\..\src\Expzip.Core\Resources\joiner-x86.exe" >nul
 for %%s in (joiner-x86.exe) do echo Built joiner-x86.exe: %%~zs bytes
 endlocal

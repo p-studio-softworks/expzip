@@ -32,34 +32,14 @@
 
   <ItemGroup>
     <!--
-      7z / tar の読み取りに使う (#19)。MITライセンスの純マネージド実装で、
-      ネイティブDLLを持ち込まずに済む。ZIP は標準ライブラリのまま扱う。
+      画面以外の部分 (#191)。書庫の読み書き、検査、文言、AI のルール。
+      使っているライブラリ (SharpCompress、SharpZipLib) と、同梱している小さな exe
+      (結合用のプログラム、自己解凍書庫の取り出し部) も、そちらに入っている。
     -->
-    <PackageReference Include="SharpCompress" Version="0.50.4" />
-    <!--
-      パスワード付きZIPの読み書きに使う (#20)。MITライセンスの純マネージド実装で、
-      WinZip AES (128/256) と旧方式の ZipCrypto の両方を扱える。
-      暗号化されていない ZIP はこれまでどおり標準ライブラリで扱う。
-    -->
-    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+    <ProjectReference Include="..\Expzip.Core\Expzip.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!--
-      分割した断片を結合する小さな Win32 実行ファイル (#59)。受け取った人が
-      Expzip を持っていなくても元に戻せるよう、断片といっしょに書き出す。
-      出来上がり (4.6KB) をリポジトリに置いてあるため、Expzip をビルドするのに
-      C のツールチェーンは要らない。ソースとビルドし直す方法は tools/joiner にある。
-    -->
-    <EmbeddedResource Include="Resources\joiner-x86.exe" LogicalName="Expzip.Resources.joiner-x86.exe" />
-
-    <!--
-      自己解凍書庫の取り出し部 (#29)。この後ろに ZIP をそのまま繋いで配る。
-      伸長器を内蔵しているため結合用のプログラムより大きいが、それでも 8.5KB。
-      ソースとビルドし直す方法は tools/sfx にある。
-    -->
-    <EmbeddedResource Include="Resources\sfx-x86.exe" LogicalName="Expzip.Resources.sfx-x86.exe" />
-
     <!--
       配るものに入っているソフトウェアの、著作権表示と許諾条文 (#105)。
 
@@ -72,35 +52,7 @@
                       LogicalName="Expzip.Resources.THIRD-PARTY-NOTICES.txt" />
   </ItemGroup>
 
-  <!--
-    表示と、実際に入れている版がずれていないか確かめる (#105)。
-
-    **ずれても動いてしまうのが厄介なところ。**版を上げたときに表示を直し忘れると、
-    入っていないものの表示を配ることになる。気付く手立てをここに置く。
-  -->
-  <Target Name="CheckNotices" BeforeTargets="Build">
-    <PropertyGroup>
-      <NoticesPath>$(MSBuildProjectDirectory)\..\..\THIRD-PARTY-NOTICES.txt</NoticesPath>
-    </PropertyGroup>
-
-    <Error Condition="!Exists('$(NoticesPath)')"
-           Text="THIRD-PARTY-NOTICES.txt がありません。配るものに入れる表示なので、無いままではビルドできません (#105)" />
-
-    <PropertyGroup>
-      <NoticesText>$([System.IO.File]::ReadAllText('$(NoticesPath)'))</NoticesText>
-    </PropertyGroup>
-
-    <!-- 名前と版をつないだ「あるはずの一行」を作り、それが表示にあるかを見る -->
-    <ItemGroup>
-      <NoticeCheck Include="@(PackageReference)"
-                   Condition="'%(Identity)' == 'SharpCompress' or '%(Identity)' == 'SharpZipLib'">
-        <Wanted>%(Identity) %(Version)</Wanted>
-      </NoticeCheck>
-    </ItemGroup>
-
-    <Error Condition="!$(NoticesText.Contains('%(NoticeCheck.Wanted)'))"
-           Text="THIRD-PARTY-NOTICES.txt に「%(NoticeCheck.Wanted)」がありません。版を上げたら表示も直してください (#105)" />
-  </Target>
+  <!-- 表示と、入れているライブラリの版がずれていないかは、Expzip.Core の側で確かめる (#105) -->
 
   <!--
     ビルドしたときのコミットを組み込む (#104)。バージョン情報の窓に出す。
