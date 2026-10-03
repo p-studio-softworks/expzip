@@ -138,9 +138,10 @@ internal sealed class EntryRow : INotifyPropertyChanged
     public string RatioText => Entry is null ? string.Empty
         : Entry.CompressedLengthKnown ? $"{Entry.CompressionRatio:F0}%" : "-";
 
-    public string DateText => Entry is null || Entry.LastWriteTime == default
+    // フォルダーにも出す (#194)。書庫に記録が無ければ、中のファイルのいちばん新しい日時
+    public string DateText => SortDate == default
         ? string.Empty
-        : Entry.LastWriteTime.ToString("yyyy/MM/dd HH:mm");
+        : SortDate.ToString("yyyy/MM/dd HH:mm");
 
     // --- 以下はソート用。表示文字列で並べるとサイズが桁数順になってしまうため分けている ---
 
@@ -150,5 +151,5 @@ internal sealed class EntryRow : INotifyPropertyChanged
 
     public double SortRatio => Entry?.CompressionRatio ?? 0;
 
-    public DateTime SortDate => Entry?.LastWriteTime ?? default;
+    public DateTime SortDate => Entry?.LastWriteTime ?? Folder?.LastWriteTime ?? default;
 }

@@ -64,7 +64,7 @@ internal static class SharpArchiveReader
 
             if (entry.IsDirectory)
             {
-                builder.AddFolder(key);
+                builder.AddFolder(key, ReadTime(entry.LastModifiedTime));
                 continue;
             }
 
@@ -107,7 +107,7 @@ internal static class SharpArchiveReader
 
             if (entry.IsDirectory)
             {
-                builder.AddFolder(key);
+                builder.AddFolder(key, ReadTime(entry.LastModifiedTime));
             }
             else
             {

@@ -105,6 +105,19 @@ internal sealed class ArchiveFolder : INotifyPropertyChanged
     /// <summary>直下のファイル。</summary>
     public List<ArchiveEntry> Files { get; } = [];
 
+    /// <summary>
+    /// 書庫にフォルダーそのものとして記録された更新日時 (#194)。記録が無ければ <see langword="default"/>。
+    /// ZIP・7z・tar でフォルダーのエントリがあるときだけ持つ。
+    /// </summary>
+    public DateTime RecordedLastWriteTime { get; set; }
+
+    /// <summary>
+    /// 一覧に出す更新日時 (#194)。記録があればそれ、無ければ中のファイル (奥も含む) のいちばん新しい日時。
+    /// 中にファイルが無く記録も無ければ <see langword="default"/>。
+    /// 組み立ての最後に <see cref="ArchiveTreeBuilder"/> がまとめて決める。
+    /// </summary>
+    public DateTime LastWriteTime { get; set; }
+
     /// <summary>ツリーの初期表示で開いておくかどうか。ルートのみ true にする。</summary>
     public bool IsExpanded { get; set; }
 

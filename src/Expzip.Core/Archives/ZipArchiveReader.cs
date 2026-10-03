@@ -107,7 +107,7 @@ internal static class ZipArchiveReader
             // 末尾が区切り文字のエントリはフォルダそのものを表す
             if (name.EndsWith('/') || name.EndsWith('\\'))
             {
-                builder.AddFolder(name);
+                builder.AddFolder(name, ReadLastWriteTime(entry));
                 continue;
             }
 

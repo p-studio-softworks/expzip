@@ -38,12 +38,17 @@ internal sealed class ArchiveTreeBuilder
     public long TotalCompressedLength { get; private set; }
 
     /// <summary>フォルダを作る。中身の無いフォルダを残すために使う。</summary>
-    public void AddFolder(string path)
+    /// <param name="lastWriteTime">書庫に記録されたフォルダーの更新日時 (#194)。分からなければ省く。</param>
+    public void AddFolder(string path, DateTime lastWriteTime = default)
     {
         var normalized = Trim(path);
         if (normalized.Length != 0)
         {
-            GetOrCreateFolder(normalized);
+            var folder = GetOrCreateFolder(normalized);
+            if (lastWriteTime != default)
+            {
+                folder.RecordedLastWriteTime = lastWriteTime;
+            }
         }
     }
 
@@ -117,6 +122,7 @@ internal sealed class ArchiveTreeBuilder
     {
         SortRecursively(_root);
         MarkEncrypted(_root);
+        FillFolderTimes(_root);
 
         return new ArchiveContents
         {
@@ -170,6 +176,36 @@ internal sealed class ArchiveTreeBuilder
 
         folder.HasEncryptedContent = encrypted;
         return encrypted;
+    }
+
+    /// <summary>
+    /// フォルダーの更新日時を決める (#194)。記録があればそれ、無ければ中のファイルのいちばん新しい日時。
+    /// </summary>
+    /// <returns>中のファイル (奥も含む) のいちばん新しい日時。親の目安に使う。</returns>
+    private static DateTime FillFolderTimes(ArchiveFolder folder)
+    {
+        var newest = default(DateTime);
+
+        foreach (var file in folder.Files)
+        {
+            if (file.LastWriteTime > newest)
+            {
+                newest = file.LastWriteTime;
+            }
+        }
+
+        foreach (var child in folder.Folders)
+        {
+            // 子を先にたどる。途中で打ち切ると孫の日時が決まらない
+            var inside = FillFolderTimes(child);
+            if (inside > newest)
+            {
+                newest = inside;
+            }
+        }
+
+        folder.LastWriteTime = folder.RecordedLastWriteTime != default ? folder.RecordedLastWriteTime : newest;
+        return newest;
     }
 
     /// <summary>パスが通常ではない項目の数を数える。</summary>
