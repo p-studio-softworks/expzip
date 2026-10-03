@@ -9,6 +9,7 @@
 
         エクスプローラーの黄色いフォルダーと並んでも見分けられるよう、青にしてある。
         ほかのアーカイバのアイコンには似せない。
+        ジッパーは横向きにしてある (#193)。入れ物のジッパーはたいてい横向きで、縦向きだとほかのソフトと似る
 
         **色みではなく明るさの差で見分けられるようにしてある。**
         1 型・2 型・3 型の色覚と明るさだけの見え方を計算して確かめた値:
@@ -32,19 +33,23 @@
                         <RectangleGeometry Rect="6,22,52,34" RadiusX="4" RadiusY="4" />
                     </GeometryDrawing.Geometry>
                 </GeometryDrawing>
-                <!-- ジッパーの歯。左右に互い違いに並べる -->
+                <!-- ジッパーの歯。横に通し、上下に互い違いに並べる (かばんの口のように) -->
                 <GeometryDrawing Brush="#EAF2FB"
-                                 Geometry="M29,24 h3 v2 h-3 Z M32,27 h3 v2 h-3 Z M29,30 h3 v2 h-3 Z M32,33 h3 v2 h-3 Z M29,36 h3 v2 h-3 Z M32,39 h3 v2 h-3 Z M29,42 h3 v2 h-3 Z" />
-                <!-- 引き手 -->
+                                 Geometry="M9,28.5 h2 v4 h-2 Z M12,31.5 h2 v4 h-2 Z M15,28.5 h2 v4 h-2 Z M18,31.5 h2 v4 h-2 Z M21,28.5 h2 v4 h-2 Z M24,31.5 h2 v4 h-2 Z M27,28.5 h2 v4 h-2 Z M30,31.5 h2 v4 h-2 Z M33,28.5 h2 v4 h-2 Z M36,31.5 h2 v4 h-2 Z M39,28.5 h2 v4 h-2 Z M42,31.5 h2 v4 h-2 Z" />
+                <!-- スライダーと、そこから下がる引き手 -->
                 <GeometryDrawing Brush="#FFD24D">
                     <GeometryDrawing.Geometry>
-                        <RectangleGeometry Rect="28.5,44,7,10" RadiusX="2" RadiusY="2" />
+                        <!-- 重なりが抜けないよう、塗り方を Nonzero にする -->
+                        <GeometryGroup FillRule="Nonzero">
+                            <RectangleGeometry Rect="45,27,10,10" RadiusX="2" RadiusY="2" />
+                            <RectangleGeometry Rect="47.5,35,5,13" RadiusX="2" RadiusY="2" />
+                        </GeometryGroup>
                     </GeometryDrawing.Geometry>
                 </GeometryDrawing>
                 <!-- 引き手の穴 -->
                 <GeometryDrawing Brush="#7A4F00">
                     <GeometryDrawing.Geometry>
-                        <RectangleGeometry Rect="31,49,2,3" RadiusX="1" RadiusY="1" />
+                        <RectangleGeometry Rect="49,42,2,3" RadiusX="1" RadiusY="1" />
                     </GeometryDrawing.Geometry>
                 </GeometryDrawing>
             </DrawingGroup>
