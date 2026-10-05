@@ -3,8 +3,6 @@ using System.IO.Compression;
 using ICSharpCode.SharpZipLib.Zip;
 using Expzip.Localization;
 
-using SharpZipFile = ICSharpCode.SharpZipLib.Zip.ZipFile;
-
 namespace Expzip.Archives;
 
 /// <summary>
@@ -262,12 +260,20 @@ internal static class ZipEncryptedWriter
 
         try
         {
-            using (var source = OpenSharp(archivePath, password))
+            var comment = new VerbatimText();
+
+            using (var source = ZipUpdate.Open(archivePath, password, comment))
             using (var stream = File.Create(temp))
-            using (var output = new ZipOutputStream(stream))
+            using (var output = new ZipOutputStream(stream, StringCodec.Default.WithZipArchiveCommentEncoding(comment)))
             {
                 output.Password = outgoing;
                 output.UseZip64 = UseZip64.Dynamic;
+
+                // 作り直しても書庫のコメントは残す。元のバイト列のまま書き戻す (#197)
+                if (!string.IsNullOrEmpty(source.ZipFileComment))
+                {
+                    output.SetComment(source.ZipFileComment);
+                }
 
                 var writer = new EncryptedZipWriter(output, encrypt: outgoing is not null);
 
@@ -339,14 +345,6 @@ internal static class ZipEncryptedWriter
             output.CloseEntry();
         }
     }
-
-    /// <summary>読み書きの両方で、一覧と同じ名前の読み方を使う。</summary>
-    private static SharpZipFile OpenSharp(string path, string? password)
-        => new(path)
-        {
-            Password = password,
-            StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
-        };
 
     /// <summary>元ファイルの更新日時。読めない場合は現在時刻。</summary>
     private static DateTime ReadLastWriteTime(string path)

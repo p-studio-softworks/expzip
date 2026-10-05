@@ -88,12 +88,6 @@ internal static class ZipParallelWriter
     /// <summary>局所ヘッダーの固定部の長さ。</summary>
     private const int LocalHeaderLength = 30;
 
-    /// <summary>終端レコードの署名。</summary>
-    private const uint EndSignature = 0x06054b50;
-
-    /// <summary>終端レコードの固定部の長さ。</summary>
-    private const int EndLength = 22;
-
     /// <summary>
     /// ディスク上のファイルやフォルダーを書庫に追加する。引数の意味は <see cref="ZipArchiveWriter.Add"/> と同じ。
     /// </summary>
@@ -119,7 +113,9 @@ internal static class ZipParallelWriter
             int replaced;
             int skipped;
 
-            using (var source = ZipUpdate.Open(archivePath))
+            var comment = new VerbatimText();
+
+            using (var source = ZipUpdate.Open(archivePath, password: null, comment))
             {
                 var existing = source.Cast<ZipEntry>().ToList();
                 if (!existing.All(CanCarry))
@@ -157,10 +153,12 @@ internal static class ZipParallelWriter
                 cancellationToken.ThrowIfCancellationRequested();
 
                 using var raw = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                var verbatim = new VerbatimText();
 
+                // 書庫のコメントは、読んだときのバイト列を覚えている (#197)。それで書き戻す。
+                // 印の無い名前もこれで書く。ここへ来るのは UTF-8 として読める名前だけなので
+                // (Carry)、覚えていない文字列を UTF-8 で書けば元と同じバイト列になる
                 using var stream = new FileStream(temp, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
-                using var output = new ZipOutputStream(stream, StringCodec.FromEncoding(verbatim))
+                using var output = new ZipOutputStream(stream, StringCodec.FromEncoding(comment))
                 {
                     IsStreamOwner = false,
                     UseZip64 = UseZip64.Dynamic,
@@ -171,12 +169,6 @@ internal static class ZipParallelWriter
 
                 if (!string.IsNullOrEmpty(source.ZipFileComment))
                 {
-                    // 書庫のコメントには文字コードの印が無い。元のバイト列のまま写す
-                    if (ReadComment(raw) is { } comment)
-                    {
-                        verbatim.Remember(source.ZipFileComment, comment);
-                    }
-
                     output.SetComment(source.ZipFileComment);
                 }
 
@@ -269,27 +261,6 @@ internal static class ZipParallelWriter
 
         CopyExactly(raw, output, entry.CompressedSize, cancellationToken);
         output.CloseEntry();
-    }
-
-    /// <summary>書庫のコメントを、バイト列のまま読む。見つからなければ <see langword="null"/>。</summary>
-    private static byte[]? ReadComment(Stream raw)
-    {
-        // 終端レコードは書庫の末尾にあり、その後ろにコメントが続く
-        var span = (int)Math.Min(raw.Length, EndLength + 0xFFFF);
-        var tail = new byte[span];
-        raw.Position = raw.Length - span;
-        raw.ReadExactly(tail);
-
-        for (var i = span - EndLength; i >= 0; i--)
-        {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(tail.AsSpan(i)) == EndSignature
-                && i + EndLength + BinaryPrimitives.ReadUInt16LittleEndian(tail.AsSpan(i + 20)) == span)
-            {
-                return tail[(i + EndLength)..];
-            }
-        }
-
-        return null;
     }
 
     /// <summary>決まった量だけ写す。足りなければ書庫が途中で切れている。</summary>
@@ -855,56 +826,6 @@ internal static class ZipParallelWriter
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
 
         public override void SetLength(long value) => throw new NotSupportedException();
-    }
-
-    /// <summary>
-    /// 書庫のコメントを、元の書庫のバイト列のまま書き戻すための <see cref="System.Text.Encoding"/>。
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// コメントには文字コードの印が無く、読むときに UTF-8 か従来の日本語の文字コードかを
-    /// 推し量っている (#13)。書くときに同じ推し量りはできない。読んだときのバイト列を覚えておき、
-    /// 同じ文字列を書くときにそれを返す。覚えていない文字列は UTF-8 で書く。
-    /// これまでの書き換え (<see cref="ZipUpdate"/>) は、日本語のコメントを化けさせていた。
-    /// </para>
-    /// <para>
-    /// SharpZipLib は、印の無い名前もこれで書く。ここへ来るのは UTF-8 として読める名前だけなので
-    /// (<see cref="Carry"/>)、UTF-8 で書けば元と同じバイト列になる。
-    /// どの書き方も配列を受け取る形に行き着くので、そこだけを差し替える。
-    /// </para>
-    /// </remarks>
-    private sealed class VerbatimText : System.Text.Encoding
-    {
-        private readonly Dictionary<string, byte[]> _known = new(StringComparer.Ordinal);
-
-        public void Remember(string text, byte[] bytes) => _known.TryAdd(text, bytes);
-
-        public override int GetByteCount(char[] chars, int index, int count)
-            => _known.TryGetValue(new string(chars, index, count), out var bytes)
-                ? bytes.Length
-                : UTF8.GetByteCount(chars, index, count);
-
-        public override int GetBytes(char[] chars, int charIndex, int charCount, byte[] bytes, int byteIndex)
-        {
-            if (!_known.TryGetValue(new string(chars, charIndex, charCount), out var known))
-            {
-                return UTF8.GetBytes(chars, charIndex, charCount, bytes, byteIndex);
-            }
-
-            known.CopyTo(bytes, byteIndex);
-            return known.Length;
-        }
-
-        // 読むことはない。抽象メンバーのため UTF-8 に任せておく
-        public override int GetCharCount(byte[] bytes, int index, int count)
-            => UTF8.GetCharCount(bytes, index, count);
-
-        public override int GetChars(byte[] bytes, int byteIndex, int byteCount, char[] chars, int charIndex)
-            => UTF8.GetChars(bytes, byteIndex, byteCount, chars, charIndex);
-
-        public override int GetMaxByteCount(int charCount) => UTF8.GetMaxByteCount(charCount);
-
-        public override int GetMaxCharCount(int byteCount) => UTF8.GetMaxCharCount(byteCount);
     }
 
     /// <summary>元の書庫の項目を、そのままでは写せなかった。</summary>

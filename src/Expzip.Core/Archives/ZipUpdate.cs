@@ -35,12 +35,24 @@ internal static class ZipUpdate
     /// <remarks>
     /// EFSフラグが立たないエントリ名の解釈に、一覧で使っているのと同じ判定器 (#13) を
     /// 渡す。こうしないと、従来の日本語書庫を書き換えたときに名前が化ける。
+    /// 書庫のコメントは、読んだときのバイト列のまま書き戻す (#197)。
     /// </remarks>
     public static SharpZipFile Open(string archivePath, string? password = null)
+        => Open(archivePath, password, new VerbatimText());
+
+    /// <summary>
+    /// 書き換えのために書庫を開く。書庫のコメントの読み方を指定する。
+    /// </summary>
+    /// <param name="comment">
+    /// 書庫のコメントの読み方。別の書庫として作り直すときは、書き出す側にも同じものを渡す。
+    /// 読んだときのバイト列のまま書き戻せる (#197)。
+    /// </param>
+    public static SharpZipFile Open(string archivePath, string? password, VerbatimText comment)
         => new(archivePath)
         {
             Password = password,
-            StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
+            StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding)
+                .WithZipArchiveCommentEncoding(comment),
         };
 
     /// <summary>書き出す1件分のエントリを組み立てる。</summary>
