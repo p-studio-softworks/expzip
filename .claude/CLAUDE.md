@@ -4,6 +4,8 @@ A Windows archiver. C# / .NET 10 / WPF, shipped as a single `Expzip.exe`.
 The full specification is `docs/SPEC.md`. This file holds **only the rules to follow**, not the history behind them.
 
 - **Talk to the user in Japanese.** This file is in English, but conversations, tickets, commit messages and every document in the repository are written in Japanese.
+  The exceptions are `README.md` and `THIRD-PARTY-NOTICES.txt`, which are in English (#198).
+  **Write progress updates and reports in Japanese too.** Once one short update slips into English, the rest tends to follow
 - This file lives in `.claude/` on purpose, to keep the repository top level for users (#129).
 
 ## Build and test
@@ -38,7 +40,7 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 - Text lives in the table in `src/Expzip.Core/Localization/Strings.Text.cs`, with Japanese and English side by side. **Never write it in XAML**
 - Verbs for operations are written in kanji (入力する、設定する、削除する、作成する、選択する、使用する、展開する)
 - Do not use developer jargon (断片 → 分割ファイル、置き場 → 保存先). **Write 「ビルド」, not 「建てる」**
-- Use the words people actually say: 「ウィンドウ」, not 「窓」; 「バージョン」, not 「版」 (#142). This also applies to `README.md` and `THIRD-PARTY-NOTICES.txt`
+- Use the words people actually say: 「ウィンドウ」, not 「窓」; 「バージョン」, not 「版」 (#142). This also applies to `README.ja.md`
 - Do not write 「〜製」 for the tool an installer was built with: 「NSIS インストーラー」, not 「NSIS 製インストーラー」 (#181).
   「製」 means where something was manufactured (日本製). Also in tickets, the wiki and replies to the user
 - For one file inside another, write 「MSI が入った exe」, not 「MSI を包んだ exe」 (#182). Also in tickets, the wiki and replies to the user
@@ -57,7 +59,11 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 
 ## Writing
 
-- `README.md` is **for users**. Do not put developer instructions in it
+- `README.md` (English) and `README.ja.md` (Japanese) are **for users**. Do not put developer instructions in them
+- **When you change one README, change the other in the same commit** (#198). The English one is a direct translation of the Japanese one, not a summary.
+  Links to documents that exist only in Japanese get "(Japanese)" after them in the English README
+- **`THIRD-PARTY-NOTICES.txt` is English only** (#198). It is shown as is in the license window whatever the UI language,
+  so Japanese text in it shows up for English users. The permission notices themselves are copied verbatim, never translated
 - **In Markdown, close bold before the punctuation: `**…**。`, not `**…。**`.** On GitHub, `**` right after 「。」 does not close
   when a letter follows, so the text shows raw asterisks. The same goes for opening `**` before 「「」 right after a letter:
   write `「**…**」`. Redmine renders both, so check on GitHub (the `/markdown` API shows it without pushing)
@@ -66,7 +72,7 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 - The specification `docs/SPEC.md` describes **how things are now**. **Do not write plans or phases**
 - **The issue tracker is private. Never link to it from the repository** (a bare number such as `#123` is fine)
 - **Do not name other archivers as a point of comparison or as an origin** (#127). When a comparison is needed,
-  use Explorer (エクスプローラー) or 7-Zip. The only exception is the one line in the README saying there is no relation.
+  use Explorer (エクスプローラー) or 7-Zip. The only exception is the one line in each README saying there is no relation.
   Details are in #127 in the issue tracker
 
 ## How to work

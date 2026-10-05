@@ -68,6 +68,18 @@ if ($dialog) {
     Check '日本語が残っていない' ($text -notmatch '[ぁ-んァ-ン]') ''
     Check 'ライセンスの口も英語' ((ById $dialog 'LicenseButton').Current.Name -eq 'Licenses')
     Check '閉じる口も英語' ((ById $dialog 'CloseButton').Current.Name -eq 'Close')
+
+    # ライセンス表示は画面の言語に関係なく同じものを出す。説明も英語だけにしてある (#198)
+    Push (ById $dialog 'LicenseButton')
+    $notices = Find-Window $app 'Third-Party Notices'
+    Check 'ライセンスの窓の見出しも英語' ($null -ne $notices)
+    if ($notices) {
+        $body = ValueOf (ById $notices 'NoticeText')
+        Check 'ライセンス表示に日本語が無い' ($body -notmatch '[ぁ-んァ-ン一-龠]') ([regex]::Match($body, '.{0,20}[ぁ-んァ-ン一-龠].{0,20}').Value)
+        Push (ById $notices 'CloseButton')
+        Check 'ライセンスの窓を閉じられる (英語)' (Test-WindowGone $app 'Third-Party Notices')
+    }
+
     Push (ById $dialog 'CloseButton')
 }
 

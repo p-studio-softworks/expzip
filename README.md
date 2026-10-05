@@ -1,204 +1,206 @@
 # Expzip
 
-Windows 向けのアーカイバ(書庫ソフト)です。エクスプローラーと同じ操作感覚で、
-ZIP などの書庫を作成、編集、展開できます。
+English | [日本語](README.ja.md)
 
-**インストールは不要です。**`Expzip.exe` 単独で動きます。
-レジストリを変更しません。追加の DLL やプラグインも読み込みません。
+An archiver for Windows. It lets you create, edit and extract ZIP and other archives
+the same way you work in Explorer.
 
-Microsoft Store 版は[こちら](https://apps.microsoft.com/detail/9NQ2QS67HJ4L)です。よろしければご使用ください。
+**No installation needed.** `Expzip.exe` runs on its own.
+It does not change the registry, and it does not load any extra DLLs or plug-ins.
 
-下に挙げた機能はひととおり動きますが、今後の機能変更等がある可能性があります。
-Explzh との関係は一切ありません。コードは使っていません。対応する形式も異なります(下記)。
+It is also available [on the Microsoft Store](https://apps.microsoft.com/detail/9NQ2QS67HJ4L). Feel free to use that version.
 
-## 対応形式
+All the features listed below work, but they may change in the future.
+Expzip has no relation to Explzh. It uses none of its code, and the formats it supports are different (see below).
 
-「開く」は中を見て取り出すこと、「変更」はできあがった書庫をあとから書き換えることです。
+## Supported formats
 
-| 形式 | 開く | 作成 | 変更 | 補足 |
+"Open" means looking inside and taking files out. "Modify" means changing an archive after it has been made.
+
+| Format | Open | Create | Modify | Notes |
 |---|:---:|:---:|:---:|---|
-| ZIP | ○ | ○ | ○ | 書き換えは 追加、削除、名前の変更、書庫の中での移動、フォルダーの作成。圧縮方式は 無圧縮 / Deflate / Deflate64 / BZip2 / LZMA / PPMd、ZIP64(1 つの書庫に 4GB 超、6 万件超)も読めます |
-| パスワード付き ZIP | ○ | ○ | ○ | 開けるのは AES-256 / AES-192 / AES-128 と旧方式(ZipCrypto)。**作るときの暗号化は AES-256** です |
-| ネスト書庫 | ○ | ○ | ○ | 選ぶと専用のタブで開きます。何段でも辿れ、書き換えて保存すると親の書庫へ書き戻します |
-| 自己解凍書庫(`.exe`) | ○ | ○ | × | 中身が ZIP のものと 7z のものを開けます(名前ではなく中身を見て判断)。開いている ZIP から作れます。**できあがったものは書き換えません**。前に付いたプログラムを壊すと、受け取った人が展開できなくなるためです |
-| 分割ファイル(`.001` `.002` …) | ○ | ○ | × | `.001` を開くと、分割ファイルを結合したものとして開き、展開できます。分割ファイルがすべてそろっている必要があり、足りない番号があればその番号を挙げて知らせます。分割は書庫に限らずどんなファイルでもでき、**結合用のプログラムも一緒に作ります**。既にある分割は切り直しません |
-| 7z | ○ | × | × | **読み取り専用**。まとめて圧縮された(ソリッド)書庫にも対応。パスワード付きの 7z は一覧の表示のみ |
-| tar / tar.gz / tar.bz2 / tar.xz | ○ | × | × | **読み取り専用。**`.tgz` `.tbz` `.tbz2` `.txz` も同じ扱いです |
-| NSIS インストーラー(`.exe`) | ○ | × | × | 書庫ではなくインストーラーですが、中のファイルを一覧して取り出せます |
-| WiX Burn でまとめたインストーラー(`.exe`) | ○ | × | × | Python や .NET などのインストーラーです。中に入っている MSI などを一覧して取り出せます |
-| MSI が入ったインストーラー(`.exe`) | ○ | × | × | 中の MSI を並べ、その中のファイルまで辿れます |
-| CAB が入ったインストーラー(`.exe`) | ○ | × | × | Windows に付いている IExpress で作ったものや、古いドライバーのインストーラーなどです。中のファイルを一覧して取り出せます |
-| MSIX / AppX パッケージ(`.msix` `.msixbundle` `.appx` `.appxbundle`) | ○ | × | × | **読み取り専用**。アプリを入れるためのファイルですが、中のファイルを一覧して取り出せます |
-| CAB(`.cab`) | ○ | × | × | **読み取り専用**。分割された CAB は、最初のものを開けば続きも読みます |
-| MSI インストーラー(`.msi`) | ○ | × | × | **読み取り専用**。本当のファイル名とフォルダーの形で一覧して取り出せます。インストーラーの中の処理は動かしません |
-| exe / dll | ○ | × | × | **読み取り専用**。書庫ではありませんが、中に埋め込まれたアイコンやバージョン情報などを一覧して取り出せます。アイコンは `.ico`、バージョン情報は読める文字で出ます |
-| RAR | × | × | × | 未対応です(将来の検討課題) |
-| LZH | × | × | × | 対応しません |
+| ZIP | ○ | ○ | ○ | Changes: add, delete, rename, move inside the archive, create folders. Compression methods: Stored / Deflate / Deflate64 / BZip2 / LZMA / PPMd. ZIP64 (over 4GB or over 60,000 items in one archive) can also be read |
+| Password-protected ZIP | ○ | ○ | ○ | Opens AES-256 / AES-192 / AES-128 and the old method (ZipCrypto). **New archives are encrypted with AES-256** |
+| Nested archives | ○ | ○ | ○ | Selecting one opens it in its own tab. You can go down any number of levels, and saving your changes writes them back into the parent archive |
+| Self-extracting archives (`.exe`) | ○ | ○ | × | Opens ones that contain ZIP or 7z (judged by the contents, not the name). Can be made from an open ZIP. **Finished ones are never modified**: breaking the program at the front would leave the recipient unable to extract them |
+| Split files (`.001` `.002` …) | ○ | ○ | × | Opening `.001` opens the split files joined together, ready to extract. All the pieces must be present; if any are missing, Expzip tells you which numbers. Any file can be split, not only archives, and **a program to join the pieces is made at the same time**. Existing split files are not re-split |
+| 7z | ○ | × | × | **Read-only**. Solid archives are supported. For password-protected 7z, only the list of contents is shown |
+| tar / tar.gz / tar.bz2 / tar.xz | ○ | × | × | **Read-only.** `.tgz` `.tbz` `.tbz2` `.txz` are handled the same way |
+| NSIS installers (`.exe`) | ○ | × | × | Not archives but installers; you can list the files inside and take them out |
+| Installers bundled with WiX Burn (`.exe`) | ○ | × | × | Installers such as those for Python and .NET. You can list the MSI and other files inside and take them out |
+| Installers containing an MSI (`.exe`) | ○ | × | × | Lists the MSI inside, and you can go into the files inside it |
+| Installers containing a CAB (`.exe`) | ○ | × | × | Such as ones made with IExpress, which comes with Windows, and older driver installers. You can list the files inside and take them out |
+| MSIX / AppX packages (`.msix` `.msixbundle` `.appx` `.appxbundle`) | ○ | × | × | **Read-only**. These are files for installing apps, but you can list the files inside and take them out |
+| CAB (`.cab`) | ○ | × | × | **Read-only**. For a CAB split into several files, opening the first one reads the rest too |
+| MSI installers (`.msi`) | ○ | × | × | **Read-only**. Lists the files under their real names and folders, and lets you take them out. The installer's own actions are not run |
+| exe / dll | ○ | × | × | **Read-only**. Not archives, but you can list the icons, version information and other resources embedded in them and take them out. Icons come out as `.ico`, version information as readable text |
+| RAR | × | × | × | Not supported (may be considered in the future) |
+| LZH | × | × | × | Will not be supported |
 
-**日本語のファイル名**
+**Japanese file names**
 
-ファイル名の文字コード(Shift_JIS / CP932 と UTF-8)は**自動で判別**します。
-古い書庫に入った日本語名も、そのまま読めます。tar の中の日本語名も同じ仕組みで扱います。
+The character encoding of file names (Shift_JIS / CP932 and UTF-8) is **detected automatically**.
+Japanese names in old archives are read correctly. Japanese names inside tar archives are handled the same way.
 
-## 機能
+## Features
 
-**見る**
+**Viewing**
 
-- ツリーと一覧の 2 画面。書庫の中をフォルダーのように辿れます
-- 名前 / サイズ / 圧縮後のサイズ / 圧縮率 / 更新日時。見出しを押すと並べ替えます
-- 上の場所表示は区切りごとに押せます。区切りからそのフォルダーの中のフォルダーへも移れます
-- 複数の書庫をタブで同時に開けます。最近開いた書庫の一覧もあります
-- 開いている書庫がほかのソフトで書き換えられた場合、**自動で読み直します**
+- Two panes: a tree and a list. You can move around inside an archive as if it were a folder
+- Name / size / compressed size / compression ratio / modified date. Click a column heading to sort
+- Each part of the location bar at the top can be clicked. From a part you can also move into the folders inside it
+- Several archives can be open at once in tabs. There is also a list of recently opened archives
+- If another program changes an open archive, **Expzip reloads it automatically**
 
-**展開する**
+**Extracting**
 
-- 書庫全体、選んだ項目、フォルダー単位のいずれでも展開できます
-- 展開先に同じ名前のファイルが**実際にあるときだけ**、上書きするか尋ねます
-- 書庫の中からエクスプローラーへ、そのままドラッグして取り出せます
-- ダブルクリックすると、一時的に取り出して、そのファイルの既定のソフトで開きます
-  - 開いた先で保存すると、**書庫へ反映するか尋ねます**
-  - 一時的に取り出したファイルは、Expzip の終了時に削除します
+- Extract the whole archive, the selected items, or a folder
+- Expzip asks whether to overwrite **only when a file with the same name actually exists** at the destination
+- Drag items straight from the archive to Explorer to take them out
+- Double-clicking takes the file out temporarily and opens it in its default program
+  - If you save it there, **Expzip asks whether to put the change back into the archive**
+  - Files taken out temporarily are deleted when Expzip closes
 
-**作成・編集する**
+**Creating and editing**
 
-- 新しい ZIP を作る、ファイルをドラッグして追加する、削除する
-- 名前の変更(F2、または選んでからもう一度クリック)、書庫の中での移動、空のフォルダーの作成
-- **圧縮するかどうかはファイルごとに自動で決めます**。例えば、写真や動画のように縮小しないものは、そのまま格納します
-- パスワードの設定・変更・削除
+- Create a new ZIP, add files by dragging them in, delete items
+- Rename (F2, or select and click again), move items inside the archive, create empty folders
+- **Whether to compress is decided automatically for each file**. For example, photos and videos, which do not get smaller, are stored as they are
+- Set, change and remove passwords
 
-**検査する**
+**Inspecting**
 
-- **書庫の検査**。壊れていないか、危ないものが入っていないかをまとめて調べます(下の「安全のために」参照)
-- ウイルス対策ソフトによる検査を Windows の仕組みを通して行います
+- **Archive inspection**. Checks in one go whether the archive is broken and whether it contains anything dangerous (see "Staying safe" below)
+- Scans with your antivirus software through the Windows interface for it
 
-**分割する**
+**Splitting**
 
-- 大きなファイルを決めた大きさに分割します。同時に**結合用のプログラム**も作るので、
-  受け取った人は Expzip がなくても復元できます。元のファイルと一致するかも自動で確認します
+- Splits a large file into pieces of a size you choose. **A program to join them** is made at the same time,
+  so the recipient can put the file back together without Expzip. Expzip also checks automatically that the result matches the original
 
-**その他**
+**Other**
 
-- 表示言語は日本語と英語。Windows の表示言語に合わせることもできます
-- バージョン情報から、同梱しているソフトウェアのライセンス全文を表示します
+- The display language is Japanese or English. It can also follow the Windows display language
+- The About window shows the full license texts of the software included in Expzip
 
-**AI による書庫のルールの推定(設定は任意)**
+**Using AI to work out an archive's rules (optional)**
 
-見本の書庫から「この書庫はどう作られているか」のルールを AI に推定させ、
-作成した書庫がそのルールに合っているかを調べられます。
+Expzip can have an AI work out the rules behind "how this archive is put together" from a sample archive,
+and then check whether archives you make follow those rules.
 
-- **使うかどうかは利用者が決めます**。接続先を設定し、推定させない限り AI に対して何もしません
-- **送るのはファイル名とフォルダーの構成だけで、ファイルの中身は送りません。**
-  何を送るかは、送る前に画面で確認できます
-- 推定されたルールは一覧で確認し、使うものだけを選んで適用できます
+- **You decide whether to use it**. Nothing is sent to an AI unless you set up a connection and ask it to work out rules
+- **Only file names and the folder structure are sent, never the contents of files.**
+  You can see what will be sent on screen before it is sent
+- You can review the rules it suggests in a list and apply only the ones you want
 
-## 使い方
+## How to use
 
-1. `Expzip.exe` を好きな場所に置きます
-2. 実行します。書庫のファイルを引数に渡すか、ウィンドウへドラッグしても開けます
+1. Put `Expzip.exe` anywhere you like
+2. Run it. You can open an archive by passing it as an argument, or by dragging it onto the window
 
-初めて実行するときに「Windows によって PC が保護されました」が出ることがあります。
-実行ファイルに電子署名が無いためです。「詳細情報」を押すと「実行」のボタンが出ます。
+The first time you run it, Windows may show "Windows protected your PC".
+This is because the executable has no digital signature. Click "More info" and a "Run anyway" button appears.
 
-設定は `Expzip.exe` と同じフォルダーの `Expzip.settings.json` に入ります。
-USB メモリーなどに入れて持ち運べます。
+Settings are saved in `Expzip.settings.json` in the same folder as `Expzip.exe`.
+You can carry it around on a USB drive.
 
-| キー | 動き |
+| Key | Action |
 |---|---|
-| Enter | フォルダーに入る / ファイルを開く |
-| BackSpace | 1 つ上のフォルダーへ |
-| F2 | 名前の変更 |
-| Delete | 削除 |
-| Ctrl+Shift+N | 新しいフォルダー |
-| Ctrl+S | ネスト書庫を親の書庫へ書き戻す |
-| Ctrl+W | タブを閉じる |
-| Ctrl+Tab | 次のタブ |
-| F5 | 書庫を読み直す |
+| Enter | Go into a folder / open a file |
+| BackSpace | Go up one folder |
+| F2 | Rename |
+| Delete | Delete |
+| Ctrl+Shift+N | New folder |
+| Ctrl+S | Write a nested archive back into its parent |
+| Ctrl+W | Close the tab |
+| Ctrl+Tab | Next tab |
+| F5 | Reload the archive |
 
-## 見え方と読み上げ
+## Visibility and screen readers
 
-色の見え方には個人差があります。
-画面の読み上げソフトを使う人もいます。どちらの人にも使えるように作っています。
+People see colors differently.
+Some people use screen readers. Expzip is made to work for both.
 
-- **Windows の設定に合わせて、明るい表示と暗い表示が切り替わります**。ハイコントラストにも対応しています
-- **意味を表す文字の色は、背景との明るさの差を測って決めています**。明るい表示用と暗い表示用を別々に持っています
-- **色覚特性による見え方を計算して、文字が背景と見分けられることを確認済みです。**
-  (測り方と結果は[仕様書](docs/SPEC.md)の 4.9 節)
-- 危険・注意・問題なしは、色のほかに**絵と「危険」「注意」などの字でも示します**
-- 名前が普通でない項目には、**色だけでなく警告の印も付けます**
-- パスワードで保護された項目は、**緑の文字だけでなく錠前の印でも示します**。マウスを当てたときの説明と読み上げでも伝えます
-- **ボタンや一覧の行には、読み上げ用の名前を付けています**。絵だけのボタンも、読み上げでは名前で伝わります
-- アプリのアイコンは、色ではなく明るさの差で見分けられるようにしています
+- **The light and dark appearance switches to follow your Windows settings**. High contrast is also supported
+- **Text colors that carry meaning are chosen by measuring their difference in brightness from the background**. Separate colors are kept for the light and dark appearance
+- **Expzip simulates how colors look with different kinds of color vision and has confirmed that text can be told apart from the background.**
+  (The method and results are in section 4.9 of the [specification](docs/SPEC.md) (Japanese))
+- Danger, caution and no-problem are shown **with icons and words such as "Danger" and "Caution" as well as color**
+- Items with unusual names get **a warning mark, not just a color**
+- Password-protected items are shown **with a padlock mark, not just green text**. This is also conveyed in the tooltip and by screen readers
+- **Buttons and list rows have names for screen readers**. Even buttons that show only an icon are announced by name
+- The app icon can be told apart by differences in brightness rather than color
 
-## 安全のために
+## Staying safe
 
-書庫は主に他者から受け取るものです。**中身は信用できないものとして扱わざるを得ません。**
-アーカイバでよく知られている問題に、Expzip がどう対応しているかを挙げます。
+Archives usually come from other people. **Their contents have to be treated as untrusted.**
+Here is how Expzip deals with problems that are well known in archivers.
 
-| 知られている問題 | Expzip での扱い |
+| Known problem | How Expzip handles it |
 |---|---|
-| **展開先の外にファイルを書き込ませる細工**。書庫の中に `..\..\Windows\…` のような名前を入れておき、展開すると関係のない場所にファイルが置かれる | **対策済み**。名前の時点で弾き、さらに書き込む直前に「展開先の中に収まっているか」を確かめます。ZIP・パスワード付き ZIP・7z・tar・インストーラーの**すべての取り出し経路**で同じ確認をします |
-| **リンク(ショートカットの一種)を使って、別の場所へ書き込ませる細工** | **影響を受けません**。Expzip はリンクを作らないため、この手口は成立しません |
-| **ネットから来たファイルの印が消える**。印が消えると、開いたときに Windows やアプリの保護(SmartScreen、保護ビュー)が働かなくなる | **対策済み**。書庫に付いている印を、取り出したファイルにも引き継ぎます。ドラッグで取り出したときも、自己解凍書庫を作ったときも同じです |
-| **展開すると異常に膨らむ書庫**。小さい書庫が、展開すると何万倍にもなってディスクを埋める | **検査で知らせます**。何倍になるかを出すので、展開する前に気付けます |
-| **名前で中身を偽る細工**。拡張子を偽装する、文字の向きを変える記号で拡張子を逆に見せる、名前に見えない文字を混ぜる、大文字と小文字だけが違う名前を並べて片方を上書きさせる | **検査で知らせます**。一覧でも、普通でない名前には警告の印を付けます |
-| **Windows では作れない名前**(`CON` などの予約語、末尾が空白やピリオド、使えない記号) | **検査で知らせます**。展開の途中で失敗して、中途半端に取り出されるのを防ぎます |
-| **うっかり実行してしまう**。書庫の中の `.exe` や `.bat` をダブルクリックすると、そのまま動いてしまう | **開く前に確認します**。デフォルトの答えは「キャンセル」です |
-| **ウイルスの混入** | **展開する前に、Windows のウイルス対策の仕組みを通して調べます**。利用者が入れている対策ソフトがそのまま働きます |
-| **壊れた書庫を、壊れていると気付かずに展開する** | **検査で調べます**。中身の照合、索引と実体の食い違い、途中で切れた書庫、末尾の余計なデータ、同じ名前の重複を見ます |
-| **外部の DLL やプラグインを差し替えられて、別のプログラムを実行させられる**。書庫ソフトで繰り返し起きてきた問題です | **起こりません**。Expzip は形式ごとの DLL やプラグインを持たず、必要なものはすべて 1 つの実行ファイルの中にあります。CAB と MSI の読み取りとウイルス検査には Windows に入っている部品 (`cabinet.dll` `msi.dll` `amsi.dll`) を使いますが、どれも Windows のシステムフォルダーからだけ読み込みます。インストールもレジストリの変更もしません |
-| **古い暗号は破られやすい** | 暗号化は **AES-256** です。古い暗号化の書庫でも読むことはできます |
+| **Tricks that write files outside the destination folder**. A name such as `..\..\Windows\…` is put in the archive, so that extracting it places a file somewhere unrelated | **Handled**. Such names are rejected up front, and right before writing Expzip checks again that the file stays inside the destination. The same check is made on **every path that takes files out**: ZIP, password-protected ZIP, 7z, tar and installers |
+| **Tricks that use links (a kind of shortcut) to write somewhere else** | **Not affected**. Expzip never creates links, so this trick does not work |
+| **The mark on files that came from the internet is lost**. Without the mark, Windows and app protections (SmartScreen, Protected View) do not kick in when the file is opened | **Handled**. The mark on the archive is carried over to the files taken out of it. This also applies when dragging files out and when making a self-extracting archive |
+| **Archives that swell enormously when extracted**. A small archive grows tens of thousands of times when extracted and fills the disk | **Reported by the inspection**. It shows how many times larger the contents will be, so you notice before extracting |
+| **Tricks that disguise contents by their names**. Fake extensions, characters that reverse the text direction to show an extension backwards, invisible characters in names, names that differ only in upper and lower case so that one overwrites the other | **Reported by the inspection**. The list also puts a warning mark on unusual names |
+| **Names that Windows cannot create** (reserved names such as `CON`, names ending in a space or period, characters that are not allowed) | **Reported by the inspection**. This prevents extraction from failing halfway and leaving only part of the files |
+| **Running something by mistake**. Double-clicking an `.exe` or `.bat` inside an archive runs it straight away | **Expzip asks before opening it**. The default answer is "Cancel" |
+| **Viruses** | **Before extracting, Expzip checks the files through the Windows antivirus interface**. The antivirus software you have installed does the checking |
+| **Extracting a broken archive without noticing** | **Checked by the inspection**. It verifies the contents, mismatches between the index and the actual data, archives cut off partway, extra data at the end, and duplicate names |
+| **External DLLs or plug-ins are swapped out so that another program gets run**. This has happened again and again with archivers | **Cannot happen**. Expzip has no per-format DLLs or plug-ins; everything it needs is inside one executable. For reading CAB and MSI and for virus checks it uses components that come with Windows (`cabinet.dll` `msi.dll` `amsi.dll`), and it loads them only from the Windows system folder. It also does no installation and makes no registry changes |
+| **Old encryption is easy to break** | Encryption is **AES-256**. Archives with the old encryption can still be read |
 
-**できていないこと**(隠さずに挙げます)
+**What is not done yet** (listed openly)
 
-- **実行ファイルに電子署名がありません**。初めて実行するときに Windows の警告(SmartScreen)が出ることがあります
-- **展開先のフォルダーに、あらかじめ別の場所への抜け道が仕掛けられている場合**までは見ていません
-- **大きすぎるファイルはウイルス検査を通せません**。その場合は「検査できなかった」と表示します
-- **パスワードは、動いている間だけ記憶します**。ファイルには保存しませんが、実行中のメモリ上には残ります
-- 一時的に取り出したファイルは終了時に消しますが、**ほかのソフトが開いたままだと消せません**。その分は次に起動したときに消します
+- **The executable has no digital signature**. The first time you run it, Windows may show a warning (SmartScreen)
+- Expzip does not check **whether the destination folder already contains a hidden route to somewhere else**
+- **Files that are too large cannot be virus-checked**. In that case Expzip says they could not be checked
+- **Passwords are remembered only while Expzip is running**. They are never saved to a file, but they do stay in memory while it runs
+- Files taken out temporarily are deleted on exit, but **they cannot be deleted while another program still has them open**. Those are deleted the next time Expzip starts
 
-詳しい根拠は [セキュリティ調査レポート](docs/SECURITY_REPORT.md) にあります。
-セキュリティ上の問題を見つけた場合は、公開の Issues には書かず、[知らせ方](.github/SECURITY.md) に従って知らせてください。
+The detailed reasoning is in the [security review report](docs/SECURITY_REPORT.md) (Japanese).
+If you find a security problem, please do not post it in public Issues; report it as described in [how to report](.github/SECURITY.md) (Japanese).
 
-## 動作環境
+## Requirements
 
-- Windows 10 / 11(64 ビット)
-- ほかに必要なものはありません(.NET のインストールも不要です)
+- Windows 10 / 11 (64-bit)
+- Nothing else is needed (no need to install .NET either)
 
-## ビルド
+## Building
 
-Windows で [.NET 10 SDK](https://dotnet.microsoft.com/download) を入れてから、リポジトリの直下で
-次を実行してください。**`dotnet build` ではなく `build.cmd` を使ってください**。
-`dotnet build` でできる `Expzip.dll` や小さな `Expzip.exe` は開発用で、単独では動きません。
+On Windows, install the [.NET 10 SDK](https://dotnet.microsoft.com/download), then run the following
+at the top of the repository. **Use `build.cmd`, not `dotnet build`**.
+The `Expzip.dll` and small `Expzip.exe` that `dotnet build` produces are for development and do not run on their own.
 
 ```
 build.cmd
 ```
 
-`publish\win-x64\Expzip.exe` ができます。**この 1 つのファイルが配布物です。**
+This produces `publish\win-x64\Expzip.exe`. **This single file is what gets distributed.**
 
-| 使い方 | 何をするか |
+| Command | What it does |
 |---|---|
-| `build.cmd` | 配布用の `Expzip.exe` を作ります |
-| `build.cmd -Debug` | 開発用にビルドするだけで、配布用のファイルは作りません |
+| `build.cmd` | Makes the `Expzip.exe` for distribution |
+| `build.cmd -Debug` | Only builds for development; does not make the file for distribution |
 
-## ドキュメント
+## Documents
 
-- [仕様書](docs/SPEC.md)
-- [セキュリティ調査レポート](docs/SECURITY_REPORT.md)
-- [プライバシーポリシー](PRIVACY.md)
+- [Specification](docs/SPEC.md) (Japanese)
+- [Security review report](docs/SECURITY_REPORT.md) (Japanese)
+- [Privacy policy](PRIVACY.md#privacy-policy-english)
 
-## 連絡先
+## Contact
 
-- 不具合の報告や要望は [Issues](https://github.com/p-studio-softworks/expzip/issues) に書いてください
-- GitHub のアカウントが無い場合や、公開しない内容の場合は、メールで知らせてください:
+- Please report bugs and requests in [Issues](https://github.com/p-studio-softworks/expzip/issues)
+- If you do not have a GitHub account, or the matter should not be public, please send an email:
   p-studio-softworks@outlook.com
-- セキュリティ上の問題は、公開の場には書かず、[知らせ方](.github/SECURITY.md) に従って知らせてください
+- For security problems, please do not post in public; report them as described in [how to report](.github/SECURITY.md) (Japanese)
 
-## ライセンス
+## License
 
 [MIT License](LICENSE)
 
-`Expzip.exe` には SharpCompress・SharpZipLib・.NET ランタイムが入っています。
-それぞれの著作権表示と許諾条文は [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) に
-そのまま載せてあり、同じものが実行ファイルにも入っています
-(**バージョン情報 → ライセンス**)。
+`Expzip.exe` contains SharpCompress, SharpZipLib and the .NET Runtime.
+Their copyright notices and permission notices are reproduced verbatim in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt),
+and the same text is inside the executable
+(**About → Licenses**).
