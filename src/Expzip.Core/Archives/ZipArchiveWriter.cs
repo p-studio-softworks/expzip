@@ -82,6 +82,8 @@ internal static class ZipArchiveWriter
     /// 元の書庫を直接書き換えず、複製した作業用ファイルを更新してから差し替える。
     /// 途中で中断や失敗が起きても元の書庫は無傷で残る。書き込みの失敗で書庫を
     /// 壊すことが最も避けたい事態のため、この手順にしている。
+    /// ふだんは <see cref="ZipParallelWriter"/> がコアの数だけ並列に圧縮する (#195)。
+    /// そちらで扱えない書庫だけ、ここで 1 つずつ圧縮する。
     /// </remarks>
     public static AddResult Add(
         string archivePath,
@@ -92,6 +94,12 @@ internal static class ZipArchiveWriter
         CancellationToken cancellationToken)
     {
         var plan = BuildPlan(sourcePaths, destinationFolder);
+
+        if (ZipParallelWriter.TryAdd(archivePath, plan, replaceExisting, progress, cancellationToken) is { } fast)
+        {
+            return fast;
+        }
+
         var totalBytes = plan.Sum(static p => p.Length);
 
         var added = 0;
@@ -443,7 +451,7 @@ internal static class ZipArchiveWriter
     }
 
     /// <summary>更新日時を読む。読めない場合は現在時刻を使う。</summary>
-    private static DateTime ReadLastWriteTime(string path)
+    internal static DateTime ReadLastWriteTime(string path)
     {
         try
         {
