@@ -22,6 +22,8 @@ namespace Expzip.Archives;
 /// 1 つずつ順に圧縮する。使うコアは 1 つだけで、20 コアの PC なら 19 コアが空く。
 /// 圧縮はほとんどが CPU の仕事なので、ここを並列にすると大きく速くなる。
 /// 文書のようなファイル 400 個 (計 459 MB) で、12.2 秒が 0.7 秒ほどになる。
+/// 大きなファイルは区切りごとに分けて並列に圧縮する (#196、<see cref="PackInPieces"/>)。
+/// 大きなファイル 1 つだけのときも、コアを使い切る。
 /// </para>
 /// <para>
 /// <b>手順。</b> 各ファイルの圧縮をコアの数だけ同時に行い、書庫への書き込みは元の順に
@@ -57,6 +59,25 @@ internal static class ZipParallelWriter
     /// 一時フォルダーのあるディスクを埋めないため。
     /// </summary>
     private const long SpillLimit = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// これより大きいファイルは、区切りごとに分けて並列に圧縮する (#196)。
+    /// 一時ファイルに置く大きさと同じにしておく。
+    /// </summary>
+    private const long SplitThreshold = InMemoryLimit;
+
+    /// <summary>
+    /// 区切りの大きさ。小さいほど継ぎ目が増えて縮みにくくなる。512 MB のファイルで測ると、
+    /// 1 本で圧縮したときより 0.14% (実行ファイル) から 0.54% (文書) 大きくなる。
+    /// 2 MB にしても速さは変わらないが、16 MB のファイルを 8 つにしか分けられない。
+    /// </summary>
+    private const int PieceSize = 1024 * 1024;
+
+    /// <summary>
+    /// 中身の無い最後のブロック (固定ハフマン符号、最終の印付き)。
+    /// ファイルの大きさが区切りのちょうど倍数のときに、データの終わりを示すのに使う。
+    /// </summary>
+    private static readonly byte[] EmptyFinalBlock = [0x03, 0x00];
 
     /// <summary>読み書きの単位。<see cref="Stream.CopyTo(Stream)"/> のデフォルトと同じ大きさ。</summary>
     private const int BufferSize = 81920;
@@ -435,28 +456,43 @@ internal static class ZipParallelWriter
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
         try
         {
-            var crc = new Crc32();
-            long size = 0;
+            long size;
+            long crcValue;
 
             using (var input = new FileStream(
                        item.SourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
-            using (var sink = choice.Method == SharpCompressionMethod.Deflated
-                       ? new DeflateStream(holder, CompressionLevel.Optimal, leaveOpen: true)
-                       : (Stream)new KeepOpen(holder))
             {
-                int read;
-                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                if (choice.Method == SharpCompressionMethod.Deflated && item.Length > SplitThreshold)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    crc.Update(new ArraySegment<byte>(buffer, 0, read));
-                    sink.Write(buffer, 0, read);
-                    size += read;
-                    gauge.Advance(read, item.EntryName);
+                    // ほかに圧縮するファイルが無くても、コアを使い切る (#196)
+                    (size, crcValue) = PackInPieces(input, holder, item.EntryName, gauge, cancellationToken);
+                }
+                else
+                {
+                    var crc = new Crc32();
+                    size = 0;
+
+                    using (var sink = choice.Method == SharpCompressionMethod.Deflated
+                               ? new DeflateStream(holder, CompressionLevel.Optimal, leaveOpen: true)
+                               : (Stream)new KeepOpen(holder))
+                    {
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            crc.Update(new ArraySegment<byte>(buffer, 0, read));
+                            sink.Write(buffer, 0, read);
+                            size += read;
+                            gauge.Advance(read, item.EntryName);
+                        }
+                    }
+
+                    crcValue = crc.Value;
                 }
             }
 
             holder.Position = 0;
-            return new Packed(null, choice.Method, size, crc.Value, holder);
+            return new Packed(null, choice.Method, size, crcValue, holder);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -474,6 +510,206 @@ internal static class ZipParallelWriter
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+    }
+
+    /// <summary>
+    /// 大きなファイル 1 つを、区切りごとに分けて並列に圧縮する (#196)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 区切りごとに別々に Deflate で圧縮し、最後の区切り以外は「続きがある」形 (同期フラッシュ) で
+    /// 終える。こうするとバイトの境目でブロックが終わるので、元の順につなげれば 1 本の Deflate の
+    /// データになる。展開する側は、区切ったことを知らなくてよい。
+    /// </para>
+    /// <para>
+    /// 継ぎ目では前の区切りのデータを参照できないので、わずかに縮みにくくなる
+    /// (<see cref="PieceSize"/>)。読むのは 1 本で順に行い、同時に抱える区切りはコアの数までにする。
+    /// CRC も区切りごとに求めて、後でつなぎ合わせる。
+    /// </para>
+    /// </remarks>
+    /// <returns>元の大きさと、元の中身の CRC。</returns>
+    private static (long Size, long Crc) PackInPieces(
+        Stream input, Stream holder, string name, Gauge gauge, CancellationToken cancellationToken)
+    {
+        var running = new Queue<(byte[] Buffer, Task<Piece> Task)>();
+        var lanes = Environment.ProcessorCount;
+        var ended = false;
+        long size = 0;
+        uint crc = 0;
+
+        try
+        {
+            while (!ended || running.Count > 0)
+            {
+                while (!ended && running.Count < lanes)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var buffer = ArrayPool<byte>.Shared.Rent(PieceSize);
+                    int read;
+                    try
+                    {
+                        read = input.ReadAtLeast(buffer.AsSpan(0, PieceSize), PieceSize, throwOnEndOfStream: false);
+                    }
+                    catch
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                        throw;
+                    }
+
+                    // 区切りに満たなければ、ここで終わり。ちょうど終わったときは、次に 0 バイトの区切りが来る
+                    var last = read < PieceSize;
+                    ended = last;
+                    running.Enqueue((buffer, Task.Run(() => DeflatePiece(buffer, read, last, name, gauge))));
+                }
+
+                var (done, task) = running.Dequeue();
+                Piece piece;
+                try
+                {
+                    piece = task.GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(done);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                holder.Write(piece.Data, 0, piece.Length);
+                crc = CombineCrc(crc, piece.Crc, piece.Count);
+                size += piece.Count;
+            }
+        }
+        finally
+        {
+            // 走っている区切りを待ってから、借りたバッファーを返す。使っている最中には返せない
+            foreach (var (buffer, task) in running)
+            {
+                try
+                {
+                    task.GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // 先に起きた失敗か中断を伝える。ここでの失敗は捨てる
+                }
+
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
+
+        return (size, crc);
+    }
+
+    /// <summary>1 つの区切りを圧縮する。</summary>
+    /// <param name="last">ファイルの最後の区切りか。最後でなければ、続きがある形で終える。</param>
+    private static Piece DeflatePiece(byte[] buffer, int count, bool last, string name, Gauge gauge)
+    {
+        var crc = new Crc32();
+        crc.Update(new ArraySegment<byte>(buffer, 0, count));
+
+        if (count == 0)
+        {
+            return new Piece(EmptyFinalBlock, EmptyFinalBlock.Length, 0, (uint)crc.Value);
+        }
+
+        var output = new MemoryStream(count / 2);
+        var deflate = new DeflateStream(output, CompressionLevel.Optimal, leaveOpen: true);
+        deflate.Write(buffer, 0, count);
+
+        // 閉じると最後のブロックの印が付く。最後でなければ、フラッシュした所までを使う。
+        // DeflateStream のフラッシュは、空の格納ブロックでバイトの境目に揃える同期フラッシュ
+        int length;
+        if (last)
+        {
+            deflate.Dispose();
+            length = (int)output.Length;
+        }
+        else
+        {
+            deflate.Flush();
+            length = (int)output.Length;
+            deflate.Dispose();
+        }
+
+        gauge.Advance(count, name);
+        return new Piece(output.GetBuffer(), length, count, (uint)crc.Value);
+    }
+
+    /// <summary>圧縮を終えた区切り。</summary>
+    /// <param name="Data">圧縮したデータ。先頭から <paramref name="Length"/> バイトを使う。</param>
+    /// <param name="Length">圧縮したデータの長さ。</param>
+    /// <param name="Count">元の長さ。</param>
+    /// <param name="Crc">元の中身の CRC。</param>
+    private readonly record struct Piece(byte[] Data, int Length, int Count, uint Crc);
+
+    /// <summary>
+    /// 続けて並んだ 2 つのデータの CRC から、つなげたデータの CRC を求める (zlib の crc32_combine と同じ)。
+    /// </summary>
+    /// <param name="first">前のデータの CRC。</param>
+    /// <param name="second">後ろのデータの CRC。</param>
+    /// <param name="secondLength">後ろのデータの長さ。</param>
+    private static uint CombineCrc(uint first, uint second, long secondLength)
+        => MultiplyModP(PowerOfX(secondLength, 3), first) ^ second;
+
+    /// <summary>CRC32 の生成多項式 (ビットを逆順にしたもの)。</summary>
+    private const uint CrcPolynomial = 0xEDB88320;
+
+    /// <summary>x の 2^n 乗を生成多項式で割った余り。<see cref="PowerOfX"/> で使う。</summary>
+    private static readonly uint[] PowersOfX = BuildPowersOfX();
+
+    private static uint[] BuildPowersOfX()
+    {
+        var table = new uint[32];
+        var p = 1u << 30; // x の 1 乗
+        table[0] = p;
+        for (var n = 1; n < table.Length; n++)
+        {
+            table[n] = p = MultiplyModP(p, p);
+        }
+
+        return table;
+    }
+
+    /// <summary>2 つの多項式の積を、生成多項式で割った余り。</summary>
+    private static uint MultiplyModP(uint a, uint b)
+    {
+        var m = 1u << 31;
+        var p = 0u;
+        while (true)
+        {
+            if ((a & m) != 0)
+            {
+                p ^= b;
+                if ((a & (m - 1)) == 0)
+                {
+                    break;
+                }
+            }
+
+            m >>= 1;
+            b = (b & 1) != 0 ? (b >> 1) ^ CrcPolynomial : b >> 1;
+        }
+
+        return p;
+    }
+
+    /// <summary>x の (n × 2^k) 乗を、生成多項式で割った余り。k = 3 なら n バイト分になる。</summary>
+    private static uint PowerOfX(long n, int k)
+    {
+        var p = 1u << 31; // x の 0 乗
+        while (n != 0)
+        {
+            if ((n & 1) != 0)
+            {
+                p = MultiplyModP(PowersOfX[k & 31], p);
+            }
+
+            n >>= 1;
+            k++;
+        }
+
+        return p;
     }
 
     /// <summary>圧縮を終えた 1 件を書庫に書き込む。</summary>
