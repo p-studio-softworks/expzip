@@ -45,8 +45,11 @@ internal sealed class AmsiScanner : IDisposable
 
     private bool _closed;
 
-    /// <summary>最後に渡した判定。中断で待つのをやめても、裏で走り続けていることがある。</summary>
-    private Task? _running;
+    /// <summary>渡した判定。中断で待つのをやめても、裏で走り続けていることがある。</summary>
+    private readonly List<Task> _running = [];
+
+    /// <summary>並べて判定するために開いたセッション (#199)。受け口を閉じるときに閉じる。</summary>
+    private readonly List<IntPtr> _laneSessions = [];
 
     private AmsiScanner(IntPtr context, IntPtr session)
     {
@@ -173,6 +176,47 @@ internal sealed class AmsiScanner : IDisposable
     /// <returns>検出されたとき <see langword="true"/>。</returns>
     /// <exception cref="OperationCanceledException">判定を待っている間に中断された場合。</exception>
     public bool Scan(byte[] buffer, int length, string name, CancellationToken cancellationToken)
+        => Run(_session, buffer, length, name, cancellationToken);
+
+    /// <summary>
+    /// 並べて判定するための口を開く (#199)。作業ごとに 1 つ開き、その作業の中だけで使う。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 対策ソフトは、同時に頼まれた判定を 1 つずつ待たせず、並べて調べる。実測で、
+    /// DLL 800 個を 1 本で 9.7 秒、20 本で 0.85 秒。
+    /// </para>
+    /// <para>
+    /// セッションは作業ごとに分ける。1 つのセッションを複数のスレッドから同時に使ってよいかは
+    /// 確かめていないため。受け口 (コンテキスト) は共有する。
+    /// </para>
+    /// </remarks>
+    public Lane OpenLane()
+    {
+        lock (_gate)
+        {
+            if (_closed || AmsiOpenSession(_context, out var session) != 0)
+            {
+                session = IntPtr.Zero;
+            }
+            else
+            {
+                _laneSessions.Add(session);
+            }
+
+            return new Lane(this, session);
+        }
+    }
+
+    /// <summary>並べて判定するための口。<see cref="OpenLane"/> で開く。</summary>
+    internal sealed class Lane(AmsiScanner owner, IntPtr session)
+    {
+        /// <inheritdoc cref="AmsiScanner.Scan"/>
+        public bool Scan(byte[] buffer, int length, string name, CancellationToken cancellationToken)
+            => owner.Run(session, buffer, length, name, cancellationToken);
+    }
+
+    private bool Run(IntPtr session, byte[] buffer, int length, string name, CancellationToken cancellationToken)
     {
         // 空のファイルは渡さない。判定するものが無い
         if (length <= 0)
@@ -190,22 +234,24 @@ internal sealed class AmsiScanner : IDisposable
             }
 
             scan = Task.Run(() => AmsiScanBuffer(
-                           _context, buffer, (uint)length, name, _session, out var result) == 0
+                           _context, buffer, (uint)length, name, session, out var result) == 0
                        && result >= DetectedThreshold);
-            _running = scan;
+
+            _running.RemoveAll(static t => t.IsCompleted);
+            _running.Add(scan);
         }
 
         scan.Wait(cancellationToken);
         return scan.Result;
     }
 
-    /// <summary>受け口を閉じる。判定が裏で走っていれば、それが終わってから閉じる (#161)。</summary>
+    /// <summary>受け口を閉じる。判定が裏で走っていれば、すべて終わってから閉じる (#161)。</summary>
     /// <remarks>
     /// 判定の最中に閉じると、対策ソフトに渡している途中の受け口を壊すことになる。
     /// </remarks>
     public void Dispose()
     {
-        Task? running;
+        Task[] running;
 
         lock (_gate)
         {
@@ -215,20 +261,25 @@ internal sealed class AmsiScanner : IDisposable
             }
 
             _closed = true;
-            running = _running is { IsCompleted: false } pending ? pending : null;
+            running = _running.Where(static t => !t.IsCompleted).ToArray();
         }
 
-        if (running is null)
+        if (running.Length == 0)
         {
             Release();
             return;
         }
 
-        running.ContinueWith(_ => Release(), TaskScheduler.Default);
+        Task.WhenAll(running).ContinueWith(_ => Release(), TaskScheduler.Default);
     }
 
     private void Release()
     {
+        foreach (var session in _laneSessions)
+        {
+            AmsiCloseSession(_context, session);
+        }
+
         if (_session != IntPtr.Zero)
         {
             AmsiCloseSession(_context, _session);

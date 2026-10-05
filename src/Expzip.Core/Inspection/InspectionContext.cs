@@ -57,6 +57,8 @@ internal sealed class InspectionContext(
 
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
+    private readonly Lock _lock = new();
+
     private TimeSpan _reportedAt = TimeSpan.MinValue;
 
     private double _base;
@@ -109,16 +111,20 @@ internal sealed class InspectionContext(
             return;
         }
 
-        var edge = fraction is <= 0 or >= 1;
-        var now = _clock.Elapsed;
-
-        if (!edge && now - _reportedAt < ReportInterval)
+        // 中身の検査は並列に進むので、どの作業からも呼ばれる (#199)
+        lock (_lock)
         {
-            return;
-        }
+            var edge = fraction is <= 0 or >= 1;
+            var now = _clock.Elapsed;
 
-        _reportedAt = now;
-        progress.Report(new InspectProgress(
-            Math.Clamp(_base + (_span * fraction), 0, 1) * 100, _phase, currentName));
+            if (!edge && now - _reportedAt < ReportInterval)
+            {
+                return;
+            }
+
+            _reportedAt = now;
+            progress.Report(new InspectProgress(
+                Math.Clamp(_base + (_span * fraction), 0, 1) * 100, _phase, currentName));
+        }
     }
 }
