@@ -436,11 +436,38 @@ internal static class ZipArchiveWriter
             .Where(c => !emptied.Any(other => other.StartsWith(c + "/", StringComparison.Ordinal)))
             .ToList();
 
-        static string ParentOf(string path)
+    }
+
+    /// <summary>
+    /// 移動で中身が無くなる、移す元のフォルダー (#203)。空のフォルダーとして残すために使う。
+    /// 削除と同じく、中身を全部ほかへ移すと、元のフォルダーまで消えてしまうため。
+    /// </summary>
+    /// <param name="namesAfter">移したあとに書庫にあるエントリの名前 (移したものは新しい名前)。</param>
+    internal static List<string> FoldersLeftEmptyByMove(
+        IEnumerable<string> namesAfter, IReadOnlyList<PathChange> changes)
+    {
+        var occupied = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in namesAfter)
         {
-            var slash = path.LastIndexOf('/');
-            return slash < 0 ? string.Empty : path[..slash];
+            var path = ArchivePath.Normalize(name).TrimEnd('/');
+            var start = name.EndsWith('/') ? path : ParentOf(path);
+            for (var folder = start; folder.Length > 0; folder = ParentOf(folder))
+            {
+                occupied.Add(folder);
+            }
         }
+
+        return changes
+            .Select(static c => ParentOf(c.OldPath))
+            .Where(parent => parent.Length > 0 && !occupied.Contains(parent))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static string ParentOf(string path)
+    {
+        var slash = path.LastIndexOf('/');
+        return slash < 0 ? string.Empty : path[..slash];
     }
 
     /// <summary>このエントリが削除の対象かどうか。</summary>
@@ -643,11 +670,22 @@ internal static class ZipArchiveWriter
                     carried.Add((newName, holding, entry.DateTime));
                 }
 
+                var remaining = zip.Cast<ZipEntry>()
+                    .Where(e => MapAny(e.Name, changes) is null)
+                    .Select(static e => e.Name)
+                    .Concat(targets.Select(static t => t.NewName!));
+                var emptied = FoldersLeftEmptyByMove(remaining, changes);
+
                 zip.BeginUpdate();
 
                 foreach (var (entry, _) in targets)
                 {
                     zip.Delete(entry);
+                }
+
+                foreach (var folder in emptied)
+                {
+                    zip.AddDirectory(folder);
                 }
 
                 foreach (var (newName, holding, stamp) in carried)

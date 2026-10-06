@@ -170,6 +170,7 @@ internal static class ZipEncryptedWriter
         CancellationToken cancellationToken)
     {
         var renamed = 0;
+        var namesAfter = new List<string>();
 
         var result = Rewrite(
             archivePath, password, cancellationToken,
@@ -177,12 +178,22 @@ internal static class ZipEncryptedWriter
             {
                 if (ZipArchiveWriter.MapAny(name, changes) is not { } mapped)
                 {
+                    namesAfter.Add(name);
                     return name;
                 }
 
+                namesAfter.Add(mapped);
                 renamed++;
                 progress?.Report(renamed);
                 return mapped;
+            },
+            append: writer =>
+            {
+                // 中身が無くなる移す元のフォルダーは、空のフォルダーとして残す (#203)
+                foreach (var folder in ZipArchiveWriter.FoldersLeftEmptyByMove(namesAfter, changes))
+                {
+                    writer.WriteFolder(folder + "/");
+                }
             });
 
         return result ? new RenameResult(renamed, false) : new RenameResult(0, true);
