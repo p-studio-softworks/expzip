@@ -2880,12 +2880,25 @@ public partial class MainWindow : Window
     /// <summary>
     /// 一度に取り出せる件数の上限。
     /// ドラッグの開始は同期処理のため、展開にかかる時間がそのまま無応答時間になる。
-    /// ファイル1件あたり約0.28msの固定費があり、この件数で0.85秒ほど (#18)。
     /// </summary>
+    /// <remarks>
+    /// ファイル 1 個ごとに、作って書き込む時間と、出所の印 (#12) を書く時間がかかる。
+    /// 展開を並列にしても (#195) ほとんど縮まない。出所の印のある書庫では、この件数で 1.2〜1.4 秒 (#200)。
+    /// 縮める手立てが無いので、上げも下げもしない。
+    /// </remarks>
     private const int DragOutFileLimit = 3000;
 
-    /// <summary>一度に取り出せる合計サイズの上限。展開の速度はおよそ300MB/秒 (#18)。</summary>
-    private const long DragOutByteLimit = 512L * 1024 * 1024;
+    /// <summary>一度に取り出せる合計サイズの上限 (#200)。</summary>
+    /// <remarks>
+    /// 一時フォルダーが SSD なら、展開は並列になり (#195)、1.5 GB (1,606 個) を 1.2 秒ほどで取り出せる。
+    /// 1 GB までなら、固まる時間は 1 秒前後に収まる。HDD や分からないときは並列にならないので、
+    /// これまでどおり 512 MB まで (#18 の実測で、およそ 300 MB/秒)。
+    /// </remarks>
+    private long DragOutByteLimit => _dragOutByteLimit ??=
+        SeekPenalty.Of(Path.GetTempPath()) == false ? 1024L * 1024 * 1024 : 512L * 1024 * 1024;
+
+    /// <summary><see cref="DragOutByteLimit"/> の控え。ディスクに尋ねるのは 1 回で済ませる。</summary>
+    private long? _dragOutByteLimit;
 
     private void EntryList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
