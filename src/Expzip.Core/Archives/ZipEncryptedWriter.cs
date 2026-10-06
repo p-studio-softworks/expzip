@@ -134,11 +134,13 @@ internal static class ZipEncryptedWriter
         CancellationToken cancellationToken)
     {
         var deleted = 0;
+        var names = new List<string>();
 
         var result = Rewrite(
             archivePath, password, cancellationToken,
             keep: name =>
             {
+                names.Add(name);
                 if (!ZipArchiveWriter.ShouldDelete(name, fileEntryNames, folderPaths))
                 {
                     return name;
@@ -146,6 +148,14 @@ internal static class ZipEncryptedWriter
 
                 deleted++;
                 return null;
+            },
+            append: writer =>
+            {
+                // 中身が無くなるフォルダーは、空のフォルダーとして残す (#203)
+                foreach (var folder in ZipArchiveWriter.FoldersLeftEmpty(names, fileEntryNames, folderPaths))
+                {
+                    writer.WriteFolder(folder + "/");
+                }
             });
 
         return result ? new DeleteResult(deleted, false) : new DeleteResult(0, true);

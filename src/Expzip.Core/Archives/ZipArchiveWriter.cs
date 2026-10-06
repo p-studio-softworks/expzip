@@ -356,6 +356,9 @@ internal static class ZipArchiveWriter
             return new DeleteResult(0, Cancelled: true);
         }
 
+        var emptied = FoldersLeftEmpty(
+            zip.Cast<ZipEntry>().Select(static e => e.Name), fileEntryNames, folderPaths);
+
         zip.BeginUpdate();
 
         foreach (var entry in targets)
@@ -364,12 +367,80 @@ internal static class ZipArchiveWriter
             deleted++;
         }
 
+        foreach (var folder in emptied)
+        {
+            zip.AddDirectory(folder);
+        }
+
         if (!TryCommit(zip, cancellationToken))
         {
             return new DeleteResult(0, Cancelled: true);
         }
 
         return new DeleteResult(deleted, Cancelled: false);
+    }
+
+    /// <summary>
+    /// 削除で中身が無くなるフォルダー (#203)。空のフォルダーとして残すために使う。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ZIP はフォルダーそのものを記録しなくてもよく、ファイルの名前から組み立てることが多い。
+    /// そのため、フォルダーの中のファイルを全部消すと、フォルダーまで消えてしまう。
+    /// エクスプローラーや Finder では、中身を全部消してもフォルダーは空のまま残る。
+    /// </para>
+    /// <para>
+    /// 削除するフォルダーそのものは残さない。そのフォルダーが入っていた親が空になるなら、親を残す。
+    /// 奥のフォルダーを残せば、その親も残るので、いちばん奥のものだけを返す。
+    /// 区切りは <c>/</c>、末尾に区切りは付けない。
+    /// </para>
+    /// </remarks>
+    internal static List<string> FoldersLeftEmpty(
+        IEnumerable<string> entryNames, IReadOnlySet<string> fileEntryNames, IReadOnlyList<string> folderPaths)
+    {
+        // 残るものが入っているフォルダー (奥から上まで全部)
+        var occupied = new HashSet<string>(StringComparer.Ordinal);
+        var candidates = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var name in entryNames)
+        {
+            var path = ArchivePath.Normalize(name).TrimEnd('/');
+
+            if (!ShouldDelete(name, fileEntryNames, folderPaths))
+            {
+                // フォルダーのエントリなら、そのフォルダー自身も中身があるのと同じ扱い
+                var start = name.EndsWith('/') ? path : ParentOf(path);
+                for (var folder = start; folder.Length > 0; folder = ParentOf(folder))
+                {
+                    occupied.Add(folder);
+                }
+
+                continue;
+            }
+
+            // 消えるものの親。削除するフォルダーの中なら、その外まで上がる
+            var parent = ParentOf(path);
+            while (parent.Length > 0 && ShouldDelete(parent + "/", fileEntryNames, folderPaths))
+            {
+                parent = ParentOf(parent);
+            }
+
+            if (parent.Length > 0)
+            {
+                candidates.Add(parent);
+            }
+        }
+
+        var emptied = candidates.Where(c => !occupied.Contains(c)).ToList();
+        return emptied
+            .Where(c => !emptied.Any(other => other.StartsWith(c + "/", StringComparison.Ordinal)))
+            .ToList();
+
+        static string ParentOf(string path)
+        {
+            var slash = path.LastIndexOf('/');
+            return slash < 0 ? string.Empty : path[..slash];
+        }
     }
 
     /// <summary>このエントリが削除の対象かどうか。</summary>
