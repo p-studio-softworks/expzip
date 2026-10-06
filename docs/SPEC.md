@@ -810,6 +810,7 @@ Expzip を持っていない相手にも渡せるように、**取り出すプ�
 - 起動時間: 雛形段階での実測は初回927ms / 2回目524ms(単一ファイル圧縮あり)。機能追加後もウィンドウ表示まで**1秒以内**を目標とする
 - ポータブル性: 設定ファイル (`Expzip.settings.json`) とルールのファイル (`Expzip.rules.json`) は exe と同じフォルダーに置く。`%APPDATA%` は使わない
   - **Store 版 (MSIX) だけは `%LOCALAPPDATA%\Expzip` に置く**(#176)。MSIX はインストール先に書き込めない。AppData への書き込みは Windows がパッケージ専用の場所へ振り替え、アンインストールで一緒に消える
+  - **Mac 版は `~/Library/Application Support/Expzip` に置く**(#191)。Mac のアプリ (.app) の中には書き込めない(App Store の版では禁じられている)。.NET はこの場所を LocalApplicationData として返し、App Store の版ではアプリ専用の場所へ振り替わる
   - **exe は 1 つのまま、起動したときに見分ける**。MSIX で入れられたかどうかは `GetCurrentPackageFullName` で分かる。版ごとにビルドを分けない
   - exe 単体の版から Store 版へ乗り換えても、設定は引き継がない
 - **Windows の DLL は System32 からだけ読み込む**(#185)。アセンブリ全体に `DefaultDllImportSearchPaths(DllImportSearchPath.System32)` を付けてあり(指定は部品ごとに効くので、`Expzip.Core` と `Expzip` の両方に)、新しく足す DllImport にも効く
