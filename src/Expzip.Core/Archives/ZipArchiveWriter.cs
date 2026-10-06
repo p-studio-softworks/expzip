@@ -414,24 +414,41 @@ internal static class ZipArchiveWriter
         {
             if (Directory.Exists(path))
             {
-                AddDirectory(plan, path, prefix + Path.GetFileName(path.TrimEnd(
+                AddDirectory(plan, path, prefix + EntryNameOf(path.TrimEnd(
                     Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
             }
             else if (File.Exists(path))
             {
-                plan.Add(new PlanItem(path, prefix + Path.GetFileName(path), new FileInfo(path).Length, false));
+                // 利用者が選んだものは、.DS_Store でもそのまま入れる
+                plan.Add(new PlanItem(path, prefix + EntryNameOf(path), new FileInfo(path).Length, false));
             }
         }
 
         return plan;
     }
 
+    /// <summary>
+    /// ディスクの名前から、書庫に入れる名前を作る。濁点や半濁点が分かれていない形 (NFC) に揃える (#202)。
+    /// Mac のファイル名は「ガ」を「カ」と「゛」の 2 文字で持っていることがあり、そのまま入れると
+    /// Windows で開いたときに濁点が離れて見える。Windows のファイル名はふつう元から NFC なので変わらない
+    /// </summary>
+    private static string EntryNameOf(string path)
+        => Path.GetFileName(path).Normalize(System.Text.NormalizationForm.FormC);
+
+    /// <summary>
+    /// フォルダーの中にあっても書庫に入れないファイルか (#202)。Mac の Finder がフォルダーごとに作る
+    /// .DS_Store (表示の設定などを持つ隠しファイル) は、Windows で開くと知らないファイルに見える
+    /// </summary>
+    private static bool IsFolderClutter(string file)
+        => string.Equals(Path.GetFileName(file), ".DS_Store", StringComparison.OrdinalIgnoreCase);
+
     private static void AddDirectory(List<PlanItem> plan, string directory, string entryPrefix)
     {
-        var files = Directory.GetFiles(directory);
+        var files = Directory.GetFiles(directory).Where(static f => !IsFolderClutter(f)).ToArray();
         var subdirectories = Directory.GetDirectories(directory);
 
-        // 空のフォルダは、そのままだと書庫に残らないのでフォルダのエントリを作る
+        // 空のフォルダは、そのままだと書庫に残らないのでフォルダのエントリを作る。
+        // .DS_Store だけが入ったフォルダーも、空のフォルダーとして残す
         if (files.Length == 0 && subdirectories.Length == 0)
         {
             plan.Add(new PlanItem(directory, entryPrefix + "/", 0, true));
@@ -440,13 +457,13 @@ internal static class ZipArchiveWriter
 
         foreach (var file in files)
         {
-            plan.Add(new PlanItem(file, entryPrefix + "/" + Path.GetFileName(file),
+            plan.Add(new PlanItem(file, entryPrefix + "/" + EntryNameOf(file),
                 new FileInfo(file).Length, false));
         }
 
         foreach (var subdirectory in subdirectories)
         {
-            AddDirectory(plan, subdirectory, entryPrefix + "/" + Path.GetFileName(subdirectory));
+            AddDirectory(plan, subdirectory, entryPrefix + "/" + EntryNameOf(subdirectory));
         }
     }
 
