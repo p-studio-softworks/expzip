@@ -3107,6 +3107,12 @@ public partial class MainWindow : Window
             Mouse.OverrideCursor = Cursors.Wait;
             StatusMessage.Text = Strings.ExtractingCount(names.Count);
 
+            // 取り出しが終わるまで画面は描き直されない。描かせてから取り出さないと、
+            // 「展開しています…」は取り出しが終わってから出る (実測、#200)。
+            // 描画と同じ優先度で空の処理を待つと、描画まで済む。入力はそれより低いので、
+            // ここで操作を拾って入れ子になることはない
+            Dispatcher.Invoke(static () => { }, DispatcherPriority.Render);
+
             // 既に取り出してあるものは触らない。開いたままのアプリに掴まれていて
             // 上書きできない場合でも、ドラッグ自体は成り立つようにする
             ArchiveExtractor.Extract(
