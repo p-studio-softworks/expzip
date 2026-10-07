@@ -28,7 +28,8 @@
 
                 暗いほうの値は WinUI が用意している対から採っている
                 (`SystemFillColorSuccess` / `Caution` / `Critical` の暗いほう)。
-                明るいほうの注意の橙と危険の赤は、**WinUI の値と元から同じ**。
+                明るいほうの注意の橙と危険の赤は、WinUI の値 (#9D5D00 / #C42B1C) を、
+                色みを変えずに濃くしたもの (#209)。
 
                 比はすべて実測。本文に要る 4.5 : 1 は、ウィンドウの背景色だけでなく
                 **選んだ行の背景色の上でも満たす** (#120)。
@@ -41,17 +42,16 @@
                     危険を表す色。一覧 (#36、#20) と検査結果の画面 (#57) の両方から
                     使うため、アプリ全体の資源に置いてある。同じ意味の色がウィンドウごとに
                     違うと、利用者はそれぞれ別の意味だと受け取る。
-                    ウィンドウの背景色 5.10 : 1 / 選んだ行 4.71 : 1
+                    ウィンドウの背景色 5.92 : 1 / 選んだ行 4.61 : 1
                 -->
-                <SolidColorBrush x:Key="WarningBrush" Color="#C42B1C" />
+                <SolidColorBrush x:Key="WarningBrush" Color="#B22719" />
                 <!--
                     危険と問題なしの間。赤ほど強くなく、灰色よりは目に入る。
-                    ウィンドウの背景色 4.73 : 1 / 選んだ行 4.36 : 1。
-                    **選んだ行では 4.5 : 1 にわずかに届かない。**濃くすれば届くが、
-                    そうすると赤との差が縮み、重さの違いが読み取れなくなる。
+                    ウィンドウの背景色 5.92 : 1 / 選んだ行 4.61 : 1。
+                    **赤と同じ明るさにそろえてある。**選んだ行を濃くしたときは、赤と一緒に濃くする (#209)。
                     意味は言葉でも出してある (#119)
                 -->
-                <SolidColorBrush x:Key="CautionBrush" Color="#9D5D00" />
+                <SolidColorBrush x:Key="CautionBrush" Color="#885000" />
                 <!--
                     パスワードで保護された項目の色 (#20)。保護されていることは色で示す。
                     緑にするのは、エクスプローラーが EFS で暗号化されたファイルを緑で出す
@@ -60,7 +60,7 @@
                     検査結果の「問題なし」(#57)、ルールの検査結果の見出し (#27)、
                     AI の接続先の「つながりました」にも同じ緑を使う。
                     **この 1 箇所で決める。ウィンドウごとに数値を書かない** (#120)。
-                    ウィンドウの背景色 7.32 : 1 / 選んだ行 6.75 : 1 / ルールに合っていない背景色 4.95 : 1
+                    ウィンドウの背景色 7.32 : 1 / 選んだ行 5.70 : 1 / ルールに合っていない背景色 5.07 : 1
                 -->
                 <SolidColorBrush x:Key="EncryptedBrush" Color="#0B5D0B" />
                 <!--
@@ -68,9 +68,9 @@
                     危険を表す赤とは別の色にする。決まりから外れていることは危ないことではなく、
                     「取り決めと違う」というだけ。同じ色にすると、中身が怪しい書庫と、
                     名前の付け方が違うだけの書庫が同じ顔になる。
-                    ウィンドウの背景色 5.47 : 1 / 選んだ行 5.04 : 1
+                    ウィンドウの背景色 5.97 : 1 / 選んだ行 4.64 : 1
                 -->
-                <SolidColorBrush x:Key="RuleBreakBrush" Color="#6B4FBB" />
+                <SolidColorBrush x:Key="RuleBreakBrush" Color="#6548B8" />
                 <!--
                     ツリーで印を付けるときの背景色 (#88)。旗を前に置くと、その1文字ぶん
                     名前がずれ、**兄弟のフォルダと段が違って見える。**ツリーは段で親子を
@@ -81,31 +81,34 @@
                     採ると、背景色の明るさが変わったときに読めなくなる。
 
                     **色覚特性でも背景と見分けられる色にしてある** (#119)。1 型・2 型・3 型の
-                    どれでも、ウィンドウの背景・選んだ行との色の差 (ΔE) が 22.7 以上ある。
-                    上に乗る黒は 12.80 : 1、保護の緑は 4.95 : 1。
+                    どれでも、ウィンドウの背景・選んだ行との色の差 (ΔE) が 23.0 以上ある。
+                    上に乗る黒は 13.11 : 1、保護の緑は 5.07 : 1。
                     前の #F6BFBA は 1 型・2 型で 15 まで落ちていた (目安は 20)。
+                    その次の #FFBAA3 は、選んだ行を濃くしたときに 1 型で 19 に落ちた (#209)。
                     明るくすると文字が読みにくくなり、暗くすると背景と見分けにくくなるので、
                     **色を変えるときは両方を測る。**測り方は仕様書 4.9 節
                 -->
-                <SolidColorBrush x:Key="RuleBreakBackBrush" Color="#FFBAA3" />
+                <SolidColorBrush x:Key="RuleBreakBackBrush" Color="#FFBE9E" />
                 <SolidColorBrush x:Key="RuleBreakTextBrush" Color="#000000" />
                 <!--
                     アドレスバーで指している場所 (#90、#121)。ここも背景色と文字を組で決める。
                     一覧の選んだ行と同じ灰色 (#130)
                 -->
-                <SolidColorBrush x:Key="HoverBackBrush" Color="#EAEAEA" />
+                <SolidColorBrush x:Key="HoverBackBrush" Color="#D8D8D8" />
                 <SolidColorBrush x:Key="HoverTextBrush" Color="#000000" />
                 <!--
                     選んだ行とマウスが乗った行の背景色 (#130)。ツリーも一覧も同じ色にする。
                     **薄い青にはしない。**エクスプローラーの選択は灰色で、青にすると
                     エクスプローラーライクでなくなる。
-                    明るい表示は Fluent と同じ灰色のまま。**これより濃くできない。**
-                    危険の赤が 4.71 : 1、注意の色が 4.36 : 1 で、もう余裕が無い。
-                    それでも書くのは、暗い表示から切り替えたときに暗いほうの色を上書きするため
+                    Fluent のままの #EAEAEA では、ウィンドウの背景色との差が 1.08 : 1 しかなく、
+                    どの行を選んだか見えにくい。エクスプローラーの #D9D9D9 に近づけた (#209)。
+                    ウィンドウの背景色との差は 1.28 : 1。
+                    **これより濃くするなら、意味を表す4色も濃くする。**赤・注意の色・紫は、
+                    この灰色の上で 4.5 : 1 を保てるところまで濃くしてある (4.61〜4.64 : 1)
                 -->
-                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#EAEAEA" />
-                <SolidColorBrush x:Key="TreeViewItemBackgroundPointerOver" Color="#EAEAEA" />
-                <SolidColorBrush x:Key="TreeViewItemBackgroundSelected" Color="#EAEAEA" />
+                <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#D8D8D8" />
+                <SolidColorBrush x:Key="TreeViewItemBackgroundPointerOver" Color="#D8D8D8" />
+                <SolidColorBrush x:Key="TreeViewItemBackgroundSelected" Color="#D8D8D8" />
             </ResourceDictionary>
 
             <!--
