@@ -124,6 +124,33 @@ public partial class MainWindow : Window
     private Point _dragOrigin;
     private bool _dragCandidate;
 
+    /// <summary>
+    /// 押した場所が、囲んで選ぶ (#205) の起点になる所だった。
+    /// ドラッグアウトと同じく、一定以上動いたら始める。
+    /// </summary>
+    private bool _marqueeCandidate;
+
+    /// <summary>囲んで選んでいる最中。</summary>
+    private bool _marqueeActive;
+
+    /// <summary>囲み始めた位置。スクロールしても動かないよう、一覧の中身の座標で持つ。</summary>
+    private Point _marqueeAnchor;
+
+    /// <summary>Ctrl を押して始めたときの、元の選択。囲んだ行はこれに足す。</summary>
+    private HashSet<EntryRow>? _marqueeBase;
+
+    /// <summary>今囲んでいる行の範囲 (位置)。空なら Last が First より小さい。</summary>
+    private int _marqueeFirst, _marqueeLast = -1;
+
+    /// <summary>囲んでいて選択を書き換えている最中。1 行ごとの件数の数え直しを止める。</summary>
+    private bool _marqueeSelecting;
+
+    /// <summary>囲みながら一覧の外へ出たときに、自動でスクロールする。</summary>
+    private DispatcherTimer? _marqueeScrollTimer;
+
+    /// <summary>囲んでいる間、マウスをつかんでいる部品。</summary>
+    private UIElement? _marqueeCapture;
+
     /// <summary>自分が始めたドラッグの最中。自分の一覧に落とし直されるのを防ぐ。</summary>
     private bool _draggingOut;
 
@@ -2904,14 +2931,24 @@ public partial class MainWindow : Window
     {
         CancelPendingRename();
 
-        // 行の上で押された場合だけドラッグの起点にする。
-        // 列見出しや余白から始まる範囲選択を邪魔しないため。
+        // 名前の上で押された場合だけドラッグの起点にする。
+        // 名前以外の列と、行の下の余白からは、囲んで選ぶ (#205)。エクスプローラーと同じ
         var item = e.OriginalSource is DependencyObject source
             ? ItemsControl.ContainerFromElement(EntryList, source) as ListViewItem
             : null;
+        var inName = item is not null && IsInNameColumn(e.GetPosition(item));
 
-        _dragCandidate = item is not null;
+        _dragCandidate = inName;
         _dragOrigin = e.GetPosition(null);
+        _marqueeCandidate = false;
+
+        // 見出しとスクロールバーは囲む起点にしない。行が並ぶ枠の中だけ
+        if (!inName && TryGetItemsViewport(out var viewport, out var scroll)
+            && new Rect(viewport.RenderSize).Contains(e.GetPosition(viewport)))
+        {
+            _marqueeCandidate = true;
+            _marqueeAnchor = ToContent(e.GetPosition(viewport), scroll);
+        }
 
         // エクスプローラーと同じく、選択済みの項目をもう一度クリックすると
         // 名前の変更を始める。押した時点で選ばれていたかどうかで見分ける (#44)
@@ -2925,13 +2962,37 @@ public partial class MainWindow : Window
     }
 
     /// <summary>行の中で、名前の列の上を指しているか。</summary>
+    /// <remarks>列は見出しをつかんで並べ替えられるので、名前の列が先頭とは限らない。</remarks>
     private bool IsInNameColumn(Point positionInRow)
-        => EntryList.View is GridView { Columns.Count: > 0 } grid
-           && positionInRow.X >= 0
-           && positionInRow.X < grid.Columns[0].ActualWidth;
+    {
+        if (EntryList.View is not GridView grid)
+        {
+            return false;
+        }
+
+        var left = 0.0;
+        foreach (var column in grid.Columns)
+        {
+            if (ReferenceEquals(column, NameColumn))
+            {
+                return positionInRow.X >= left && positionInRow.X < left + column.ActualWidth;
+            }
+
+            left += column.ActualWidth;
+        }
+
+        return false;
+    }
 
     private void EntryList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        _marqueeCandidate = false;
+        if (_marqueeActive)
+        {
+            EndMarquee();
+            return;
+        }
+
         // ドラッグに移った場合や、対象でない場合は何もしない
         if (_pendingRenameRow is null || !_dragCandidate || _cancellation is not null)
         {
@@ -2992,7 +3053,15 @@ public partial class MainWindow : Window
 
     private void EntryList_PreviewMouseMove(object sender, MouseEventArgs e)
     {
-        if (!_dragCandidate || _draggingOut || e.LeftButton != MouseButtonState.Pressed)
+        if (_marqueeActive)
+        {
+            // 一覧が持つ「押したまま動かすと範囲を選ぶ」動きを止める。囲む四角と食い違う
+            e.Handled = true;
+            UpdateMarquee();
+            return;
+        }
+
+        if (!(_dragCandidate || _marqueeCandidate) || _draggingOut || e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
@@ -3005,8 +3074,325 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_marqueeCandidate)
+        {
+            e.Handled = true;
+            BeginMarquee();
+            return;
+        }
+
         _dragCandidate = false;
         DragOut(SelectedRowsForEdit(), EntryList);
+    }
+
+    // ------------------------------------------------------------------ 囲んで選ぶ (#205)
+
+    /// <summary>
+    /// 一覧の行が並ぶ枠 (見出しとスクロールバーを除いた所) と、それを動かすスクロールを探す。
+    /// </summary>
+    /// <remarks>
+    /// 列見出しも中に自分のスクロールを持っているので、一覧の外側のスクロールが
+    /// 部品として持つ枠を選ぶ。
+    /// </remarks>
+    private bool TryGetItemsViewport(out ScrollContentPresenter viewport, out ScrollViewer scroll)
+    {
+        viewport = null!;
+        scroll = FindDescendant<ScrollViewer>(EntryList)!;
+        if (scroll is null)
+        {
+            return false;
+        }
+
+        var outer = scroll;
+        viewport = FindDescendant<ScrollContentPresenter>(scroll, p => ReferenceEquals(p.TemplatedParent, outer))!;
+        return viewport is not null;
+    }
+
+    /// <summary>視覚ツリーを下って、条件に合う最初の部品を探す。</summary>
+    private static T? FindDescendant<T>(DependencyObject parent, Func<T, bool>? match = null) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T found && (match is null || match(found)))
+            {
+                return found;
+            }
+
+            if (FindDescendant(child, match) is { } deeper)
+            {
+                return deeper;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>枠の中の位置を、一覧の中身の座標に直す。スクロールの分を足す。</summary>
+    /// <remarks>一覧は 1 px 単位でスクロールする (ScrollUnit=Pixel) ので、ずれ幅も px で測れる。</remarks>
+    private static Point ToContent(Point inViewport, ScrollViewer scroll)
+        => new(inViewport.X + scroll.HorizontalOffset, inViewport.Y + scroll.VerticalOffset);
+
+    private void BeginMarquee()
+    {
+        if (!TryGetItemsViewport(out var viewport, out var scroll))
+        {
+            return;
+        }
+
+        _marqueeCandidate = false;
+        _marqueeActive = true;
+        _marqueeFirst = 0;
+        _marqueeLast = -1;
+
+        // Ctrl を押していれば今の選択に足す。押していなければ選び直す
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            _marqueeBase = EntryList.SelectedItems.OfType<EntryRow>().ToHashSet();
+        }
+        else
+        {
+            _marqueeBase = null;
+            EntryList.UnselectAll();
+        }
+
+        // 一覧の外へ出ても動きを受け取る。
+        // **つかむのは一覧そのものではなく、行が並ぶ枠。**行の上で押すと一覧が自分でマウスを
+        // つかみ、つかんでいる間はマウスの下の行を 1 つだけ選び直し続ける。こちらの選択が
+        // 上書きされるので、つかむ相手を替えて一覧から手放させる
+        _marqueeCapture = viewport;
+        viewport.CaptureMouse();
+        viewport.LostMouseCapture += Viewport_MarqueeLostCapture;
+        scroll.ScrollChanged += EntryScroll_MarqueeScrollChanged;
+
+        _marqueeScrollTimer ??= new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(30) };
+        _marqueeScrollTimer.Tick -= MarqueeScrollTimer_Tick;
+        _marqueeScrollTimer.Tick += MarqueeScrollTimer_Tick;
+        _marqueeScrollTimer.Start();
+
+        Marquee.Visibility = Visibility.Visible;
+        UpdateMarquee();
+    }
+
+    private void EndMarquee()
+    {
+        if (!_marqueeActive)
+        {
+            return;
+        }
+
+        // 先に印を下ろす。マウスを放すと LostMouseCapture が来て、ここへもう一度入る
+        _marqueeActive = false;
+        _marqueeBase = null;
+        _marqueeScrollTimer?.Stop();
+        if (TryGetItemsViewport(out _, out var scroll))
+        {
+            scroll.ScrollChanged -= EntryScroll_MarqueeScrollChanged;
+        }
+
+        Marquee.Visibility = Visibility.Collapsed;
+        if (_marqueeCapture is { } captured)
+        {
+            _marqueeCapture = null;
+            captured.LostMouseCapture -= Viewport_MarqueeLostCapture;
+            if (captured.IsMouseCaptured)
+            {
+                captured.ReleaseMouseCapture();
+            }
+        }
+    }
+
+    /// <summary>ほかのウィンドウに移るなどしてマウスを取られたら、そこで終える。</summary>
+    private void Viewport_MarqueeLostCapture(object sender, MouseEventArgs e)
+    {
+        if (!ReferenceEquals(Mouse.Captured, _marqueeCapture))
+        {
+            EndMarquee();
+        }
+    }
+
+    /// <summary>ホイールや自動スクロールで中身が動いたら、四角と選択を合わせ直す。</summary>
+    private void EntryScroll_MarqueeScrollChanged(object sender, ScrollChangedEventArgs e) => UpdateMarquee();
+
+    /// <summary>
+    /// 囲みながら一覧の上下 (と左右) の外へ出ていたら、その分だけスクロールする。
+    /// 外へ離れるほど速くする。
+    /// </summary>
+    private void MarqueeScrollTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!_marqueeActive || !TryGetItemsViewport(out var viewport, out var scroll))
+        {
+            return;
+        }
+
+        var p = Mouse.GetPosition(viewport);
+        var dx = Overshoot(p.X, viewport.ActualWidth);
+        var dy = Overshoot(p.Y, viewport.ActualHeight);
+
+        if (dy != 0)
+        {
+            scroll.ScrollToVerticalOffset(scroll.VerticalOffset + dy);
+        }
+
+        if (dx != 0)
+        {
+            scroll.ScrollToHorizontalOffset(scroll.HorizontalOffset + dx);
+        }
+
+        static double Overshoot(double at, double size)
+        {
+            var over = at < 0 ? at : at > size ? at - size : 0;
+            return over == 0 ? 0 : Math.Sign(over) * Math.Max(Math.Abs(over) / 2, 6);
+        }
+    }
+
+    /// <summary>今のマウスの位置まで四角を広げ、かかった行を選ぶ。</summary>
+    private void UpdateMarquee()
+    {
+        if (!_marqueeActive || !TryGetItemsViewport(out var viewport, out var scroll))
+        {
+            return;
+        }
+
+        var now = ToContent(Mouse.GetPosition(viewport), scroll);
+        var area = new Rect(_marqueeAnchor, now);
+
+        var (first, last) = RowsWithin(area.Top, area.Bottom, viewport, scroll);
+        SelectMarqueeRows(first, last);
+        ShowMarquee(area, viewport, scroll);
+    }
+
+    /// <summary>
+    /// 縦の範囲にかかる行の位置を求める。空なら Last が First より小さい。
+    /// </summary>
+    /// <remarks>
+    /// 一覧は見えている行だけ部品を作る (仮想化)。数万行を部品からは調べられないので、
+    /// 見えている行の 1 つから行の高さと並びの起点を測り、位置から計算する。
+    /// 行の高さは揃っている (名前の変更中も変わらない、#125)。
+    /// </remarks>
+    private (int First, int Last) RowsWithin(double top, double bottom, ScrollContentPresenter viewport, ScrollViewer scroll)
+    {
+        var count = EntryList.Items.Count;
+        if (count == 0 || !TryMeasureRows(viewport, scroll, out var origin, out var pitch))
+        {
+            return (0, -1);
+        }
+
+        // 境目にちょうど触れただけの行は含めない
+        var first = (int)Math.Max(0, Math.Floor((top - origin) / pitch));
+        var last = (int)Math.Min(count - 1, Math.Ceiling((bottom - origin) / pitch) - 1);
+        return (first, last);
+    }
+
+    /// <summary>行の並びの起点 (中身の座標) と、1 行の高さを、見えている行から測る。</summary>
+    private bool TryMeasureRows(ScrollContentPresenter viewport, ScrollViewer scroll, out double origin, out double pitch)
+    {
+        origin = 0;
+        pitch = 0;
+
+        // 見えている行のうち、いちばん上と下の 2 つから測る。1 つしか無ければその高さを使う
+        (int Index, double Top)? upper = null, lower = null;
+        double height = 0;
+        if (FindDescendant<VirtualizingPanel>(viewport, p => p.IsItemsHost) is not { } panel)
+        {
+            return false;
+        }
+
+        foreach (UIElement child in panel.Children)
+        {
+            if (child is not ListViewItem item || !item.IsVisible)
+            {
+                continue;
+            }
+
+            var index = EntryList.ItemContainerGenerator.IndexFromContainer(item);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            var top = item.TranslatePoint(default, viewport).Y + scroll.VerticalOffset;
+            if (upper is null || index < upper.Value.Index)
+            {
+                upper = (index, top);
+                height = item.ActualHeight;
+            }
+
+            if (lower is null || index > lower.Value.Index)
+            {
+                lower = (index, top);
+            }
+        }
+
+        if (upper is not { } u || lower is not { } l)
+        {
+            return false;
+        }
+
+        pitch = l.Index > u.Index ? (l.Top - u.Top) / (l.Index - u.Index) : height;
+        if (pitch <= 0)
+        {
+            return false;
+        }
+
+        origin = u.Top - u.Index * pitch;
+        return true;
+    }
+
+    /// <summary>
+    /// 囲んでいる行を、前回からの差だけ選び直す。動かすたびに全部を選び直すと、
+    /// 数万行を囲んだときに重くなる。
+    /// </summary>
+    private void SelectMarqueeRows(int first, int last)
+    {
+        if (first == _marqueeFirst && last == _marqueeLast)
+        {
+            return;
+        }
+
+        var items = EntryList.Items;
+        _marqueeSelecting = true;
+        try
+        {
+            // 外れた行。Ctrl で始めたときに元から選んでいた行は残す
+            for (var i = _marqueeFirst; i <= _marqueeLast; i++)
+            {
+                if ((i < first || i > last) && items[i] is EntryRow row && _marqueeBase?.Contains(row) != true)
+                {
+                    EntryList.SelectedItems.Remove(row);
+                }
+            }
+
+            // 新しくかかった行
+            for (var i = first; i <= last; i++)
+            {
+                if ((i < _marqueeFirst || i > _marqueeLast) && items[i] is EntryRow row && _marqueeBase?.Contains(row) != true)
+                {
+                    EntryList.SelectedItems.Add(row);
+                }
+            }
+        }
+        finally
+        {
+            _marqueeSelecting = false;
+        }
+
+        _marqueeFirst = first;
+        _marqueeLast = last;
+        UpdateSelectionInfo();
+    }
+
+    /// <summary>四角を描く。一覧の枠からはみ出す所は見せない。</summary>
+    private void ShowMarquee(Rect area, ScrollContentPresenter viewport, ScrollViewer scroll)
+    {
+        var corner = viewport.TranslatePoint(default, MarqueeLayer);
+        var frame = new Rect(corner, viewport.RenderSize);
+
+        Canvas.SetLeft(Marquee, area.X - scroll.HorizontalOffset + corner.X);
+        Canvas.SetTop(Marquee, area.Y - scroll.VerticalOffset + corner.Y);
+        Marquee.Width = area.Width;
+        Marquee.Height = area.Height;
+        MarqueeLayer.Clip = new RectangleGeometry(frame);
     }
 
     private void FolderTree_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -4852,7 +5238,12 @@ public partial class MainWindow : Window
             CancelPendingRename();
         }
 
-        UpdateSelectionInfo();
+        // 囲んで選ぶ間は 1 行ずつ通知が来る。そのたびに数え直すと、
+        // 選んだ数の 2 乗の手間になるので、書き換え終わってから 1 回だけ数える (#205)
+        if (!_marqueeSelecting)
+        {
+            UpdateSelectionInfo();
+        }
     }
 
     private void UpdateSelectionInfo()
