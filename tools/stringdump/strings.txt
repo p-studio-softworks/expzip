@@ -1084,8 +1084,8 @@ MenuDelete
   en  Delete
 
 MenuNewArchiveFromSelection
-  ja  選択した項目から新しい書庫を作成
-  en  Create a new archive from the selection
+  ja  新しい書庫を作成
+  en  Create a new archive
 
 MenuNewFolder
   ja  新しいフォルダー

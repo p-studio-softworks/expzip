@@ -156,8 +156,8 @@ internal static partial class Strings
     public static string MenuOpenInNewTab => Pick("新しいタブで開く", "Open in new tab");
 
     /// <summary>選んだものを入れた新しい書庫を作り、新しいタブで開く (#207)。</summary>
-    public static string MenuNewArchiveFromSelection => Pick(
-        "選択した項目から新しい書庫を作成", "Create a new archive from the selection");
+    /// <remarks>選んだ項目の上で右クリックして出すので、「選択した項目から」は言わなくても分かる。</remarks>
+    public static string MenuNewArchiveFromSelection => Pick("新しい書庫を作成", "Create a new archive");
 
     public static string MenuRename => Pick("名前の変更", "Rename");
 

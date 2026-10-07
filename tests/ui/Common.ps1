@@ -737,11 +737,11 @@ function Open-InNewTab($App, [string]$Name) {
     return $true
 }
 
-# 右クリックのメニューの「選択した項目から新しい書庫を作成」(#207)。いまの選択のままメニューを出す。押せなかったら false
+# 右クリックのメニューの「新しい書庫を作成」(#207)。いまの選択のままメニューを出す。押せなかったら false
 function Open-NewArchiveFromSelection($App) {
     Send-Keys $App '+{F10}'
     $menu = Find-DropDown $App
-    $item = if ($menu) { ByName $menu '選択した項目から新しい書庫を作成' }
+    $item = if ($menu) { ByName $menu '新しい書庫を作成' }
     if ($null -eq $item -or -not $item.Current.IsEnabled) {
         Close-DropDown $App
         return $false

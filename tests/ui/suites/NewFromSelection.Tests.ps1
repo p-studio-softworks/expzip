@@ -4,7 +4,7 @@ Start-Suite 'NewFromSelection'
 Set-Settings
 
 $dialogTitle = '新しい書庫を作成'
-$menuName = '選択した項目から新しい書庫を作成'
+$menuName = '新しい書庫を作成'
 
 $inner = New-TestZip (Join-Path $script:Work 'inner-src.zip') ([ordered]@{
     'x/'      = ''
