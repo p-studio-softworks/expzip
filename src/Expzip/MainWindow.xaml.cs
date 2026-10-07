@@ -130,6 +130,9 @@ public partial class MainWindow : Window
     /// </summary>
     private bool _marqueeCandidate;
 
+    /// <summary>行の下の余白で押した。動かさずに放したら、選択を外す。</summary>
+    private bool _pressedOnBlank;
+
     /// <summary>囲んで選んでいる最中。</summary>
     private bool _marqueeActive;
 
@@ -2950,6 +2953,8 @@ public partial class MainWindow : Window
             _marqueeAnchor = ToContent(e.GetPosition(viewport), scroll);
         }
 
+        _pressedOnBlank = _marqueeCandidate && item is null;
+
         // エクスプローラーと同じく、選択済みの項目をもう一度クリックすると
         // 名前の変更を始める。押した時点で選ばれていたかどうかで見分ける (#44)
         _pendingRenameRow = item is { Content: EntryRow row }
@@ -2986,6 +2991,14 @@ public partial class MainWindow : Window
 
     private void EntryList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        // 余白を動かさずにクリックしただけなら、選択を外す (#205、エクスプローラーと同じ)。
+        // Ctrl や Shift を押していれば、選択を足す・広げるつもりなので外さない
+        if (_pressedOnBlank && _marqueeCandidate && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            EntryList.UnselectAll();
+        }
+
+        _pressedOnBlank = false;
         _marqueeCandidate = false;
         if (_marqueeActive)
         {

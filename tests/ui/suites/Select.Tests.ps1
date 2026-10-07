@@ -14,6 +14,22 @@ namespace ExpzipUi
         [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
         public static void ControlDown() { keybd_event(0x11, 0, 0, UIntPtr.Zero); }
         public static void ControlUp() { keybd_event(0x11, 0, 2, UIntPtr.Zero); }
+
+        [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+        [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
+        [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+
+        // 動かさずにクリックする。座標は UI Automation と同じ、画面の実際の px
+        public static void Click(int x, int y)
+        {
+            var before = SetThreadDpiAwarenessContext(new IntPtr(-4));
+            SetCursorPos(x, y);
+            System.Threading.Thread.Sleep(200);
+            mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+            System.Threading.Thread.Sleep(100);
+            mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+            SetThreadDpiAwarenessContext(before);
+        }
     }
 }
 '@
@@ -68,6 +84,21 @@ try {
     [ExpzipUi.Keys]::ControlUp()
 }
 Check '囲んだ行を今の選択に足す' ((Selection-Text $app) -match '^選択 5 個') (Selection-Text $app)
+
+Section '余白をクリックする'
+# Ctrl を押していれば選択は残る
+[ExpzipUi.Keys]::ControlDown()
+try {
+    [ExpzipUi.Keys]::Click($sizeX, $blankY)
+} finally {
+    [ExpzipUi.Keys]::ControlUp()
+}
+Start-Sleep -Milliseconds 400
+Check 'Ctrl を押していれば外さない' ((Selection-Text $app) -match '^選択 5 個') (Selection-Text $app)
+# エクスプローラーと同じく、何も無い所をクリックすると選択を外す
+[ExpzipUi.Keys]::Click($sizeX, $blankY)
+Start-Sleep -Milliseconds 400
+Check '選択を外す' ((Selection-Text $app) -eq '選択 0 個') (Selection-Text $app)
 Stop-Expzip $app
 
 Section '端まで来たら自動でスクロールする'
