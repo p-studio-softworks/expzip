@@ -2341,7 +2341,7 @@ SuspiciousPathTooltipLine2
   en  Extracting it will not write anything outside the folder you choose.
 
 TabMoved (position: 3, count: 3)
-  ja  タブを 3 個中 3 番目に移動しました
+  ja  タブを 3 個のうち 3 番目に移動しました
   en  Moved the tab to position 3 of 3
 
 TempUnavailable

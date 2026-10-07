@@ -139,8 +139,9 @@ internal static partial class Strings
         "このタブを閉じる (Ctrl+W)", "Close this tab (Ctrl+W)");
 
     /// <summary>タブを並べ替えたときの読み上げ (#208)。画面には出さない。</summary>
+    /// <remarks>「3 個中」とはしない。ナレーターが「こなか」と読む。</remarks>
     public static string TabMoved(int position, int count) => Pick(
-        $"タブを {count} 個中 {position} 番目に移動しました",
+        $"タブを {count} 個のうち {position} 番目に移動しました",
         $"Moved the tab to position {position} of {count}");
 
     // ------------------------------------------------------------------ 一覧の列と右クリック
