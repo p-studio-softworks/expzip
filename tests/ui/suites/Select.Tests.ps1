@@ -99,6 +99,19 @@ Check 'Ctrl を押していれば外さない' ((Selection-Text $app) -match '^�
 [ExpzipUi.Keys]::Click($sizeX, $blankY)
 Start-Sleep -Milliseconds 400
 Check '選択を外す' ((Selection-Text $app) -eq '選択 0 個') (Selection-Text $app)
+
+Section '選んである行の上から始める'
+# エクスプローラーと同じく、選んである行は名前以外の列をつかんでも持ち出しになる。
+# 受け取る所の無いステータスバーへ運ぶので、何も取り出さずに終わる
+Invoke-MouseDrag $sizeX (Get-RowY $app 'a.txt') $sizeX (Get-RowY $app 'c.txt')
+$status = (ById $app.Window 'StatusMessage').Current.BoundingRectangle
+Invoke-MouseDrag $sizeX (Get-RowY $app 'b.txt') ([int]($status.X + 20)) ([int]($status.Y + $status.Height / 2))
+Check '囲み直さない' ((Selection-Text $app) -match '^選択 3 個') (Selection-Text $app)
+Check '持ち出しになる' ((Get-Status $app) -eq '展開を中止しました') (Get-Status $app)
+# 押した時点では選択を変えず、動かさずに放したときにその行だけを選ぶ
+[ExpzipUi.Keys]::Click($sizeX, (Get-RowY $app 'b.txt'))
+Start-Sleep -Milliseconds 400
+Check 'クリックだけならその行だけを選ぶ' ((Selection-Text $app) -match '^選択 1 個') (Selection-Text $app)
 Stop-Expzip $app
 
 Section '端まで来たら自動でスクロールする'

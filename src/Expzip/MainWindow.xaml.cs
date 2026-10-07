@@ -133,6 +133,9 @@ public partial class MainWindow : Window
     /// <summary>行の下の余白で押した。動かさずに放したら、選択を外す。</summary>
     private bool _pressedOnBlank;
 
+    /// <summary>複数選んであるうちの 1 行を押した。動かさずに放したら、その行だけを選ぶ。</summary>
+    private EntryRow? _selectOnRelease;
+
     /// <summary>囲んで選んでいる最中。</summary>
     private bool _marqueeActive;
 
@@ -2934,19 +2937,20 @@ public partial class MainWindow : Window
     {
         CancelPendingRename();
 
-        // 名前の上で押された場合だけドラッグの起点にする。
-        // 名前以外の列と、行の下の余白からは、囲んで選ぶ (#205)。エクスプローラーと同じ
+        // 名前の上か、選んである行の上で押された場合はドラッグの起点にする。
+        // それ以外 (選んでいない行の名前以外の列と、行の下の余白) からは、囲んで選ぶ (#205)。
+        // エクスプローラーと同じ。選んだ行は、どの列をつかんでも持ち出せる
         var item = e.OriginalSource is DependencyObject source
             ? ItemsControl.ContainerFromElement(EntryList, source) as ListViewItem
             : null;
-        var inName = item is not null && IsInNameColumn(e.GetPosition(item));
+        var grabsRow = item is not null && (IsInNameColumn(e.GetPosition(item)) || item.IsSelected);
 
-        _dragCandidate = inName;
+        _dragCandidate = grabsRow;
         _dragOrigin = e.GetPosition(null);
         _marqueeCandidate = false;
 
         // 見出しとスクロールバーは囲む起点にしない。行が並ぶ枠の中だけ
-        if (!inName && TryGetItemsViewport(out var viewport, out var scroll)
+        if (!grabsRow && TryGetItemsViewport(out var viewport, out var scroll)
             && new Rect(viewport.RenderSize).Contains(e.GetPosition(viewport)))
         {
             _marqueeCandidate = true;
@@ -2954,6 +2958,19 @@ public partial class MainWindow : Window
         }
 
         _pressedOnBlank = _marqueeCandidate && item is null;
+
+        // 複数選んであるうちの 1 行を押しても、ここでは選択を変えない (#205)。一覧は押した時点で
+        // その行だけを選び直すので、まとめて持ち出そうとしても 1 個になる。
+        // エクスプローラーと同じく、動かさずに放したときに、その行だけを選ぶ
+        _selectOnRelease = null;
+        if (item is { IsSelected: true, Content: EntryRow pressed }
+            && EntryList.SelectedItems.Count > 1
+            && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            _selectOnRelease = pressed;
+            item.Focus();
+            e.Handled = true;
+        }
 
         // エクスプローラーと同じく、選択済みの項目をもう一度クリックすると
         // 名前の変更を始める。押した時点で選ばれていたかどうかで見分ける (#44)
@@ -2991,6 +3008,12 @@ public partial class MainWindow : Window
 
     private void EntryList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_selectOnRelease is { } released)
+        {
+            _selectOnRelease = null;
+            EntryList.SelectedItem = released;
+        }
+
         // 余白を動かさずにクリックしただけなら、選択を外す (#205、エクスプローラーと同じ)。
         // Ctrl や Shift を押していれば、選択を足す・広げるつもりなので外さない
         if (_pressedOnBlank && _marqueeCandidate && Keyboard.Modifiers == ModifierKeys.None)
@@ -3095,6 +3118,7 @@ public partial class MainWindow : Window
         }
 
         _dragCandidate = false;
+        _selectOnRelease = null;
         DragOut(SelectedRowsForEdit(), EntryList);
     }
 
