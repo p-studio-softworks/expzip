@@ -577,6 +577,12 @@ public partial class MainWindow : Window
                                  && EntryList.SelectedItems.Count == 1
                                  && editable.Count == 1;
 
+        // 新しいタブで開けるのは、Expzip が読めるかもしれないファイルだけ (#206)。
+        // 読めないものは押してから断るのではなく、押せなくしておく。フォルダーはその場で中へ入る
+        OpenInTabMenuItem.IsEnabled = OpenMenuItem.IsEnabled
+                                      && EntryList.SelectedItem is EntryRow { Entry: { } entry }
+                                      && ArchiveFormats.MayOpen(entry.Name);
+
         // 名前の変更も1件ずつ (#15)
         RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled && CanEdit;
 
@@ -1250,7 +1256,7 @@ public partial class MainWindow : Window
     /// <summary>タブを足して、それを選ぶ。</summary>
     private void AddTab(ArchiveTab tab)
     {
-        _tabs.Add(tab);
+        _tabs.Insert(InsertionIndex(tab), tab);
 
         _switchingTab = true;
         try
@@ -1261,6 +1267,55 @@ public partial class MainWindow : Window
         {
             _switchingTab = false;
         }
+    }
+
+    /// <summary>新しいタブを差し込む位置。</summary>
+    /// <remarks>
+    /// 中の書庫は、親のタブのすぐ右に置く (#206)。右の端に足すと、タブが多いときに
+    /// 親から離れて、どこから開いたのか分からなくなる。親の右に既にその子孫が並んでいれば、
+    /// その後ろに付ける。エクスプローラーやブラウザーが、リンクから開いたタブを並べるのと同じ。
+    /// </remarks>
+    private int InsertionIndex(ArchiveTab tab)
+    {
+        var parent = ParentTabOf(tab);
+        if (parent is null)
+        {
+            return _tabs.Count;
+        }
+
+        var index = _tabs.IndexOf(parent) + 1;
+        while (index < _tabs.Count && IsDescendantOf(_tabs[index], parent))
+        {
+            index++;
+        }
+
+        return index;
+    }
+
+    /// <summary>中の書庫のタブから、親の書庫のタブを引く。無ければ <see langword="null"/>。</summary>
+    private ArchiveTab? ParentTabOf(ArchiveTab tab)
+        => tab.Nest is { Orphaned: false } nest
+            ? _tabs.FirstOrDefault(
+                t => string.Equals(t.FilePath, nest.ArchivePath, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+    /// <summary>親をたどって <paramref name="ancestor"/> に行き着くか。</summary>
+    private bool IsDescendantOf(ArchiveTab tab, ArchiveTab ancestor)
+    {
+        // 親は必ずタブの中にあるので、タブの数より深くはならない。数えておくのは、
+        // 思わぬ繋がりで輪になったときに抜けられるようにするため
+        var current = ParentTabOf(tab);
+        for (var depth = 0; current is not null && depth < _tabs.Count; depth++)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = ParentTabOf(current);
+        }
+
+        return false;
     }
 
     /// <summary>いま選ばれているタブの内容を画面に出す。</summary>
@@ -3850,6 +3905,15 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>選んだファイルを、実行せずに Expzip 自身の新しいタブで開く (#206)。</summary>
+    private async void OpenInTabMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (EntryList.SelectedItem is EntryRow { Entry: { } entry })
+        {
+            await OpenWithDefaultAppAsync(entry, inNewTab: true);
+        }
+    }
+
     /// <summary>
     /// 書庫内のファイルを一時フォルダへ取り出し、既定のアプリで開く (#12)。
     /// 取り出したファイルはアプリ終了時に消える。
@@ -3859,7 +3923,12 @@ public partial class MainWindow : Window
     /// 「編集」を分けていたが、どちらも既定のアプリに渡すだけで見た目が同じで、
     /// 違いが伝わらなかった。開く手段は一つにする (#52)。
     /// </remarks>
-    private async Task OpenWithDefaultAppAsync(ArchiveEntry entry)
+    /// <param name="entry">開く項目。</param>
+    /// <param name="inNewTab">
+    /// 外のアプリに渡さず、ネスト書庫と同じく自分のタブで開くかどうか (#206)。
+    /// <c>.exe</c> の中身を、実行せずに見るための道。
+    /// </param>
+    private async Task OpenWithDefaultAppAsync(ArchiveEntry entry, bool inNewTab = false)
     {
         if (Contents is null || _cancellation is not null)
         {
@@ -3881,7 +3950,7 @@ public partial class MainWindow : Window
         // 中身が書庫なら、外のアプリには渡さず自分で開く (#30)。
         // MSI (#182) のように実行されうる種類でも、自分で開くものは実行しないので確かめない。
         // 確かめると「実行する」ように読めて、開くのをためらわせる
-        var nested = ArchiveFormats.FromPath(entry.Name) != ArchiveFormat.Unknown;
+        var nested = inNewTab || ArchiveFormats.FromPath(entry.Name) != ArchiveFormat.Unknown;
 
         if (!nested && RiskyFileTypes.IsExecutable(entry.Name) && !ConfirmExecutable(entry.Name))
         {
@@ -3915,8 +3984,9 @@ public partial class MainWindow : Window
 
         // 既に開いているファイルをもう一度開こうとした場合は、取り出し直さずにそのまま渡す。
         // 上書きしてしまうと、まだ書庫に反映していない編集内容が消える (#16)。
+        // タブで開くときは、外のアプリにはもう渡さない。取り出し直しもしない
         var editing = FindEdit(target);
-        if (editing is not null)
+        if (editing is not null && !inNewTab)
         {
             LaunchDefaultApp(target);
             return;
@@ -3931,7 +4001,7 @@ public partial class MainWindow : Window
 
         // 同じファイルを開き直したときは取り出し直さない。開いたままのアプリに
         // 掴まれていると上書きできないうえ、大きなファイルでは待ち時間も無駄になる。
-        var reusable = TryGetLength(target) == entry.Length;
+        var reusable = editing is not null || TryGetLength(target) == entry.Length;
 
         if (!reusable && !await ExtractForViewingAsync(entry, directory, target))
         {
@@ -5987,6 +6057,7 @@ public partial class MainWindow : Window
         DateColumn.Header = Strings.ColumnDate;
 
         OpenMenuItem.Header = Strings.MenuOpen;
+        OpenInTabMenuItem.Header = Strings.MenuOpenInNewTab;
         RenameMenuItem.Header = Strings.MenuRename;
         DeleteMenuItem.Header = Strings.MenuDelete;
         NewFolderMenuItem.Header = Strings.MenuNewFolder;

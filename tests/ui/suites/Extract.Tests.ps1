@@ -80,6 +80,17 @@ Check '自分の名前のフォルダーに出る' ((Get-Content (Join-Path $unp
 # 開くと、中の形式まで分かる (#188)
 $app = Start-Expzip @($sfx)
 Check '中の形式と読み取りのみを添える' ((Texts $app.Window) -match '\(ZIP の自己解凍書庫 / 読み取りのみ\)')
+$outside = (Get-RowNames $app) -join ', '
+Stop-Expzip $app
+
+Section '書庫の中の自己解凍書庫を新しいタブで開く (#206)'
+$zip = New-TestZip (Join-Path $script:Work 'sfx.zip') ([ordered]@{ '資料.exe' = [System.IO.File]::ReadAllBytes($sfx) })
+$app = Start-Expzip @($zip)
+Check '右クリックから開ける' (Open-InNewTab $app '資料.exe')
+$box = Find-MessageBox $app 3000
+Check '実行するかを尋ねない' ($null -eq $box) $(if ($box) { $box.Text })
+if ($box) { Close-MessageBox $box 'キャンセル' }
+Check '外から開いたときと同じに並ぶ' ($outside -and ((Get-RowNames $app) -join ', ') -eq $outside) ((Get-RowNames $app) -join ', ')
 Stop-Expzip $app
 
 Complete-Suite

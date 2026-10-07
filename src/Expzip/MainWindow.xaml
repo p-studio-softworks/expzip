@@ -722,6 +722,12 @@
                                       InputGestureText="Enter"
                                       FontWeight="Bold"
                                       Click="OpenMenuItem_Click" />
+                            <!--
+                                実行せずに Expzip 自身のタブで開く (#206)。
+                                インストーラーや自己解凍書庫の中を見るための道
+                            -->
+                            <MenuItem x:Name="OpenInTabMenuItem"
+                                      Click="OpenInTabMenuItem_Click" />
                             <Separator />
                             <!-- 書庫内の名前を変える (#15) -->
                             <MenuItem x:Name="RenameMenuItem"

@@ -59,6 +59,27 @@ $names = @(Get-RowNames $app)
 Check 'dll も開ける' (($names -contains '.text') -and ($names -contains '.rsrc')) ($names -join ', ')
 Stop-Expzip $app
 
+Section '書庫の中の exe / dll を新しいタブで開く (#206)'
+# 見本は Windows に付いている小さなもの。Expzip 自身は大きく、書庫に詰めるのに時間がかかる
+$system = Join-Path $env:SystemRoot 'System32'
+$parts = New-TestZip (Join-Path $script:Work '部品.zip') ([ordered]@{
+    'find.exe'    = [System.IO.File]::ReadAllBytes((Join-Path $system 'find.exe'))
+    'version.dll' = [System.IO.File]::ReadAllBytes((Join-Path $system 'version.dll'))
+})
+$app = Start-Expzip @($parts)
+foreach ($name in 'find.exe', 'version.dll') {
+    Check "右クリックから開ける ($name)" (Open-InNewTab $app $name)
+    $box = Find-MessageBox $app 2000
+    Check "実行するかを尋ねない ($name)" ($null -eq $box) $(if ($box) { $box.Text })
+    if ($box) { Close-MessageBox $box 'キャンセル' }
+    $names = @(Get-RowNames $app)
+    Check "区画が並ぶ ($name)" ($names -contains '.text') ($names -join ', ')
+    Select-Element (Get-Tabs $app)[0]
+    Wait-Idle $app
+}
+Check 'タブが並ぶ' ((@(Get-Tabs $app | ForEach-Object { $_.Current.Name }) -join ', ') -eq '部品.zip, find.exe, version.dll')
+Stop-Expzip $app
+
 Section '書庫を開いていないときに落とす'
 $app = Start-Expzip
 $center = Get-WindowCenter $app

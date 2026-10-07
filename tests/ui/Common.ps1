@@ -717,6 +717,26 @@ function Select-Row($App, [string]$Name) {
     return $row
 }
 
+# 行を選んで、右クリックのメニューを出す。キーボードの Shift+F10 で出す
+function Open-RowMenu($App, [string]$Name) {
+    Select-Row $App $Name | Out-Null
+    Send-Keys $App '+{F10}'
+    return Find-DropDown $App
+}
+
+# 右クリックのメニューの「新しいタブで開く」(#206)。押せなかったら false
+function Open-InNewTab($App, [string]$Name) {
+    $menu = Open-RowMenu $App $Name
+    $item = if ($menu) { ByName $menu '新しいタブで開く' }
+    if ($null -eq $item -or -not $item.Current.IsEnabled) {
+        Close-DropDown $App
+        return $false
+    }
+    Push $item
+    Wait-Idle $App
+    return $true
+}
+
 # 行の名前を書き換えて確定する。入力欄に値を入れてから Enter を送る
 function Rename-Row($App, [string]$From, [string]$To) {
     # 起動直後は一覧がキーを受け取れないことがあるので、入力欄が開くまで押し直す

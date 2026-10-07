@@ -150,6 +150,69 @@ $save = ById $app.Window 'SaveButton'
 Check '保存の口が消える' (($null -eq $save) -or $save.Current.IsOffscreen)
 Stop-Expzip $app
 
+Section '中の書庫のタブは親のすぐ右に開く (#206)'
+$deep = New-TestZip (Join-Path $script:Work 'deep-src.zip') ([ordered]@{ '奥メモ.txt' = 'deep' })
+$middle = New-TestZip (Join-Path $script:Work 'middle-src.zip') ([ordered]@{ '奥.zip' = [System.IO.File]::ReadAllBytes($deep) })
+$family = New-TestZip (Join-Path $script:Work '親.zip') ([ordered]@{
+    'フォルダー/' = ''
+    '中.zip'      = [System.IO.File]::ReadAllBytes($middle)
+    '隣.zip'      = [System.IO.File]::ReadAllBytes($deep)
+    '写真.jpg'    = 'jpg'
+})
+function Tab-Order($App) { return (@(Get-Tabs $App | ForEach-Object { $_.Current.Name }) -join ', ') }
+function Select-Tab($App, [int]$Index) {
+    Select-Element (Get-Tabs $App)[$Index]
+    Wait-Idle $App
+}
+
+$app = Start-Expzip @($family)
+# 親と関係のないタブを右に置いておく。右の端に足していたら、中の書庫のタブがこれより右に出る
+Push (ById $app.Window 'NewTabButton')
+Check '+ で別の書庫を作る' (Complete-FileDialog $app '新しい書庫を作成' (Join-Path $script:Work '別.zip'))
+Wait-Idle $app
+Check '別の書庫は右の端' ((Tab-Order $app) -eq '親.zip, 別.zip') (Tab-Order $app)
+Select-Tab $app 0
+
+Select-Row $app '中.zip' | Out-Null
+Send-Keys $app '{ENTER}'
+Wait-Idle $app
+Check 'ダブルクリックでも親のすぐ右' ((Tab-Order $app) -eq '親.zip, 中.zip, 別.zip') (Tab-Order $app)
+Select-Row $app '奥.zip' | Out-Null
+Send-Keys $app '{ENTER}'
+Wait-Idle $app
+Check '入れ子でも親のすぐ右' ((Tab-Order $app) -eq '親.zip, 中.zip, 奥.zip, 別.zip') (Tab-Order $app)
+
+# 親の右に子や孫が並んでいれば、その後ろに付ける
+Select-Tab $app 0
+Check '右クリックから開く' (Open-InNewTab $app '隣.zip')
+Check '子たちの後ろに並ぶ' ((Tab-Order $app) -eq '親.zip, 中.zip, 奥.zip, 隣.zip, 別.zip') (Tab-Order $app)
+Check '開いたタブを選ぶ' ((Get-Selected (ById $app.Window 'ArchiveTabs')) -eq '隣.zip') (Get-Selected (ById $app.Window 'ArchiveTabs'))
+Check 'どこの中かを知らせる' ((Get-Status $app) -eq '親.zip 内の 隣.zip を新しいタブで開きました') (Get-Status $app)
+Check '中身が並ぶ' (((Get-RowNames $app) -join ', ') -eq '奥メモ.txt') ((Get-RowNames $app) -join ', ')
+$save = ById $app.Window 'SaveButton'
+Check '保存の口が出る' ($save -and -not $save.Current.IsOffscreen -and $save.Current.IsEnabled)
+
+Section '右クリックの「新しいタブで開く」(#206)'
+Select-Tab $app 0
+Check '開いているものは、そのタブへ移る' (Open-InNewTab $app '中.zip')
+Check 'タブは増えない' ((Get-Tabs $app).Count -eq 5) (Tab-Order $app)
+Check '中.zip のタブを選ぶ' ((Get-Selected (ById $app.Window 'ArchiveTabs')) -eq '中.zip') (Get-Selected (ById $app.Window 'ArchiveTabs'))
+
+Select-Tab $app 0
+# 読めないファイルは、押してから断るのではなく押せなくしておく。フォルダーはその場で中へ入る
+foreach ($name in '写真.jpg', 'フォルダー') {
+    $menu = Open-RowMenu $app $name
+    $item = if ($menu) { ByName $menu '新しいタブで開く' }
+    Check "メニューにある ($name)" ($null -ne $item)
+    Check "押せない ($name)" ($item -and -not $item.Current.IsEnabled)
+    Close-DropDown $app
+}
+$menu = Open-RowMenu $app '中.zip'
+$names = @(if ($menu) { ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name } })
+Check '「開く」のすぐ下' (($names -join ', ') -match '^開く, 新しいタブで開く, ') ($names -join ', ')
+Close-DropDown $app
+Stop-Expzip $app
+
 Section '開けなかったとき'
 $broken = New-TestZip (Join-Path $script:Work '壊れ.zip') ([ordered]@{
     'memo.txt'    = ('hello ' * 2000)

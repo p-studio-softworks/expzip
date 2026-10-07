@@ -152,6 +152,9 @@ internal static partial class Strings
 
     public static string MenuOpen => Pick("開く", "Open");
 
+    /// <summary>実行せずに Expzip 自身のタブで開く (#206)。エクスプローラーと同じ文言にする。</summary>
+    public static string MenuOpenInNewTab => Pick("新しいタブで開く", "Open in new tab");
+
     public static string MenuRename => Pick("名前の変更", "Rename");
 
     public static string MenuDelete => Pick("削除", "Delete");

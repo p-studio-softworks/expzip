@@ -112,4 +112,20 @@ $app = Start-Expzip @($far)
 Check 'exe / dll として開く' ((Texts $app.Window) -match 'exe / dll / 読み取りのみ')
 Stop-Expzip $app
 
+Section '書庫の中のものを新しいタブで開く (#206)'
+$zip = New-TestZip (Join-Path $script:Work 'packed.zip') ([ordered]@{
+    'packed.exe'   = [System.IO.File]::ReadAllBytes($iexpress)
+    'appended.exe' = [System.IO.File]::ReadAllBytes($appended)
+})
+$app = Start-Expzip @($zip)
+$expected = [ordered]@{ 'packed.exe' = 'data.bin, readme.txt'; 'appended.exe' = 'docs, readme.txt' }
+foreach ($name in $expected.Keys) {
+    Check "右クリックから開ける ($name)" (Open-InNewTab $app $name)
+    $names = (@(Get-RowNames $app) | Sort-Object) -join ', '
+    Check "外から開いたときと同じに並ぶ ($name)" ($names -eq $expected[$name]) $names
+    Select-Element (Get-Tabs $app)[0]
+    Wait-Idle $app
+}
+Stop-Expzip $app
+
 Complete-Suite

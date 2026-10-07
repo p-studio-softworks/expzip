@@ -135,4 +135,12 @@ Check '画面の部品は出る' ($box -and $box.Text -match '展開したファ
 if ($box) { Close-MessageBox $box 'OK' }
 Stop-Expzip $app
 
+Section '書庫の中のものを新しいタブで開く (#206)'
+$zip = New-TestZip (Join-Path $script:Work 'bundle.zip') ([ordered]@{ 'setup.exe' = [System.IO.File]::ReadAllBytes($bundle) })
+$app = Start-Expzip @($zip)
+Check '右クリックから開ける' (Open-InNewTab $app 'setup.exe')
+$names = (@(Get-RowNames $app) | Sort-Object) -join ', '
+Check '外から開いたときと同じに並ぶ' ($names -eq ((@('UX', 'packages') | Sort-Object) -join ', ')) $names
+Stop-Expzip $app
+
 Complete-Suite

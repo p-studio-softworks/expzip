@@ -112,6 +112,16 @@ internal static class ArchiveFormats
         return ArchiveFormat.Unknown;
     }
 
+    /// <summary>名前から見て、Expzip 自身で開けるかもしれないか (#206)。</summary>
+    /// <remarks>
+    /// 書庫の中の項目にも使うので中身は見ない。<c>.exe</c> と <c>.dll</c> は、
+    /// 書庫でなくても中の部品を見せる (#183) ので含める。
+    /// </remarks>
+    public static bool MayOpen(string path)
+        => FromPath(path) != ArchiveFormat.Unknown
+           || path.EndsWith(Program, StringComparison.OrdinalIgnoreCase)
+           || path.EndsWith(Library, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>自己解凍書庫でありうる拡張子。</summary>
     private const string Program = ".exe";
 

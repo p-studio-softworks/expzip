@@ -1087,6 +1087,10 @@ MenuOpen
   ja  開く
   en  Open
 
+MenuOpenInNewTab
+  ja  新しいタブで開く
+  en  Open in new tab
+
 MenuRefresh
   ja  最新の情報に更新
   en  Refresh

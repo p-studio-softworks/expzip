@@ -99,4 +99,16 @@ Check '実行するかを尋ねる' ($box -and $box.Text -match 'プログラム
 if ($box) { Close-MessageBox $box 'キャンセル' }
 Stop-Expzip $app
 
+Section '書庫の中の exe を新しいタブで開く (#206)'
+$zip = New-TestZip (Join-Path $script:Work 'setup.zip') ([ordered]@{ 'setup.exe' = [System.IO.File]::ReadAllBytes($setup) })
+$app = Start-Expzip @($zip)
+Check '右クリックから開ける' (Open-InNewTab $app 'setup.exe')
+# 実行はしないので、「実行するか」は尋ねない
+$box = Find-MessageBox $app 3000
+Check '実行するかを尋ねない' ($null -eq $box) $(if ($box) { $box.Text })
+if ($box) { Close-MessageBox $box 'キャンセル' }
+Check 'タブで開く' ((Get-Tabs $app).Count -eq 2) (Get-Tabs $app).Count
+Check '外から開いたときと同じに並ぶ' (((Get-RowNames $app) -join ', ') -eq 'setup.msi') ((Get-RowNames $app) -join ', ')
+Stop-Expzip $app
+
 Complete-Suite
