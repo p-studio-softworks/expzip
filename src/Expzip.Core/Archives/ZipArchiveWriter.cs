@@ -262,12 +262,16 @@ internal static class ZipArchiveWriter
     /// そのままだと、書庫がほかのプログラムに使われているだけなのに
     /// 「edit.zip.cii2e34b.zyx が見つかりません」と伝えてしまう。
     /// 書庫を占有して開いてみて、開けなければその例外を理由にする。
+    /// 書庫を置き換えると出所の印が消えるので、付け直す (#211)。
     /// </remarks>
     private static void Commit(SharpZipFile zip)
     {
+        var zone = MarkOfTheWeb.TryRead(zip.Name);
+
         try
         {
             zip.CommitUpdate();
+            MarkOfTheWeb.Restore(zip.Name, zone);
         }
         catch (FileNotFoundException lost) when (
             File.Exists(zip.Name)

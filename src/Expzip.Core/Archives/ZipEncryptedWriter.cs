@@ -323,7 +323,10 @@ internal static class ZipEncryptedWriter
                 append?.Invoke(writer);
             }
 
+            // 置き換えると出所の印が消えるので、付け直す (#211)
+            var zone = MarkOfTheWeb.TryRead(archivePath);
             File.Move(temp, archivePath, overwrite: true);
+            MarkOfTheWeb.Restore(archivePath, zone);
             return true;
         }
         catch (OperationCanceledException)

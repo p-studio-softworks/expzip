@@ -2223,21 +2223,15 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // 印は開く前に付ける。追加で書庫を置き換えても、印は付け直される (#211)
+            MarkOfTheWeb.TryApply(path, zone);
+
             await OpenArchiveAsync(path, inNewTab: true, openedFrom: source);
 
             // 開けなかった場合は、開けない理由が既に出ている
             if (Contents is not null && string.Equals(Contents.FilePath, path, StringComparison.OrdinalIgnoreCase))
             {
                 await AddToArchiveAsync(sources);
-            }
-
-            // 印は追加のあとに付ける。追加は作業用のファイルで書庫を置き換えるので、先に付けても消える。
-            // 付けると更新日時が変わるので、外で書き換えられたと取り違えて読み直さないよう控え直す (#64)
-            if (MarkOfTheWeb.TryApply(path, zone)
-                && _tabs.FirstOrDefault(
-                    t => string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase)) is { } created)
-            {
-                created.MarkRead(FileStamp.Read(path));
             }
         }
         finally

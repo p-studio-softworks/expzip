@@ -188,8 +188,11 @@ internal static class ZipParallelWriter
                 output.Finish();
             }
 
-            // 書庫を閉じてから差し替える。開いたままでは置き換えられない
+            // 書庫を閉じてから差し替える。開いたままでは置き換えられない。
+            // 置き換えると出所の印が消えるので、付け直す (#211)
+            var zone = MarkOfTheWeb.TryRead(archivePath);
             File.Move(temp, archivePath, overwrite: true);
+            MarkOfTheWeb.Restore(archivePath, zone);
             return new AddResult(added, replaced, skipped, failed, Cancelled: false);
         }
         catch (OperationCanceledException)

@@ -87,6 +87,30 @@ internal static class MarkOfTheWeb
         }
     }
 
+    /// <summary>
+    /// 書庫を作業用のファイルで置き換えたあと、置き換える前に付いていた印を付け直す (#211)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 置き換えると、Windows の副ストリームも Mac の拡張属性も、元のファイルと一緒に消える。
+    /// 付け直さないと、ネットから落とした書庫に 1 回書き込んだだけで印の無い書庫になり、
+    /// そのあと取り出したファイルにも印が引き継がれない。
+    /// </para>
+    /// <para>
+    /// 印が残っているときは付け直さない。付けると書庫の更新日時が変わるため。
+    /// 書庫を読み直す前に呼ぶので、外での書き換え (#64) と取り違えることは無い。
+    /// </para>
+    /// </remarks>
+    /// <param name="path">置き換えた書庫。</param>
+    /// <param name="zone">置き換える前に <see cref="TryRead"/> で読んだ印。</param>
+    public static void Restore(string path, string? zone)
+    {
+        if (zone is not null && TryRead(path) != zone)
+        {
+            TryApply(path, zone);
+        }
+    }
+
     /// <summary>Mac の印 (拡張属性) を読む。付いていない場合や読めない場合は <see langword="null"/>。</summary>
     private static string? TryReadQuarantine(string path)
     {
