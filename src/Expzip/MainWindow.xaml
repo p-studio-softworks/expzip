@@ -728,6 +728,12 @@
                             -->
                             <MenuItem x:Name="OpenInTabMenuItem"
                                       Click="OpenInTabMenuItem_Click" />
+                            <!--
+                                選んだものを入れた新しい書庫を作り、元のタブのすぐ右に開く (#207)。
+                                「新しいタブで開く」と分けるのは、種類によって動きが変わらないようにするため
+                            -->
+                            <MenuItem x:Name="NewArchiveFromSelectionMenuItem"
+                                      Click="NewArchiveFromSelectionMenuItem_Click" />
                             <Separator />
                             <!-- 書庫内の名前を変える (#15) -->
                             <MenuItem x:Name="RenameMenuItem"

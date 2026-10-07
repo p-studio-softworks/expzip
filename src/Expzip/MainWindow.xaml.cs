@@ -242,46 +242,77 @@ public partial class MainWindow : Window
             return null;
         }
 
+        // 書庫を開いているなら、その隣に作るのが自然
+        initialDirectory ??= Contents is null ? null : Path.GetDirectoryName(Contents.FilePath);
+
+        var path = AskNewArchivePath(fileName ?? Strings.NewArchiveFileName, initialDirectory);
+        if (path is null || !TryCreateEmptyArchive(path))
+        {
+            return null;
+        }
+
+        // 作ったらそのまま開く。中身は空なので、ここからファイルを追加していく
+        await OpenInTabAsync(path);
+        return path;
+    }
+
+    /// <summary>新しい書庫の名前と保存先を尋ねる。</summary>
+    /// <returns>選ばれたパス。取りやめた場合は <see langword="null"/>。</returns>
+    /// <remarks>
+    /// 開いている書庫は選ばせない (#207)。空の書庫で置き換えると、そのタブが見ている中身が
+    /// 下から消える。選んだものから作るときは、元の書庫の名前が初めの案になることもある。
+    /// </remarks>
+    private string? AskNewArchivePath(string fileName, string? initialDirectory)
+    {
         var dialog = new SaveFileDialog
         {
             Title = Strings.NewArchiveDialogTitle,
             Filter = Strings.ZipFilter,
             DefaultExt = ".zip",
             AddExtension = true,
-            FileName = fileName ?? Strings.NewArchiveFileName,
+            FileName = fileName,
             // 上書きの確認はダイアログ側に任せる。既存の書庫を選ぶと中身が消えるため
             OverwritePrompt = true,
         };
 
-        // 書庫を開いているなら、その隣に作るのが自然
-        initialDirectory ??= Contents is null ? null : Path.GetDirectoryName(Contents.FilePath);
         if (!string.IsNullOrEmpty(initialDirectory))
         {
             dialog.InitialDirectory = initialDirectory;
         }
 
-        if (dialog.ShowDialog(this) != true)
+        while (dialog.ShowDialog(this) == true)
         {
-            return null;
+            if (!_tabs.Any(t => string.Equals(t.FilePath, dialog.FileName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return dialog.FileName;
+            }
+
+            MessageBox.Show(
+                this,
+                Strings.CannotReplaceOpenArchive(Path.GetFileName(dialog.FileName)),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
+        return null;
+    }
+
+    /// <summary>空の書庫を作る。作れなかったら理由を出して <see langword="false"/>。</summary>
+    private bool TryCreateEmptyArchive(string path)
+    {
         try
         {
-            ZipArchiveWriter.CreateEmpty(dialog.FileName);
+            ZipArchiveWriter.CreateEmpty(path);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException)
         {
             MessageBox.Show(
                 this,
-                Strings.CreateArchiveFailed(dialog.FileName, Strings.Reason(ex)),
+                Strings.CreateArchiveFailed(path, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
-            return null;
+            return false;
         }
-
-        // 作ったらそのまま開く。中身は空なので、ここからファイルを追加していく
-        await OpenInTabAsync(dialog.FileName);
-        return dialog.FileName;
     }
 
     private async void RefreshMenuItem_Click(object sender, RoutedEventArgs e)
@@ -305,6 +336,9 @@ public partial class MainWindow : Window
     /// 利用者が頼んでいない読み直しかどうか (#64)。真のときは、失敗や注意を
     /// ダイアログではなくステータスバーに出す。頼んでいない操作で手が止まるため。
     /// </param>
+    /// <param name="openedFrom">
+    /// 新しいタブを、このタブのすぐ右に置く (#207)。中の書庫ではないが、このタブから作った書庫のとき。
+    /// </param>
     /// <returns>読み込めた場合は true。</returns>
     /// <remarks>
     /// 読み込みは別スレッドで行う。同期で読むと、大きな書庫やネットワーク上の
@@ -314,7 +348,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task<bool> OpenArchiveAsync(
         string path, string? restorePath = null, bool inNewTab = false, bool quiet = false,
-        NestSession? nest = null)
+        NestSession? nest = null, ArchiveTab? openedFrom = null)
     {
         // 他の処理の最中は受け付けない。ツールバーは SetBusy で止めているが、
         // 最近使った書庫のメニューやコマンドライン起動など別の入口もある。
@@ -405,7 +439,7 @@ public partial class MainWindow : Window
         // 新しいタブで開くか、いまのタブを差し替えるか (#22)
         if (inNewTab || Tab is null)
         {
-            AddTab(new ArchiveTab(contents) { Nest = nest });
+            AddTab(new ArchiveTab(contents) { Nest = nest }, openedFrom);
         }
         else
         {
@@ -582,6 +616,12 @@ public partial class MainWindow : Window
         OpenInTabMenuItem.IsEnabled = OpenMenuItem.IsEnabled
                                       && EntryList.SelectedItem is EntryRow { Entry: { } entry }
                                       && ArchiveFormats.MayOpen(entry.Name);
+
+        // 新しい書庫は、ファイルでもフォルダーでも、いくつ選んでも作れる (#207)。
+        // 取り出すだけなので、読み取りのみの形式でも使える
+        NewArchiveFromSelectionMenuItem.IsEnabled = Contents is not null
+                                                    && _cancellation is null
+                                                    && editable.Count > 0;
 
         // 名前の変更も1件ずつ (#15)
         RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled && CanEdit;
@@ -1254,9 +1294,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>タブを足して、それを選ぶ。</summary>
-    private void AddTab(ArchiveTab tab)
+    /// <param name="tab">足すタブ。</param>
+    /// <param name="openedFrom">中の書庫でなくても、このタブのすぐ右に置く (#207)。</param>
+    private void AddTab(ArchiveTab tab, ArchiveTab? openedFrom = null)
     {
-        _tabs.Insert(InsertionIndex(tab), tab);
+        _tabs.Insert(InsertionIndex(tab, openedFrom), tab);
 
         _switchingTab = true;
         try
@@ -1274,10 +1316,13 @@ public partial class MainWindow : Window
     /// 中の書庫は、親のタブのすぐ右に置く (#206)。右の端に足すと、タブが多いときに
     /// 親から離れて、どこから開いたのか分からなくなる。親の右に既にその子孫が並んでいれば、
     /// その後ろに付ける。エクスプローラーやブラウザーが、リンクから開いたタブを並べるのと同じ。
+    /// 選んだものから作った書庫 (#207) も、作った元のタブを親とみなして同じように並べる。
     /// </remarks>
-    private int InsertionIndex(ArchiveTab tab)
+    private int InsertionIndex(ArchiveTab tab, ArchiveTab? openedFrom)
     {
-        var parent = ParentTabOf(tab);
+        // 作っている間に元のタブが閉じられていたら、ふつうに開いたタブと同じく右の端
+        var parent = ParentTabOf(tab)
+                     ?? (openedFrom is not null && _tabs.Contains(openedFrom) ? openedFrom : null);
         if (parent is null)
         {
             return _tabs.Count;
@@ -2110,6 +2155,295 @@ public partial class MainWindow : Window
 
         // ドライブをそのまま落とした場合など、名前が無ければ既定の名前にする
         return string.IsNullOrEmpty(name) ? null : name + ".zip";
+    }
+
+    private async void NewArchiveFromSelectionMenuItem_Click(object sender, RoutedEventArgs e)
+        => await CreateArchiveFromSelectionAsync();
+
+    /// <summary>
+    /// 一覧で選んだものを入れた新しい書庫を作り、元の書庫のタブのすぐ右に開く (#207)。
+    /// </summary>
+    /// <remarks>
+    /// 選んだものを一時ファイルの置き場に取り出し、空の書庫を作って追加する。
+    /// 落としたものから書庫を作るとき (#156) と同じ手順で、入れ方は追加と同じになる。
+    /// 階層は展開と同じく、いまのフォルダーから下だけにする (#48)。
+    /// </remarks>
+    private async Task CreateArchiveFromSelectionAsync()
+    {
+        if (Contents is null || Tab is not { } source || _cancellation is not null)
+        {
+            return;
+        }
+
+        var rows = SelectedRowsForEdit();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        // 取り出す前に尋ねる。取り出してから取りやめると、待たせた分が無駄になる
+        var initialDirectory = OutermostArchiveDirectory(source);
+        var fileName = SuggestArchiveName(rows) ?? Strings.NewArchiveFileName;
+        if (initialDirectory is not null)
+        {
+            fileName = AvoidExistingName(initialDirectory, fileName);
+        }
+
+        var path = AskNewArchivePath(fileName, initialDirectory);
+        if (path is null)
+        {
+            return;
+        }
+
+        var workspace = EnsureWorkspace();
+        if (workspace is null)
+        {
+            return;
+        }
+
+        string directory;
+        try
+        {
+            directory = workspace.CreateScratchDirectory(Path.GetFileNameWithoutExtension(path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ReportTempFailure(ex);
+            return;
+        }
+
+        try
+        {
+            // 書庫に付いている出所の印は、新しい書庫にも引き継ぐ (#12)
+            var zone = MarkOfTheWeb.TryRead(Contents.FilePath);
+
+            var sources = await ExtractSelectionAsync(rows, directory, zone);
+            if (sources is null or [] || !TryCreateEmptyArchive(path))
+            {
+                return;
+            }
+
+            await OpenArchiveAsync(path, inNewTab: true, openedFrom: source);
+
+            // 開けなかった場合は、開けない理由が既に出ている
+            if (Contents is not null && string.Equals(Contents.FilePath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                await AddToArchiveAsync(sources);
+            }
+
+            // 印は追加のあとに付ける。追加は作業用のファイルで書庫を置き換えるので、先に付けても消える。
+            // 付けると更新日時が変わるので、外で書き換えられたと取り違えて読み直さないよう控え直す (#64)
+            if (MarkOfTheWeb.TryApply(path, zone)
+                && _tabs.FirstOrDefault(
+                    t => string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase)) is { } created)
+            {
+                created.MarkRead(FileStamp.Read(path));
+            }
+        }
+        finally
+        {
+            TempWorkspace.TryDeleteTree(directory);
+        }
+    }
+
+    /// <summary>
+    /// 選んだ行を取り出し、新しい書庫に入れるパスを返す (#207)。
+    /// 取りやめた場合や、取り出せないものがあった場合は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 取り出せないものが 1 個でもあれば、書庫は作らない。欠けた書庫が黙ってできるより、
+    /// 何が取り出せなかったかを伝えて止めるほうがよい。
+    /// </remarks>
+    private async Task<string[]?> ExtractSelectionAsync(List<EntryRow> rows, string directory, string? zone)
+    {
+        var archivePath = Contents!.FilePath;
+        var format = Contents.Format;
+        var names = CollectSourceNames(rows);
+
+        if (!TryGetPassword(out var password))
+        {
+            return null;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        StatusMessage.Text = Strings.ExtractingCount(names.Count);
+        var progress = new Progress<ExtractProgress>(p => ProgressIndicator.Value = p.Percent);
+
+        try
+        {
+            var result = await Task.Run(() => ArchiveExtractor.Extract(
+                archivePath, format, names, directory, overwrite: true, progress: progress,
+                cancellationToken: cancellation.Token, zoneIdentifier: zone, password: password));
+
+            if (result.Cancelled)
+            {
+                StatusMessage.Text = Strings.ExtractOneCancelled;
+                return null;
+            }
+
+            if (result.Rejected.Count > 0 || result.Failed.Count > 0)
+            {
+                ShowIdleStatus();
+                MessageBox.Show(
+                    this,
+                    Strings.CreateArchiveFailed(Path.GetFileName(archivePath), DescribeNotExtracted(result)),
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return null;
+            }
+
+            // 取り出しで作られるのはファイルだけ。中身の無いフォルダーも、構造として残るように作っておく
+            foreach (var row in rows)
+            {
+                if (row.Folder is not null)
+                {
+                    CreateFolderTree(row.Folder, directory);
+                }
+            }
+
+            // 書庫に入れるのは選んだ項目そのもの。フォルダーは中身ごと入る
+            return rows
+                .Select(r => r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath)
+                .Select(ArchivePath.ToSafeRelativePath)
+                .Where(static relative => relative is not null)
+                .Select(relative => Path.Combine(directory, relative!))
+                .Where(static path => File.Exists(path) || Directory.Exists(path))
+                .ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or InvalidDataException or NotSupportedException
+                                   or PathTooLongException)
+        {
+            ShowIdleStatus();
+            MessageBox.Show(
+                this,
+                Strings.CreateArchiveFailed(Path.GetFileName(archivePath), Strings.Reason(ex)),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return null;
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+    }
+
+    /// <summary>書庫の中のフォルダーと、その下のフォルダーを、すべてディスクに作る (#207)。</summary>
+    private static void CreateFolderTree(ArchiveFolder folder, string directory)
+    {
+        // 置き場の外を指すものは作らない (Zip Slip 対策)。取り出しと同じ判定を使う
+        if (ArchivePath.ToSafeRelativePath(folder.FullPath) is { } relative)
+        {
+            Directory.CreateDirectory(Path.Combine(directory, relative));
+        }
+
+        foreach (var child in folder.Folders)
+        {
+            CreateFolderTree(child, directory);
+        }
+    }
+
+    /// <summary>取り出せなかったものの一覧。書き方は展開の結果 (<see cref="ShowExtractResult"/>) と揃える。</summary>
+    private static string DescribeNotExtracted(ExtractResult result)
+    {
+        var message = new System.Text.StringBuilder();
+
+        if (result.Rejected.Count > 0)
+        {
+            message.AppendLine(Strings.RejectedFilesLine(result.Rejected.Count));
+            message.AppendLine(Strings.RejectedFilesDetail);
+            foreach (var name in result.Rejected.Take(5))
+            {
+                message.AppendLine($"  {name}");
+            }
+        }
+
+        if (result.Failed.Count > 0)
+        {
+            message.AppendLine(Strings.NotWrittenFilesLine(result.Failed.Count));
+            foreach (var (name, reason) in result.Failed.Take(5))
+            {
+                message.AppendLine(Strings.FailureLine(name, reason));
+            }
+        }
+
+        return message.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// 選んだものから作る書庫の名前 (#207)。決め方は落としたとき (#156) と同じで、
+    /// 1 個ならその名前、複数ならいまのフォルダーの名前、いちばん上なら書庫の名前にする。
+    /// </summary>
+    private string? SuggestArchiveName(IReadOnlyList<EntryRow> rows)
+    {
+        var name = rows.Count > 1
+            ? CurrentFolder is { Parent: not null } folder
+                ? folder.Name
+                : Path.GetFileNameWithoutExtension(Contents!.FilePath)
+            : rows[0].Folder is not null
+                // フォルダーの名前の「.」は拡張子ではないので、そのまま使う
+                ? rows[0].Name
+                : Path.GetFileNameWithoutExtension(rows[0].Name);
+
+        return string.IsNullOrEmpty(name) ? null : name + ".zip";
+    }
+
+    /// <summary>
+    /// 保存先に同じ名前があれば、エクスプローラーと同じく「 (2)」を付けた名前にする (#207)。
+    /// </summary>
+    /// <remarks>
+    /// 元の書庫の隣に作るので、名前の案が元の書庫そのものと重なることがある
+    /// (いちばん上で複数選んだとき)。そのまま出すと、うっかり置き換えを選ばせることになる。
+    /// </remarks>
+    private static string AvoidExistingName(string directory, string fileName)
+    {
+        var stem = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        var candidate = fileName;
+
+        for (var number = 2; number < 1000 && File.Exists(Path.Combine(directory, candidate)); number++)
+        {
+            candidate = $"{stem} ({number}){extension}";
+        }
+
+        return candidate;
+    }
+
+    /// <summary>
+    /// 新しい書庫の保存先の初めの案 (#207)。元の書庫の隣にする。
+    /// </summary>
+    /// <remarks>
+    /// 中の書庫のタブでは、親をたどっていちばん外の書庫の隣にする。中の書庫そのものは
+    /// 一時ファイルの置き場にあり、そこへ作ると終了時に消えるため。親のタブが先に閉じられて
+    /// たどりきれないときは、ダイアログに任せる。
+    /// </remarks>
+    private string? OutermostArchiveDirectory(ArchiveTab tab)
+    {
+        var path = tab.FilePath;
+        var nest = tab.Nest;
+
+        // 親は必ずタブの中にあるので、タブの数より深くはならない。数えておくのは、
+        // 思わぬ繋がりで輪になったときに抜けられるようにするため
+        for (var depth = 0; nest is not null && depth < _tabs.Count; depth++)
+        {
+            path = nest.ArchivePath;
+            nest = _tabs.FirstOrDefault(
+                t => string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase))?.Nest;
+        }
+
+        var directory = Path.GetDirectoryName(path);
+        var temp = Path.TrimEndingDirectorySeparator(TempWorkspace.Root) + Path.DirectorySeparatorChar;
+        return directory is null || (directory + Path.DirectorySeparatorChar).StartsWith(
+            temp, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : directory;
     }
 
     /// <summary>ディスク上のファイルやフォルダを、いま表示しているフォルダに追加する。</summary>
@@ -6058,6 +6392,7 @@ public partial class MainWindow : Window
 
         OpenMenuItem.Header = Strings.MenuOpen;
         OpenInTabMenuItem.Header = Strings.MenuOpenInNewTab;
+        NewArchiveFromSelectionMenuItem.Header = Strings.MenuNewArchiveFromSelection;
         RenameMenuItem.Header = Strings.MenuRename;
         DeleteMenuItem.Header = Strings.MenuDelete;
         NewFolderMenuItem.Header = Strings.MenuNewFolder;

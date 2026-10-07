@@ -155,6 +155,10 @@ internal static partial class Strings
     /// <summary>実行せずに Expzip 自身のタブで開く (#206)。エクスプローラーと同じ文言にする。</summary>
     public static string MenuOpenInNewTab => Pick("新しいタブで開く", "Open in new tab");
 
+    /// <summary>選んだものを入れた新しい書庫を作り、新しいタブで開く (#207)。</summary>
+    public static string MenuNewArchiveFromSelection => Pick(
+        "選択した項目から新しい書庫を作成", "Create a new archive from the selection");
+
     public static string MenuRename => Pick("名前の変更", "Rename");
 
     public static string MenuDelete => Pick("削除", "Delete");
@@ -390,6 +394,11 @@ internal static partial class Strings
     public static string CreateArchiveFailed(string path, string reason) => Pick(
         $"{path} を作成できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"Could not create {path}.{Environment.NewLine}{Environment.NewLine}{reason}");
+
+    /// <summary>開いている書庫を、新しい書庫で置き換えようとしたとき (#207)。</summary>
+    public static string CannotReplaceOpenArchive(string name) => Pick(
+        $"{name} は開いているため、置き換えられません。別の名前を入力してください。",
+        $"{name} is open, so it cannot be replaced. Enter a different name.");
 
     public static string Reading(string fileName, int done, int total) => Pick(
         $"{fileName} を読み込んでいます… ({done:N0} / {total:N0} 件)",

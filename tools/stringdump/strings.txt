@@ -251,6 +251,10 @@ CannotOpenOutsidePath (sourceName: ..\..\Windows\System32\evil.dll)
       | 
       | Its path points outside the archive.
 
+CannotReplaceOpenArchive (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ は開いているため、置き換えられません。別の名前を入力してください。
+  en  ⟦報告書.pdf⟧ is open, so it cannot be replaced. Enter a different name.
+
 ChangePasswordFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
   ja  パスワードを変更できませんでした。書庫の変更はありません。
       | 
@@ -1078,6 +1082,10 @@ MarkSuspiciousPath
 MenuDelete
   ja  削除
   en  Delete
+
+MenuNewArchiveFromSelection
+  ja  選択した項目から新しい書庫を作成
+  en  Create a new archive from the selection
 
 MenuNewFolder
   ja  新しいフォルダー

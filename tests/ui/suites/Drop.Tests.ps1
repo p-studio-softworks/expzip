@@ -22,18 +22,6 @@ Set-Content -Path $memo -Value 'memo' -Encoding UTF8
 
 $made = Join-Path $script:Work '資料.zip'
 
-# 保存する窓を取りやめる。取りやめの口は ID 2
-function Cancel-FileDialog($App, [string]$Title) {
-    $dialog = Find-Window $App $Title 15000
-    if ($null -eq $dialog) { return $false }
-    $cancel = Find-All $dialog ([System.Windows.Automation.Condition]::TrueCondition) |
-        Where-Object { $_.Current.ClassName -eq 'Button' -and $_.Current.AutomationId -eq '2' } |
-        Select-Object -First 1
-    if ($null -eq $cancel) { return $false }
-    [ExpzipUi.Native]::PostMessage([IntPtr]$cancel.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
-    return (Test-WindowGone $App $Title)
-}
-
 $app = Start-Expzip
 $center = Get-WindowCenter $app
 

@@ -737,6 +737,19 @@ function Open-InNewTab($App, [string]$Name) {
     return $true
 }
 
+# 右クリックのメニューの「選択した項目から新しい書庫を作成」(#207)。いまの選択のままメニューを出す。押せなかったら false
+function Open-NewArchiveFromSelection($App) {
+    Send-Keys $App '+{F10}'
+    $menu = Find-DropDown $App
+    $item = if ($menu) { ByName $menu '選択した項目から新しい書庫を作成' }
+    if ($null -eq $item -or -not $item.Current.IsEnabled) {
+        Close-DropDown $App
+        return $false
+    }
+    Push $item
+    return $true
+}
+
 # 行の名前を書き換えて確定する。入力欄に値を入れてから Enter を送る
 function Rename-Row($App, [string]$From, [string]$To) {
     # 起動直後は一覧がキーを受け取れないことがあるので、入力欄が開くまで押し直す
@@ -915,6 +928,18 @@ function Get-FileDialogName($App, [string]$Title) {
         Where-Object { $_.Current.ClassName -eq 'Edit' -and $_.Current.AutomationId -eq '1001' } |
         Select-Object -First 1
     return ValueOf $edit
+}
+
+# 保存する窓を取りやめる。取りやめの口は ID 2
+function Cancel-FileDialog($App, [string]$Title) {
+    $dialog = Find-Window $App $Title 15000
+    if ($null -eq $dialog) { return $false }
+    $cancel = Find-All $dialog ([System.Windows.Automation.Condition]::TrueCondition) |
+        Where-Object { $_.Current.ClassName -eq 'Button' -and $_.Current.AutomationId -eq '2' } |
+        Select-Object -First 1
+    if ($null -eq $cancel) { return $false }
+    [ExpzipUi.Native]::PostMessage([IntPtr]$cancel.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    return (Test-WindowGone $App $Title)
 }
 
 # ファイルやフォルダーを選ぶ窓にパスを入れて確定する。

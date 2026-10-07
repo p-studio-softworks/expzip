@@ -117,6 +117,23 @@ internal sealed class TempWorkspace : IDisposable
         return directory;
     }
 
+    /// <summary>
+    /// 1 回だけ使うフォルダー。<see cref="DirectoryFor"/> と違い、呼ぶたびに新しく作る。
+    /// </summary>
+    /// <remarks>
+    /// 選んだものから新しい書庫を作るとき (#207) に使う。書庫ごとの取り出し先には、外のアプリで
+    /// 書き換えている途中のファイルや、前に取り出した古いファイルが残っていることがあり、
+    /// それを新しい書庫に入れてしまうため。使い終わったら呼んだ側で消す。
+    /// </remarks>
+    /// <param name="label">一時フォルダを覗いたときに、どれが何か分かるように付ける名前。</param>
+    public string CreateScratchDirectory(string label)
+    {
+        var directory = Path.Combine(Directory, $"{++_issued:00}-{Sanitize(label)}");
+
+        System.IO.Directory.CreateDirectory(directory);
+        return directory;
+    }
+
     /// <summary>置き場をまるごと消す。</summary>
     public void Dispose()
     {
