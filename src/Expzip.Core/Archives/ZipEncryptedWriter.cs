@@ -274,7 +274,7 @@ internal static class ZipEncryptedWriter
         string? writePassword = null,
         bool changingPassword = false)
     {
-        var temp = archivePath + ZipArchiveWriter.TempSuffix;
+        var temp = ZipArchiveWriter.WorkFilePathFor(archivePath);
 
         // 付け替えのときだけ、読むときと書くときで合言葉が変わる
         var outgoing = changingPassword ? writePassword : password;

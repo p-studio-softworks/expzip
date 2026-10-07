@@ -53,6 +53,36 @@ internal static class ZipArchiveWriter
     internal const string TempSuffix = ".expzip-tmp";
 
     /// <summary>
+    /// 作業用ファイルの場所を決める関数。画面の側が差し替えられる。<see langword="null"/> なら既定
+    /// (書庫の隣の「書庫の名前 + <see cref="TempSuffix"/>」と、SharpZipLib が自分で決める名前)。
+    /// </summary>
+    /// <remarks>
+    /// 書き換えは、作業用ファイルに書いてから書庫と差し替える。作業用ファイルを置ける場所や名前に
+    /// 決まりのある環境で動かすときに差し替える。差し替えたときは、SharpZipLib の作業用ファイルも
+    /// 同じ場所を使う (<see cref="WorkFileStorage"/>)。
+    /// </remarks>
+    internal static Func<string, string>? WorkFilePathOverride { get; set; }
+
+    /// <summary>この書庫を書き換えるときの作業用ファイルの場所。</summary>
+    internal static string WorkFilePathFor(string archivePath)
+        => WorkFilePathOverride?.Invoke(archivePath) ?? archivePath + TempSuffix;
+
+    /// <summary>
+    /// 書き換えを始める。作業用ファイルの場所を差し替えていなければ、SharpZipLib の既定のまま。
+    /// </summary>
+    private static void BeginUpdate(SharpZipFile zip)
+    {
+        if (WorkFilePathOverride is null)
+        {
+            zip.BeginUpdate();
+        }
+        else
+        {
+            zip.BeginUpdate(new WorkFileStorage(zip.Name, WorkFilePathFor(zip.Name)));
+        }
+    }
+
+    /// <summary>
     /// 空のZIP書庫を作る。既に同じ名前のファイルがあれば置き換える。
     /// </summary>
     /// <remarks>
@@ -113,7 +143,7 @@ internal static class ZipArchiveWriter
         long reportedAt = 0;
 
         using var zip = ZipUpdate.Open(archivePath);
-        zip.BeginUpdate();
+        BeginUpdate(zip);
 
         foreach (var item in plan)
         {
@@ -311,7 +341,7 @@ internal static class ZipArchiveWriter
             return false;
         }
 
-        zip.BeginUpdate();
+        BeginUpdate(zip);
         zip.AddDirectory(entryName.TrimEnd('/'));
         Commit(zip);
         return true;
@@ -359,7 +389,7 @@ internal static class ZipArchiveWriter
         var emptied = FoldersLeftEmpty(
             zip.Cast<ZipEntry>().Select(static e => e.Name), fileEntryNames, folderPaths);
 
-        zip.BeginUpdate();
+        BeginUpdate(zip);
 
         foreach (var entry in targets)
         {
@@ -676,7 +706,7 @@ internal static class ZipArchiveWriter
                     .Concat(targets.Select(static t => t.NewName!));
                 var emptied = FoldersLeftEmptyByMove(remaining, changes);
 
-                zip.BeginUpdate();
+                BeginUpdate(zip);
 
                 foreach (var (entry, _) in targets)
                 {

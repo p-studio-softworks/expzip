@@ -104,7 +104,7 @@ internal static class ZipParallelWriter
             return null;
         }
 
-        var temp = archivePath + ZipArchiveWriter.TempSuffix;
+        var temp = ZipArchiveWriter.WorkFilePathFor(archivePath);
         var failed = new List<(string, string)>();
 
         try
