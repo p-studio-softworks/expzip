@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Input;
@@ -178,6 +179,13 @@ public partial class MainWindow : Window
 
     /// <summary>タブを足したり閉じたりしている最中。選択の変更に二重に反応しないための印 (#22)。</summary>
     private bool _switchingTab;
+
+    /// <summary>タブの帯で押されたタブ。動かされたら並べ替えを始める (#208)。</summary>
+    private ArchiveTab? _tabDragCandidate;
+    private Point _tabDragOrigin;
+
+    /// <summary>タブをドラッグして並べ替えている最中 (#208)。</summary>
+    private bool _tabDragging;
 
     public MainWindow()
     {
@@ -1247,6 +1255,18 @@ public partial class MainWindow : Window
     /// </summary>
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // タブのドラッグは Esc でやめる。元の位置のまま (#208)
+        if (_tabDragging)
+        {
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                EndTabDrag();
+            }
+
+            return;
+        }
+
         // 名前を書き換えている最中は、そちらの操作を優先する
         if (_editingRow is not null)
         {
@@ -1290,7 +1310,71 @@ public partial class MainWindow : Window
             var index = Tab is { } current ? _tabs.IndexOf(current) : -1;
             var step = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1;
             ArchiveTabs.SelectedItem = _tabs[((index + step) % _tabs.Count + _tabs.Count) % _tabs.Count];
+            return;
         }
+
+        // Ctrl+Shift+PageUp / PageDown で、いまのタブを左右へ 1 つ動かす (#208)。
+        // マウスを使わない人のため。ブラウザの一部と同じ。端では回り込まない
+        if (e.Key is Key.PageUp or Key.PageDown
+            && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift)
+            && Tab is { } moving)
+        {
+            e.Handled = true;
+
+            var index = _tabs.IndexOf(moving) + (e.Key == Key.PageUp ? -1 : 1);
+            if (index >= 0 && index < _tabs.Count)
+            {
+                MoveTab(moving, index);
+            }
+        }
+    }
+
+    /// <summary>タブを <paramref name="index"/> の位置へ動かす (#208)。動かしたタブは選んだままにする。</summary>
+    /// <remarks>
+    /// タブが持つ表示の状態はタブと一緒に動くので、画面は作り直さない。
+    /// 中の書庫の親子は並びに頼っていないので、並べ替えても保存先は変わらない。
+    /// </remarks>
+    private void MoveTab(ArchiveTab tab, int index)
+    {
+        var from = _tabs.IndexOf(tab);
+        if (from < 0 || from == index)
+        {
+            return;
+        }
+
+        var focused = Keyboard.FocusedElement is DependencyObject element
+                      && FindAncestor<TabItem>(element)?.DataContext == tab;
+
+        _switchingTab = true;
+        try
+        {
+            _tabs.Move(from, index);
+            ArchiveTabs.SelectedItem = tab;
+        }
+        finally
+        {
+            _switchingTab = false;
+        }
+
+        ArchiveTabs.UpdateLayout();
+        if (ArchiveTabs.ItemContainerGenerator.ContainerFromItem(tab) is not TabItem item)
+        {
+            return;
+        }
+
+        // 動かしたタブに入力の位置があったなら、そのまま残す。キーボードで続けて動かせるように
+        if (focused)
+        {
+            item.Focus();
+        }
+
+        // 読み上げで、動いたことと今の位置が分かるようにする
+        (UIElementAutomationPeer.FromElement(item) ?? UIElementAutomationPeer.CreatePeerForElement(item))
+            .RaiseNotificationEvent(
+                AutomationNotificationKind.ActionCompleted,
+                AutomationNotificationProcessing.ImportantMostRecent,
+                Strings.TabMoved(index + 1, _tabs.Count),
+                "TabMoved");
     }
 
     /// <summary>タブを足して、それを選ぶ。</summary>
@@ -1501,6 +1585,159 @@ public partial class MainWindow : Window
             _ = CloseTabAsync(tab);
         }
     }
+
+    // ------------------------------------------------------------------ タブの並べ替え (#208)
+
+    // マウスをつかんで動かし、OLE のドラッグ＆ドロップは使わない。ウィンドウの外へは出さないので要らず、
+    // 使うとファイルのドロップ (#41) や一覧からの取り出し (#18) と同じ道を通って取り違えやすい
+
+    private void ArchiveTabs_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // × で押したときは閉じるだけ
+        if (e.OriginalSource is not DependencyObject source || FindAncestor<ButtonBase>(source) is not null)
+        {
+            return;
+        }
+
+        // 押したタブが選ばれるのは TabItem に任せる。動かしたタブは選ばれたままになる
+        _tabDragCandidate = FindAncestor<TabItem>(source)?.DataContext as ArchiveTab;
+        _tabDragOrigin = e.GetPosition(ArchiveTabs);
+    }
+
+    private void ArchiveTabs_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_tabDragging)
+        {
+            e.Handled = true;
+            ShowTabDropMark(e.GetPosition(ArchiveTabs).X);
+            return;
+        }
+
+        if (_tabDragCandidate is null || _tabs.Count < 2)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            _tabDragCandidate = null;
+            return;
+        }
+
+        // 押しただけの微妙な揺れでドラッグを始めない。判定は Windows の設定に合わせる
+        var moved = e.GetPosition(ArchiveTabs) - _tabDragOrigin;
+        if (Math.Abs(moved.X) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(moved.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        // 帯の外へ出ても動きを受け取る
+        _tabDragging = ArchiveTabs.CaptureMouse();
+        if (_tabDragging)
+        {
+            e.Handled = true;
+            ShowTabDropMark(e.GetPosition(ArchiveTabs).X);
+        }
+    }
+
+    private void ArchiveTabs_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_tabDragging)
+        {
+            _tabDragCandidate = null;
+            return;
+        }
+
+        e.Handled = true;
+
+        var tab = _tabDragCandidate;
+        var index = TabDropIndex(e.GetPosition(ArchiveTabs).X);
+        EndTabDrag();
+
+        if (tab is not null && index is { } to)
+        {
+            MoveTab(tab, to);
+        }
+    }
+
+    /// <summary>ほかのウィンドウに移るなどでマウスを手放したら、動かさずにやめる。</summary>
+    private void ArchiveTabs_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (_tabDragging)
+        {
+            EndTabDrag();
+        }
+    }
+
+    private void EndTabDrag()
+    {
+        // 先に印を下ろす。手放すと LostMouseCapture が来て、ここへ戻ってくる
+        _tabDragging = false;
+        _tabDragCandidate = null;
+        TabDropMark.Visibility = Visibility.Collapsed;
+
+        if (ArchiveTabs.IsMouseCaptured)
+        {
+            ArchiveTabs.ReleaseMouseCapture();
+        }
+    }
+
+    /// <summary>
+    /// 帯の <paramref name="x"/> で離したときに、つかんだタブが行く位置。
+    /// 動かないなら <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// タブの左右の半分で、その手前か後ろかを決める。帯は折り返さない (横に並べたパネルの中に
+    /// あり、幅の限りが無い) ので、横の位置だけを見ればよい。
+    /// </remarks>
+    private int? TabDropIndex(double x)
+    {
+        var from = _tabDragCandidate is null ? -1 : _tabs.IndexOf(_tabDragCandidate);
+        if (from < 0)
+        {
+            return null;
+        }
+
+        var gap = _tabs.Count;
+        for (var i = 0; i < _tabs.Count; i++)
+        {
+            if (TabBounds(i) is { } bounds && x < bounds.Left + bounds.Width / 2)
+            {
+                gap = i;
+                break;
+            }
+        }
+
+        // 隙間の番号から、つかんだタブを抜いたあとの位置へ直す
+        var to = gap > from ? gap - 1 : gap;
+        return to == from ? null : to;
+    }
+
+    /// <summary>落とす位置に縦の線を出す。離しても動かない位置なら出さない。</summary>
+    private void ShowTabDropMark(double x)
+    {
+        if (TabDropIndex(x) is not { } to || TabBounds(to) is not { } target)
+        {
+            TabDropMark.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // 右へ動かすなら行き先のタブの右の端、左へ動かすなら左の端に出す
+        var from = _tabs.IndexOf(_tabDragCandidate!);
+        var left = to > from ? target.Right : target.Left;
+
+        Canvas.SetLeft(TabDropMark, left - TabDropMark.Width / 2);
+        Canvas.SetTop(TabDropMark, target.Top);
+        TabDropMark.Height = target.Height;
+        TabDropMark.Visibility = Visibility.Visible;
+    }
+
+    /// <summary><paramref name="index"/> 番目のタブが帯の中で占める範囲。</summary>
+    private Rect? TabBounds(int index)
+        => ArchiveTabs.ItemContainerGenerator.ContainerFromIndex(index) is TabItem { IsVisible: true } item
+            ? item.TransformToAncestor(ArchiveTabs).TransformBounds(new Rect(item.RenderSize))
+            : null;
 
     private void CloseTabButton_Click(object sender, RoutedEventArgs e)
     {

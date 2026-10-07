@@ -138,6 +138,11 @@ internal static partial class Strings
     public static string CloseTabTooltip => Pick(
         "このタブを閉じる (Ctrl+W)", "Close this tab (Ctrl+W)");
 
+    /// <summary>タブを並べ替えたときの読み上げ (#208)。画面には出さない。</summary>
+    public static string TabMoved(int position, int count) => Pick(
+        $"タブを {count} 個中 {position} 番目に移動しました",
+        $"Moved the tab to position {position} of {count}");
+
     // ------------------------------------------------------------------ 一覧の列と右クリック
 
     public static string ColumnName => Pick("名前", "Name");

@@ -114,6 +114,7 @@ You can carry it around on a USB drive.
 | Ctrl+S | Write a nested archive back into its parent |
 | Ctrl+W | Close the tab |
 | Ctrl+Tab | Next tab |
+| Ctrl+Shift+PageUp / PageDown | Move the tab left / right |
 | F5 | Reload the archive |
 
 ## Visibility and screen readers

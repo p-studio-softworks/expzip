@@ -468,45 +468,58 @@
                 BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal">
-                <TabControl x:Name="ArchiveTabs"
-                            Margin="4,4,0,0"
-                            SelectionChanged="ArchiveTabs_SelectionChanged"
-                            PreviewMouseDown="ArchiveTabs_PreviewMouseDown">
-                    <TabControl.Template>
-                        <ControlTemplate TargetType="TabControl">
-                            <TabPanel IsItemsHost="True" />
-                        </ControlTemplate>
-                    </TabControl.Template>
-                    <TabControl.ItemContainerStyle>
-                        <!--
-                            タブの名前を支援技術に伝える。デフォルトでは型名がそのまま
-                            読み上げられ、どの書庫のタブか分からない
-                        -->
-                        <Style TargetType="TabItem"
-                               BasedOn="{StaticResource DefaultTabItemStyle}">
-                            <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
-                        </Style>
-                    </TabControl.ItemContainerStyle>
-                    <TabControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type ui:ArchiveTab}">
-                    <StackPanel Orientation="Horizontal" ToolTip="{Binding FilePath}">
-                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
-                        <!-- 閉じるボタン。エクスプローラーやブラウザと同じ位置に置く -->
-                        <Button Content="&#xE711;"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="9"
-                                Width="18" Height="18"
-                                Margin="8,0,-4,0"
-                                Padding="0"
-                                BorderThickness="0"
-                                Background="Transparent"
-                                ToolTip="{Binding CloseTooltip}"
-                                AutomationProperties.Name="{Binding CloseTooltip}"
-                                Click="CloseTabButton_Click" />
-                    </StackPanel>
-                        </DataTemplate>
-                    </TabControl.ItemTemplate>
-                </TabControl>
+                <Grid Margin="4,4,0,0">
+                    <TabControl x:Name="ArchiveTabs"
+                                SelectionChanged="ArchiveTabs_SelectionChanged"
+                                PreviewMouseDown="ArchiveTabs_PreviewMouseDown"
+                                PreviewMouseLeftButtonDown="ArchiveTabs_PreviewMouseLeftButtonDown"
+                                PreviewMouseMove="ArchiveTabs_PreviewMouseMove"
+                                PreviewMouseLeftButtonUp="ArchiveTabs_PreviewMouseLeftButtonUp"
+                                LostMouseCapture="ArchiveTabs_LostMouseCapture">
+                        <TabControl.Template>
+                            <ControlTemplate TargetType="TabControl">
+                                <TabPanel IsItemsHost="True" />
+                            </ControlTemplate>
+                        </TabControl.Template>
+                        <TabControl.ItemContainerStyle>
+                            <!--
+                                タブの名前を支援技術に伝える。デフォルトでは型名がそのまま
+                                読み上げられ、どの書庫のタブか分からない
+                            -->
+                            <Style TargetType="TabItem"
+                                   BasedOn="{StaticResource DefaultTabItemStyle}">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+                            </Style>
+                        </TabControl.ItemContainerStyle>
+                        <TabControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type ui:ArchiveTab}">
+                        <StackPanel Orientation="Horizontal" ToolTip="{Binding FilePath}">
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                            <!-- 閉じるボタン。エクスプローラーやブラウザと同じ位置に置く -->
+                            <Button Content="&#xE711;"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="9"
+                                    Width="18" Height="18"
+                                    Margin="8,0,-4,0"
+                                    Padding="0"
+                                    BorderThickness="0"
+                                    Background="Transparent"
+                                    ToolTip="{Binding CloseTooltip}"
+                                    AutomationProperties.Name="{Binding CloseTooltip}"
+                                    Click="CloseTabButton_Click" />
+                        </StackPanel>
+                            </DataTemplate>
+                        </TabControl.ItemTemplate>
+                    </TabControl>
+
+                    <!-- タブをドラッグしている間に、落とす位置を示す縦の線 (#208) -->
+                    <Canvas IsHitTestVisible="False">
+                        <Rectangle x:Name="TabDropMark"
+                                   Width="2"
+                                   Fill="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Visibility="Collapsed" />
+                    </Canvas>
+                </Grid>
 
                 <!--
                     エクスプローラーと同じく、タブの右で新しい書庫を作る (#22)。

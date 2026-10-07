@@ -211,6 +211,54 @@ $menu = Open-RowMenu $app '中.zip'
 $names = @(if ($menu) { ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name } })
 Check '「開く」のすぐ下' (($names -join ', ') -match '^開く, 新しいタブで開く, ') ($names -join ', ')
 Close-DropDown $app
+
+Section 'タブの並べ替え (#208)'
+function Selected-Tab($App) { return Get-Selected (ById $App.Window 'ArchiveTabs') }
+# タブの名前の上の点。× の上で押すと閉じてしまうので、左の端寄りを押す
+function Tab-Point($App, [int]$Index, [int]$Offset = 15) {
+    $rect = (Get-Tabs $App)[$Index].Current.BoundingRectangle
+    return [int]($rect.Left + $Offset), [int]($rect.Top + $rect.Height / 2)
+}
+
+Select-Tab $app 0
+$rows = (Get-RowNames $app) -join ', '
+Send-Keys $app '^+{PGDN}'
+Check 'Ctrl+Shift+PageDown で右へ 1 つ' ((Tab-Order $app) -eq '中.zip, 親.zip, 奥.zip, 隣.zip, 別.zip') (Tab-Order $app)
+Check '動かしたタブは選んだまま' ((Selected-Tab $app) -eq '親.zip') (Selected-Tab $app)
+Check '中身はそのまま' (((Get-RowNames $app) -join ', ') -eq $rows) ((Get-RowNames $app) -join ', ')
+Send-Keys $app '^+{PGUP}'
+Check 'Ctrl+Shift+PageUp で左へ 1 つ' ((Tab-Order $app) -eq '親.zip, 中.zip, 奥.zip, 隣.zip, 別.zip') (Tab-Order $app)
+Send-Keys $app '^+{PGUP}'
+Check '左の端では回り込まない' ((Tab-Order $app) -eq '親.zip, 中.zip, 奥.zip, 隣.zip, 別.zip') (Tab-Order $app)
+
+# 右の端の「別.zip」を、「中.zip」の左の端へ運ぶ
+$from = Tab-Point $app 4
+$to = Tab-Point $app 1 5
+Focus-App $app
+Invoke-MouseDrag $from[0] $from[1] $to[0] $to[1]
+Check 'ドラッグで左へ' ((Tab-Order $app) -eq '親.zip, 別.zip, 中.zip, 奥.zip, 隣.zip') (Tab-Order $app)
+Check '運んだタブを選ぶ' ((Selected-Tab $app) -eq '別.zip') (Selected-Tab $app)
+
+# 「親.zip」を、右の端のタブの右半分へ運ぶ
+$from = Tab-Point $app 0
+$last = (Get-Tabs $app)[4].Current.BoundingRectangle
+Focus-App $app
+Invoke-MouseDrag $from[0] $from[1] ([int]($last.Right - 5)) $from[1]
+Check 'ドラッグで右の端へ' ((Tab-Order $app) -eq '別.zip, 中.zip, 奥.zip, 隣.zip, 親.zip') (Tab-Order $app)
+Check '運んだタブを選ぶ (右へ)' ((Selected-Tab $app) -eq '親.zip') (Selected-Tab $app)
+Check '運んだタブの中身が出る' (((Get-RowNames $app) -join ', ') -eq $rows) ((Get-RowNames $app) -join ', ')
+
+# 同じタブの上で離したら動かさない。選ぶだけ
+$from = Tab-Point $app 2
+Focus-App $app
+Invoke-MouseDrag $from[0] $from[1] ($from[0] + 2) $from[1]
+Check '同じタブの上で離すと並びは変わらない' ((Tab-Order $app) -eq '別.zip, 中.zip, 奥.zip, 隣.zip, 親.zip') (Tab-Order $app)
+Check '押したタブを選ぶ' ((Selected-Tab $app) -eq '奥.zip') (Selected-Tab $app)
+
+# 並べ替えても、中の書庫は親へ書き戻せる。親子の関係は並びに頼っていない
+Select-Tab $app 1
+$save = ById $app.Window 'SaveButton'
+Check '並べ替えても保存の口が出る' ($save -and -not $save.Current.IsOffscreen -and $save.Current.IsEnabled)
 Stop-Expzip $app
 
 Section '開けなかったとき'
