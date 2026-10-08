@@ -634,10 +634,6 @@ internal static partial class Strings
 
     // ------------------------------------------------------------------ 書庫の中の書庫 (#30)
 
-    public static string OpenedNested(string entryPath, string parentName) => Pick(
-        $"{parentName} 内の {entryPath} を新しいタブで開きました",
-        $"Opened {entryPath} from {parentName} in a new tab");
-
     public static string Save => Pick("保存", "Save");
 
     // ------------------------------------------------------------------ AI 連携の設定 (#24)

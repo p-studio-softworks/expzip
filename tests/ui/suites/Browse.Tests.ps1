@@ -119,7 +119,7 @@ Send-Keys $app '{ENTER}'
 Wait-Idle $app
 $tabs = Get-Tabs $app
 Check '新しいタブで開く' ($tabs.Count -eq 2) (($tabs | ForEach-Object { $_.Current.Name }) -join ', ')
-Check 'どこの中かを知らせる' ((Get-Status $app) -eq '外側.zip 内の 内側.zip を新しいタブで開きました') (Get-Status $app)
+Check 'どこの中かを知らせる' ((Get-Status $app) -eq '2 個のファイル (外側.zip の中)') (Get-Status $app)
 $save = ById $app.Window 'SaveButton'
 Check '保存の口が出る' ($save -and -not $save.Current.IsOffscreen -and $save.Current.IsEnabled)
 Check '保存の口の名前' ($save.Current.Name -eq '保存') $save.Current.Name
@@ -187,7 +187,7 @@ Select-Tab $app 0
 Check '右クリックから開く' (Open-InNewTab $app '隣.zip')
 Check '子たちの後ろに並ぶ' ((Tab-Order $app) -eq '親.zip, 中.zip, 奥.zip, 隣.zip, 別.zip') (Tab-Order $app)
 Check '開いたタブを選ぶ' ((Get-Selected (ById $app.Window 'ArchiveTabs')) -eq '隣.zip') (Get-Selected (ById $app.Window 'ArchiveTabs'))
-Check 'どこの中かを知らせる' ((Get-Status $app) -eq '親.zip 内の 隣.zip を新しいタブで開きました') (Get-Status $app)
+Check 'どこの中かを知らせる' ((Get-Status $app) -eq '1 個のファイル (親.zip の中)') (Get-Status $app)
 Check '中身が並ぶ' (((Get-RowNames $app) -join ', ') -eq '奥メモ.txt') ((Get-RowNames $app) -join ', ')
 $save = ById $app.Window 'SaveButton'
 Check '保存の口が出る' ($save -and -not $save.Current.IsOffscreen -and $save.Current.IsEnabled)

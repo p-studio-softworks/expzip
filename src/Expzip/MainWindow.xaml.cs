@@ -2968,16 +2968,13 @@ public partial class MainWindow : Window
     /// <remarks>
     /// 親書庫との繋がりはタブに持たせる。いまは中を見るところまでで、書き換えた
     /// 結果を親書庫へ戻すのは次の段階 (仕様書 4.3節)。
+    /// ステータスバーは書き換えない。ほかの書庫と同じ要約に「〜の中」が入り、
+    /// 読み取りのみなどの断り書きも残る (#210)。
     /// </remarks>
     private async Task OpenNestedAsync(ArchiveEntry entry, string target, string parentPath)
     {
         var nest = new NestSession(parentPath, entry, target, ParentFolderOf(entry.FullPath));
-
-        if (await OpenArchiveAsync(target, inNewTab: true, nest: nest))
-        {
-            StatusMessage.Text = Strings.OpenedNested(
-                entry.FullPath, Path.GetFileName(parentPath));
-        }
+        await OpenArchiveAsync(target, inNewTab: true, nest: nest);
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e) => _ = SaveNestAsync();

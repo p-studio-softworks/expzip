@@ -1262,10 +1262,6 @@ OpenTooltip
   ja  書庫を開く
   en  Open an archive
 
-OpenedNested (entryPath: 画像/2024/写真.jpg, parentName: 外側.zip)
-  ja  ⟦外側.zip⟧ 内の ⟦画像/2024/写真.jpg⟧ を新しいタブで開きました
-  en  Opened ⟦画像/2024/写真.jpg⟧ from ⟦外側.zip⟧ in a new tab
-
 OpenedReadOnly (name: 報告書.pdf, format: 7z)
   ja  ⟦報告書.pdf⟧ を開きました (⟦7z⟧ は読み取りのみのため、書き換えても書庫は更新されません)
   en  Opened ⟦報告書.pdf⟧ (⟦7z⟧ is read-only, so any changes will not go back into the archive)

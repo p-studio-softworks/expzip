@@ -109,6 +109,8 @@ Check '実行するかを尋ねない' ($null -eq $box) $(if ($box) { $box.Text 
 if ($box) { Close-MessageBox $box 'キャンセル' }
 Check 'タブで開く' ((Get-Tabs $app).Count -eq 2) (Get-Tabs $app).Count
 Check '外から開いたときと同じに並ぶ' (((Get-RowNames $app) -join ', ') -eq 'setup.msi') ((Get-RowNames $app) -join ', ')
+# 開いた直後も、形式と読み取りのみが読める (#210)
+Check 'どこの中かと読み取りのみを添える' ((Get-Status $app) -match '\(MSI が入った exe / setup\.zip の中 / 読み取りのみ\)$') (Get-Status $app)
 Stop-Expzip $app
 
 Complete-Suite
