@@ -1321,11 +1321,24 @@ public partial class MainWindow : Window
     /// <remarks>
     /// 一覧ではなくウィンドウで受ける (#212)。一覧が空だと入力先が一覧に無く、キーが届かないため。
     /// 文字の欄では奪わない。アドレスバーは書き換えられないので Backspace が素通りしてくるが、
-    /// 場所を文字として選んでいる最中に、その場所が変わってしまう
+    /// 場所を文字として選んでいる最中に、その場所が変わってしまう。
+    /// Alt+↑ も同じ動き (#213)。文字を消すキーではないので、アドレスバーでも受け、区切りの帯へ戻してから移る
+    /// (エクスプローラーと同じ)。Alt を押しながらのキーは <see cref="KeyEventArgs.SystemKey"/> に入る
     /// </remarks>
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Back || _editingRow is not null || e.OriginalSource is TextBoxBase)
+        if (_editingRow is not null)
+        {
+            return;
+        }
+
+        var altUp = e.Key == Key.System && e.SystemKey == Key.Up && Keyboard.Modifiers == ModifierKeys.Alt;
+        if (altUp && e.OriginalSource == AddressBar)
+        {
+            ShowCrumbs();
+            EntryList.Focus();
+        }
+        else if (!(altUp || e.Key == Key.Back) || e.OriginalSource is TextBoxBase)
         {
             return;
         }

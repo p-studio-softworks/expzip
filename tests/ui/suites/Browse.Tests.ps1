@@ -102,6 +102,19 @@ Send-Keys $app '{BACKSPACE}'
 Send-Keys $app '{BACKSPACE}'
 Check 'ルートまで戻る' ((Crumbs $app) -eq '外側.zip') (Crumbs $app)
 
+Section 'Alt+↑ で戻る'
+# Backspace と同じ動き (#213)
+Select-Row $app '資料' | Out-Null
+Send-Keys $app '{ENTER}'
+Select-Row $app '2024' | Out-Null
+Send-Keys $app '{ENTER}'
+Send-Keys $app '%{UP}'
+Check '1 つ上に戻る' ((Crumbs $app) -eq '外側.zip > 資料') (Crumbs $app)
+# 文字を消すキーではないので、アドレスバーでも戻る (#213)
+(ById $app.Window 'AddressBar').SetFocus()
+Send-Keys $app '%{UP}'
+Check 'アドレスバーでも戻る' ((Crumbs $app) -eq '外側.zip') (Crumbs $app)
+
 Section 'ツリー'
 $tree = ById $app.Window 'FolderTree'
 $root = ByType $tree $script:ControlType::TreeItem | Select-Object -First 1

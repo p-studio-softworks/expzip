@@ -107,7 +107,7 @@ You can carry it around on a USB drive.
 | Key | Action |
 |---|---|
 | Enter | Go into a folder / open a file |
-| BackSpace | Go up one folder |
+| BackSpace / Alt+↑ | Go up one folder |
 | F2 | Rename |
 | Delete | Delete |
 | Ctrl+Shift+N | New folder |
