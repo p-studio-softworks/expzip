@@ -165,7 +165,7 @@ function Find-TreeItem($App, [string]$Name) {
     } | Select-Object -First 1
 }
 
-# ツリーでそのフォルダーへ移る。Backspace は一覧が空だと届かないので使わない
+# ツリーでそのフォルダーへ移る
 function Open-TreeFolder($App, [string]$Name) {
     $item = Find-TreeItem $App $Name
     if ($null -eq $item) { throw "ツリーにありません: $Name" }
@@ -204,7 +204,11 @@ Check '奥のファイルだけを消すと、そのフォルダーを書き足�
 Check 'ほかはそのまま' (($names -contains 'docs/a.txt') -and ($names -contains 'docs/c.txt') -and ($names -contains 'top.txt')) ($names -join ', ')
 Check '中身が残る親は書き足さない' (-not ($names -contains 'docs/')) ($names -join ', ')
 
-Open-TreeFolder $app 'docs'
+# 一覧が空になっても、Backspace で上へ戻れる (#212)
+Send-Keys $app '{BACKSPACE}'
+Wait-Idle $app
+Check '空になったフォルダーから Backspace で docs へ戻る' (
+    ((Get-RowNames $app | Sort-Object) -join ',') -eq 'a.txt,c.txt,sub') ((Get-RowNames $app) -join ', ')
 Remove-Row $app 'a.txt'
 $names = Get-ZipNames $loose
 Check 'ほかの中身が残るなら何も書き足さない' (((Folder-Entries $loose) -join ',') -eq 'docs/sub/') ((Folder-Entries $loose) -join ', ')

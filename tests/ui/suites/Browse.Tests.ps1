@@ -89,10 +89,14 @@ Send-Keys $app '{ENTER}'
 Check '空のフォルダーはそう言う' ((Texts $app.Window) -match 'このフォルダーは空です')
 
 Section 'Backspace で戻る'
-$list = ById $app.Window 'EntryList'
-$list.SetFocus()
+# 空のフォルダーでは入力先が一覧に無い。それでも戻れる (#212)
 Send-Keys $app '{BACKSPACE}'
 Check '1 つ上に戻る' ((Crumbs $app) -eq '外側.zip > 資料') (Crumbs $app)
+# 場所を文字として選んでいるときは戻らない (#212)
+(ById $app.Window 'AddressBar').SetFocus()
+Send-Keys $app '{BACKSPACE}'
+Check 'アドレスバーでは戻らない' ((Crumbs $app) -eq '外側.zip > 資料') (Crumbs $app)
+Send-Keys $app '{ESC}'
 Select-Row $app '2024' | Out-Null
 Send-Keys $app '{BACKSPACE}'
 Send-Keys $app '{BACKSPACE}'

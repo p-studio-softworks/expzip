@@ -954,20 +954,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 一つ上のフォルダへ。`..` の行を置かない代わりの手段 (#46)
-        if (e.Key == Key.Back)
-        {
-            e.Handled = true;
-
-            if (CurrentFolder?.Parent is { } parent)
-            {
-                SelectInTree(parent);
-                Navigate(parent);
-            }
-
-            return;
-        }
-
         // F2 で名前の変更。エクスプローラーと同じ操作 (#15)
         if (e.Key == Key.F2)
         {
@@ -1326,6 +1312,30 @@ public partial class MainWindow : Window
             {
                 MoveTab(moving, index);
             }
+        }
+    }
+
+    /// <summary>
+    /// 一つ上のフォルダへ。`..` の行を置かない代わりの手段 (#46)。
+    /// </summary>
+    /// <remarks>
+    /// 一覧ではなくウィンドウで受ける (#212)。一覧が空だと入力先が一覧に無く、キーが届かないため。
+    /// 文字の欄では奪わない。アドレスバーは書き換えられないので Backspace が素通りしてくるが、
+    /// 場所を文字として選んでいる最中に、その場所が変わってしまう
+    /// </remarks>
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Back || _editingRow is not null || e.OriginalSource is TextBoxBase)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        if (CurrentFolder?.Parent is { } parent)
+        {
+            SelectInTree(parent);
+            Navigate(parent);
         }
     }
 

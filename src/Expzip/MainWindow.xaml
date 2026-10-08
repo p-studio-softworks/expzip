@@ -14,6 +14,7 @@
         AllowDrop="True"
         PreviewMouseDown="Window_PreviewMouseDown"
         PreviewKeyDown="Window_PreviewKeyDown"
+        KeyDown="Window_KeyDown"
         DragOver="Window_DragOver"
         Drop="Window_Drop"
         Closing="Window_Closing">
