@@ -98,6 +98,113 @@ Check 'タブで開く' ((Get-Tabs $app).Count -eq 1) (Get-Tabs $app).Count
 Check '一覧に並ぶ' ((Get-RowNames $app) -contains '資料') ((Get-RowNames $app) -join ', ')
 Stop-Expzip $app
 
+# 追加するときに .DS_Store を入れず、名前の濁点を分かれていない形 (NFC) に揃える (#202)
+$mac = Join-Path $script:Work 'mac'
+function New-MacFolder([string]$Name, [string[]]$Files) {
+    $path = Join-Path $mac $Name
+    New-Item -ItemType Directory -Force -Path $path | Out-Null
+    foreach ($file in $Files) { Set-Content -Path (Join-Path $path $file) -Value $file -Encoding UTF8 }
+    return $path
+}
+$withStore = New-MacFolder 'f' @('.DS_Store', 'a.txt')
+$onlyStore = New-MacFolder 'g' @('.DS_Store')
+$lowerStore = New-MacFolder 'k' @('.ds_store', 'x.txt')
+$loose = Join-Path (New-MacFolder 'h' @('.DS_Store')) '.DS_Store'
+# Mac のファイル名と同じく、「ガ」を「カ」と濁点の 2 文字で持つ名前
+$nfdGa = 'カ' + [char]0x3099
+$nfcGa = [string][char]0x30AC
+$nfdFile = Join-Path $mac ($nfdGa + '.txt')
+Set-Content -Path $nfdFile -Value 'nfd' -Encoding UTF8
+$nfdFolder = New-MacFolder ($nfdGa + 'ゾウ') @('b.txt')
+$nfcFile = Join-Path $mac 'バナナ.txt'
+Set-Content -Path $nfcFile -Value 'nfc' -Encoding UTF8
+
+# 開いている書庫の、一覧の下の空いたところへ落とす。行の上に落とすと、そのフォルダーに入る
+function Get-ListBlank($App) {
+    Focus-App $App
+    $rect = (ById $App.Window 'EntryList').Current.BoundingRectangle
+    return [pscustomobject]@{ X = [int]($rect.X + $rect.Width / 2); Y = [int]($rect.Bottom - 30) }
+}
+
+function Drop-Into($App, [string[]]$Paths) {
+    $spot = Get-ListBlank $App
+    Invoke-Drop $Paths $spot.X $spot.Y | Out-Null
+    Answer-Password $App
+    Wait-Idle $App
+}
+
+# パスワード付きの書庫では、書き換える前に尋ねられることがある。尋ねられたら答える
+$secret = 'Kagi-2026'
+function Answer-Password($App) {
+    $dialog = Find-Window $App 'パスワード' 3000
+    if ($null -eq $dialog) { return }
+    $box = ByType $dialog $script:ControlType::Edit | Select-Object -First 1
+    $box.SetFocus()
+    Start-Sleep -Milliseconds 200
+    [System.Windows.Forms.SendKeys]::SendWait($secret)
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    Start-Sleep -Milliseconds 900
+}
+
+function Test-MacDrops([string]$Archive, $App) {
+    Drop-Into $App @($withStore)
+    $names = Get-ZipNames $Archive
+    Check 'フォルダーの中身は入る' ($names -contains 'f/a.txt') ($names -join ', ')
+    Check '.DS_Store は入らない' (-not ($names -contains 'f/.DS_Store')) ($names -join ', ')
+
+    Drop-Into $App @($nfdFile, $nfdFolder)
+    $names = Get-ZipNames $Archive
+    Check 'NFD のファイルの名前が NFC になる' ($names -contains ($nfcGa + '.txt')) ($names -join ', ')
+    Check 'NFD のフォルダーの名前も NFC になる' ($names -contains ($nfcGa + 'ゾウ/b.txt')) ($names -join ', ')
+    $split = @($names | Where-Object { -not $_.IsNormalized([Text.NormalizationForm]::FormC) })
+    Check '分かれた濁点の名前は無い' ($split.Count -eq 0) ($split -join ', ')
+}
+
+Section '.DS_Store を入れない (#202)'
+$macZip = New-TestZip (Join-Path $script:Work 'mac.zip') ([ordered]@{ 'base.txt' = 'base' })
+$app = Start-Expzip @($macZip)
+Drop-Into $app @($withStore)
+$names = Get-ZipNames $macZip
+Check 'フォルダーの中身は入る' ($names -contains 'f/a.txt') ($names -join ', ')
+Check '.DS_Store は入らない' (-not ($names -contains 'f/.DS_Store')) ($names -join ', ')
+
+Drop-Into $app @($onlyStore)
+$names = Get-ZipNames $macZip
+Check '.DS_Store だけのフォルダーは空のフォルダーになる' (
+    ($names -contains 'g/') -and -not ($names | Where-Object { $_ -like 'g/?*' })) ($names -join ', ')
+
+Drop-Into $app @($loose)
+$names = Get-ZipNames $macZip
+Check '直接選んだ .DS_Store は入る' ($names -contains '.DS_Store') ($names -join ', ')
+
+Drop-Into $app @($lowerStore)
+$names = Get-ZipNames $macZip
+Check '大文字小文字が違っても入らない' (($names -contains 'k/x.txt') -and -not ($names -contains 'k/.ds_store')) ($names -join ', ')
+
+Section '名前の濁点を NFC に揃える (#202)'
+Drop-Into $app @($nfdFile, $nfdFolder)
+$names = Get-ZipNames $macZip
+Check 'NFD のファイルの名前が NFC になる' ($names -contains ($nfcGa + '.txt')) ($names -join ', ')
+Check 'NFD のフォルダーの名前も NFC になる' ($names -contains ($nfcGa + 'ゾウ/b.txt')) ($names -join ', ')
+Drop-Into $app @($nfcFile)
+$names = Get-ZipNames $macZip
+Check 'NFC の名前は変わらない' ($names -contains 'バナナ.txt') ($names -join ', ')
+$split = @($names | Where-Object { -not $_.IsNormalized([Text.NormalizationForm]::FormC) })
+Check '分かれた濁点の名前は無い' ($split.Count -eq 0) ($split -join ', ')
+Stop-Expzip $app
+
+Section 'パスワード付きの書庫でも同じ (#202)'
+$lockedZip = New-TestZip (Join-Path $script:Work 'mac-locked.zip') ([ordered]@{ 'base.txt' = 'base' })
+$app = Start-Expzip @($lockedZip)
+Push (ById $app.Window 'PasswordButton')
+Answer-Password $app
+Wait-Idle $app
+Check 'パスワードを設定する' ((Get-Status $app) -match 'パスワードを設定しました') (Get-Status $app)
+Stop-Expzip $app
+$app = Start-Expzip @($lockedZip)
+Test-MacDrops $lockedZip $app
+Stop-Expzip $app
+
 Section 'エクスプローラーへ持ち出す'
 # 書庫の項目をつかんでエクスプローラーへ落とす (#17)。同じドライブへ落とすと、エクスプローラーは
 # コピーではなく移動を選ぶ。以前は移動のとき、ステータスバーが「展開しています…」のまま残っていた (#157)

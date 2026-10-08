@@ -102,4 +102,200 @@ Wait-Idle $app
 Check '書庫は壊れていない' ((Get-ZipNames $archive) -contains 'notes.txt')
 
 Stop-Expzip $app
+
+# 削除や移動でフォルダーの中身が無くなっても、フォルダーを空のまま残す (#203)。
+# 書庫はフォルダーのエントリを持たない形で作る。ファイルの名前からフォルダーを組み立てる書庫
+$secret = 'Kagi-2026'
+function New-LooseZip([string]$Name) {
+    return New-TestZip (Join-Path $script:Work $Name) ([ordered]@{
+        'docs/a.txt'     = 'a'
+        'docs/c.txt'     = 'c'
+        'docs/sub/b.txt' = 'b'
+        'top.txt'        = 'top'
+    })
+}
+
+# パスワード付きの書庫では、書き換える前に尋ねられることがある。尋ねられたら答える
+function Answer-Password($App) {
+    $dialog = Find-Window $App 'パスワード' 3000
+    if ($null -eq $dialog) { return }
+    $box = ByType $dialog $script:ControlType::Edit | Select-Object -First 1
+    $box.SetFocus()
+    Start-Sleep -Milliseconds 200
+    [System.Windows.Forms.SendKeys]::SendWait($secret)
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    Start-Sleep -Milliseconds 900
+}
+
+function Set-ZipPassword([string]$Archive) {
+    $app = Start-Expzip @($Archive)
+    Push (ById $app.Window 'PasswordButton')
+    Answer-Password $app
+    Wait-Idle $app
+    Check 'パスワードを設定する' ((Get-Status $app) -match 'パスワードを設定しました') (Get-Status $app)
+    Stop-Expzip $app
+}
+
+# いま選んでいる行を削除する
+function Remove-Selected($App) {
+    Send-Keys $App '{DEL}'
+    $box = Find-MessageBox $App
+    if ($box) { Close-MessageBox $box 'はい(Y)' }
+    Answer-Password $App
+    Wait-Idle $App
+}
+
+function Remove-Row($App, [string]$Name) {
+    Select-Row $App $Name | Out-Null
+    Remove-Selected $App
+}
+
+function Enter-Folder($App, [string]$Name) {
+    Select-Row $App $Name | Out-Null
+    Send-Keys $App '{ENTER}'
+    Wait-Idle $App
+}
+
+# ツリーの項目。自分の名前 (最初の字) で探す。子の名前まで見ると親の項目が当たる
+function Find-TreeItem($App, [string]$Name) {
+    $tree = ById $App.Window 'FolderTree'
+    return ByType $tree $script:ControlType::TreeItem | Where-Object {
+        $text = ByType $_ $script:ControlType::Text | Select-Object -First 1
+        $text -and $text.Current.Name -eq $Name
+    } | Select-Object -First 1
+}
+
+# ツリーでそのフォルダーへ移る。Backspace は一覧が空だと届かないので使わない
+function Open-TreeFolder($App, [string]$Name) {
+    $item = Find-TreeItem $App $Name
+    if ($null -eq $item) { throw "ツリーにありません: $Name" }
+    Select-Element $item
+    Start-Sleep -Milliseconds 600
+    Wait-Idle $App
+}
+
+# 一覧の行をつかんで、ツリーのフォルダーへ運ぶ。選んでいる行が全部移る
+function Move-RowToTree($App, [string]$Row, [string]$Folder) {
+    # ツリーのルートを開き直す (Expand) と、一覧がルートへ移ってしまう。ルートは初めから開いている
+    Focus-App $App
+    $target = Find-TreeItem $App $Folder
+    if ($null -eq $target) { Check "ツリーに $Folder がある" $false; return }
+    $from = (ByName (Find-Row $App $Row) $Row).Current.BoundingRectangle
+    $to = (ByName $target $Folder).Current.BoundingRectangle
+    Invoke-MouseDrag ([int]($from.X + $from.Width / 2)) ([int]($from.Y + $from.Height / 2)) `
+        ([int]($to.X + $to.Width / 2)) ([int]($to.Y + $to.Height / 2))
+    Answer-Password $App
+    Wait-Idle $App
+}
+
+function Folder-Entries([string]$Archive) {
+    return @(Get-ZipNames $Archive | Where-Object { $_.EndsWith('/') } | Sort-Object)
+}
+
+Section '削除で中身が無くなったフォルダーを残す (#203)'
+$loose = New-LooseZip 'loose.zip'
+$app = Start-Expzip @($loose)
+Enter-Folder $app 'docs'
+Enter-Folder $app 'sub'
+Remove-Row $app 'b.txt'
+$names = Get-ZipNames $loose
+Check '奥のファイルだけを消すと、そのフォルダーを書き足す' (
+    ($names -contains 'docs/sub/') -and -not ($names -contains 'docs/sub/b.txt')) ($names -join ', ')
+Check 'ほかはそのまま' (($names -contains 'docs/a.txt') -and ($names -contains 'docs/c.txt') -and ($names -contains 'top.txt')) ($names -join ', ')
+Check '中身が残る親は書き足さない' (-not ($names -contains 'docs/')) ($names -join ', ')
+
+Open-TreeFolder $app 'docs'
+Remove-Row $app 'a.txt'
+$names = Get-ZipNames $loose
+Check 'ほかの中身が残るなら何も書き足さない' (((Folder-Entries $loose) -join ',') -eq 'docs/sub/') ((Folder-Entries $loose) -join ', ')
+
+Remove-Row $app 'c.txt'
+$names = Get-ZipNames $loose
+Check 'docs のファイルを全部消すと docs/sub/ が残る' (
+    (($names | Sort-Object) -join ',') -eq 'docs/sub/,top.txt') ($names -join ', ')
+Check '一覧に空の sub が残る' ((Get-RowNames $app) -contains 'sub') ((Get-RowNames $app) -join ', ')
+Open-TreeFolder $app 'loose.zip'
+Check '一覧に空の docs が残る' ((Get-RowNames $app) -contains 'docs') ((Get-RowNames $app) -join ', ')
+Stop-Expzip $app
+
+Section 'フォルダーそのものを削除する (#203)'
+$loose = New-LooseZip 'loose-folder.zip'
+$app = Start-Expzip @($loose)
+Enter-Folder $app 'docs'
+Remove-Row $app 'sub'
+$names = Get-ZipNames $loose
+Check 'sub は中身ごと消える' (-not ($names | Where-Object { $_ -like 'docs/sub*' })) ($names -join ', ')
+Check 'docs に中身が残るので何も書き足さない' ((Folder-Entries $loose).Count -eq 0) ((Folder-Entries $loose) -join ', ')
+Open-TreeFolder $app 'loose-folder.zip'
+Remove-Row $app 'docs'
+$names = Get-ZipNames $loose
+Check 'docs ごと消える' (($names -join ',') -eq 'top.txt') ($names -join ', ')
+Stop-Expzip $app
+
+Section 'パスワード付きの書庫の削除 (#203)'
+$locked = New-LooseZip 'loose-locked.zip'
+Set-ZipPassword $locked
+$app = Start-Expzip @($locked)
+Enter-Folder $app 'docs'
+Enter-Folder $app 'sub'
+Remove-Row $app 'b.txt'
+Open-TreeFolder $app 'docs'
+Select-Row $app 'a.txt' | Out-Null
+Send-Keys $app '+{DOWN}'
+Remove-Selected $app
+$names = Get-ZipNames $locked
+Check 'docs の中を全部消すと docs/sub/ が残る' ((($names | Sort-Object) -join ',') -eq 'docs/sub/,top.txt') ($names -join ', ')
+Stop-Expzip $app
+
+Section '移動で中身が無くなったフォルダーを残す (#203)'
+$loose = New-LooseZip 'loose-move.zip'
+$app = Start-Expzip @($loose)
+Enter-Folder $app 'docs'
+Enter-Folder $app 'sub'
+Move-RowToTree $app 'b.txt' 'docs'
+$names = Get-ZipNames $loose
+Check 'b.txt が docs へ移る' ($names -contains 'docs/b.txt') ($names -join ', ')
+Check '移す元の docs/sub/ が残る' ($names -contains 'docs/sub/') ($names -join ', ')
+
+$root = ByType (ById $app.Window 'FolderTree') $script:ControlType::TreeItem | Select-Object -First 1
+Select-Element $root
+Start-Sleep -Milliseconds 600
+Enter-Folder $app 'docs'
+Send-Keys $app '^a'
+Move-RowToTree $app 'a.txt' 'loose-move.zip'
+$names = Get-ZipNames $loose
+Check 'docs の中身がいちばん上へ移る' (
+    ($names -contains 'a.txt') -and ($names -contains 'b.txt') -and ($names -contains 'c.txt') -and ($names -contains 'sub/')) ($names -join ', ')
+Check '移す元の docs/ が残る' ($names -contains 'docs/') ($names -join ', ')
+Check 'docs の中には何も残らない' (-not ($names | Where-Object { $_ -like 'docs/?*' })) ($names -join ', ')
+Stop-Expzip $app
+
+Section '名前の変更では書き足さない (#203)'
+$loose = New-LooseZip 'loose-rename.zip'
+$app = Start-Expzip @($loose)
+Rename-Row $app 'top.txt' 'top2.txt' | Out-Null
+Wait-Idle $app
+$names = Get-ZipNames $loose
+Check 'ファイルの名前が変わる' ($names -contains 'top2.txt') ($names -join ', ')
+Check 'ファイルの名前の変更では何も書き足さない' ((Folder-Entries $loose).Count -eq 0) ((Folder-Entries $loose) -join ', ')
+Enter-Folder $app 'docs'
+Rename-Row $app 'sub' 'sub2' | Out-Null
+Wait-Idle $app
+$names = Get-ZipNames $loose
+Check 'フォルダーの名前が変わる' ($names -contains 'docs/sub2/b.txt') ($names -join ', ')
+Check 'フォルダーの名前の変更では何も書き足さない' ((Folder-Entries $loose).Count -eq 0) ((Folder-Entries $loose) -join ', ')
+Stop-Expzip $app
+
+Section 'パスワード付きの書庫の移動 (#203)'
+$locked = New-LooseZip 'loose-move-locked.zip'
+Set-ZipPassword $locked
+$app = Start-Expzip @($locked)
+Enter-Folder $app 'docs'
+Enter-Folder $app 'sub'
+Move-RowToTree $app 'b.txt' 'loose-move-locked.zip'
+$names = Get-ZipNames $locked
+Check 'b.txt がいちばん上へ移る' ($names -contains 'b.txt') ($names -join ', ')
+Check '移す元の docs/sub/ が残る' ($names -contains 'docs/sub/') ($names -join ', ')
+Stop-Expzip $app
+
 Complete-Suite
