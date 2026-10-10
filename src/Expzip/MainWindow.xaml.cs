@@ -421,6 +421,14 @@ public partial class MainWindow : Window
             StatusMessage.Text = Strings.ReadCancelled;
             return false;
         }
+        catch (InvalidDataException) when (!quiet && nest is null && ZipSalvage.LooksTruncated(path))
+        {
+            // 末尾が欠けた ZIP は、断るときに書き直しを提案する (#217)。書き直しは
+            // 読み込みの後始末 (finally) が済んでから始める
+            ShowIdleStatus();
+            _ = Dispatcher.BeginInvoke(() => OfferSalvage(path, Strings.SalvageOfferOnOpen(path)));
+            return false;
+        }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
             // 頼まれていない読み直しでは、いま出している中身をそのまま残す。
@@ -5348,6 +5356,130 @@ public partial class MainWindow : Window
 
         StatusMessage.Text = ReportSummary(report);
         ShowInspection(report);
+
+        // 一覧は読めたが途中で切れていると分かったら、書き直しを提案する (#217)。
+        // 開くときと同じく、先頭から ZIP として読めるものだけ
+        if (report.Findings.Any(static f => f.Issue == InspectionIssue.Truncated)
+            && _tabs.FirstOrDefault(t => ReferenceEquals(t.Contents, contents))?.Nest is null
+            && ZipSalvage.LooksTruncated(contents.FilePath))
+        {
+            OfferSalvage(contents.FilePath, Strings.SalvageOfferAfterInspection);
+        }
+    }
+
+    // ------------------------------------------------------------------ 末尾が欠けた ZIP の書き直し (#217)
+
+    /// <summary>
+    /// 無事なファイルだけで新しい書庫にするかを尋ね、頼まれたら作って開く (#217)。
+    /// </summary>
+    /// <remarks>
+    /// 出番は多くないので、メニューには置かず、開けなかったときと検査で切れていると分かったときだけ尋ねる。
+    /// 元の書庫は上書きせず、隣に別の名前で作る。救えなかったときの手掛かりを残すため。
+    /// </remarks>
+    /// <param name="path">末尾の欠けた書庫。</param>
+    /// <param name="question">尋ねる文。開けなかったときは断りも含む。</param>
+    private async void OfferSalvage(string path, string question)
+    {
+        if (_cancellation is not null || _closeWhenIdle)
+        {
+            return;
+        }
+
+        if (MessageBox.Show(this, question, AppName, MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var destination = ZipSalvage.SuggestPath(path, Strings.SalvageNameLabel);
+        var fileName = Path.GetFileName(destination);
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+        StatusMessage.Text = Strings.Salvaging(Path.GetFileName(path));
+
+        var progress = new Progress<double>(p => ProgressIndicator.Value = p);
+
+        SalvageResult? result = null;
+        try
+        {
+            result = await Task.Run(
+                () => ZipSalvage.Salvage(path, destination, progress, cancellation.Token), cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage.Text = Strings.SalvageCancelled;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowIdleStatus();
+            MessageBox.Show(
+                this,
+                Strings.CreateArchiveFailed(destination, Strings.Reason(ex)),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        if (result is null || _closeWhenIdle)
+        {
+            return;
+        }
+
+        if (result.Recovered == 0)
+        {
+            ShowIdleStatus();
+            MessageBox.Show(
+                this, DescribeSalvage(Strings.SalvageNothing, result),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // 書き直した書庫は「正常に見えるが一部が欠けている」ものになる。失ったものはここで知らせる
+        var complete = result.Lost.Count == 0 && result.ReachedEnd;
+        MessageBox.Show(
+            this, DescribeSalvage(Strings.SalvageDone(fileName, result.Recovered), result),
+            AppName, MessageBoxButton.OK, complete ? MessageBoxImage.Information : MessageBoxImage.Warning);
+
+        if (await OpenArchiveAsync(destination, inNewTab: true))
+        {
+            StatusMessage.Text = Strings.SalvageDoneStatus(fileName, result.Recovered);
+        }
+    }
+
+    /// <summary>書き直しの報告に、取り戻せなかったファイルと、切れた所より後ろが分からないことを添える。</summary>
+    private static string DescribeSalvage(string headline, SalvageResult result)
+    {
+        const int Shown = 10;
+
+        var paragraphs = new List<string> { headline };
+
+        if (result.Lost.Count > 0)
+        {
+            var lines = result.Lost.Take(Shown)
+                .Select(lost => Strings.FailureLine(
+                    ArchiveTreeBuilder.Trim(lost.Name), Strings.SalvageLossReason(lost.Reason)));
+            var more = result.Lost.Count > Shown ? Strings.More(result.Lost.Count - Shown) : string.Empty;
+
+            paragraphs.Add(Strings.SalvageLostHeader + Environment.NewLine
+                           + string.Join(Environment.NewLine, lines) + more);
+        }
+
+        if (!result.ReachedEnd)
+        {
+            paragraphs.Add(Strings.SalvageRestUnknown);
+        }
+
+        return string.Join(Environment.NewLine + Environment.NewLine, paragraphs);
     }
 
     /// <summary>検査の結末をステータスバーの一言にする。</summary>

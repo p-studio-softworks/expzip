@@ -464,6 +464,75 @@ internal static partial class Strings
         $"{path} を開けませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"Could not open {path}.{Environment.NewLine}{Environment.NewLine}{reason}");
 
+    // ------------------------------------------------------------------ 末尾が欠けた ZIP の書き直し (#217)
+
+    /// <summary>末尾が欠けて開けなかったとき。断りに添えて書き直しを提案する (#217)。</summary>
+    public static string SalvageOfferOnOpen(string path) => Pick(
+        $"{path} を開けませんでした。{Environment.NewLine}{Environment.NewLine}"
+        + "書庫の末尾が欠けています。ダウンロードやコピーが途中で切れた可能性があります。"
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + "無事なファイルのみで新しい書庫にしますか。元の書庫はそのまま残ります。",
+        $"Could not open {path}.{Environment.NewLine}{Environment.NewLine}"
+        + "The end of the archive is missing. The download or copy may have been cut off."
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + "Create a new archive with only the intact files? The original archive is left as it is.");
+
+    /// <summary>書庫の検査で、途中で切れていると分かったとき (#217)。</summary>
+    public static string SalvageOfferAfterInspection => Pick(
+        $"この書庫は途中で切れています。{Environment.NewLine}{Environment.NewLine}"
+        + "無事なファイルのみで新しい書庫にしますか。元の書庫はそのまま残ります。",
+        $"This archive is cut off partway.{Environment.NewLine}{Environment.NewLine}"
+        + "Create a new archive with only the intact files? The original archive is left as it is.");
+
+    /// <summary>書き直した書庫の名前に添える言葉。<c>名前 (修復).zip</c> になる。</summary>
+    public static string SalvageNameLabel => Pick("修復", "repaired");
+
+    public static string Salvaging(string fileName) => Pick(
+        $"{fileName} から無事なファイルを集めています…",
+        $"Collecting the intact files from {fileName}…");
+
+    public static string SalvageCancelled => Pick(
+        "新しい書庫の作成を中断しました", "Creating the new archive was stopped");
+
+    /// <summary>書き直しが済んだときの報告。失ったファイルはこの後ろに続ける。</summary>
+    public static string SalvageDone(string fileName, int count) => Pick(
+        $"無事なファイル {count:N0} 個で {fileName} を作成しました。",
+        $"Created {fileName} with {count:N0} intact files.");
+
+    public static string SalvageDoneStatus(string fileName, int count) => Pick(
+        $"無事なファイル {count:N0} 個で {fileName} を作成しました",
+        $"Created {fileName} with {count:N0} intact files");
+
+    /// <summary>見つけたが入れなかったファイルの一覧の見出し。</summary>
+    public static string SalvageLostHeader => Pick(
+        "次のファイルは取り戻せなかったため、入れていません。",
+        "The following files could not be recovered and were left out.");
+
+    /// <summary>切れた所より後ろは、何があったかも分からない。</summary>
+    public static string SalvageRestUnknown => Pick(
+        "書庫が途中で切れていたため、それより後ろにあったファイルは取り戻せません。",
+        "The archive was cut off, so files after that point cannot be recovered.");
+
+    public static string SalvageNothing => Pick(
+        "無事なファイルが見つからなかったため、新しい書庫は作成しませんでした。",
+        "No intact files were found, so no new archive was created.");
+
+    /// <summary>取り戻せなかった訳 (#217)。</summary>
+    public static string SalvageLossReason(SalvageLoss loss) => loss switch
+    {
+        SalvageLoss.Cut => Pick("途中で切れています。", "It is cut off."),
+        SalvageLoss.Damaged => Pick("データが壊れています。", "The data is damaged."),
+        SalvageLoss.Encrypted => Pick(
+            "パスワード付きのため、無事かどうか確かめられません。",
+            "It is password-protected, so it cannot be checked."),
+        SalvageLoss.UnsupportedMethod => Pick(
+            "この圧縮方式では、無事かどうか確かめられません。",
+            "It cannot be checked with this compression method."),
+        _ => Pick(
+            "大きさが記録されていない形のため、取り出せません。",
+            "Its size is not recorded, so it cannot be taken out."),
+    };
+
     public static string EncryptedEntriesNotice => Pick(
         $"この書庫には暗号化されたファイルが含まれています。{Environment.NewLine}{Environment.NewLine}"
         + "一覧は表示できますが、これらのファイルの展開には対応していません。",

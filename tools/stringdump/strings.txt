@@ -2064,6 +2064,74 @@ RuleWhereAnywhere
   ja  書庫全体
   en  Whole archive
 
+SalvageCancelled
+  ja  新しい書庫の作成を中断しました
+  en  Creating the new archive was stopped
+
+SalvageDone (fileName: 資料.zip, count: 3)
+  ja  無事なファイル 3 個で ⟦資料.zip⟧ を作成しました。
+  en  Created ⟦資料.zip⟧ with 3 intact files.
+
+SalvageDoneStatus (fileName: 資料.zip, count: 3)
+  ja  無事なファイル 3 個で ⟦資料.zip⟧ を作成しました
+  en  Created ⟦資料.zip⟧ with 3 intact files
+
+SalvageLossReason (loss: Cut)
+  ja  途中で切れています。
+  en  It is cut off.
+SalvageLossReason (loss: Damaged)
+  ja  データが壊れています。
+  en  The data is damaged.
+SalvageLossReason (loss: Encrypted)
+  ja  パスワード付きのため、無事かどうか確かめられません。
+  en  It is password-protected, so it cannot be checked.
+SalvageLossReason (loss: UnsupportedMethod)
+  ja  この圧縮方式では、無事かどうか確かめられません。
+  en  It cannot be checked with this compression method.
+SalvageLossReason (loss: UnknownSize)
+  ja  大きさが記録されていない形のため、取り出せません。
+  en  Its size is not recorded, so it cannot be taken out.
+
+SalvageLostHeader
+  ja  次のファイルは取り戻せなかったため、入れていません。
+  en  The following files could not be recovered and were left out.
+
+SalvageNameLabel
+  ja  修復
+  en  repaired
+
+SalvageNothing
+  ja  無事なファイルが見つからなかったため、新しい書庫は作成しませんでした。
+  en  No intact files were found, so no new archive was created.
+
+SalvageOfferAfterInspection
+  ja  この書庫は途中で切れています。
+      | 
+      | 無事なファイルのみで新しい書庫にしますか。元の書庫はそのまま残ります。
+  en  This archive is cut off partway.
+      | 
+      | Create a new archive with only the intact files? The original archive is left as it is.
+
+SalvageOfferOnOpen (path: C:\Users\user\Desktop\資料.zip)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を開けませんでした。
+      | 
+      | 書庫の末尾が欠けています。ダウンロードやコピーが途中で切れた可能性があります。
+      | 
+      | 無事なファイルのみで新しい書庫にしますか。元の書庫はそのまま残ります。
+  en  Could not open ⟦C:\Users\user\Desktop\資料.zip⟧.
+      | 
+      | The end of the archive is missing. The download or copy may have been cut off.
+      | 
+      | Create a new archive with only the intact files? The original archive is left as it is.
+
+SalvageRestUnknown
+  ja  書庫が途中で切れていたため、それより後ろにあったファイルは取り戻せません。
+  en  The archive was cut off, so files after that point cannot be recovered.
+
+Salvaging (fileName: 資料.zip)
+  ja  ⟦資料.zip⟧ から無事なファイルを集めています…
+  en  Collecting the intact files from ⟦資料.zip⟧…
+
 Save
   ja  保存
   en  Save
