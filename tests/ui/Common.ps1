@@ -645,8 +645,12 @@ function Measure-TextShape([string]$Text) {
 # 収まっている見出しはどれもほぼ同じ比になり、切れた見出しは欠けたぶん比が小さくなる。
 # 見出しどうしで比べるので、字の大きさや表示倍率を知らなくてよい。
 # 基準は真ん中の比。字の形によって 1 割ほどはずれるので、それより欠けたものを切れたとみなす。
-# 画面に描かれたものを見るので、一覧の上にほかのウィンドウが重なっていない時に呼ぶ
+# 画面に描かれたものを見るので、一覧の上にほかのウィンドウが重なっていない時に呼ぶ。
+# 一覧の見える範囲に収まっていない見出しは測らない (#218)。横にスクロールすれば読めるので
+# 切れてはいないうえ、その位置の画面には一覧の外のもの (ハイコントラストのウィンドウの枠など) が
+# 写り、字として測ってしまう
 function Get-ClippedHeaders($List) {
+    $view = $List.Current.BoundingRectangle
     $headers = @($List.FindAll($script:Scope::Descendants,
         (Condition $script:Automation::ControlTypeProperty $script:ControlType::HeaderItem)))
     $measured = @()
@@ -655,6 +659,7 @@ function Get-ClippedHeaders($List) {
             $name = $text.Current.Name
             $rect = $text.Current.BoundingRectangle
             if (-not $name -or $rect.IsEmpty -or $rect.Width -lt 4 -or $rect.Height -lt 4) { continue }
+            if ($rect.Left -lt $view.Left -or $rect.Right -gt $view.Right) { continue }
             $ink = Measure-InkWidth $rect
             $shape = Measure-TextShape $name
             if ($ink -le 0 -or $shape -le 0) { continue }
