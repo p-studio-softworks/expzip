@@ -13,7 +13,6 @@ $tools = [ordered]@{
     InspectButton  = @('検査', 'この書庫が壊れていないか、危険なものが入っていないかを調べる')
     SplitButton    = @('分割', 'ファイルを指定した大きさに分割する。結合用のプログラムも作成する')
     SfxButton      = @('自己解凍', '自己解凍書庫として書き出す')
-    ViewButton     = @('表示', '項目の表示方法を変更する')
     AiButton       = @('AI機能', 'AI機能の設定')
     LanguageButton = @('言語', '言語設定')
     AboutButton    = @('バージョン情報', 'Expzip について')
@@ -42,7 +41,7 @@ foreach ($id in $tools.Keys) {
 foreach ($id in $needArchive) {
     Check "押せない: $id" (-not (ById $app.Window $id).Current.IsEnabled)
 }
-foreach ($id in 'OpenButton', 'SplitButton', 'ViewButton', 'AiButton', 'LanguageButton', 'AboutButton') {
+foreach ($id in 'OpenButton', 'SplitButton', 'AiButton', 'LanguageButton', 'AboutButton') {
     Check "押せる: $id" ((ById $app.Window $id).Current.IsEnabled)
 }
 Test-NoGlyphNames $app '記号が名前になっていない'
@@ -100,7 +99,7 @@ $menu = Open-DropDown $app 'LanguageButton'
 Push (ByName $menu 'English') 1200
 $english = [ordered]@{
     OpenButton = 'Open'; ExtractButton = 'Extract'; AddButton = 'Add'; PasswordButton = 'Password'
-    InspectButton = 'Inspect'; SplitButton = 'Split'; SfxButton = 'Self-extract'; ViewButton = 'View'
+    InspectButton = 'Inspect'; SplitButton = 'Split'; SfxButton = 'Self-extract'
     AiButton = 'AI features'; LanguageButton = 'Language'; AboutButton = 'About'
 }
 foreach ($id in $english.Keys) {

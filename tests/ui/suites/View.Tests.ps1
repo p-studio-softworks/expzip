@@ -58,8 +58,30 @@ function Selection-Text($App) {
     return (ById $App.Window 'SelectionInfo').Current.Name
 }
 
-function Checked-Names($Menu) {
-    return @(ByType $Menu $script:ControlType::MenuItem | Where-Object { IsChecked $_ } | ForEach-Object { $_.Current.Name })
+# 一覧の右クリックの「表示」の項目。開いた右クリックのメニューは Close-ViewMenu で閉じる
+function Open-ViewMenu($App, [string]$Header = '表示') {
+    Focus-App $App
+    (ById $App.Window 'EntryList').SetFocus()
+    Send-Keys $App '+{F10}'
+    $menu = Find-DropDown $App
+    if ($null -eq $menu) { return $null }
+    return ByName $menu $Header
+}
+
+# 「表示」を開いて、中の項目を並べる
+function Get-ViewItems($ViewItem) {
+    Expand-Element $ViewItem
+    Start-Sleep -Milliseconds 500
+    return @(ByType $ViewItem $script:ControlType::MenuItem)
+}
+
+function Close-ViewMenu($App) {
+    Send-Keys $App '{ESC}'
+    Send-Keys $App '{ESC}'
+}
+
+function Checked-Names($Items) {
+    return @($Items | Where-Object { IsChecked $_ } | ForEach-Object { $_.Current.Name })
 }
 
 $entries = [ordered]@{}
@@ -73,26 +95,23 @@ $other = New-TestZip (Join-Path $script:Work '別.zip') ([ordered]@{ 'z.txt' = '
 
 Section '書庫を開いていないとき'
 $app = Start-Expzip
-$button = ById $app.Window 'ViewButton'
-Check 'ツールバーに「表示」がある' ($button.Current.Name -eq '表示') $button.Current.Name
-Check '説明' ($button.Current.HelpText -eq '項目の表示方法を変更する') $button.Current.HelpText
-$menu = Open-DropDown $app 'ViewButton'
-Check '一覧が開く' ($null -ne $menu)
-if ($menu) {
-    $names = @(ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name }) -join ' / '
-    Check '並び' ($names -eq $viewNames) $names
-    $enabled = @(ByType $menu $script:ControlType::MenuItem | Where-Object { $_.Current.IsEnabled })
-    Check '書庫が無ければ選べない' ($enabled.Count -eq 0) "$($enabled.Count) 個"
-    Close-DropDown $app
-}
+# 切り替えは右クリックだけ。ツールバーに並べるほど使う機能ではない
+Check 'ツールバーに「表示」は無い' ($null -eq (ById $app.Window 'ViewButton'))
+$view = Open-ViewMenu $app
+Check '右クリックに「表示」がある' ($null -ne $view)
+Check '書庫が無ければ選べない' ($view -and -not $view.Current.IsEnabled)
+Close-ViewMenu $app
 Stop-Expzip $app
 
 $app = Start-Expzip @($sample)
 
 Section '最初は詳細'
-$menu = Open-DropDown $app 'ViewButton'
-Check '詳細に印' ($menu -and ((Checked-Names $menu) -join ',') -eq '詳細') $(if ($menu) { (Checked-Names $menu) -join ',' })
-Close-DropDown $app
+$view = Open-ViewMenu $app
+$items = if ($view) { Get-ViewItems $view } else { @() }
+$names = @($items | ForEach-Object { $_.Current.Name }) -join ' / '
+Check '並び' ($names -eq $viewNames) $names
+Check '詳細に印' (((Checked-Names $items) -join ',') -eq '詳細') ((Checked-Names $items) -join ',')
+Close-ViewMenu $app
 $all = @(Get-ItemNames $app)
 Check '項目が並ぶ' ($all.Count -eq 9) ($all -join ', ')
 
@@ -111,9 +130,10 @@ foreach ($case in @(
         $ok = ([Math]::Abs($ra.Y - $rb.Y) -lt 2 -and $rb.X -gt $ra.X) -or ($rb.Y -ge $ra.Bottom - 1 -and $rb.X -lt $ra.X)
         Check "$($case.Name): 次の項目は右か、次の段の左端" $ok "a $ra / b $rb"
     }
-    $menu = Open-DropDown $app 'ViewButton'
-    Check "$($case.Name): 印が移る" ($menu -and ((Checked-Names $menu) -join ',') -eq $case.Name) $(if ($menu) { (Checked-Names $menu) -join ',' })
-    Close-DropDown $app
+    $view = Open-ViewMenu $app
+    $items = if ($view) { Get-ViewItems $view } else { @() }
+    Check "$($case.Name): 印が移る" (((Checked-Names $items) -join ',') -eq $case.Name) ((Checked-Names $items) -join ',')
+    Close-ViewMenu $app
     Save-Shot $app (Join-Path $script:Work $case.Shot)
 }
 
@@ -226,14 +246,12 @@ Check '詳細で始まる' ($a -and $a.Current.ControlType -eq $script:ControlTy
 Section '英語'
 $menu = Open-DropDown $app 'LanguageButton'
 Push (ByName $menu 'English') 1200
-$button = ById $app.Window 'ViewButton'
-Check '英語の名前' ($button.Current.Name -eq 'View') $button.Current.Name
-$menu = Open-DropDown $app 'ViewButton'
-if ($menu) {
-    $names = @(ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name }) -join ' / '
-    Check '英語の並び' ($names -eq 'Extra large icons / Large icons / Medium icons / Small icons / List / Details') $names
-    Close-DropDown $app
-}
+$view = Open-ViewMenu $app 'View'
+Check '英語の名前' ($null -ne $view)
+$items = if ($view) { Get-ViewItems $view } else { @() }
+$names = @($items | ForEach-Object { $_.Current.Name }) -join ' / '
+Check '英語の並び' ($names -eq 'Extra large icons / Large icons / Medium icons / Small icons / List / Details') $names
+Close-ViewMenu $app
 
 Stop-Expzip $app
 Complete-Suite

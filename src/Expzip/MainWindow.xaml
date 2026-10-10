@@ -369,18 +369,6 @@
                         Style="{StaticResource ToolGlyph}" Content="&#xF133;" />
                 <Separator />
                 <!--
-                    一覧の表示の形 (#216)。エクスプローラーの「表示」と同じ 6 つから選ぶ。
-                    中身は開くときに作る (右クリックの「表示」と同じものを並べるため)。
-                    Tiles。四角が並ぶ形
-                -->
-                <Button x:Name="ViewButton" Click="ViewButton_Click"
-                        Style="{StaticResource ToolGlyph}" Content="&#xECA5;">
-                    <Button.ContextMenu>
-                        <ContextMenu />
-                    </Button.ContextMenu>
-                </Button>
-                <Separator />
-                <!--
                     AI の機能 (#104)。歯車ひとつに言語といっしょに入れていたが、
                     **性質の違うものが1つのメニューに同居していた。**開くまで何が出てくるか
                     分からないので、メニューを分ける

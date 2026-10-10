@@ -2518,10 +2518,6 @@ ViewSmallIcons
   ja  小アイコン
   en  Small icons
 
-ViewTooltip
-  ja  項目の表示方法を変更する
-  en  Change how items are displayed
-
 ZipFilter
   ja  ZIP書庫 (*.zip)|*.zip
   en  ZIP archives (*.zip)|*.zip

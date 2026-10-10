@@ -6763,21 +6763,13 @@ public partial class MainWindow : Window
         _ => Strings.ViewDetails,
     };
 
-    /// <summary>ツールバーの「表示」(#216)。右クリックの「表示」と同じものを並べる。</summary>
-    private void ViewButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (ViewButton.ContextMenu is { } menu)
-        {
-            FillViewItems(menu.Items);
-        }
-
-        DropDown(ViewButton);
-    }
-
     /// <summary>
-    /// 形を選ぶ項目を並べる。いまの形に印を付ける。書庫を開いていなければ押せない
-    /// (形はタブごとに覚えるので、覚える先が無い)。
+    /// 右クリックの「表示」に、形を選ぶ項目を並べる。いまの形に印を付ける。
     /// </summary>
+    /// <remarks>
+    /// ツールバーには置かない。ツールバーに並べるほど使う機能ではないため。
+    /// 書庫を開いていなければ押せない (形はタブごとに覚えるので、覚える先が無い)。
+    /// </remarks>
     private void FillViewItems(ItemCollection items)
     {
         items.Clear();
@@ -7708,7 +7700,6 @@ public partial class MainWindow : Window
         NameTool(InspectButton, Strings.Inspect, Strings.InspectTooltip);
         NameTool(SplitButton, Strings.Split, Strings.SplitTooltip);
         NameTool(SfxButton, Strings.Sfx, Strings.SfxTooltip);
-        NameTool(ViewButton, Strings.ViewMenu, Strings.ViewTooltip);
         NameTool(AiButton, Strings.AiMenu, Strings.AiTooltip);
         NameTool(LanguageButton, Strings.LanguageMenu, Strings.LanguageTooltip);
         NameTool(AboutButton, Strings.AboutTitle, Strings.AboutTooltip);
