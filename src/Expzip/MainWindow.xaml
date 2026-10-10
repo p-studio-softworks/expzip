@@ -378,85 +378,145 @@
                 BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="8,5">
-            <Border Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
-                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    MinHeight="24">
-                <Grid>
-                    <TextBox x:Name="AddressBar"
-                             IsReadOnly="True"
-                             IsReadOnlyCaretVisible="True"
-                             BorderThickness="0"
-                             Padding="6,2"
-                             VerticalContentAlignment="Center"
-                             PreviewKeyDown="AddressBar_PreviewKeyDown"
-                             LostKeyboardFocus="AddressBar_LostFocus" />
-                    <DockPanel x:Name="CrumbBar"
-                               Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
-                               MouseLeftButtonDown="CrumbBar_MouseDown">
-                        <!-- 収まらないときだけ出る。畳んだところはここから辿れる -->
-                        <Button x:Name="CrumbOverflow"
-                                DockPanel.Dock="Left"
-                                Visibility="Collapsed"
-                                Content="&#xE712;"
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        MinHeight="24">
+                    <Grid>
+                        <TextBox x:Name="AddressBar"
+                                 IsReadOnly="True"
+                                 IsReadOnlyCaretVisible="True"
+                                 BorderThickness="0"
+                                 Padding="6,2"
+                                 VerticalContentAlignment="Center"
+                                 PreviewKeyDown="AddressBar_PreviewKeyDown"
+                                 LostKeyboardFocus="AddressBar_LostFocus" />
+                        <DockPanel x:Name="CrumbBar"
+                                   Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                                   MouseLeftButtonDown="CrumbBar_MouseDown">
+                            <!-- 収まらないときだけ出る。畳んだところはここから辿れる -->
+                            <Button x:Name="CrumbOverflow"
+                                    DockPanel.Dock="Left"
+                                    Visibility="Collapsed"
+                                    Content="&#xE712;"
+                                    Style="{StaticResource CrumbGlyph}"
+                                    Click="CrumbOverflow_Click" />
+                            <ScrollViewer x:Name="CrumbScroll"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          Focusable="False"
+                                          SizeChanged="CrumbScroll_SizeChanged">
+                                <ItemsControl x:Name="Crumbs">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <!--
+                                                    中身が絵と文字の組なので、名前を
+                                                    入れておかないと支援技術には
+                                                    何も読まれない
+                                                -->
+                                                <Button Style="{StaticResource CrumbButton}"
+                                                        Tag="{Binding Path}"
+                                                        AutomationProperties.Name="{Binding Name}"
+                                                        Click="Crumb_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <!-- 先頭 (書庫そのもの) にだけ付く -->
+                                                        <TextBlock Text="&#xE7B8;"
+                                                                   FontFamily="Segoe MDL2 Assets"
+                                                                   FontSize="12"
+                                                                   Margin="0,0,5,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource FolderBrush}"
+                                                                   Visibility="{Binding IsArchive,
+                                                                                Converter={StaticResource BoolToVisibility}}" />
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <!--
+                                                    この場所の中にあるフォルダを出す。
+                                                    エクスプローラーと同じく、区切りそのものがボタンになる
+                                                -->
+                                                <Button Style="{StaticResource CrumbGlyph}"
+                                                        Content="&#xE76C;"
+                                                        Tag="{Binding Path}"
+                                                        AutomationProperties.Name="{Binding Inside}"
+                                                        Click="CrumbInside_Click"
+                                                        Visibility="{Binding HasFolders,
+                                                                     Converter={StaticResource BoolToVisibility}}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Grid>
+                </Border>
+
+                <!--
+                    検索 (#215)。エクスプローラーと同じく、アドレスバーの右に置く。
+                    探す範囲は書庫全体、探すのは名前だけ。1 文字入れるごとに一覧を結果に置き換える。
+                    見た目はアドレスバーと揃える。空のときの「(書庫名) の検索」は、
+                    入力欄に案内の仕組みが無いので、字を重ねて出す
+                -->
+                <Border Grid.Column="1"
+                        Width="240"
+                        Margin="8,0,0,0"
+                        Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        MinHeight="24">
+                    <Grid>
+                        <TextBox x:Name="SearchBox"
+                                 IsEnabled="False"
+                                 BorderThickness="0"
+                                 Padding="6,2,26,2"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="SearchBox_TextChanged"
+                                 PreviewKeyDown="SearchBox_PreviewKeyDown"
+                                 GotKeyboardFocus="SearchBox_FocusChanged"
+                                 LostKeyboardFocus="SearchBox_FocusChanged" />
+                        <TextBlock x:Name="SearchHint"
+                                   IsHitTestVisible="False"
+                                   Margin="9,0,26,0"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <!--
+                            Search。虫眼鏡。空のときだけ出し、文字が入ったら消すボタンに替わる。
+                            **入力中は Fluent の入力欄が自分の消すボタンを出す**ので、こちらのボタンは
+                            欄から離れているときだけ出す。両方出すと × が 2 つ並ぶ
+                        -->
+                        <ui:GlyphText x:Name="SearchGlyph"
+                                      Text="&#xE721;"
+                                      FontFamily="Segoe MDL2 Assets"
+                                      FontSize="12"
+                                      Margin="0,0,9,0"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Center"
+                                      IsHitTestVisible="False"
+                                      Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Button x:Name="SearchClear"
+                                Content="&#xE711;"
                                 Style="{StaticResource CrumbGlyph}"
-                                Click="CrumbOverflow_Click" />
-                        <ScrollViewer x:Name="CrumbScroll"
-                                      HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
-                                      Focusable="False"
-                                      SizeChanged="CrumbScroll_SizeChanged">
-                            <ItemsControl x:Name="Crumbs">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <!--
-                                                中身が絵と文字の組なので、名前を
-                                                入れておかないと支援技術には
-                                                何も読まれない
-                                            -->
-                                            <Button Style="{StaticResource CrumbButton}"
-                                                    Tag="{Binding Path}"
-                                                    AutomationProperties.Name="{Binding Name}"
-                                                    Click="Crumb_Click">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <!-- 先頭 (書庫そのもの) にだけ付く -->
-                                                    <TextBlock Text="&#xE7B8;"
-                                                               FontFamily="Segoe MDL2 Assets"
-                                                               FontSize="12"
-                                                               Margin="0,0,5,0"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{StaticResource FolderBrush}"
-                                                               Visibility="{Binding IsArchive,
-                                                                            Converter={StaticResource BoolToVisibility}}" />
-                                                    <TextBlock Text="{Binding Name}"
-                                                               VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                            <!--
-                                                この場所の中にあるフォルダを出す。
-                                                エクスプローラーと同じく、区切りそのものがボタンになる
-                                            -->
-                                            <Button Style="{StaticResource CrumbGlyph}"
-                                                    Content="&#xE76C;"
-                                                    Tag="{Binding Path}"
-                                                    AutomationProperties.Name="{Binding Inside}"
-                                                    Click="CrumbInside_Click"
-                                                    Visibility="{Binding HasFolders,
-                                                                 Converter={StaticResource BoolToVisibility}}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Grid>
-            </Border>
+                                Margin="0,0,6,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Stretch"
+                                Visibility="Collapsed"
+                                Click="SearchClear_Click" />
+                    </Grid>
+                </Border>
+            </Grid>
         </Border>
 
         <!--
@@ -858,6 +918,8 @@
                         <GridView>
                             <!-- デフォルトのウィンドウ幅で5列が収まるようにしてある (合計700) -->
                             <GridViewColumn x:Name="NameColumn"       Width="280" CellTemplate="{StaticResource NameCell}" />
+                            <!-- 検索の結果でだけ出す (#215)。ふだんはコードで外してある -->
+                            <GridViewColumn x:Name="LocationColumn"   Width="200" DisplayMemberBinding="{Binding Location}" />
                             <GridViewColumn x:Name="SizeColumn"       Width="100" CellTemplate="{StaticResource SizeCell}"
                                             HeaderContainerStyle="{StaticResource NumericHeader}" />
                             <GridViewColumn x:Name="CompressedColumn" Width="100" CellTemplate="{StaticResource CompressedCell}"

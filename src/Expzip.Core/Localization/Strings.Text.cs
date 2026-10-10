@@ -130,6 +130,19 @@ internal static partial class Strings
     public static string LocationInside(string name) => Pick(
         $"{name} の中", $"Inside {name}");
 
+    /// <summary>
+    /// 検索の欄が空のときの案内 (#215)。エクスプローラーの「(フォルダー名) の検索」に合わせる。
+    /// </summary>
+    /// <remarks>探す範囲は書庫全体なので、いま見ているフォルダーではなく書庫の名前を出す。</remarks>
+    public static string SearchHint(string archiveName) => Pick(
+        $"{archiveName} の検索", $"Search {archiveName}");
+
+    public static string SearchClear => Pick("検索をやめる", "Clear search");
+
+    /// <summary>探している間、アドレスバーの書庫の名前の後ろに出す (#215)。</summary>
+    public static string SearchResults(string text) => Pick(
+        $"「{text}」の検索結果", $"Search results for \"{text}\"");
+
     public static string NewTabTooltip => Pick(
         "新しい書庫を作成して開く", "Create and open a new archive");
 
@@ -156,6 +169,9 @@ internal static partial class Strings
 
     public static string ColumnDate => Pick("更新日時", "Modified");
 
+    /// <summary>入っているフォルダー。検索の結果でだけ出す列 (#215)。</summary>
+    public static string ColumnLocation => Pick("場所", "Location");
+
     public static string MenuOpen => Pick("開く", "Open");
 
     /// <summary>実行せずに Expzip 自身のタブで開く (#206)。エクスプローラーと同じ文言にする。</summary>
@@ -179,6 +195,10 @@ internal static partial class Strings
     public static string NoArchiveOpen => Pick("書庫が開かれていません", "No archive is open");
 
     public static string EmptyFolder => Pick("このフォルダーは空です", "This folder is empty");
+
+    /// <summary>探して何も無かったとき (#215)。エクスプローラーと同じ文言にする。</summary>
+    public static string SearchNoMatch => Pick(
+        "検索条件に一致する項目はありません", "No items match your search");
 
     public static string Stop => Pick("中断", "Stop");
 
@@ -1668,6 +1688,10 @@ internal static partial class Strings
 
     public static string ExtractAllTitle => Pick(
         "書庫全体の展開先を選択", "Select where to extract the whole archive");
+
+    /// <summary>検索の結果で何も選ばずに展開したとき (#215)。見つかったものすべてが対象。</summary>
+    public static string ExtractFoundTitle => Pick(
+        "見つかった項目の展開先を選択", "Select where to extract the items found");
 
     public static string ConfirmOverwrite(int count, string preview, string more) => Pick(
         $"展開先に同じ名前のファイルが {count:N0} 個あります。上書きしますか?"

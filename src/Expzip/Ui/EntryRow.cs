@@ -70,6 +70,20 @@ internal sealed class EntryRow : INotifyPropertyChanged
     public ArchiveEntry? Entry { get; init; }
 
     /// <summary>
+    /// この行が入っているフォルダー。
+    /// </summary>
+    /// <remarks>
+    /// ふだんは一覧に出しているフォルダーと同じ。検索の結果 (#215) では行ごとに違うので、
+    /// 名前の変更はいま見ているフォルダーではなくこちらを使う。
+    /// </remarks>
+    public required ArchiveFolder Parent { get; init; }
+
+    /// <summary>
+    /// 入っているフォルダーの場所。検索の結果 (#215) でだけ「場所」の列に出す。
+    /// </summary>
+    public string? Location { get; init; }
+
+    /// <summary>
     /// エクスプローラーと同じ絵 (#158)。文書・画像・実行ファイルなどで絵が違うので、
     /// 見分けやすい。以前は Segoe MDL2 Assets の字で、ファイルは種類によらず全部同じだった。
     /// </summary>

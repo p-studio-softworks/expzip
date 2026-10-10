@@ -23,4 +23,7 @@ internal enum EntryColumn
 
     /// <summary>更新日時。</summary>
     Date,
+
+    /// <summary>入っているフォルダー。検索の結果 (#215) でだけ出る。</summary>
+    Location,
 }

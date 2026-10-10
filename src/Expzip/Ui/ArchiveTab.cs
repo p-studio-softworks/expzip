@@ -30,6 +30,9 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
             Audit = null;
             AuditDone = false;
 
+            // 探すための名前の控えも作り直す (#215)。探している文字はそのまま残す
+            SearchIndex = null;
+
             Notify(nameof(Contents));
             Notify(nameof(Title));
             Notify(nameof(FilePath));
@@ -68,7 +71,20 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     public HashSet<string>? RuleMarks { get; set; }
 
     /// <summary>一覧に出している書庫内フォルダ。</summary>
+    /// <remarks>探している間 (#215) も残しておく。探すのをやめたら、ここへ戻る。</remarks>
     public ArchiveFolder CurrentFolder { get; set; } = contents.Root;
+
+    /// <summary>
+    /// 検索の欄に入っている文字 (#215)。空なら探していない。
+    /// </summary>
+    /// <remarks>
+    /// タブごとに覚える。削除などで書庫を開き直しても残り、結果を出し直す
+    /// (エクスプローラーでも、検索の結果から消したあとは結果のまま)。
+    /// </remarks>
+    public string Search { get; set; } = string.Empty;
+
+    /// <summary>探すための名前の控え (#215)。初めて探すときに作る。</summary>
+    public ArchiveSearch? SearchIndex { get; set; }
 
     /// <summary>並び順。タブごとに覚える (仕様書 4.2)。</summary>
     public EntryColumn SortColumn { get; set; } = EntryColumn.Name;

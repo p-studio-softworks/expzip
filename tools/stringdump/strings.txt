@@ -291,6 +291,10 @@ ColumnDate
   ja  更新日時
   en  Modified
 
+ColumnLocation
+  ja  場所
+  en  Location
+
 ColumnName
   ja  名前
   en  Name
@@ -706,6 +710,10 @@ ExtractFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒
 ExtractFolderTitle (name: 報告書.pdf)
   ja  「⟦報告書.pdf⟧」の展開先を選択
   en  Select where to extract "⟦報告書.pdf⟧"
+
+ExtractFoundTitle
+  ja  見つかった項目の展開先を選択
+  en  Select where to extract the items found
 
 ExtractOneCancelled
   ja  展開を中断しました
@@ -2075,6 +2083,22 @@ SaveAsTooltip
 SaveTooltip
   ja  変更を親の書庫に反映する (Ctrl+S)
   en  Put the changes back into the parent archive (Ctrl+S)
+
+SearchClear
+  ja  検索をやめる
+  en  Clear search
+
+SearchHint (archiveName: 資料.zip)
+  ja  ⟦資料.zip⟧ の検索
+  en  Search ⟦資料.zip⟧
+
+SearchNoMatch
+  ja  検索条件に一致する項目はありません
+  en  No items match your search
+
+SearchResults (text: 見本)
+  ja  「⟦見本⟧」の検索結果
+  en  Search results for "⟦見本⟧"
 
 Selection (count: 3, totalBytes: 52428800)
   ja  選択 3 個 (52,428,800 バイト)

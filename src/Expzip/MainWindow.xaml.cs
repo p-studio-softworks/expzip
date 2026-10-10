@@ -192,6 +192,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         UpdateTitle(null);
 
+        // 「場所」の列は検索の結果でだけ出す (#215)。XAML ではほかの列と並べて書き、ここで外しておく
+        ShowLocationColumn(false);
+
         ArchiveTabs.ItemsSource = _tabs;
 
         _settings = SettingsStore.Load();
@@ -651,13 +654,12 @@ public partial class MainWindow : Window
     private void FolderTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (FolderUnder(e.OriginalSource as DependencyObject) is not { } folder
-            || ReferenceEquals(folder, CurrentFolder))
+            || (ReferenceEquals(folder, CurrentFolder) && !Searching))
         {
             return;
         }
 
-        SelectInTree(folder);
-        Navigate(folder);
+        MoveTo(folder);
     }
 
     private void FolderTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -826,7 +828,9 @@ public partial class MainWindow : Window
 
         var isFolder = row.Folder is not null;
         var oldPath = isFolder ? row.Folder!.FullPath : row.Entry!.FullPath;
-        var parent = CurrentFolder.FullPath;
+
+        // いま見ているフォルダーではなく、行が入っているフォルダー。検索の結果 (#215) では違う
+        var parent = row.Parent.FullPath;
         var newPath = parent.Length == 0 ? newName : parent + "/" + newName;
 
         await RunRenameAsync(Contents.FilePath, oldPath, newPath, isFolder, CurrentFolder.FullPath);
@@ -857,10 +861,10 @@ public partial class MainWindow : Window
         }
 
         // 同じフォルダに同じ名前があると、展開時にどちらかが失われる
-        var duplicated = CurrentFolder!.Folders.Any(
+        var duplicated = row.Parent.Folders.Any(
                              f => !ReferenceEquals(f, row.Folder)
                                   && string.Equals(f.Name, newName, StringComparison.OrdinalIgnoreCase))
-                         || CurrentFolder.Files.Any(
+                         || row.Parent.Files.Any(
                              f => !ReferenceEquals(f, row.Entry)
                                   && string.Equals(f.Name, newName, StringComparison.OrdinalIgnoreCase));
 
@@ -995,6 +999,10 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        // 検索の結果 (#215) には、作ったフォルダーの置き場が見えていない。
+        // 探す前に見ていたフォルダーへ戻ってから作る
+        LeaveSearch();
 
         var archivePath = Contents.FilePath;
         var parent = CurrentFolder.FullPath;
@@ -1279,6 +1287,15 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Ctrl+F / Ctrl+E / F3 で検索の欄へ (#215)。エクスプローラーと同じ
+        if ((e.Key is Key.F or Key.E && Keyboard.Modifiers == ModifierKeys.Control)
+            || (e.Key == Key.F3 && Keyboard.Modifiers == ModifierKeys.None))
+        {
+            e.Handled = true;
+            FocusSearch();
+            return;
+        }
+
         // F5 で書庫を読み直す (#64)。ふだんは自分で読み直すので要らないが、
         // エクスプローラーと同じ操作を残しておく
         if (e.Key == Key.F5 && Keyboard.Modifiers == ModifierKeys.None)
@@ -1345,10 +1362,17 @@ public partial class MainWindow : Window
 
         e.Handled = true;
 
+        // 検索の結果からは、探す前に見ていたフォルダーへ戻る (#215)。
+        // 書庫全体を探しているので、結果に「一つ上」は無い
+        if (Searching)
+        {
+            LeaveSearch();
+            return;
+        }
+
         if (CurrentFolder?.Parent is { } parent)
         {
-            SelectInTree(parent);
-            Navigate(parent);
+            MoveTo(parent);
         }
     }
 
@@ -1498,6 +1522,9 @@ public partial class MainWindow : Window
         // 旗を立てるには、一覧を作る前に当ててある必要がある (#27)
         EnsureAudit(tab);
 
+        // 探している文字もタブごと (#215)
+        ShowSearchBox(tab);
+
         SelectInTree(tab.CurrentFolder);
         Navigate(tab.CurrentFolder);
         RestoreSelection(tab);
@@ -1554,6 +1581,8 @@ public partial class MainWindow : Window
     {
         FolderTree.ItemsSource = null;
         EntryList.ItemsSource = null;
+        ShowLocationColumn(false);
+        ShowSearchBox(null);
         ClearLocation();
         SuspiciousWarningItem.Visibility = Visibility.Collapsed;
         TotalSizeInfo.Text = string.Empty;
@@ -2034,8 +2063,36 @@ public partial class MainWindow : Window
     private bool CanEdit => ContentsEditable && _cancellation is null;
 
     /// <summary>操作の対象にできる選択行。</summary>
+    /// <remarks>
+    /// 検索の結果 (#215) では、フォルダーとその中の項目を一緒に選べる。
+    /// 中の項目はフォルダーに含まれるので外す。残すと、同じものを二重に消したり取り出したりする。
+    /// </remarks>
     private List<EntryRow> SelectedRowsForEdit()
-        => EntryList.SelectedItems.OfType<EntryRow>().ToList();
+    {
+        var rows = EntryList.SelectedItems.OfType<EntryRow>().ToList();
+
+        if (!Searching)
+        {
+            return rows;
+        }
+
+        var folders = rows.Where(static r => r.Folder is not null).Select(static r => r.Folder!).ToHashSet();
+
+        return folders.Count == 0 ? rows : rows.Where(r => !Inside(r.Parent)).ToList();
+
+        bool Inside(ArchiveFolder? folder)
+        {
+            for (var at = folder; at is not null; at = at.Parent)
+            {
+                if (folders.Contains(at))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 
     private async Task DeleteSelectedAsync()
     {
@@ -2249,7 +2306,9 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var target = FolderUnder(e.OriginalSource as DependencyObject) ?? CurrentFolder;
+        // 検索の結果 (#215) の空きや、ファイルの行に落としても動かさない。
+        // いま見ているフォルダーは画面に出ていないので、どこへ入ったのかが分からなくなる
+        var target = FolderUnder(e.OriginalSource as DependencyObject) ?? (Searching ? null : CurrentFolder);
         if (target is null)
         {
             return null;
@@ -2713,6 +2772,10 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        // 足す先は、探す前に見ていたフォルダー。検索の結果 (#215) のままでは、
+        // どこに入ったのかが見えないので、そこへ戻ってから足す
+        LeaveSearch();
 
         var archivePath = Contents.FilePath;
         var destinationFolder = CurrentFolder?.FullPath ?? string.Empty;
@@ -4111,11 +4174,11 @@ public partial class MainWindow : Window
         // ルートは書庫そのもの。フォルダとしては取り出せないので、直下の項目をまとめて渡す
         var rows = folder.Parent is null
             ? folder.Folders
-                .Select(f => new EntryRow { Name = f.Name, Kind = EntryRowKind.Folder, Folder = f })
+                .Select(f => new EntryRow { Name = f.Name, Kind = EntryRowKind.Folder, Folder = f, Parent = folder })
                 .Concat(folder.Files
-                    .Select(f => new EntryRow { Name = f.Name, Kind = EntryRowKind.File, Entry = f }))
+                    .Select(f => new EntryRow { Name = f.Name, Kind = EntryRowKind.File, Entry = f, Parent = folder }))
                 .ToList()
-            : [new EntryRow { Name = folder.Name, Kind = EntryRowKind.Folder, Folder = folder }];
+            : [new EntryRow { Name = folder.Name, Kind = EntryRowKind.Folder, Folder = folder, Parent = folder.Parent }];
 
         DragOut(rows, FolderTree);
     }
@@ -4840,7 +4903,26 @@ public partial class MainWindow : Window
         // その親までを取り除く
         var basePath = CurrentFolder?.FullPath;
 
-        if (selection is null)
+        if (Searching)
+        {
+            // 検索の結果 (#215) は、ばらばらのフォルダーから来る。選んだものに共通する親までを取り除く。
+            // 何も選んでいなければ、見つかったものすべてが対象。書庫全体にはしない
+            var rows = SelectedRowsForEdit();
+            if (rows.Count == 0)
+            {
+                rows = EntryList.Items.OfType<EntryRow>().ToList();
+                title = Strings.ExtractFoundTitle;
+            }
+
+            if (rows.Count == 0)
+            {
+                return;
+            }
+
+            selection = CollectSourceNames(rows);
+            basePath = CommonParent(rows);
+        }
+        else if (selection is null)
         {
             // 一覧で何も選んでいない場合は、いま開いているフォルダが対象。
             // ツリーでフォルダを選んだ状態はこれに当たる。ルートなら書庫全体 (#47)
@@ -5182,8 +5264,7 @@ public partial class MainWindow : Window
         // フォルダそのものを指している場合は、そのフォルダを開いて終わり
         if (FindFolder(contents.Root, entryPath) is { } folder)
         {
-            SelectInTree(folder);
-            Navigate(folder);
+            MoveTo(folder);
             return;
         }
 
@@ -5196,8 +5277,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        SelectInTree(parent);
-        Navigate(parent);
+        MoveTo(parent);
 
         var name = separator < 0 ? entryPath : entryPath[(separator + 1)..];
         var row = EntryList.Items.OfType<EntryRow>()
@@ -5502,55 +5582,35 @@ public partial class MainWindow : Window
             ? DescribeArchive(contents, Tab?.Audit)
             : Strings.NoArchiveOpen;
 
-    /// <summary>指定フォルダの内容をリストビューに表示する。</summary>
+    /// <summary>
+    /// 指定フォルダの内容をリストビューに表示する。
+    /// 探している間 (#215) は、フォルダを覚えたうえで検索の結果を出す。
+    /// </summary>
     private void Navigate(ArchiveFolder folder)
     {
         CurrentFolder = folder;
+
+        if (Tab is { Search.Length: > 0 } searching)
+        {
+            ShowSearchResults(searching);
+            return;
+        }
+
+        ShowLocationColumn(false);
 
         // 親へ戻る `..` の行は置かない。エクスプローラーにも無い。
         // 一つ上へはツリーか BackSpace で移動する (#46)
         var rows = new List<EntryRow>(folder.Folders.Count + folder.Files.Count);
 
-        // 保存した決まりに合っていない項目に印を付ける (#27)。決まりが無ければ何も付かない
-        var audit = Tab?.Audit;
-
-        // 自分で対処すると印を付けたものだけに絞られていることがある (#88)。
-        // **ツリーと同じ絞りを掛ける。**同じ見た目の印 (#92) が、片方だけ出ていては読めない
-        var marks = Tab?.RuleMarks;
-
         foreach (var child in folder.Folders)
         {
-            rows.Add(new EntryRow
-            {
-                Name = child.Name,
-                Kind = EntryRowKind.Folder,
-                Folder = child,
-
-                // **中のどこかにあれば、フォルダにも印を付ける** (#93)。
-                // ツリーが伝えている印 (#87) をそのまま使う。同じフォルダが
-                // ツリーでは色付き、一覧では素のまま、ということにしない。
-                // 絞り (#88) も伝える時点で掛かっている
-                BreaksRules = child.BreaksRules,
-                RuleTooltip = child.RuleTooltip,
-            });
+            rows.Add(FolderRow(child, location: null));
         }
 
         foreach (var file in folder.Files)
         {
-            var breaks = Marked(file.FullPath);
-
-            rows.Add(new EntryRow
-            {
-                Name = file.Name,
-                Kind = EntryRowKind.File,
-                Entry = file,
-                BreaksRules = breaks is not null,
-                RuleTooltip = DescribeBreaks(breaks),
-            });
+            rows.Add(FileRow(file, folder, location: null));
         }
-
-        IReadOnlyList<ArchiveRule>? Marked(string path)
-            => marks is not null && !marks.Contains(path) ? null : audit?.Breaks(path);
 
         EntryList.ItemsSource = ApplySort(rows);
         EmptyStateMessage.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -5558,6 +5618,436 @@ public partial class MainWindow : Window
 
         ShowLocation(folder);
         UpdateSelectionInfo();
+    }
+
+    /// <summary>フォルダの行。</summary>
+    private static EntryRow FolderRow(ArchiveFolder folder, string? location) => new()
+    {
+        Name = folder.Name,
+        Kind = EntryRowKind.Folder,
+        Folder = folder,
+        Parent = folder.Parent!,
+        Location = location,
+
+        // **中のどこかにあれば、フォルダにも印を付ける** (#93)。
+        // ツリーが伝えている印 (#87) をそのまま使う。同じフォルダが
+        // ツリーでは色付き、一覧では素のまま、ということにしない。
+        // 絞り (#88) も伝える時点で掛かっている
+        BreaksRules = folder.BreaksRules,
+        RuleTooltip = folder.RuleTooltip,
+    };
+
+    /// <summary>ファイルの行。</summary>
+    private EntryRow FileRow(ArchiveEntry file, ArchiveFolder parent, string? location)
+    {
+        // 保存した決まりに合っていない項目に印を付ける (#27)。決まりが無ければ何も付かない。
+        // 自分で対処すると印を付けたものだけに絞られていることがある (#88)。
+        // **ツリーと同じ絞りを掛ける。**同じ見た目の印 (#92) が、片方だけ出ていては読めない
+        var breaks = Tab is { RuleMarks: { } marks } && !marks.Contains(file.FullPath)
+            ? null
+            : Tab?.Audit?.Breaks(file.FullPath);
+
+        return new EntryRow
+        {
+            Name = file.Name,
+            Kind = EntryRowKind.File,
+            Entry = file,
+            Parent = parent,
+            Location = location,
+            BreaksRules = breaks is not null,
+            RuleTooltip = DescribeBreaks(breaks),
+        };
+    }
+
+    // ------------------------------------------------------------------ 検索 (#215)
+
+    /// <summary>探しているか。</summary>
+    private bool Searching => Tab is { Search.Length: > 0 };
+
+    /// <summary>検索の欄の文字を、こちらから入れ替えている最中。入力として扱わない。</summary>
+    private bool _settingSearchText;
+
+    /// <summary>
+    /// これより項目の多い書庫では、打つ手が止まってから探す (#215)。
+    /// </summary>
+    /// <remarks>
+    /// 20 万個の書庫で 1 文字目を打つと、ほとんどが当てはまり、並べ替えに 0.4 秒ほどかかる (実測)。
+    /// 速く打つとこれが 1 文字ごとに積み重なり、打った字が遅れて出る。
+    /// 小さな書庫ではすぐに探す。待たせる理由が無い。
+    /// </remarks>
+    private const int SearchPauseThreshold = 50_000;
+
+    /// <summary>大きな書庫で、打つ手が止まるのを待つ時計 (#215)。</summary>
+    private DispatcherTimer? _searchPause;
+
+    /// <summary>
+    /// 書庫全体から、名前に検索の文字を含む項目を一覧に出す (#215)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 一覧をそのまま結果に置き換え、どのフォルダーにあるかを「場所」の列に出す (エクスプローラーと同じ)。
+    /// 行はふだんと同じものなので、開く・展開・削除・名前の変更がそのまま使える。
+    /// </para>
+    /// <para>
+    /// **ツリーの選択は外す。**いまの場所を指したままだと、そこを探しているように見える。
+    /// 外しておけば、ツリーのどのフォルダーを押しても、そこへ移って検索が終わる。
+    /// </para>
+    /// </remarks>
+    private void ShowSearchResults(ArchiveTab tab)
+    {
+        tab.SearchIndex ??= new ArchiveSearch(tab.Contents.Root);
+
+        var hits = tab.SearchIndex.Find(tab.Search);
+        var rows = new List<EntryRow>(hits.Count);
+        var places = new Dictionary<ArchiveFolder, string>();
+
+        foreach (var hit in hits)
+        {
+            if (!places.TryGetValue(hit.Parent, out var location))
+            {
+                location = InnerLocationText(hit.Parent);
+                places.Add(hit.Parent, location);
+            }
+
+            rows.Add(hit.Folder is { } folder
+                ? FolderRow(folder, location)
+                : FileRow(hit.Entry!, hit.Parent, location));
+        }
+
+        ShowLocationColumn(true);
+        EntryList.ItemsSource = ApplySort(rows);
+        EmptyStateMessage.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyStateMessage.Text = Strings.SearchNoMatch;
+
+        DeselectTree();
+        ShowSearchLocation(tab);
+        UpdateSelectionInfo();
+    }
+
+    /// <summary>「場所」の列は、検索の結果でだけ名前のすぐ右に出す (#215)。</summary>
+    private void ShowLocationColumn(bool show)
+    {
+        if (EntryList.View is not GridView view)
+        {
+            return;
+        }
+
+        var shown = view.Columns.Contains(LocationColumn);
+
+        if (show && !shown)
+        {
+            view.Columns.Insert(view.Columns.IndexOf(NameColumn) + 1, LocationColumn);
+        }
+        else if (!show && shown)
+        {
+            view.Columns.Remove(LocationColumn);
+
+            // 列が無くなったのに、その列で並べたままにしない
+            if (SortColumn == EntryColumn.Location)
+            {
+                SortColumn = EntryColumn.Name;
+                SortDescending = false;
+            }
+        }
+    }
+
+    /// <summary>ツリーで選んでいる節を外す。</summary>
+    private void DeselectTree()
+    {
+        if (FolderTree.SelectedItem is not ArchiveFolder selected
+            || FindTreeViewItem(FolderTree, selected) is not { } container)
+        {
+            return;
+        }
+
+        _suppressTreeSelection = true;
+        try
+        {
+            container.IsSelected = false;
+        }
+        finally
+        {
+            _suppressTreeSelection = false;
+        }
+    }
+
+    /// <summary>
+    /// 探している間のアドレスバー。書庫そのものと、何の結果かを並べる (#215)。
+    /// </summary>
+    /// <remarks>
+    /// 書庫の区切りを押すと、探すのをやめてルートへ移る。結果の区切りは押しても何も起きない。
+    /// </remarks>
+    private void ShowSearchLocation(ArchiveTab tab)
+    {
+        var root = tab.Contents.Root;
+        var name = Path.GetFileName(LocationRoot());
+
+        Crumbs.ItemsSource = new List<Crumb>
+        {
+            new()
+            {
+                Name = name,
+                Path = root.FullPath,
+                IsArchive = true,
+                HasFolders = root.Folders.Count > 0,
+                Inside = Strings.LocationInside(name),
+            },
+            new()
+            {
+                Name = Strings.SearchResults(tab.Search.Trim()),
+                Path = null,
+                Inside = string.Empty,
+            },
+        };
+
+        var text = LocationRoot();
+        AddressBar.Text = text;
+        AddressBar.ToolTip = text;
+        ShowCrumbs();
+        UpdateTitle(Strings.TitleFormat(text, FormatLabel(tab.Contents)));
+        Dispatcher.BeginInvoke(FitCrumbs, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>書庫の名前から、書庫の中のフォルダーまで。「場所」の列に出す (#215)。</summary>
+    private string InnerLocationText(ArchiveFolder folder)
+    {
+        var name = Path.GetFileName(LocationRoot());
+
+        return folder.FullPath.Length == 0
+            ? name
+            : name + "\\" + folder.FullPath.Replace('/', '\\');
+    }
+
+    /// <summary>検索の欄の文字を、入力としてではなく入れ替える。</summary>
+    private void SetSearchText(string text)
+    {
+        _settingSearchText = true;
+        try
+        {
+            SearchBox.Text = text;
+        }
+        finally
+        {
+            _settingSearchText = false;
+        }
+
+        ShowSearchHint();
+    }
+
+    /// <summary>空のときだけ「(書庫名) の検索」と出す。消すボタンは文字があるときだけ。</summary>
+    /// <remarks>
+    /// 入力中は Fluent の入力欄が自分の消すボタンを出す。こちらのボタンは欄から離れているときだけ出し、
+    /// × が 2 つ並ばないようにする。
+    /// </remarks>
+    private void ShowSearchHint()
+    {
+        var empty = SearchBox.Text.Length == 0;
+        SearchHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        SearchGlyph.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        SearchClear.Visibility = empty || SearchBox.IsKeyboardFocused ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void SearchBox_FocusChanged(object sender, KeyboardFocusChangedEventArgs e) => ShowSearchHint();
+
+    /// <summary>検索の欄を、いま選ばれているタブに合わせる。</summary>
+    private void ShowSearchBox(ArchiveTab? tab)
+    {
+        var hint = tab is null ? string.Empty : Strings.SearchHint(tab.Title);
+        SearchHint.Text = hint;
+        AutomationProperties.SetName(SearchBox, hint);
+        SearchBox.IsEnabled = tab is not null;
+        SetSearchText(tab?.Search ?? string.Empty);
+    }
+
+    /// <summary>1 文字入れるごとに絞る (#215)。</summary>
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ShowSearchHint();
+
+        if (_settingSearchText || Tab is not { } tab)
+        {
+            return;
+        }
+
+        // 空白だけでは探さない。前後の空白は、写したときに付いてきたものとみなす
+        var text = SearchBox.Text.Trim().Length == 0 ? string.Empty : SearchBox.Text;
+        if (string.Equals(text, tab.Search, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        tab.Search = text;
+        _searchPause?.Stop();
+
+        if (text.Length == 0)
+        {
+            SelectInTree(tab.CurrentFolder);
+            Navigate(tab.CurrentFolder);
+            return;
+        }
+
+        tab.SearchIndex ??= new ArchiveSearch(tab.Contents.Root);
+
+        if (tab.SearchIndex.Count < SearchPauseThreshold)
+        {
+            Navigate(tab.CurrentFolder);
+            return;
+        }
+
+        if (_searchPause is null)
+        {
+            _searchPause = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+            _searchPause.Tick += (_, _) =>
+            {
+                _searchPause.Stop();
+
+                if (Tab is { Search.Length: > 0 } searching)
+                {
+                    Navigate(searching.CurrentFolder);
+                }
+            };
+        }
+
+        _searchPause.Start();
+    }
+
+    private void SearchBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            // Esc で検索をやめて一覧へ戻る (エクスプローラーと同じ)
+            case Key.Escape:
+                e.Handled = true;
+                LeaveSearch();
+                FocusList(selectFirst: false);
+                break;
+
+            // Enter と ↓ で結果へ移る。欄から手を離さずに、そのまま選んで開ける
+            case Key.Enter or Key.Down when Keyboard.Modifiers == ModifierKeys.None:
+                e.Handled = true;
+
+                // 打つ手が止まるのを待っている最中なら、待たずに探してから移る
+                if (_searchPause is { IsEnabled: true } && Tab is { Search.Length: > 0 } tab)
+                {
+                    _searchPause.Stop();
+                    Navigate(tab.CurrentFolder);
+                }
+
+                FocusList(selectFirst: true);
+                break;
+        }
+    }
+
+    private void SearchClear_Click(object sender, RoutedEventArgs e)
+    {
+        LeaveSearch();
+        SearchBox.Focus();
+    }
+
+    /// <summary>検索の欄へ移る。Ctrl+F / Ctrl+E / F3 (エクスプローラーと同じ)。</summary>
+    private void FocusSearch()
+    {
+        if (!SearchBox.IsEnabled)
+        {
+            return;
+        }
+
+        ShowCrumbs();
+        SearchBox.Focus();
+        SearchBox.SelectAll();
+    }
+
+    /// <summary>一覧へ移る。行を選んでいなければ先頭を選ぶ。</summary>
+    private void FocusList(bool selectFirst)
+    {
+        if (EntryList.Items.Count == 0)
+        {
+            EntryList.Focus();
+            return;
+        }
+
+        if (EntryList.SelectedIndex < 0 && selectFirst)
+        {
+            EntryList.SelectedIndex = 0;
+        }
+
+        var index = Math.Max(EntryList.SelectedIndex, 0);
+        EntryList.ScrollIntoView(EntryList.Items[index]);
+        EntryList.UpdateLayout();
+
+        if (EntryList.ItemContainerGenerator.ContainerFromIndex(index) is ListViewItem item)
+        {
+            item.Focus();
+        }
+        else
+        {
+            EntryList.Focus();
+        }
+    }
+
+    /// <summary>検索の文字を消す。一覧は呼んだ側で出し直す。</summary>
+    private void EndSearch()
+    {
+        if (Tab is not { Search.Length: > 0 } tab)
+        {
+            return;
+        }
+
+        tab.Search = string.Empty;
+        SetSearchText(string.Empty);
+    }
+
+    /// <summary>探すのをやめて、探す前に見ていたフォルダーへ戻る。</summary>
+    private void LeaveSearch()
+    {
+        if (!Searching)
+        {
+            SetSearchText(string.Empty);
+            return;
+        }
+
+        MoveTo(CurrentFolder!);
+    }
+
+    /// <summary>利用者の操作でフォルダーへ移る。探している最中なら、探すのをやめる (#215)。</summary>
+    private void MoveTo(ArchiveFolder folder)
+    {
+        EndSearch();
+        SelectInTree(folder);
+        Navigate(folder);
+    }
+
+    /// <summary>
+    /// 検索の結果の選択から、展開先の最上位に置くフォルダーを決める (#215)。
+    /// </summary>
+    /// <remarks>
+    /// 結果の行はばらばらのフォルダーから来る。**選んだものすべてに共通する親**までを取り除く。
+    /// 同じフォルダーのものだけなら、ふだんと同じく選んだものが最上位に来る。
+    /// 名前だけを並べてしまうと、別のフォルダーにある同じ名前のファイルがぶつかる。
+    /// </remarks>
+    private static string? CommonParent(IReadOnlyList<EntryRow> rows)
+    {
+        string? common = null;
+
+        foreach (var row in rows)
+        {
+            var parent = row.Parent.FullPath;
+
+            if (common is null)
+            {
+                common = parent;
+                continue;
+            }
+
+            while (common.Length > 0
+                   && !string.Equals(parent, common, StringComparison.Ordinal)
+                   && !parent.StartsWith(common + "/", StringComparison.Ordinal))
+            {
+                common = ParentFolderOf(common);
+            }
+        }
+
+        return string.IsNullOrEmpty(common) ? null : common;
     }
 
     // ------------------------------------------------------------------ 場所 (#90)
@@ -5694,7 +6184,9 @@ public partial class MainWindow : Window
     {
         if (sender is Button button && Crumbs.ItemsSource is IEnumerable<Crumb> crumbs)
         {
-            Popup(button, crumbs.Select(static crumb => (crumb.Name, crumb.Path)));
+            Popup(button, crumbs
+                .Where(static crumb => crumb.Path is not null)
+                .Select(static crumb => (crumb.Name, crumb.Path!)));
         }
     }
 
@@ -5737,8 +6229,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        SelectInTree(folder);
-        Navigate(folder);
+        MoveTo(folder);
     }
 
     /// <summary>
@@ -5783,8 +6274,8 @@ public partial class MainWindow : Window
     {
         public required string Name { get; init; }
 
-        /// <summary>書庫内のパス。書庫そのものは空。</summary>
-        public required string Path { get; init; }
+        /// <summary>書庫内のパス。書庫そのものは空。検索の結果 (#215) は行き先が無いので <see langword="null"/>。</summary>
+        public required string? Path { get; init; }
 
         /// <summary>書庫そのものを指す先頭の区切りか。絵を添えるのはここだけ。</summary>
         public bool IsArchive { get; init; }
@@ -5821,6 +6312,7 @@ public partial class MainWindow : Window
             EntryColumn.Compressed => a.SortCompressedLength.CompareTo(b.SortCompressedLength),
             EntryColumn.Ratio => a.SortRatio.CompareTo(b.SortRatio),
             EntryColumn.Date => a.SortDate.CompareTo(b.SortDate),
+            EntryColumn.Location => string.Compare(a.Location, b.Location, StringComparison.CurrentCultureIgnoreCase),
             _ => string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase),
         };
 
@@ -5868,6 +6360,7 @@ public partial class MainWindow : Window
             : ReferenceEquals(column, CompressedColumn) ? EntryColumn.Compressed
             : ReferenceEquals(column, RatioColumn) ? EntryColumn.Ratio
             : ReferenceEquals(column, DateColumn) ? EntryColumn.Date
+            : ReferenceEquals(column, LocationColumn) ? EntryColumn.Location
             : null;
 
     // ------------------------------------------------------------------ 選択と移動
@@ -5879,6 +6372,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        // ツリーで選んだら、そのフォルダーへ移って探すのをやめる (#215)
+        EndSearch();
         Navigate(folder);
     }
 
@@ -5907,8 +6402,7 @@ public partial class MainWindow : Window
     {
         if (row.Folder is not null)
         {
-            SelectInTree(row.Folder);
-            Navigate(row.Folder);
+            MoveTo(row.Folder);
             return;
         }
 
@@ -6625,10 +7119,19 @@ public partial class MainWindow : Window
         AutomationProperties.SetName(CrumbOverflow, Strings.LocationHidden);
 
         // 区切りに添えた名前は、並べたときの言語のまま残っている (#90)
-        if (Tab is { } here)
+        if (Tab is { Search.Length: > 0 } searching)
+        {
+            ShowSearchLocation(searching);
+        }
+        else if (Tab is { } here)
         {
             ShowLocation(here.CurrentFolder);
         }
+
+        // 検索の欄 (#215)。空のときの案内は書庫の名前を含むので、タブに合わせて入れ直す
+        ShowSearchBox(Tab);
+        SearchClear.ToolTip = Strings.SearchClear;
+        AutomationProperties.SetName(SearchClear, Strings.SearchClear);
 
         NewTabButton.ToolTip = Strings.NewTabTooltip;
         AutomationProperties.SetName(NewTabButton, Strings.NewTabName);
@@ -6640,6 +7143,7 @@ public partial class MainWindow : Window
         CompressedColumn.Header = Strings.ColumnCompressed;
         RatioColumn.Header = Strings.ColumnRatio;
         DateColumn.Header = Strings.ColumnDate;
+        LocationColumn.Header = Strings.ColumnLocation;
 
         OpenMenuItem.Header = Strings.MenuOpen;
         OpenInTabMenuItem.Header = Strings.MenuOpenInNewTab;

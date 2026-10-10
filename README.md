@@ -49,6 +49,7 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 - Two panes: a tree and a list. You can move around inside an archive as if it were a folder
 - Name / size / compressed size / compression ratio / modified date. Click a column heading to sort
 - Each part of the location bar at the top can be clicked. From a part you can also move into the folders inside it
+- The box to the right of the location bar searches the archive by name. The list narrows with each character you type, and you can open, extract, or delete the items found right there
 - Several archives can be open at once in tabs. There is also a list of recently opened archives
 - If another program changes an open archive, **Expzip reloads it automatically**
 
@@ -111,6 +112,7 @@ You can carry it around on a USB drive.
 | F2 | Rename |
 | Delete | Delete |
 | Ctrl+Shift+N | New folder |
+| Ctrl+F / Ctrl+E / F3 | Search the archive |
 | Ctrl+S | Write a nested archive back into its parent |
 | Ctrl+W | Close the tab |
 | Ctrl+Tab | Next tab |
