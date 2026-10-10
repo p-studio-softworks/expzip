@@ -2186,6 +2186,18 @@ SkippedFilesLine (count: 3)
   ja  上書きせずそのまま残したファイル: 3 個
   en  Files skipped instead of overwritten: 3
 
+SortAscending
+  ja  昇順
+  en  Ascending
+
+SortDescending
+  ja  降順
+  en  Descending
+
+SortMenu
+  ja  並べ替え
+  en  Sort by
+
 Split
   ja  分割
   en  Split
@@ -2409,6 +2421,38 @@ UnhandledError (type: IOException, message: The process cannot access the file b
 UnsupportedCompressionMethod
   ja  この圧縮方式には対応していません
   en  This compression method is not supported.
+
+ViewDetails
+  ja  詳細
+  en  Details
+
+ViewExtraLargeIcons
+  ja  特大アイコン
+  en  Extra large icons
+
+ViewLargeIcons
+  ja  大アイコン
+  en  Large icons
+
+ViewList
+  ja  一覧
+  en  List
+
+ViewMediumIcons
+  ja  中アイコン
+  en  Medium icons
+
+ViewMenu
+  ja  表示
+  en  View
+
+ViewSmallIcons
+  ja  小アイコン
+  en  Small icons
+
+ViewTooltip
+  ja  項目の表示方法を変更する
+  en  Change how items are displayed
 
 ZipFilter
   ja  ZIP書庫 (*.zip)|*.zip

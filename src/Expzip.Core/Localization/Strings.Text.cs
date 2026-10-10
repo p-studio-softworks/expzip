@@ -41,6 +41,27 @@ internal static partial class Strings
         "パスワードを設定・変更・削除",
         "Set, change, or remove the password");
 
+    // ------------------------------------------------------------------ 表示の形 (#216)
+    // 形の名前はエクスプローラーの「表示」と同じ文言にする
+
+    public static string ViewMenu => Pick("表示", "View");
+
+    public static string ViewTooltip => Pick(
+        "項目の表示方法を変更する",
+        "Change how items are displayed");
+
+    public static string ViewExtraLargeIcons => Pick("特大アイコン", "Extra large icons");
+
+    public static string ViewLargeIcons => Pick("大アイコン", "Large icons");
+
+    public static string ViewMediumIcons => Pick("中アイコン", "Medium icons");
+
+    public static string ViewSmallIcons => Pick("小アイコン", "Small icons");
+
+    public static string ViewList => Pick("一覧", "List");
+
+    public static string ViewDetails => Pick("詳細", "Details");
+
     // 歯車ひとつに言語と AI が同居していたのをやめた (#104)。
     // 性質の違うものが1つのメニューに入っていると、何が出てくるのか開くまで分からない
 
@@ -189,6 +210,13 @@ internal static partial class Strings
 
     /// <summary>書庫を読み直す (#64)。エクスプローラーと同じ文言にする。</summary>
     public static string MenuRefresh => Pick("最新の情報に更新", "Refresh");
+
+    /// <summary>右クリックの並べ替え (#216)。列の見出しが無い形でも並べ替えられるように置く。エクスプローラーと同じ文言。</summary>
+    public static string SortMenu => Pick("並べ替え", "Sort by");
+
+    public static string SortAscending => Pick("昇順", "Ascending");
+
+    public static string SortDescending => Pick("降順", "Descending");
 
     // ------------------------------------------------------------------ ステータスバー
 

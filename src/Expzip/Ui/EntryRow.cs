@@ -91,6 +91,12 @@ internal sealed class EntryRow : INotifyPropertyChanged
         ? ShellIcons.Folder
         : ShellIcons.ForFile(Name);
 
+    /// <summary>中アイコンの形で出す絵 (#216)。その形を選んだときだけ尋ねる。</summary>
+    public ImageSource? MediumIcon => ShellIcons.MediumFor(Name, Kind == EntryRowKind.Folder);
+
+    /// <summary>大アイコンと特大アイコンの形で出す絵 (#216)。</summary>
+    public ImageSource? JumboIcon => ShellIcons.JumboFor(Name, Kind == EntryRowKind.Folder);
+
     /// <summary>
     /// パスが通常ではない項目かどうか (#36)。
     /// 一覧から隠すのではなく警告を添えて見せる。隠すと書庫に何が入っているかを

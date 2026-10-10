@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
@@ -146,8 +148,10 @@ public partial class MainWindow : Window
     /// <summary>Ctrl を押して始めたときの、元の選択。囲んだ行はこれに足す。</summary>
     private HashSet<EntryRow>? _marqueeBase;
 
-    /// <summary>今囲んでいる行の範囲 (位置)。空なら Last が First より小さい。</summary>
-    private int _marqueeFirst, _marqueeLast = -1;
+    /// <summary>
+    /// 今囲んでいる項目の範囲。段と枠の四角で持つ (#216)。詳細の形では 1 段に 1 個なので、行の範囲と同じ。
+    /// </summary>
+    private MarqueeBlock _marqueeBlock = MarqueeBlock.Empty;
 
     /// <summary>囲んでいて選択を書き換えている最中。1 行ごとの件数の数え直しを止める。</summary>
     private bool _marqueeSelecting;
@@ -191,6 +195,20 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         UpdateTitle(null);
+
+        // 詳細の形の列・台・行の型を控える。ほかの形 (#216) から戻るときに使う
+        _detailsView = (GridView)EntryList.View;
+        _detailsPanel = EntryList.ItemsPanel;
+        _detailsItemStyle = EntryList.ItemContainerStyle;
+
+        // 小アイコンと一覧の形では、中身が替わるたびに枠の幅を名前に合わせ直す (#216)
+        ((INotifyCollectionChanged)EntryList.Items).CollectionChanged += (_, e) =>
+        {
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                FitNameItemWidth();
+            }
+        };
 
         // 「場所」の列は検索の結果でだけ出す (#215)。XAML ではほかの列と並べて書き、ここで外しておく
         ShowLocationColumn(false);
@@ -642,6 +660,12 @@ public partial class MainWindow : Window
 
         // 読み直しは選んでいるかどうかに関わらず使える (#64)
         RefreshMenuItem.IsEnabled = Contents is not null && _cancellation is null;
+
+        // 表示の形と並べ替え (#216)。中身は開くたびに作り、いまの選び方に印を付ける
+        FillViewItems(ViewMenuItem.Items);
+        BuildSortMenu();
+        ViewMenuItem.IsEnabled = Contents is not null;
+        SortMenuItem.IsEnabled = Contents is not null && _cancellation is null;
     }
 
     private async void NewFolderMenuItem_Click(object sender, RoutedEventArgs e)
@@ -730,6 +754,15 @@ public partial class MainWindow : Window
         if (box.DataContext is not EntryRow row || !row.IsEditing)
         {
             return;
+        }
+
+        // 列の無い形 (#216) の項目は、支援技術に見せる中身を控えたまま持っている。入力欄が現れたことを伝え直す。
+        // 支援技術がたどるのは、部品の役 (peer) と、一覧が項目ごとに持つ役 (EventsSource) の両方
+        if (FindAncestor<ListViewItem>(box) is { } item
+            && UIElementAutomationPeer.FromElement(item) is { } peer)
+        {
+            peer.ResetChildrenCache();
+            peer.EventsSource?.ResetChildrenCache();
         }
 
         box.Focus();
@@ -942,6 +975,38 @@ public partial class MainWindow : Window
         var restore = isFolder && restorePath.Length == 0 ? null : restorePath;
         await OpenArchiveAsync(archivePath, restore);
         StatusMessage.Text = Strings.RenameDone(result.Renamed);
+    }
+
+    /// <summary>
+    /// 「一覧」の形 (#216) で、Home / End を先頭と最後の項目へ移す。
+    /// </summary>
+    /// <remarks>
+    /// 一覧は End で「見えている範囲の下の端」にある項目を選ぶ。横に送る形では最後の列が埋まっていないことが多く、
+    /// その手前の列の最後で止まってしまう。Shift などを押しているときは一覧に任せる。
+    /// </remarks>
+    private void EntryList_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_shownView != EntryView.List
+            || e.Key is not (Key.Home or Key.End)
+            || Keyboard.Modifiers != ModifierKeys.None
+            || e.OriginalSource is TextBoxBase
+            || EntryList.Items.Count == 0)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var row = EntryList.Items[e.Key == Key.End ? EntryList.Items.Count - 1 : 0];
+        EntryList.SelectedItem = row;
+        EntryList.ScrollIntoView(row);
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            if (EntryList.ItemContainerGenerator.ContainerFromItem(row) is ListViewItem container)
+            {
+                container.Focus();
+            }
+        }, DispatcherPriority.Loaded);
     }
 
     private async void EntryList_KeyDown(object sender, KeyEventArgs e)
@@ -1316,6 +1381,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Ctrl+Shift+1〜6 で表示の形を変える (#216)。数字はエクスプローラーと同じ割り当て
+        // (エクスプローラーの 7 と 8 は、ここに無い形)
+        if (e.Key is >= Key.D1 and <= Key.D6
+            && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            SetView(Views[e.Key - Key.D1]);
+            return;
+        }
+
         // Ctrl+Shift+PageUp / PageDown で、いまのタブを左右へ 1 つ動かす (#208)。
         // マウスを使わない人のため。ブラウザの一部と同じ。端では回り込まない
         if (e.Key is Key.PageUp or Key.PageDown
@@ -1524,6 +1599,12 @@ public partial class MainWindow : Window
 
         // 探している文字もタブごと (#215)
         ShowSearchBox(tab);
+
+        // 表示の形もタブごと (#216)
+        if (tab.View != _shownView)
+        {
+            ApplyView(tab.View);
+        }
 
         SelectInTree(tab.CurrentFolder);
         Navigate(tab.CurrentFolder);
@@ -3646,7 +3727,13 @@ public partial class MainWindow : Window
         var item = e.OriginalSource is DependencyObject source
             ? ItemsControl.ContainerFromElement(EntryList, source) as ListViewItem
             : null;
-        var grabsRow = item is not null && (IsInNameColumn(e.GetPosition(item)) || item.IsSelected);
+
+        // 詳細以外の形 (#216) には列が無い。項目の枠の上ならどこからでも持ち出し、
+        // 枠の外 (項目の間や下の余白) から囲む。名前の変更は名前の字の上を押したときだけ (エクスプローラーと同じ)
+        var onName = item is not null && (_shownView == EntryView.Details
+            ? IsInNameColumn(e.GetPosition(item))
+            : e.OriginalSource is TextBlock { Tag: "EntryName" });
+        var grabsRow = item is not null && (onName || item.IsSelected || _shownView != EntryView.Details);
 
         _dragCandidate = grabsRow;
         _dragOrigin = e.GetPosition(null);
@@ -3681,7 +3768,7 @@ public partial class MainWindow : Window
                             && item.IsSelected
                             && EntryList.SelectedItems.Count == 1
                             && !row.IsEditing
-                            && IsInNameColumn(e.GetPosition(item))
+                            && onName
             ? row
             : null;
     }
@@ -3882,8 +3969,7 @@ public partial class MainWindow : Window
 
         _marqueeCandidate = false;
         _marqueeActive = true;
-        _marqueeFirst = 0;
-        _marqueeLast = -1;
+        _marqueeBlock = MarqueeBlock.Empty;
 
         // Ctrl を押していれば今の選択に足す。押していなければ選び直す
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
@@ -3997,9 +4083,33 @@ public partial class MainWindow : Window
         var now = ToContent(Mouse.GetPosition(viewport), scroll);
         var area = new Rect(_marqueeAnchor, now);
 
-        var (first, last) = RowsWithin(area.Top, area.Bottom, viewport, scroll);
-        SelectMarqueeRows(first, last);
+        SelectMarqueeRows(_shownView == EntryView.Details
+            ? RowBlock(RowsWithin(area.Top, area.Bottom, viewport, scroll))
+            : CellBlock(area, viewport));
         ShowMarquee(area, viewport, scroll);
+    }
+
+    /// <summary>詳細の形の行の範囲を、1 段に 1 個の四角として持つ。</summary>
+    private static MarqueeBlock RowBlock((int First, int Last) rows)
+        => new(rows.First, rows.Last, 0, 0, 1);
+
+    /// <summary>
+    /// 詳細以外の形 (#216) で、四角にかかる項目の段と枠を求める。
+    /// 台 (EntryWrapPanel) は項目を番号から計算で並べているので、部品を調べずに位置から決まる。
+    /// </summary>
+    private MarqueeBlock CellBlock(Rect area, ScrollContentPresenter viewport)
+    {
+        if (FindDescendant<EntryWrapPanel>(viewport) is not { } panel)
+        {
+            return MarqueeBlock.Empty;
+        }
+
+        // 台が枠の端からずれて置かれていれば、その分を引いて台の中の座標にする
+        var origin = panel.TranslatePoint(default, viewport);
+        area.Offset(-origin.X, -origin.Y);
+
+        var (firstLine, lastLine, firstSlot, lastSlot) = panel.CellsWithin(area);
+        return new MarqueeBlock(firstLine, lastLine, firstSlot, lastSlot, panel.PerLine);
     }
 
     /// <summary>
@@ -4080,33 +4190,35 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 囲んでいる行を、前回からの差だけ選び直す。動かすたびに全部を選び直すと、
+    /// 囲んでいる項目を、前回からの差だけ選び直す。動かすたびに全部を選び直すと、
     /// 数万行を囲んだときに重くなる。
     /// </summary>
-    private void SelectMarqueeRows(int first, int last)
+    private void SelectMarqueeRows(MarqueeBlock block)
     {
-        if (first == _marqueeFirst && last == _marqueeLast)
+        if (block == _marqueeBlock)
         {
             return;
         }
 
         var items = EntryList.Items;
+        var count = items.Count;
+        var old = _marqueeBlock;
         _marqueeSelecting = true;
         try
         {
-            // 外れた行。Ctrl で始めたときに元から選んでいた行は残す
-            for (var i = _marqueeFirst; i <= _marqueeLast; i++)
+            // 外れた項目。Ctrl で始めたときに元から選んでいた項目は残す
+            foreach (var i in old.Indexes(count))
             {
-                if ((i < first || i > last) && items[i] is EntryRow row && _marqueeBase?.Contains(row) != true)
+                if (!block.Contains(i) && items[i] is EntryRow row && _marqueeBase?.Contains(row) != true)
                 {
                     EntryList.SelectedItems.Remove(row);
                 }
             }
 
-            // 新しくかかった行
-            for (var i = first; i <= last; i++)
+            // 新しくかかった項目
+            foreach (var i in block.Indexes(count))
             {
-                if ((i < _marqueeFirst || i > _marqueeLast) && items[i] is EntryRow row && _marqueeBase?.Contains(row) != true)
+                if (!old.Contains(i) && items[i] is EntryRow row && _marqueeBase?.Contains(row) != true)
                 {
                     EntryList.SelectedItems.Add(row);
                 }
@@ -4117,9 +4229,44 @@ public partial class MainWindow : Window
             _marqueeSelecting = false;
         }
 
-        _marqueeFirst = first;
-        _marqueeLast = last;
+        _marqueeBlock = block;
         UpdateSelectionInfo();
+    }
+
+    /// <summary>
+    /// 囲んだ項目の範囲。段 (Line) と枠 (Slot) の四角 (#216)。
+    /// </summary>
+    /// <remarks>
+    /// 段と枠は EntryWrapPanel と同じ呼び方。詳細の形は 1 段に 1 個 (<paramref name="PerLine"/> が 1) で、段が行になる。
+    /// </remarks>
+    private readonly record struct MarqueeBlock(int FirstLine, int LastLine, int FirstSlot, int LastSlot, int PerLine)
+    {
+        public static MarqueeBlock Empty => new(0, -1, 0, -1, 1);
+
+        public bool Contains(int index)
+        {
+            var line = index / PerLine;
+            var slot = index % PerLine;
+            return line >= FirstLine && line <= LastLine && slot >= FirstSlot && slot <= LastSlot;
+        }
+
+        /// <summary>四角の中の項目の番号。項目の数を超えるもの (最後の段の空き) は含めない。</summary>
+        public IEnumerable<int> Indexes(int count)
+        {
+            for (var line = FirstLine; line <= LastLine; line++)
+            {
+                for (var slot = FirstSlot; slot <= LastSlot; slot++)
+                {
+                    var index = line * PerLine + slot;
+                    if (index >= count)
+                    {
+                        yield break;
+                    }
+
+                    yield return index;
+                }
+            }
+        }
     }
 
     /// <summary>四角を描く。一覧の枠からはみ出す所は見せない。</summary>
@@ -5727,11 +5874,8 @@ public partial class MainWindow : Window
     /// <summary>「場所」の列は、検索の結果でだけ名前のすぐ右に出す (#215)。</summary>
     private void ShowLocationColumn(bool show)
     {
-        if (EntryList.View is not GridView view)
-        {
-            return;
-        }
-
+        // ほかの形 (#216) を出している間も、詳細の列は控えから直す。戻ったときに合っているように
+        var view = _detailsView;
         var shown = view.Columns.Contains(LocationColumn);
 
         if (show && !shown)
@@ -6362,6 +6506,336 @@ public partial class MainWindow : Window
             : ReferenceEquals(column, DateColumn) ? EntryColumn.Date
             : ReferenceEquals(column, LocationColumn) ? EntryColumn.Location
             : null;
+
+    /// <summary>並べ替えの項目を選んだ (#216)。今と同じ列なら向きだけ保つ。</summary>
+    private void SortByItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: EntryColumn column } || SortColumn == column)
+        {
+            return;
+        }
+
+        SortColumn = column;
+        SortDescending = false;
+        Resort();
+    }
+
+    /// <summary>昇順・降順を選んだ (#216)。</summary>
+    private void SortOrderItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: bool descending } || SortDescending == descending)
+        {
+            return;
+        }
+
+        SortDescending = descending;
+        Resort();
+    }
+
+    /// <summary>いまの並び順で並べ直す。選んでいた項目は選んだまま見える所へ出す。</summary>
+    private void Resort()
+    {
+        if (EntryList.ItemsSource is not List<EntryRow> current)
+        {
+            return;
+        }
+
+        var selected = EntryList.SelectedItems.OfType<EntryRow>().ToList();
+        EntryList.ItemsSource = ApplySort(current);
+        foreach (var row in selected)
+        {
+            EntryList.SelectedItems.Add(row);
+        }
+
+        if (selected.Count > 0)
+        {
+            EntryList.ScrollIntoView(selected[0]);
+        }
+    }
+
+    /// <summary>
+    /// 右クリックの「並べ替え」の中身 (#216)。列の見出しと同じ列を並べ、続けて向きを並べる
+    /// (エクスプローラーと同じ)。場所の列は検索の結果でだけ出す。
+    /// </summary>
+    private void BuildSortMenu()
+    {
+        SortMenuItem.Items.Clear();
+
+        var columns = new List<(EntryColumn Column, string Header)> { (EntryColumn.Name, Strings.ColumnName) };
+        if (Searching)
+        {
+            columns.Add((EntryColumn.Location, Strings.ColumnLocation));
+        }
+
+        columns.Add((EntryColumn.Size, Strings.ColumnSize));
+        columns.Add((EntryColumn.Compressed, Strings.ColumnCompressed));
+        columns.Add((EntryColumn.Ratio, Strings.ColumnRatio));
+        columns.Add((EntryColumn.Date, Strings.ColumnDate));
+
+        foreach (var (column, header) in columns)
+        {
+            var item = new MenuItem { Header = header, Tag = column, IsCheckable = true, IsChecked = SortColumn == column };
+            item.Click += SortByItem_Click;
+            SortMenuItem.Items.Add(item);
+        }
+
+        SortMenuItem.Items.Add(new Separator());
+
+        foreach (var (descending, header) in new[] { (false, Strings.SortAscending), (true, Strings.SortDescending) })
+        {
+            var item = new MenuItem { Header = header, Tag = descending, IsCheckable = true, IsChecked = SortDescending == descending };
+            item.Click += SortOrderItem_Click;
+            SortMenuItem.Items.Add(item);
+        }
+    }
+
+    // ------------------------------------------------------------------ 表示の形 (#216)
+
+    /// <summary>詳細の形の列。ほかの形に切り替えている間も、列の幅や並びを覚えておく。</summary>
+    private GridView _detailsView = null!;
+
+    /// <summary>詳細の形の台と行の型。XAML に書いたものを控えておき、詳細に戻すときに使う。</summary>
+    private ItemsPanelTemplate _detailsPanel = null!;
+    private Style _detailsItemStyle = null!;
+
+    /// <summary>いま一覧に当てている形。</summary>
+    private EntryView _shownView = EntryView.Details;
+
+    /// <summary>
+    /// 小アイコンと一覧の形の枠の幅。いまのフォルダーでいちばん長い名前が収まる幅にする。
+    /// 台の型から結び付けるので、依存関係プロパティにしてある。
+    /// </summary>
+    public static readonly DependencyProperty NameItemWidthProperty = DependencyProperty.Register(
+        nameof(NameItemWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(240.0));
+
+    public double NameItemWidth
+    {
+        get => (double)GetValue(NameItemWidthProperty);
+        set => SetValue(NameItemWidthProperty, value);
+    }
+
+    /// <summary>形の並び。メニューの順で、Ctrl+Shift+1〜6 の数字の順でもある。</summary>
+    private static readonly EntryView[] Views =
+    [
+        EntryView.ExtraLargeIcons, EntryView.LargeIcons, EntryView.MediumIcons,
+        EntryView.SmallIcons, EntryView.List, EntryView.Details,
+    ];
+
+    private static string ViewName(EntryView view) => view switch
+    {
+        EntryView.ExtraLargeIcons => Strings.ViewExtraLargeIcons,
+        EntryView.LargeIcons => Strings.ViewLargeIcons,
+        EntryView.MediumIcons => Strings.ViewMediumIcons,
+        EntryView.SmallIcons => Strings.ViewSmallIcons,
+        EntryView.List => Strings.ViewList,
+        _ => Strings.ViewDetails,
+    };
+
+    /// <summary>ツールバーの「表示」(#216)。右クリックの「表示」と同じものを並べる。</summary>
+    private void ViewButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewButton.ContextMenu is { } menu)
+        {
+            FillViewItems(menu.Items);
+        }
+
+        DropDown(ViewButton);
+    }
+
+    /// <summary>
+    /// 形を選ぶ項目を並べる。いまの形に印を付ける。書庫を開いていなければ押せない
+    /// (形はタブごとに覚えるので、覚える先が無い)。
+    /// </summary>
+    private void FillViewItems(ItemCollection items)
+    {
+        items.Clear();
+
+        for (var i = 0; i < Views.Length; i++)
+        {
+            var view = Views[i];
+            var item = new MenuItem
+            {
+                Header = ViewName(view),
+                Tag = view,
+                IsCheckable = true,
+                IsChecked = Tab is { } tab && tab.View == view,
+                IsEnabled = Tab is not null,
+                InputGestureText = $"Ctrl+Shift+{i + 1}",
+            };
+            item.Click += ViewItem_Click;
+            items.Add(item);
+        }
+    }
+
+    private void ViewItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: EntryView view })
+        {
+            SetView(view);
+        }
+    }
+
+    /// <summary>
+    /// いまのタブの形を変える。選んでいた項目は選んだまま、見える所へ出す。
+    /// </summary>
+    private void SetView(EntryView view)
+    {
+        if (Tab is not { } tab || _editingRow is not null)
+        {
+            return;
+        }
+
+        tab.View = view;
+        if (view == _shownView)
+        {
+            return;
+        }
+
+        // 部品が作り直されるので、一覧にあった入力先は消える。作り直したあとで選んだ項目へ戻す
+        var hadFocus = EntryList.IsKeyboardFocusWithin;
+        var chosen = EntryList.SelectedItems.OfType<EntryRow>()
+            .Select(static r => (object?)r.Entry ?? r.Folder)
+            .ToHashSet();
+
+        ApplyView(view);
+
+        // **行も作り直す。**一覧は支援技術に見せる項目の役 (peer) を行ごとに控えていて、支援技術が前の役を
+        // つかんでいると、同じ行には前の形 (詳細の表の行) の役を使い回す。その役は列の無い形の中身を見られず、
+        // 名前の変更の入力欄などが支援技術から消える。行が新しければ、新しい形の役が作られる
+        Navigate(tab.CurrentFolder);
+        foreach (var row in EntryList.Items.OfType<EntryRow>())
+        {
+            if (chosen.Contains((object?)row.Entry ?? row.Folder))
+            {
+                EntryList.SelectedItems.Add(row);
+            }
+        }
+
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            if (EntryList.SelectedItem is not { } selected)
+            {
+                if (hadFocus)
+                {
+                    EntryList.Focus();
+                }
+
+                return;
+            }
+
+            EntryList.ScrollIntoView(selected);
+            if (hadFocus)
+            {
+                EntryList.UpdateLayout();
+                if (EntryList.ItemContainerGenerator.ContainerFromItem(selected) is ListViewItem container)
+                {
+                    container.Focus();
+                }
+                else
+                {
+                    EntryList.Focus();
+                }
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>一覧の見た目を形に合わせて組み替える。</summary>
+    /// <remarks>
+    /// <para>
+    /// 詳細の形は XAML に書いた列 (GridView) のまま。ほかの形では列を外し、
+    /// 項目の見た目 (ItemTemplate) と並べる台 (EntryWrapPanel) を差し替える。
+    /// 列は控えておくので、詳細に戻ると幅も並びも元のまま。
+    /// </para>
+    /// <para>
+    /// 枠の大きさ (表示倍率 100% で測った px)。絵の上に 6、絵と名前の間に 4、名前は 2 行で 38、下に 6。
+    /// 幅は名前が 1 行に収まる字数で決めた。エクスプローラーと同じく、名前は真ん中寄せで 2 行まで
+    /// </para>
+    /// </remarks>
+    private void ApplyView(EntryView view)
+    {
+        _shownView = view;
+
+        if (view == EntryView.Details)
+        {
+            EntryList.ItemTemplate = null;
+            EntryList.ItemContainerStyle = _detailsItemStyle;
+            EntryList.ItemsPanel = _detailsPanel;
+            EntryList.View = _detailsView;
+            return;
+        }
+
+        var (template, width, height, orientation) = view switch
+        {
+            EntryView.ExtraLargeIcons => ("ExtraLargeIconCell", 272.0, 310.0, Orientation.Horizontal),
+            EntryView.LargeIcons => ("LargeIconCell", 120.0, 150.0, Orientation.Horizontal),
+            EntryView.MediumIcons => ("MediumIconCell", 90.0, 102.0, Orientation.Horizontal),
+            EntryView.SmallIcons => ("SmallIconCell", double.NaN, (double)FindResource("ListRowMinHeight"), Orientation.Horizontal),
+            _ => ("SmallIconCell", double.NaN, (double)FindResource("ListRowMinHeight"), Orientation.Vertical),
+        };
+
+        var panel = new FrameworkElementFactory(typeof(EntryWrapPanel));
+        panel.SetValue(EntryWrapPanel.ItemHeightProperty, height);
+        panel.SetValue(EntryWrapPanel.OrientationProperty, orientation);
+        if (double.IsNaN(width))
+        {
+            // 名前の長さで決まる幅は、フォルダーを移るたびに測り直す (FitNameItemWidth)
+            panel.SetBinding(EntryWrapPanel.ItemWidthProperty, new System.Windows.Data.Binding(nameof(NameItemWidth)) { Source = this });
+            FitNameItemWidth();
+        }
+        else
+        {
+            panel.SetValue(EntryWrapPanel.ItemWidthProperty, width);
+        }
+
+        EntryList.View = null;
+        EntryList.ItemContainerStyle = (Style)EntryList.Resources["WrapItemStyle"];
+        EntryList.ItemTemplate = (DataTemplate)EntryList.Resources[template];
+        EntryList.ItemsPanel = new ItemsPanelTemplate(panel);
+    }
+
+    /// <summary>
+    /// 小アイコンと一覧の形で、枠の幅を名前に合わせる。
+    /// </summary>
+    /// <remarks>
+    /// 全部の名前を測ると、20 万個の書庫では目に見えて待たされる。字数の多いものだけを測る。
+    /// 日本語の字は英字より幅があるので、いちばん長いものの 6 割以上の字数のものを候補にする。
+    /// 広すぎると 1 段に並ぶ数が減り、狭すぎると「…」ばかりになるので、幅には上下の限りを設ける。
+    /// </remarks>
+    private void FitNameItemWidth()
+    {
+        if (_shownView is not (EntryView.SmallIcons or EntryView.List)
+            || EntryList.ItemsSource is not List<EntryRow> rows || rows.Count == 0)
+        {
+            return;
+        }
+
+        var longest = rows.Max(static r => r.Name.Length);
+        var typeface = new Typeface(EntryList.FontFamily, EntryList.FontStyle, EntryList.FontWeight, EntryList.FontStretch);
+        var dip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var widest = 0.0;
+        var measured = 0;
+
+        foreach (var row in rows)
+        {
+            if (row.Name.Length < longest * 0.6)
+            {
+                continue;
+            }
+
+            var text = new FormattedText(
+                row.Name, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                typeface, EntryList.FontSize, Brushes.Black, dip);
+            widest = Math.Max(widest, text.WidthIncludingTrailingWhitespace);
+
+            if (++measured >= 64)
+            {
+                break;
+            }
+        }
+
+        // 行の余白 2 + 絵 16 + 絵との間 7 + 名前の余白 6 + 右の空き 16
+        NameItemWidth = Math.Clamp(Math.Ceiling(widest) + 47, 160, 480);
+    }
 
     // ------------------------------------------------------------------ 選択と移動
 
@@ -7102,6 +7576,7 @@ public partial class MainWindow : Window
         NameTool(InspectButton, Strings.Inspect, Strings.InspectTooltip);
         NameTool(SplitButton, Strings.Split, Strings.SplitTooltip);
         NameTool(SfxButton, Strings.Sfx, Strings.SfxTooltip);
+        NameTool(ViewButton, Strings.ViewMenu, Strings.ViewTooltip);
         NameTool(AiButton, Strings.AiMenu, Strings.AiTooltip);
         NameTool(LanguageButton, Strings.LanguageMenu, Strings.LanguageTooltip);
         NameTool(AboutButton, Strings.AboutTitle, Strings.AboutTooltip);
@@ -7152,6 +7627,8 @@ public partial class MainWindow : Window
         DeleteMenuItem.Header = Strings.MenuDelete;
         NewFolderMenuItem.Header = Strings.MenuNewFolder;
         RefreshMenuItem.Header = Strings.MenuRefresh;
+        ViewMenuItem.Header = Strings.ViewMenu;
+        SortMenuItem.Header = Strings.SortMenu;
         TreeNewFolderMenuItem.Header = Strings.MenuNewFolder;
 
         // ツリーと一覧の両方から使い回している説明 (#36、#20)

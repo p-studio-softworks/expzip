@@ -311,6 +311,18 @@
                         Style="{StaticResource ToolGlyph}" Content="&#xF133;" />
                 <Separator />
                 <!--
+                    一覧の表示の形 (#216)。エクスプローラーの「表示」と同じ 6 つから選ぶ。
+                    中身は開くときに作る (右クリックの「表示」と同じものを並べるため)。
+                    Tiles。四角が並ぶ形
+                -->
+                <Button x:Name="ViewButton" Click="ViewButton_Click"
+                        Style="{StaticResource ToolGlyph}" Content="&#xECA5;">
+                    <Button.ContextMenu>
+                        <ContextMenu />
+                    </Button.ContextMenu>
+                </Button>
+                <Separator />
+                <!--
                     AI の機能 (#104)。歯車ひとつに言語といっしょに入れていたが、
                     **性質の違うものが1つのメニューに同居していた。**開くまで何が出てくるか
                     分からないので、メニューを分ける
@@ -753,6 +765,7 @@
                           PreviewMouseLeftButtonUp="EntryList_PreviewMouseLeftButtonUp"
                           PreviewMouseMove="EntryList_PreviewMouseMove"
                           MouseDoubleClick="EntryList_MouseDoubleClick"
+                          PreviewKeyDown="EntryList_PreviewKeyDown"
                           KeyDown="EntryList_KeyDown"
                           ContextMenuOpening="EntryList_ContextMenuOpening"
                           GridViewColumnHeader.Click="EntryList_ColumnHeaderClick"
@@ -822,6 +835,13 @@
                                       InputGestureText="Ctrl+Shift+N"
                                       Click="NewFolderMenuItem_Click" />
                             <Separator />
+                            <!--
+                                表示の形と並べ替え (#216)。エクスプローラーの右クリックと同じく
+                                「最新の情報に更新」と並べる。並べ替えは列の見出しが無い形でも使えるように置く。
+                                中身はメニューを開くときに作る
+                            -->
+                            <MenuItem x:Name="ViewMenuItem" />
+                            <MenuItem x:Name="SortMenuItem" />
                             <!--
                                 書庫を読み直す (#64)。ふだんは自分で読み直すので要らないが、
                                 エクスプローラーと同じくここと F5 に残す
@@ -912,6 +932,171 @@
                         </DataTemplate>
                         <DataTemplate x:Key="RatioCell">
                             <TextBlock Text="{Binding RatioText}" TextAlignment="Right" MinWidth="50" />
+                        </DataTemplate>
+
+                        <!--
+                            ここから下は詳細以外の形 (#216)。項目は EntryWrapPanel が同じ大きさの枠に並べる。
+                            枠の大きさはコード (MainWindow の ViewLayout) で決める。
+
+                            **詳細と同じ型を土台にしない。**`GridViewItemContainerStyleKey` は列を組み立てる型で、
+                            列の無い形では中身が出ない。列を持たない一覧の型 (`DefaultListViewItemStyle`) を継承する。
+                            Fluent の見た目 (選んだ色、暗い表示、ハイコントラスト) はそちらから受け継ぐ (#122)
+                        -->
+                        <Style x:Key="WrapItemStyle" TargetType="ListViewItem"
+                               BasedOn="{StaticResource DefaultListViewItemStyle}">
+                            <Setter Property="AutomationProperties.Name" Value="{Binding RowName}" />
+                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="Padding" Value="2,0" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                        </Style>
+
+                        <!--
+                            大きい絵に重ねる錠前と警告。小さい絵と同じ 9 のままでは、48 以上の絵の隅で点にしか見えない。
+                            絵の大きさに合わせて大きくし、絵の内側の隅に置く。大きい絵は縁に余白を持っている
+                        -->
+                        <Style x:Key="LockMarkMedium" TargetType="ui:GlyphText" BasedOn="{StaticResource LockMark}">
+                            <Setter Property="FontSize" Value="14" />
+                            <Setter Property="Margin" Value="0,0,-3,-2" />
+                        </Style>
+                        <Style x:Key="WarningMarkMedium" TargetType="ui:GlyphText" BasedOn="{StaticResource WarningMark}">
+                            <Setter Property="FontSize" Value="14" />
+                            <Setter Property="Margin" Value="0,-3,-3,0" />
+                        </Style>
+                        <Style x:Key="LockMarkLarge" TargetType="ui:GlyphText" BasedOn="{StaticResource LockMark}">
+                            <Setter Property="FontSize" Value="20" />
+                            <Setter Property="Margin" Value="0" />
+                        </Style>
+                        <Style x:Key="WarningMarkLarge" TargetType="ui:GlyphText" BasedOn="{StaticResource WarningMark}">
+                            <Setter Property="FontSize" Value="20" />
+                            <Setter Property="Margin" Value="0" />
+                        </Style>
+                        <Style x:Key="LockMarkExtraLarge" TargetType="ui:GlyphText" BasedOn="{StaticResource LockMark}">
+                            <Setter Property="FontSize" Value="32" />
+                            <Setter Property="Margin" Value="0" />
+                        </Style>
+                        <Style x:Key="WarningMarkExtraLarge" TargetType="ui:GlyphText" BasedOn="{StaticResource WarningMark}">
+                            <Setter Property="FontSize" Value="32" />
+                            <Setter Property="Margin" Value="0" />
+                        </Style>
+
+                        <!--
+                            アイコンの形の名前。絵の下に、真ん中寄せで 2 行まで出す (エクスプローラーと同じ)。
+                            収まらない分は「…」にする。行の高さを決めておかないと、日本語の書体が混ざったときに
+                            2 行目が半分だけ見える。
+                            Tag は、押した所が名前の上かを見分けるための印 (名前の変更、#44)
+                        -->
+                        <DataTemplate x:Key="IconLabel">
+                            <Grid>
+                                <TextBlock Text="{Binding Name}"
+                                           Tag="EntryName"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           LineStackingStrategy="BlockLineHeight"
+                                           LineHeight="19"
+                                           MaxHeight="38"
+                                           Padding="3,0"
+                                           Style="{StaticResource EntryNameText}"
+                                           Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVisibility}}" />
+                                <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                         TextWrapping="Wrap"
+                                         TextAlignment="Center"
+                                         MinHeight="0"
+                                         MaxHeight="42"
+                                         Padding="3,0"
+                                         VerticalAlignment="Top"
+                                         Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}"
+                                         Loaded="RenameBox_Loaded"
+                                         IsVisibleChanged="RenameBox_IsVisibleChanged"
+                                         KeyDown="RenameBox_KeyDown"
+                                         LostKeyboardFocus="RenameBox_LostKeyboardFocus" />
+                            </Grid>
+                        </DataTemplate>
+
+                        <!--
+                            アイコンの形。絵は引き伸ばさない (DownOnly)。256 px の絵を持たない種類は
+                            48 px の絵が来るので、そのままの大きさで真ん中に出る (ShellIcons.JumboFor)
+                        -->
+                        <DataTemplate x:Key="MediumIconCell">
+                            <DockPanel Margin="0,6,0,0">
+                                <Grid DockPanel.Dock="Top" Width="48" Height="48" Margin="0,0,0,4">
+                                    <ui:IconImage Source="{Binding MediumIcon}" StretchDirection="DownOnly"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <ui:GlyphText Style="{StaticResource LockMarkMedium}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMarkMedium}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
+                            </DockPanel>
+                        </DataTemplate>
+                        <DataTemplate x:Key="LargeIconCell">
+                            <DockPanel Margin="0,6,0,0">
+                                <Grid DockPanel.Dock="Top" Width="96" Height="96" Margin="0,0,0,4">
+                                    <ui:IconImage Source="{Binding JumboIcon}" StretchDirection="DownOnly"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <ui:GlyphText Style="{StaticResource LockMarkLarge}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMarkLarge}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
+                            </DockPanel>
+                        </DataTemplate>
+                        <DataTemplate x:Key="ExtraLargeIconCell">
+                            <DockPanel Margin="0,6,0,0">
+                                <Grid DockPanel.Dock="Top" Width="256" Height="256" Margin="0,0,0,4">
+                                    <ui:IconImage Source="{Binding JumboIcon}" StretchDirection="DownOnly"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <ui:GlyphText Style="{StaticResource LockMarkExtraLarge}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMarkExtraLarge}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
+                            </DockPanel>
+                        </DataTemplate>
+
+                        <!--
+                            小アイコンと一覧の形。詳細の名前の列と同じ並び (絵、名前) で、枠の幅に収まらない名前は「…」にする。
+                            印の重ね方も詳細と同じ (#128、#141)
+                        -->
+                        <DataTemplate x:Key="SmallIconCell">
+                            <DockPanel VerticalAlignment="Center">
+                                <Grid DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,7,0">
+                                    <ui:IconImage Source="{Binding Icon}" Width="16" Height="16" />
+                                    <ui:GlyphText Style="{StaticResource LockMark}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMark}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="{Binding Name}"
+                                               Tag="EntryName"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               Padding="3,0"
+                                               Style="{StaticResource EntryNameText}"
+                                               Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVisibility}}" />
+                                    <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                             MinHeight="0"
+                                             Padding="3,0"
+                                             VerticalAlignment="Center"
+                                             Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}"
+                                             Loaded="RenameBox_Loaded"
+                                             IsVisibleChanged="RenameBox_IsVisibleChanged"
+                                             KeyDown="RenameBox_KeyDown"
+                                             LostKeyboardFocus="RenameBox_LostKeyboardFocus" />
+                                </Grid>
+                            </DockPanel>
                         </DataTemplate>
                     </ListView.Resources>
                     <ListView.View>

@@ -93,6 +93,12 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     public bool SortDescending { get; set; }
 
     /// <summary>
+    /// 一覧の表示の形 (#216)。タブごとに覚え、設定ファイルには書かない。
+    /// </summary>
+    /// <remarks>新しいタブは詳細で始まる。</remarks>
+    public EntryView View { get; set; } = EntryView.Details;
+
+    /// <summary>
     /// 一覧で選んでいた項目の名前。タブを離れるときに控え、戻ったら選び直す (仕様書 4.2)。
     /// </summary>
     public IReadOnlyList<string> SelectedNames { get; set; } = [];
