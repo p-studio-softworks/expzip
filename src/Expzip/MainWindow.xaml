@@ -207,6 +207,64 @@
             <Setter Property="Margin" Value="0,-5,-4,0" />
             <Setter Property="AutomationProperties.AutomationId" Value="WarningMark" />
         </Style>
+        <!--
+            ハイコントラストでのメインの一覧の項目 (#216)。
+            Fluent のハイコントラストの配色は、選んだ項目の背景をウィンドウの背景と同じ色 (SystemColors.Window) にし、
+            左端の短い線だけで示す。詳細の行では線を探さないと分からず、アイコンの形の大きな枠ではほとんど目に入らない。
+            しかも Fluent は選んだ項目とマウスが乗った項目に同じ色の名前を使うので、色を差し替えるだけでは両方が同じに見える。
+
+            そこでハイコントラストのときだけ型を替える。**選んだ項目は Windows の選択の色で塗り、字を選択の文字色にする。
+            マウスが乗った項目は、選択の色の枠線だけにする。**色はどれも Windows が組で決めたもので、どの配色でも読める。
+            ルールに合っていない印の名前は、自分の背景と文字の組を持つのでそのまま残る (#121)。
+            **型を書いたので文字色も書く** (#122)。字の色は Fluent の型の Foreground (WindowText) を受け継ぐ
+        -->
+        <ControlTemplate x:Key="HighContrastRowTemplate" TargetType="ListViewItem">
+            <Border x:Name="Fill"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="Transparent"
+                    BorderThickness="1"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+                <GridViewRowPresenter Columns="{TemplateBinding GridView.ColumnCollection}"
+                                      Content="{TemplateBinding Content}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Fill" Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter TargetName="Fill" Property="Background" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                    <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+        <ControlTemplate x:Key="HighContrastItemTemplate" TargetType="ListViewItem">
+            <Border x:Name="Fill"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="Transparent"
+                    BorderThickness="1"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Fill" Property="BorderBrush" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter TargetName="Fill" Property="Background" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
+                    <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
         <Style x:Key="FolderNameText" TargetType="TextBlock">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding HasEncryptedContent}" Value="True">
@@ -796,6 +854,15 @@
                                     Value="{Binding RowName}" />
                             <!-- 行の間隔はエクスプローラーに合わせる (#125、値は App.xaml) -->
                             <Setter Property="MinHeight" Value="{StaticResource ListRowMinHeight}" />
+                            <!--
+                                ハイコントラストでは、選んだ項目とマウスが乗った項目の見た目を自前の型にする (#216)。
+                                Fluent の配色では選んだ項目の背景がウィンドウの背景と同じで、左端の短い線しか印が無い
+                            -->
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}" Value="False">
+                                    <Setter Property="Template" Value="{StaticResource HighContrastRowTemplate}" />
+                                </DataTrigger>
+                            </Style.Triggers>
                         </Style>
                     </ListView.ItemContainerStyle>
                     <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
@@ -936,7 +1003,7 @@
 
                         <!--
                             ここから下は詳細以外の形 (#216)。項目は EntryWrapPanel が同じ大きさの枠に並べる。
-                            枠の大きさはコード (MainWindow の ViewLayout) で決める。
+                            枠の大きさはコード (MainWindow の ApplyView) で決める。
 
                             **詳細と同じ型を土台にしない。**`GridViewItemContainerStyleKey` は列を組み立てる型で、
                             列の無い形では中身が出ない。列を持たない一覧の型 (`DefaultListViewItemStyle`) を継承する。
@@ -950,30 +1017,17 @@
                             <Setter Property="MinHeight" Value="0" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="VerticalContentAlignment" Value="Stretch" />
-                        </Style>
-
-                        <!--
-                            **ハイコントラストでは、選んだ項目を Windows の選択の色で塗る。**
-                            Fluent のハイコントラストの配色では、選んだ項目の背景がウィンドウの背景と同じ色
-                            (`SystemColors.Window`) で、左端の短い線だけが印になる。アイコンの形の大きな枠では
-                            その線がほとんど目に入らず、どれを選んだか分からない。
-                            背景と文字は Windows の組 (Highlight / HighlightText) をそのまま使う。どの配色でも読める。
-                            ルールに合っていない印の名前は、自分の背景と文字の組を持つのでそのまま残る (#121)
-                        -->
-                        <Style x:Key="SelectedCell" TargetType="Border">
+                            <!--
+                                ハイコントラストでは、選んだ項目とマウスが乗った項目の見た目を自前の型にする (#216)。
+                                Fluent の配色では選んだ項目の背景がウィンドウの背景と同じで、左端の短い線しか印が無い
+                            -->
                             <Style.Triggers>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
-                                                   Value="True" />
-                                        <Condition Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}"
-                                                   Value="False" />
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Background" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" />
-                                    <Setter Property="TextElement.Foreground" Value="{DynamicResource {x:Static SystemColors.HighlightTextBrushKey}}" />
-                                </MultiDataTrigger>
+                                <DataTrigger Binding="{Binding Source={x:Static local:Theme.Instance}, Path=UseAccentColors}" Value="False">
+                                    <Setter Property="Template" Value="{StaticResource HighContrastItemTemplate}" />
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
+
 
                         <!--
                             大きい絵に重ねる錠前と警告。小さい絵と同じ 9 のままでは、48 以上の絵の隅で点にしか見えない。
@@ -1044,52 +1098,46 @@
                             48 px の絵が来るので、そのままの大きさで真ん中に出る (ShellIcons.JumboFor)
                         -->
                         <DataTemplate x:Key="MediumIconCell">
-                            <Border Style="{StaticResource SelectedCell}">
-                                <DockPanel Margin="0,6,0,0">
-                                    <Grid DockPanel.Dock="Top" Width="48" Height="48" Margin="0,0,0,4">
-                                        <ui:IconImage Source="{Binding MediumIcon}" StretchDirection="DownOnly"
-                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <ui:GlyphText Style="{StaticResource LockMarkMedium}"
-                                                      Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
-                                        <ui:GlyphText Style="{StaticResource WarningMarkMedium}"
-                                                      ToolTip="{Binding WarningTooltip}"
-                                                      Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                                    </Grid>
-                                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
-                                </DockPanel>
-                            </Border>
+                            <DockPanel Margin="0,6,0,0">
+                                <Grid DockPanel.Dock="Top" Width="48" Height="48" Margin="0,0,0,4">
+                                    <ui:IconImage Source="{Binding MediumIcon}" StretchDirection="DownOnly"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <ui:GlyphText Style="{StaticResource LockMarkMedium}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMarkMedium}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
+                            </DockPanel>
                         </DataTemplate>
                         <DataTemplate x:Key="LargeIconCell">
-                            <Border Style="{StaticResource SelectedCell}">
-                                <DockPanel Margin="0,6,0,0">
-                                    <Grid DockPanel.Dock="Top" Width="96" Height="96" Margin="0,0,0,4">
-                                        <ui:IconImage Source="{Binding JumboIcon}" StretchDirection="DownOnly"
-                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <ui:GlyphText Style="{StaticResource LockMarkLarge}"
-                                                      Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
-                                        <ui:GlyphText Style="{StaticResource WarningMarkLarge}"
-                                                      ToolTip="{Binding WarningTooltip}"
-                                                      Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                                    </Grid>
-                                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
-                                </DockPanel>
-                            </Border>
+                            <DockPanel Margin="0,6,0,0">
+                                <Grid DockPanel.Dock="Top" Width="96" Height="96" Margin="0,0,0,4">
+                                    <ui:IconImage Source="{Binding JumboIcon}" StretchDirection="DownOnly"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <ui:GlyphText Style="{StaticResource LockMarkLarge}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMarkLarge}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
+                            </DockPanel>
                         </DataTemplate>
                         <DataTemplate x:Key="ExtraLargeIconCell">
-                            <Border Style="{StaticResource SelectedCell}">
-                                <DockPanel Margin="0,6,0,0">
-                                    <Grid DockPanel.Dock="Top" Width="256" Height="256" Margin="0,0,0,4">
-                                        <ui:IconImage Source="{Binding JumboIcon}" StretchDirection="DownOnly"
-                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <ui:GlyphText Style="{StaticResource LockMarkExtraLarge}"
-                                                      Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
-                                        <ui:GlyphText Style="{StaticResource WarningMarkExtraLarge}"
-                                                      ToolTip="{Binding WarningTooltip}"
-                                                      Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                                    </Grid>
-                                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
-                                </DockPanel>
-                            </Border>
+                            <DockPanel Margin="0,6,0,0">
+                                <Grid DockPanel.Dock="Top" Width="256" Height="256" Margin="0,0,0,4">
+                                    <ui:IconImage Source="{Binding JumboIcon}" StretchDirection="DownOnly"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <ui:GlyphText Style="{StaticResource LockMarkExtraLarge}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMarkExtraLarge}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IconLabel}" />
+                            </DockPanel>
                         </DataTemplate>
 
                         <!--
@@ -1097,37 +1145,35 @@
                             印の重ね方も詳細と同じ (#128、#141)
                         -->
                         <DataTemplate x:Key="SmallIconCell">
-                            <Border Style="{StaticResource SelectedCell}">
-                                <DockPanel VerticalAlignment="Center">
-                                    <Grid DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,7,0">
-                                        <ui:IconImage Source="{Binding Icon}" Width="16" Height="16" />
-                                        <ui:GlyphText Style="{StaticResource LockMark}"
-                                                      Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
-                                        <ui:GlyphText Style="{StaticResource WarningMark}"
-                                                      ToolTip="{Binding WarningTooltip}"
-                                                      Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
-                                    </Grid>
-                                    <Grid>
-                                        <TextBlock Text="{Binding Name}"
-                                                   Tag="EntryName"
-                                                   HorizontalAlignment="Left"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Padding="3,0"
-                                                   Style="{StaticResource EntryNameText}"
-                                                   Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVisibility}}" />
-                                        <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
-                                                 MinHeight="0"
-                                                 Padding="3,0"
-                                                 VerticalAlignment="Center"
-                                                 Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}"
-                                                 Loaded="RenameBox_Loaded"
-                                                 IsVisibleChanged="RenameBox_IsVisibleChanged"
-                                                 KeyDown="RenameBox_KeyDown"
-                                                 LostKeyboardFocus="RenameBox_LostKeyboardFocus" />
-                                    </Grid>
-                                </DockPanel>
-                            </Border>
+                            <DockPanel VerticalAlignment="Center">
+                                <Grid DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,7,0">
+                                    <ui:IconImage Source="{Binding Icon}" Width="16" Height="16" />
+                                    <ui:GlyphText Style="{StaticResource LockMark}"
+                                                  Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVisibility}}" />
+                                    <ui:GlyphText Style="{StaticResource WarningMark}"
+                                                  ToolTip="{Binding WarningTooltip}"
+                                                  Visibility="{Binding IsPathSuspicious, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                                <Grid>
+                                    <TextBlock Text="{Binding Name}"
+                                               Tag="EntryName"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               Padding="3,0"
+                                               Style="{StaticResource EntryNameText}"
+                                               Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVisibility}}" />
+                                    <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                             MinHeight="0"
+                                             Padding="3,0"
+                                             VerticalAlignment="Center"
+                                             Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}}"
+                                             Loaded="RenameBox_Loaded"
+                                             IsVisibleChanged="RenameBox_IsVisibleChanged"
+                                             KeyDown="RenameBox_KeyDown"
+                                             LostKeyboardFocus="RenameBox_LostKeyboardFocus" />
+                                </Grid>
+                            </DockPanel>
                         </DataTemplate>
                     </ListView.Resources>
                     <ListView.View>
