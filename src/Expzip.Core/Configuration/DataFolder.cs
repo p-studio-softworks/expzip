@@ -17,20 +17,24 @@ namespace Expzip.Configuration;
 /// <para>
 /// exe 単体の版から乗り換えても、設定は引き継がない。
 /// </para>
-/// <para>
-/// **Mac 版 (#191) は <c>~/Library/Application Support/Expzip</c>。**Mac のアプリ (.app) の中には
-/// 書き込めない (App Store の版では禁じられている)。.NET はこの場所を LocalApplicationData として返し、
-/// App Store の版ではアプリ専用の場所へ振り替わる。
-/// </para>
 /// </remarks>
 internal static class DataFolder
 {
-    /// <summary>MSIX として入れられて動いているか。Windows 以外では常に false。</summary>
-    public static bool IsPackaged { get; } = OperatingSystem.IsWindows() && DetectPackaged();
+    private static bool? _isPackaged;
+    private static string? _path;
+
+    /// <summary>
+    /// フォルダーの場所を決める関数。画面の側が差し替えられる。<see langword="null"/> なら上の既定。
+    /// <see cref="Path"/> を最初に読む前に設定する。
+    /// </summary>
+    internal static Func<string>? PathOverride { get; set; }
+
+    /// <summary>MSIX として入れられて動いているか。</summary>
+    public static bool IsPackaged => _isPackaged ??= DetectPackaged();
 
     /// <summary>ファイルを置くフォルダーのパス。</summary>
-    public static string Path { get; } =
-        IsPackaged || !OperatingSystem.IsWindows() ? AppDataDirectory() : ExeDirectory();
+    public static string Path =>
+        _path ??= PathOverride?.Invoke() ?? (IsPackaged ? AppDataDirectory() : ExeDirectory());
 
     /// <summary>
     /// パッケージに入っていないときは <c>APPMODEL_ERROR_NO_PACKAGE</c> が返る。
@@ -43,10 +47,11 @@ internal static class DataFolder
     }
 
     /// <summary>
-    /// Store 版と Mac 版の置き場所。読み書きの前にフォルダーが要る。作れなくてもアプリは止めない
+    /// 利用者ごとのアプリのデータの場所 (LocalApplicationData) の下の Expzip。Store 版の置き場所。
+    /// 読み書きの前にフォルダーが要る。作れなくてもアプリは止めない
     /// (保存できないだけで、exe の隣に書き込めないときと同じ扱い)。
     /// </summary>
-    private static string AppDataDirectory()
+    internal static string AppDataDirectory()
     {
         var directory = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Expzip");

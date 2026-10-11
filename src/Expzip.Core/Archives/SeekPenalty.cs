@@ -27,7 +27,7 @@ internal static class SeekPenalty
     /// </summary>
     public static bool? Of(string path)
     {
-        // Windows 以外にはこの問い合わせが無い。そちらは SSD の機械がほとんど
+        // この問い合わせは Windows の仕組み。使えない環境では SSD として扱う
         if (!OperatingSystem.IsWindows())
         {
             return false;

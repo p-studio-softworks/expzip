@@ -1,9 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    画面以外の部分 (#191)。書庫の読み書き、検査、文言、AI のルール。
-    **画面の仕組み (WPF) を使わない。**Windows 以外でもビルドできるようにしてある。
-    Windows の機能に頼る箇所 (cabinet.dll、msi.dll、amsi.dll など) は、Windows の上でだけ動く。
+    画面以外の部分。書庫の読み書き、検査、文言、AI のルール。
+    **画面の仕組み (WPF) を使わない。**
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -20,7 +19,6 @@
   <ItemGroup>
     <!-- 中の型は公開していない (internal)。画面の側からは見えるようにする -->
     <InternalsVisibleTo Include="Expzip" />
-    <InternalsVisibleTo Include="Expzip.Mac" />
   </ItemGroup>
 
   <ItemGroup>
@@ -62,7 +60,7 @@
   -->
   <Target Name="CheckNotices" BeforeTargets="Build">
     <PropertyGroup>
-      <!-- 区切りは / にする。Windows 以外では \ を区切りと見ないので、ファイルを読むところで見つからなくなる -->
+      <!-- 区切りは / にする。どの環境の MSBuild でも区切りとして通る -->
       <NoticesPath>$(MSBuildProjectDirectory)/../../THIRD-PARTY-NOTICES.txt</NoticesPath>
     </PropertyGroup>
 

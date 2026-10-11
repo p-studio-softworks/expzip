@@ -561,14 +561,14 @@ internal static class ZipArchiveWriter
 
     /// <summary>
     /// ディスクの名前から、書庫に入れる名前を作る。濁点や半濁点が分かれていない形 (NFC) に揃える (#202)。
-    /// Mac のファイル名は「ガ」を「カ」と「゛」の 2 文字で持っていることがあり、そのまま入れると
+    /// macOS で作られたファイルの名前は「ガ」を「カ」と「゛」の 2 文字で持っていることがあり、そのまま入れると
     /// Windows で開いたときに濁点が離れて見える。Windows のファイル名はふつう元から NFC なので変わらない
     /// </summary>
     private static string EntryNameOf(string path)
         => Path.GetFileName(path).Normalize(System.Text.NormalizationForm.FormC);
 
     /// <summary>
-    /// フォルダーの中にあっても書庫に入れないファイルか (#202)。Mac の Finder がフォルダーごとに作る
+    /// フォルダーの中にあっても書庫に入れないファイルか (#202)。macOS の Finder がフォルダーごとに作る
     /// .DS_Store (表示の設定などを持つ隠しファイル) は、Windows で開くと知らないファイルに見える
     /// </summary>
     private static bool IsFolderClutter(string file)

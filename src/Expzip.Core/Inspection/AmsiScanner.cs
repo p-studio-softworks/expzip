@@ -79,7 +79,7 @@ internal sealed class AmsiScanner : IDisposable
     /// </returns>
     public static AmsiScanner? TryCreate()
     {
-        // AMSI は Windows の仕組み。ほかの OS では、マルウェア検査だけを「利用できません」とする (#191)
+        // AMSI は Windows の仕組み。使えない環境では、マルウェア検査だけを「利用できません」とする
         if (!OperatingSystem.IsWindows())
         {
             return null;
