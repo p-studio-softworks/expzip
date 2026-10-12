@@ -87,6 +87,17 @@ internal static class ArchiveFormats
         (".msi", ArchiveFormat.Msi),
     ];
 
+    /// <summary>
+    /// 使えない形式なら、その理由を返す。画面の側が差し替えられる。
+    /// 差し替えていなければ、すべての形式を使える。
+    /// </summary>
+    /// <remarks>
+    /// CAB や MSI は、動いている環境にある部品 (<c>cabinet.dll</c>、<c>msi.dll</c>) で読む。
+    /// その部品が無い環境で開こうとすると、書庫が壊れているのか形式が使えないのかが
+    /// 利用者には分からない。そこで、読む前に理由を添えて止める (#221)。
+    /// </remarks>
+    internal static Func<ArchiveFormat, string?>? UnavailableReason { get; set; }
+
     /// <summary>「開く」ダイアログで使う絞り込み。</summary>
     public static string OpenFilter => Strings.OpenFilter;
 

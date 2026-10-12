@@ -11,6 +11,7 @@ internal static class ArchiveReader
     /// <param name="cancellationToken">中断用。</param>
     /// <exception cref="InvalidDataException">書庫として解釈できない場合。</exception>
     /// <exception cref="IOException">ファイルを読めない場合。</exception>
+    /// <exception cref="FormatUnavailableException">この環境では使えない形式の場合 (#221)。</exception>
     /// <exception cref="OperationCanceledException">中断された場合。</exception>
     public static ArchiveContents Open(
         string path,
@@ -19,6 +20,11 @@ internal static class ArchiveReader
     {
         // 自己解凍書庫は名前が .exe なので、中身も見て判断する (#32)
         var format = ArchiveFormats.Detect(path);
+
+        if (ArchiveFormats.UnavailableReason?.Invoke(format) is { } reason)
+        {
+            throw new FormatUnavailableException(reason);
+        }
 
         return format switch
         {
@@ -39,3 +45,9 @@ internal static class ArchiveReader
         };
     }
 }
+
+/// <summary>
+/// この環境では使えない形式を開こうとした (#221)。文は <see cref="ArchiveFormats.UnavailableReason"/> が返したもの。
+/// </summary>
+/// <remarks>壊れているのではないので、<see cref="InvalidDataException"/> とは分ける。</remarks>
+internal sealed class FormatUnavailableException(string message) : IOException(message);
