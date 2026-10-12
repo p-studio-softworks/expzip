@@ -1,4 +1,4 @@
-﻿# 書庫の中を見て回る: ツリー、場所の区切り (#90)、キー操作 (#12, #46)、タブ (#22)、中の書庫 (#30)
+﻿# 書庫の中を見て回る: ツリー、場所の区切り (#90)、キー操作 (#12, #46)、タブ (#22)、中の書庫 (#30)、7z (#233)
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'Browse'
 Set-Settings
@@ -383,6 +383,47 @@ if ($box) {
     Check 'tar.gz でも理由はデータが壊れていること' ($box.Text -match '壊れ\.tar\.gz を開けませんでした。' -and $box.Text -match '書庫のデータが壊れています。$') $box.Text
     Close-MessageBox $box 'OK'
 }
+
+Section '7z を開く (#233)'
+# Windows には 7z を作る標準のツールが無いので、作っておいたものを使う (tests\ui\fixtures)。
+# どちらも d フォルダーに a.txt (hello) と sub\b.txt (world) を入れたもの。
+# bad_size.7z は末尾の見出しの大きさを 2 GB に書き換え、見出しの CRC を合わせてある。
+# SharpCompress 0.50.4 までは、大きさを確かめる前にメモリを取ろうとして、受け止めない例外で止まっていた
+$fixtures = Join-Path $PSScriptRoot '..\fixtures'
+$badSize = Join-Path $script:Work 'bad_size.7z'
+Copy-Item (Join-Path $fixtures 'bad_size.7z') $badSize
+$center = Get-WindowCenter $app
+Invoke-Drop @($badSize) $center.X $center.Y | Out-Null
+$box = Find-MessageBox $app
+Check '見出しが壊れた 7z は知らせが出る' ($null -ne $box)
+if ($box) {
+    Check '理由はデータが壊れていること' ($box.Text -match 'bad_size\.7z を開けませんでした。' -and $box.Text -match '書庫のデータが壊れています。$') $box.Text
+    Close-MessageBox $box 'OK'
+}
+$app.Process.Refresh()
+Check '落ちない' (-not $app.Process.HasExited)
+
+$ok7z = Join-Path $script:Work 'ok.7z'
+Copy-Item (Join-Path $fixtures 'ok.7z') $ok7z
+$center = Get-WindowCenter $app
+Invoke-Drop @($ok7z) $center.X $center.Y | Out-Null
+Wait-Idle $app
+Check '新しいタブで開く' (((Get-Tabs $app).Count -eq 2) -and (Get-Tabs $app)[1].Current.Name -match 'ok\.7z') ((Get-Tabs $app | ForEach-Object { $_.Current.Name }) -join ', ')
+Check 'ルートにフォルダーが出る' (((Get-RowNames $app) -join ', ') -eq 'd') ((Get-RowNames $app) -join ', ')
+Select-Row $app 'd' | Out-Null
+Send-Keys $app '{ENTER}'
+Check 'フォルダーの中が並ぶ' ((((Get-RowNames $app) | Sort-Object) -join ', ') -eq 'a.txt, sub') ((Get-RowNames $app) -join ', ')
+Send-Keys $app '{BACKSPACE}'
+
+$destination = Join-Path $script:Work '7z'
+New-Item -ItemType Directory -Force -Path $destination | Out-Null
+Push (ById $app.Window 'ExtractButton')
+Check '展開先を尋ねる' (Complete-FileDialog $app '書庫全体の展開先を選択' $destination)
+$box = Find-MessageBox $app 30000
+if ($box) { Close-MessageBox $box 'OK' }
+$a = Join-Path $destination 'd\a.txt'
+$b = Join-Path $destination 'd\sub\b.txt'
+Check '中身が元と同じ' ((Test-Path $a) -and (Test-Path $b) -and [IO.File]::ReadAllText($a) -eq "hello`n" -and [IO.File]::ReadAllText($b) -eq "world`n") ((Get-ChildItem $destination -Recurse -File | ForEach-Object { $_.FullName.Substring($destination.Length + 1) }) -join ', ')
 
 Stop-Expzip $app
 Complete-Suite
