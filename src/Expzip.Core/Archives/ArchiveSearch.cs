@@ -1,7 +1,6 @@
 ﻿using System.Text;
-using Expzip.Archives;
 
-namespace Expzip.Ui;
+namespace Expzip.Archives;
 
 /// <summary>
 /// 書庫の中を名前で探す (#215)。
