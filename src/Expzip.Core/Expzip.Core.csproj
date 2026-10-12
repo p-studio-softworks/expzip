@@ -26,7 +26,7 @@
       7z / tar の読み取りに使う (#19)。MITライセンスの純マネージド実装で、
       ネイティブDLLを持ち込まずに済む。ZIP は標準ライブラリのまま扱う。
     -->
-    <PackageReference Include="SharpCompress" Version="0.50.4" />
+    <PackageReference Include="SharpCompress" Version="0.50.5" />
     <!--
       パスワード付きZIPの読み書きに使う (#20)。MITライセンスの純マネージド実装で、
       WinZip AES (128/256) と旧方式の ZipCrypto の両方を扱える。

@@ -48,7 +48,7 @@
   - **Windows の DLL を System32 からだけ読み込む指定([7章](#7-非機能要件)の DLL の決まり)は、部品ごとに効く**。両方の部品に書いてある
 - **圧縮ライブラリ**:
   - ZIP: **読み取りは `System.IO.Compression`**(標準)をベースに、Shift-JISファイル名対応のためエンコーディング処理を独自にラップする。**書き換えは SharpZipLib**(#38)。`ZipArchiveMode.Update` は書庫全体をメモリに載せるため、大きな書庫では1件消すだけでも書庫の大きさぶんのメモリを使い、数GB級では失敗する
-  - 7z/tar等: [SharpCompress](https://github.com/adamhathcock/sharpcompress) 0.50.4(マネージド、MIT)。ネイティブDLLを持ち込まずに済む。**単一exeは62MB→63MB、起動は524ms→546msに増えた**(#19)
+  - 7z/tar等: [SharpCompress](https://github.com/adamhathcock/sharpcompress) 0.50.5(マネージド、MIT)。ネイティブDLLを持ち込まずに済む。**単一exeは62MB→63MB、起動は524ms→546msに増えた**(#19)
   - エントリ名の文字コード判定(#13)は tar でも使う。tar は名前をそのままのバイト列で持つため、日本語圏の書庫にはCP932が入っていることがある。SharpCompress の `ArchiveEncoding.CustomDecoder` に ZIP と同じ判定器を渡している
   - パスワード付きZIP: [SharpZipLib](https://github.com/icsharpcode/SharpZipLib) 1.4.2(マネージド、MIT)。WinZip AES(128/256)と旧方式(ZipCrypto)の読み取り、AES-256 の書き込みに対応する(#20、#21で選定)
 - **多言語対応**: 言語ごとの文言をC#の表として持つ(#23)。.resx とサテライトアセンブリは使わない。理由は[4.6節](#46-表示言語23)

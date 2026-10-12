@@ -7,7 +7,7 @@ Expzip itself is licensed under the MIT License (see LICENSE in the
 repository).
 
 ============================================================================
-1. SharpCompress 0.50.4
+1. SharpCompress 0.50.5
 https://github.com/adamhathcock/sharpcompress
 
 Used to read 7z, tar and other formats.
