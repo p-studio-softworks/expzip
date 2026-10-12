@@ -39,7 +39,7 @@ if ($dialog) {
         $box = ById $notices 'NoticeText'
         $body = ValueOf $box
         Check '本文が入っている' ($body.Length -gt 20000) "$($body.Length) 文字"
-        Check 'SharpCompress' ($body -match 'SharpCompress 0\.50\.4' -and $body -match 'Copyright \(c\) 2014  Adam Hathcock')
+        Check 'SharpCompress' ($body -match 'SharpCompress 0\.50\.5' -and $body -match 'Copyright \(c\) 2014  Adam Hathcock')
         Check 'SharpZipLib' ($body -match 'SharpZipLib 1\.4\.2' -and $body -match '2000-2018 SharpZipLib Contributors')
         Check '.NET ランタイム' ($body -match '\.NET Foundation and Contributors')
         Check 'ランタイムの中の第三者' ($body -match 'zlib-ng' -and $body -match 'Brotli' -and $body -match 'mimalloc')
