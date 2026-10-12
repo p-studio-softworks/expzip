@@ -142,12 +142,30 @@ Check '保存の口が出る' ($save -and -not $save.Current.IsOffscreen -and $s
 Check '保存の口の名前' ($save.Current.Name -eq '保存') $save.Current.Name
 Check '中身が並ぶ' (((Get-RowNames $app) -join ', ') -eq '資料, 内側メモ.txt') ((Get-RowNames $app) -join ', ')
 
+# 中の書庫は一時ファイルで、終えると消えるので、最近開いた書庫には載せない (#254)
+function Get-RecentNames($App) {
+    Push (ById $App.Window 'RecentButton') 900
+    $menu = Find-DropDown $App
+    $names = @(if ($menu) { ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name } })
+    Close-DropDown $App
+    return $names
+}
+$recent = Get-RecentNames $app
+Check '最近開いた書庫に親が載る' (@($recent -match '外側\.zip').Count -eq 1) ($recent -join ', ')
+Check '最近開いた書庫に中の書庫は載らない' (@($recent -match '内側\.zip').Count -eq 0) ($recent -join ', ')
+# 設定ファイルの日本語は \uXXXX で書かれるので、文字のまま探さず JSON として読む
+$saved = @((Read-Settings | ConvertFrom-Json).RecentArchives)
+Check '設定にも中の書庫が残らない' (@($saved -match '内側\.zip').Count -eq 0) ($saved -join ', ')
+
 Select-Row $app '内側メモ.txt' | Out-Null
 Send-Keys $app '{DEL}'
 $box = Find-MessageBox $app
 if ($box) { Close-MessageBox $box 'はい(Y)' }
 Wait-Idle $app
 Check '保存するまでは親はそのまま' ((Get-InnerZipNames $archive '内側.zip') -contains '内側メモ.txt')
+# 削除のあとの読み直しでも載らない
+$recent = Get-RecentNames $app
+Check '読み直しても中の書庫は載らない' (@($recent -match '内側\.zip').Count -eq 0) ($recent -join ', ')
 
 Send-Keys $app '^s'
 Wait-Idle $app

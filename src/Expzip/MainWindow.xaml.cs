@@ -466,8 +466,6 @@ public partial class MainWindow : Window
             return false;
         }
 
-        RememberRecent(path);
-
         if (expanded is not null)
         {
             ApplyExpanded(contents.Root, expanded);
@@ -485,6 +483,13 @@ public partial class MainWindow : Window
 
         Tab!.MarkRead(stamp);
         StartArchiveWatch();
+
+        // 中の書庫は一時ファイルで、終えると消えるので、履歴には載せない (#254)。
+        // 削除などのあとの読み直しは nest を渡さずに呼ぶので、引数ではなくタブで見る
+        if (Tab.Nest is null)
+        {
+            RememberRecent(path);
+        }
 
         var target = restorePath is null ? contents.Root : FindFolder(contents.Root, restorePath) ?? contents.Root;
         CurrentFolder = target;
