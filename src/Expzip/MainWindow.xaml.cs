@@ -408,7 +408,9 @@ public partial class MainWindow : Window
         var progress = new Progress<OpenProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
-            StatusMessage.Text = Strings.Reading(fileName, p.DoneEntries, p.TotalEntries);
+            StatusMessage.Text = p.Share is null
+                ? Strings.Reading(fileName, p.DoneEntries, p.TotalEntries)
+                : Strings.ReadingShare(fileName, p.Percent);
         });
 
         try

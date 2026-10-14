@@ -15,8 +15,23 @@ internal enum ArchiveFormat
     /// <summary>7z。読み取りのみ。</summary>
     SevenZip,
 
-    /// <summary>tar。圧縮されたもの (tar.gz / tar.bz2 / tar.xz) を含む。読み取りのみ。</summary>
+    /// <summary>tar。圧縮されたもの (tar.gz / tar.bz2 / tar.xz / tar.zst) を含む。読み取りのみ。</summary>
     Tar,
+
+    /// <summary>
+    /// gzip で圧縮したファイル 1 個 (#256)。中身 1 個の書庫として見せる。読み取りのみ。
+    /// </summary>
+    /// <remarks>中身が tar なら <see cref="Tar"/> として開く。</remarks>
+    GZip,
+
+    /// <summary>bzip2 で圧縮したファイル 1 個 (#256)。<see cref="GZip"/> と同じ扱い。</summary>
+    BZip2,
+
+    /// <summary>xz で圧縮したファイル 1 個 (#256)。<see cref="GZip"/> と同じ扱い。</summary>
+    Xz,
+
+    /// <summary>Zstandard で圧縮したファイル 1 個 (#257)。<see cref="GZip"/> と同じ扱い。</summary>
+    Zstandard,
 
     /// <summary>NSIS インストーラー (#68)。一覧のみ。</summary>
     Nsis,
@@ -67,6 +82,9 @@ internal enum ArchiveFormat
 internal static class ArchiveFormats
 {
     /// <summary>拡張子から形式を引くための表。</summary>
+    /// <remarks>
+    /// 前から順に当てる。<c>.tar.gz</c> を <c>.gz</c> より先に置くこと。
+    /// </remarks>
     private static readonly (string Extension, ArchiveFormat Format)[] ByExtension =
     [
         (".zip", ArchiveFormat.Zip),
@@ -79,6 +97,12 @@ internal static class ArchiveFormats
         (".tbz2", ArchiveFormat.Tar),
         (".tar.xz", ArchiveFormat.Tar),
         (".txz", ArchiveFormat.Tar),
+        (".tar.zst", ArchiveFormat.Tar),
+        (".tzst", ArchiveFormat.Tar),
+        (".gz", ArchiveFormat.GZip),
+        (".bz2", ArchiveFormat.BZip2),
+        (".xz", ArchiveFormat.Xz),
+        (".zst", ArchiveFormat.Zstandard),
         (".msix", ArchiveFormat.Msix),
         (".msixbundle", ArchiveFormat.Msix),
         (".appx", ArchiveFormat.Msix),
@@ -166,13 +190,13 @@ internal static class ArchiveFormats
             var stripped = FromPath(path[..^4]);
 
             return stripped != ArchiveFormat.Unknown
-                ? stripped
+                ? Unwrap(path, stripped)
                 : Sniff(path, path[..^4].EndsWith(Library, StringComparison.OrdinalIgnoreCase));
         }
 
         if (byName != ArchiveFormat.Unknown)
         {
-            return byName;
+            return Unwrap(path, byName);
         }
 
         if (path.EndsWith(Program, StringComparison.OrdinalIgnoreCase))
@@ -184,6 +208,38 @@ internal static class ArchiveFormats
             ? Sniff(path, libraryOnly: true)
             : ArchiveFormat.Unknown;
     }
+
+    /// <summary>
+    /// 単体の圧縮ファイル (#256) の中身が tar なら、tar として開く。
+    /// </summary>
+    /// <remarks>
+    /// <c>.tar.gz</c> を <c>.gz</c> と付け替えて配っているものがある。中身 1 個の書庫として
+    /// 見せると、取り出した tar をもう一度開くことになる。
+    /// </remarks>
+    private static ArchiveFormat Unwrap(string path, ArchiveFormat format)
+    {
+        if (!IsCompressedFile(format))
+        {
+            return format;
+        }
+
+        if (string.Equals(_sniffed.Path, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return _sniffed.Format;
+        }
+
+        var unwrapped = CompressedFile.ContainsTar(path, format) ? ArchiveFormat.Tar : format;
+
+        _sniffed = (path, unwrapped);
+        return unwrapped;
+    }
+
+    /// <summary>
+    /// ファイル 1 個を圧縮しただけのもの (#256) か。中身 1 個の書庫として見せる。
+    /// </summary>
+    public static bool IsCompressedFile(ArchiveFormat format)
+        => format is ArchiveFormat.GZip or ArchiveFormat.BZip2
+            or ArchiveFormat.Xz or ArchiveFormat.Zstandard;
 
     /// <summary>中身を見て形式を決める。</summary>
     /// <param name="path">ファイルのパス。</param>

@@ -349,25 +349,27 @@ internal static partial class Strings
     /// 書庫でない .exe / .dll は、中の部品を見せる (#183)。
     /// </remarks>
     public static string OpenFilter => Pick(
-        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001"
+        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001"
         + ";*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi"
         + "|ZIP書庫 (*.zip)|*.zip"
         + "|7z書庫 (*.7z)|*.7z"
         + "|CAB書庫 (*.cab)|*.cab"
         + "|MSI インストーラー (*.msi)|*.msi"
-        + "|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        + "|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst"
+        + "|圧縮ファイル (*.gz;*.bz2;*.xz;*.zst)|*.gz;*.bz2;*.xz;*.zst"
         + "|MSIX パッケージ (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle"
         + "|自己解凍書庫 (*.exe)|*.exe"
         + "|exe / dll (*.exe;*.dll)|*.exe;*.dll"
         + "|分割された書庫 (*.001)|*.001"
         + "|すべてのファイル (*.*)|*.*",
-        "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.exe;*.001"
+        "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001"
         + ";*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi"
         + "|ZIP archives (*.zip)|*.zip"
         + "|7z archives (*.7z)|*.7z"
         + "|CAB archives (*.cab)|*.cab"
         + "|MSI installers (*.msi)|*.msi"
-        + "|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz"
+        + "|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst"
+        + "|Compressed files (*.gz;*.bz2;*.xz;*.zst)|*.gz;*.bz2;*.xz;*.zst"
         + "|MSIX packages (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle"
         + "|Self-extracting archives (*.exe)|*.exe"
         + "|exe / dll (*.exe;*.dll)|*.exe;*.dll"
@@ -451,6 +453,11 @@ internal static partial class Strings
     public static string Reading(string fileName, int done, int total) => Pick(
         $"{fileName} を読み込んでいます… ({done:N0} / {total:N0} 件)",
         $"Reading {fileName}… ({done:N0} / {total:N0})");
+
+    /// <summary>件数で数えられない読み込みの途中経過 (#256)。中身 1 個を伸長している。</summary>
+    public static string ReadingShare(string fileName, double percent) => Pick(
+        $"{fileName} を読み込んでいます… ({percent:F0}%)",
+        $"Reading {fileName}… ({percent:F0}%)");
 
     public static string ReadCancelled => Pick("読み込みを中断しました", "Reading was stopped");
 
@@ -2248,6 +2255,10 @@ internal static partial class Strings
         ArchiveFormat.Zip => "ZIP",
         ArchiveFormat.SevenZip => "7z",
         ArchiveFormat.Tar => "tar",
+        ArchiveFormat.GZip => "gzip",
+        ArchiveFormat.BZip2 => "bzip2",
+        ArchiveFormat.Xz => "xz",
+        ArchiveFormat.Zstandard => "Zstandard",
         ArchiveFormat.Nsis => "NSIS",
         ArchiveFormat.Msix => "MSIX",
         ArchiveFormat.Pe => "exe / dll",

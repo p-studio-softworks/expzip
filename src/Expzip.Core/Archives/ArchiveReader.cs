@@ -37,6 +37,8 @@ internal static class ArchiveReader
             ArchiveFormat.CabExe => CabReader.Open(path, progress, cancellationToken, format),
             ArchiveFormat.SevenZip or ArchiveFormat.Tar
                 => SharpArchiveReader.Open(path, format, progress, cancellationToken),
+            ArchiveFormat.GZip or ArchiveFormat.BZip2 or ArchiveFormat.Xz or ArchiveFormat.Zstandard
+                => CompressedFile.Open(path, format, progress, cancellationToken),
             ArchiveFormat.Msix => ZipArchiveReader.Open(path, progress, cancellationToken, format),
 
             // 拡張子で判別できなかったものは ZIP として試す。

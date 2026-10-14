@@ -129,6 +129,10 @@ internal static class ContentInspector
         {
             InspectMsiExe(context, pass);
         }
+        else if (ArchiveFormats.IsCompressedFile(context.Contents.Format))
+        {
+            InspectCompressed(context, pass);
+        }
         else
         {
             InspectSharp(context, pass);
@@ -356,6 +360,23 @@ internal static class ContentInspector
         {
             context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }
+    }
+
+    /// <summary>単体の圧縮ファイル (#256) の中身を読む。</summary>
+    /// <remarks>
+    /// 照らし合わせる CRC はこちらでは持たない。検査値を持つ形式は伸長の部品が自分で確かめ、
+    /// 合わなければ読み取りが失敗する。
+    /// </remarks>
+    private static void InspectCompressed(InspectionContext context, Pass pass)
+    {
+        if (context.Contents.Root.Files.FirstOrDefault() is not { } entry)
+        {
+            return;
+        }
+
+        var order = pass.Entry(context, entry.FullPath);
+        Read(context, pass, order, entry.FullPath, entry.Length, -1,
+            () => CompressedFile.OpenContent(context.ArchivePath, context.Contents.Format));
     }
 
     /// <summary>CAB と、CAB が入った exe の中身を 1 つずつ読む (#182)。</summary>

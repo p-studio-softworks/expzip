@@ -7,10 +7,16 @@ namespace Expzip.Archives;
 /// <summary>書庫の読み込みの進捗。</summary>
 /// <param name="DoneEntries">組み立て済みのエントリ数。</param>
 /// <param name="TotalEntries">書庫に入っているエントリの総数。</param>
-internal readonly record struct OpenProgress(int DoneEntries, int TotalEntries)
+/// <param name="Share">
+/// 件数で数えられないときの、読み終えた割合 (0〜1)。単体の圧縮ファイル (#256) は
+/// 中身が 1 個だけで、伸長に時間がかかるため。
+/// </param>
+internal readonly record struct OpenProgress(int DoneEntries, int TotalEntries, double? Share = null)
 {
     /// <summary>0〜100 の進捗率。</summary>
-    public double Percent => TotalEntries <= 0 ? 100 : (double)DoneEntries / TotalEntries * 100.0;
+    public double Percent => Share is { } share
+        ? share * 100.0
+        : TotalEntries <= 0 ? 100 : (double)DoneEntries / TotalEntries * 100.0;
 }
 
 /// <summary>ZIP書庫を読み込み、フォルダ階層に組み立てる。</summary>

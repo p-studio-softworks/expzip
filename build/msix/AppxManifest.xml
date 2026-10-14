@@ -49,10 +49,9 @@
         入れると「プログラムから開く」の候補に出る。既定にするかは利用者が選ぶ。
 
         拡張子は src/Expzip.Core/Archives/ArchiveFormat.cs の表から。Windows は最後の
-        拡張子しか見ないので、.tar.gz などは .gz として宣言するしかない。
-        それでは tar でない .gz まで候補に出て、開けないと言われることになるので、
-        .gz .bz2 .xz は入れない。.tgz などの 1 つにまとめた名前は入れる。
-        自己解凍書庫 (.exe) と分割ファイル (.001) も入れない
+        拡張子しか見ないので、.tar.gz などは .gz として宣言する。tar でない .gz も
+        中身 1 個の書庫として開ける (#256) ので、どちらも開ける。
+        自己解凍書庫 (.exe) と分割ファイル (.001) は入れない
       -->
       <Extensions>
         <uap:Extension Category="windows.fileTypeAssociation">
@@ -65,6 +64,11 @@
               <uap:FileType>.tbz</uap:FileType>
               <uap:FileType>.tbz2</uap:FileType>
               <uap:FileType>.txz</uap:FileType>
+              <uap:FileType>.tzst</uap:FileType>
+              <uap:FileType>.gz</uap:FileType>
+              <uap:FileType>.bz2</uap:FileType>
+              <uap:FileType>.xz</uap:FileType>
+              <uap:FileType>.zst</uap:FileType>
             </uap:SupportedFileTypes>
           </uap3:FileTypeAssociation>
         </uap:Extension>

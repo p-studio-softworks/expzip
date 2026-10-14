@@ -19,13 +19,14 @@ Expzip has no relation to Explzh. It uses none of its code, and the formats it s
 
 | Format | Open | Create | Modify | Notes |
 |---|:---:|:---:|:---:|---|
-| ZIP | ○ | ○ | ○ | Changes: add, delete, rename, move inside the archive, create folders. Compression methods: Stored / Deflate / Deflate64 / BZip2 / LZMA / PPMd. ZIP64 (over 4GB or over 60,000 items in one archive) can also be read |
+| ZIP | ○ | ○ | ○ | Changes: add, delete, rename, move inside the archive, create folders. Compression methods: Stored / Deflate / Deflate64 / BZip2 / LZMA / PPMd / Zstandard. ZIP64 (over 4GB or over 60,000 items in one archive) can also be read |
 | Password-protected ZIP | ○ | ○ | ○ | Opens AES-256 / AES-192 / AES-128 and the old method (ZipCrypto). **New archives are encrypted with AES-256** |
 | Nested archives | ○ | ○ | ○ | Selecting one opens it in its own tab. You can go down any number of levels, and saving your changes writes them back into the parent archive |
 | Self-extracting archives (`.exe`) | ○ | ○ | × | Opens ones that contain ZIP or 7z (judged by the contents, not the name). Can be made from an open ZIP. **Finished ones are never modified**: breaking the program at the front would leave the recipient unable to extract them |
 | Split files (`.001` `.002` …) | ○ | ○ | × | Opening `.001` opens the split files joined together, ready to extract. All the pieces must be present; if any are missing, Expzip tells you which numbers. Any file can be split, not only archives, and **a program to join the pieces is made at the same time**. Existing split files are not re-split |
 | 7z | ○ | × | × | **Read-only**. Solid archives are supported. For password-protected 7z, only the list of contents is shown |
-| tar / tar.gz / tar.bz2 / tar.xz | ○ | × | × | **Read-only.** `.tgz` `.tbz` `.tbz2` `.txz` are handled the same way |
+| tar / tar.gz / tar.bz2 / tar.xz / tar.zst | ○ | × | × | **Read-only.** `.tgz` `.tbz` `.tbz2` `.txz` `.tzst` are handled the same way |
+| Single compressed files (`.gz` `.bz2` `.xz` `.zst`) | ○ | × | × | **Read-only**. Files such as `access.log.gz` open as an archive holding one file. If the contents are a tar, they open as a tar |
 | NSIS installers (`.exe`) | ○ | × | × | Not archives but installers; you can list the files inside and take them out |
 | Installers bundled with WiX Burn (`.exe`) | ○ | × | × | Installers such as those for Python and .NET. You can list the MSI and other files inside and take them out |
 | Installers containing an MSI (`.exe`) | ○ | × | × | Lists the MSI inside, and you can go into the files inside it |
