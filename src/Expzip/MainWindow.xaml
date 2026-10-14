@@ -694,6 +694,28 @@
                                VerticalAlignment="Center" />
                 </StackPanel>
             </StatusBarItem>
+            <!--
+                コメントのある書庫を開いたときだけ出す (#258)。押すとコメントが開く。
+                出さないと、コメントがあることに気付く手立てが無い
+            -->
+            <StatusBarItem x:Name="CommentItem" Visibility="Collapsed">
+                <Button x:Name="CommentButton"
+                        Click="CommentButton_Click"
+                        Padding="6,0"
+                        Background="Transparent"
+                        BorderThickness="0">
+                    <StackPanel Orientation="Horizontal">
+                        <!-- Comment。吹き出し -->
+                        <TextBlock Text="&#xE90A;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,4,0" />
+                        <TextBlock x:Name="CommentText"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StatusBarItem>
             <Separator />
             <StatusBarItem>
                 <TextBlock x:Name="SelectionInfo" />
@@ -884,6 +906,9 @@
                                       Click="HashMenuItem_Click" />
                             <MenuItem x:Name="ArchiveHashMenuItem"
                                       Click="ArchiveHashMenuItem_Click" />
+                            <!-- 書庫全体のコメントを見る・直す (#258)。コメントが無い書庫では付けられる -->
+                            <MenuItem x:Name="CommentMenuItem"
+                                      Click="CommentMenuItem_Click" />
                             <Separator />
                             <!-- 書庫内の名前を変える (#15) -->
                             <MenuItem x:Name="RenameMenuItem"

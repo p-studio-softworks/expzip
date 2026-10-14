@@ -307,6 +307,54 @@ ColumnSize
   ja  サイズ
   en  Size
 
+CommentCancel
+  ja  キャンセル
+  en  Cancel
+
+CommentClose
+  ja  閉じる
+  en  Close
+
+CommentPresent
+  ja  コメントがあります
+  en  Has a comment
+
+CommentPresentTooltip
+  ja  この書庫に付いているコメントを表示する
+  en  Show the comment attached to this archive
+
+CommentReadOnlyNote
+  ja  この書庫は書き換えられないため、コメントは表示のみです。
+  en  This archive cannot be modified, so the comment is shown read-only.
+
+CommentRemoved
+  ja  コメントを削除しました
+  en  Removed the comment
+
+CommentSave
+  ja  保存
+  en  Save
+
+CommentSaveFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  コメントを保存できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not save the comment.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+CommentSaved
+  ja  コメントを保存しました
+  en  Saved the comment
+
+CommentTitle (name: 報告書.pdf)
+  ja  書庫のコメント - ⟦報告書.pdf⟧
+  en  Archive comment - ⟦報告書.pdf⟧
+
+CommentTooLong
+  ja  コメントが長すぎます。ZIP のコメントは 65,535 バイトまでです。
+  en  The comment is too long. A ZIP comment can be up to 65,535 bytes.
+
 ConfirmApplyEdit (entryPath: 画像/2024/写真.jpg)
   ja  ⟦画像/2024/写真.jpg⟧
       | 
@@ -1192,6 +1240,10 @@ MarkSuspiciousPath
 MenuArchiveHash
   ja  書庫ファイルのハッシュ値を計算
   en  Calculate hashes of the archive file
+
+MenuComment
+  ja  書庫のコメント
+  en  Archive comment
 
 MenuDelete
   ja  削除

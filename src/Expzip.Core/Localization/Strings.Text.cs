@@ -2107,6 +2107,43 @@ internal static partial class Strings
         _ => string.Empty,
     };
 
+    // ------------------------------------------------------------------ 書庫のコメント (#258)
+
+    public static string MenuComment => Pick("書庫のコメント", "Archive comment");
+
+    /// <summary>コメントのある書庫を開いたときに、ステータスバーに出す。押すとコメントが開く。</summary>
+    public static string CommentPresent => Pick("コメントがあります", "Has a comment");
+
+    public static string CommentPresentTooltip => Pick(
+        "この書庫に付いているコメントを表示する",
+        "Show the comment attached to this archive");
+
+    public static string CommentTitle(string name) => Pick(
+        $"書庫のコメント - {name}",
+        $"Archive comment - {name}");
+
+    public static string CommentReadOnlyNote => Pick(
+        "この書庫は書き換えられないため、コメントは表示のみです。",
+        "This archive cannot be modified, so the comment is shown read-only.");
+
+    public static string CommentSave => Pick("保存", "Save");
+
+    public static string CommentCancel => Pick("キャンセル", "Cancel");
+
+    public static string CommentClose => Pick("閉じる", "Close");
+
+    public static string CommentTooLong => Pick(
+        "コメントが長すぎます。ZIP のコメントは 65,535 バイトまでです。",
+        "The comment is too long. A ZIP comment can be up to 65,535 bytes.");
+
+    public static string CommentSaved => Pick("コメントを保存しました", "Saved the comment");
+
+    public static string CommentRemoved => Pick("コメントを削除しました", "Removed the comment");
+
+    public static string CommentSaveFailed(string reason) => Pick(
+        $"コメントを保存できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not save the comment.{Environment.NewLine}{Environment.NewLine}{reason}");
+
     // ------------------------------------------------------------------ ハッシュ値 (#259)
 
     public static string HashTitle(string name) => Pick($"ハッシュ値 - {name}", $"Hashes - {name}");

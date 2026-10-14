@@ -110,6 +110,7 @@ internal sealed class ArchiveTreeBuilder
     /// <param name="usesAes">AES で暗号化されているかどうか (#20)。</param>
     /// <param name="isSelfExtracting">自己解凍書庫かどうか (#32)。</param>
     /// <param name="unopenedTail">exe / dll の後ろの、開けないデータ (#188)。</param>
+    /// <param name="comment">書庫全体のコメント (#258)。持たない形式では <see langword="null"/>。</param>
     public ArchiveContents Build(
         string archivePath,
         ArchiveFormat format,
@@ -118,7 +119,8 @@ internal sealed class ArchiveTreeBuilder
         bool requiresPassword = false,
         bool usesAes = false,
         bool isSelfExtracting = false,
-        string? unopenedTail = null)
+        string? unopenedTail = null,
+        string? comment = null)
     {
         SortRecursively(_root);
         MarkEncrypted(_root);
@@ -138,6 +140,7 @@ internal sealed class ArchiveTreeBuilder
             UsesAes = usesAes,
             IsSelfExtracting = isSelfExtracting,
             UnopenedTail = unopenedTail,
+            Comment = comment,
         };
     }
 

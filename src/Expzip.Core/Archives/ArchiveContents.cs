@@ -59,6 +59,13 @@ internal sealed class ArchiveContents
     public string? UnopenedTail { get; init; }
 
     /// <summary>
+    /// 書庫全体のコメント (#258)。ZIP だけが持つ。無ければ空の文字、持たない形式や
+    /// 読めなかったときは <see langword="null"/>。
+    /// </summary>
+    /// <remarks>そのままの文字。画面に出すときは <see cref="ZipComment.ForDisplay"/> を通す。</remarks>
+    public string? Comment { get; init; }
+
+    /// <summary>
     /// 分割された書庫の断片を結合して開いているか (#61)。
     /// </summary>
     /// <remarks>

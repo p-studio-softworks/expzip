@@ -1,0 +1,48 @@
+﻿<Window x:Class="Expzip.Ui.CommentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="640" Height="440"
+        MinWidth="400" MinHeight="260"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <!--
+        書庫のコメント (#258)。書き換えられる書庫では、そのまま直して保存できる。
+        文言はすべて ApplyLanguage が入れる。XAML には書かない (#23)
+    -->
+    <DockPanel Margin="16">
+        <!-- 書き換えられない書庫のときだけ出す -->
+        <TextBlock x:Name="ReadOnlyNote"
+                   DockPanel.Dock="Top"
+                   Margin="0,0,0,8"
+                   TextWrapping="Wrap"
+                   Visibility="Collapsed"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button x:Name="SaveButton" Width="96" Margin="0,0,8,0"
+                    Click="SaveButton_Click" />
+            <Button x:Name="CancelButton" Width="96"
+                    IsCancel="True" Click="CancelButton_Click" />
+        </StackPanel>
+
+        <!--
+            文字で絵や表を描いたコメントがあるので、字の幅がそろった書体にする。
+            日本語は MS ゴシックで出す
+        -->
+        <TextBox x:Name="CommentBox"
+                 FontFamily="Consolas, MS Gothic"
+                 AcceptsReturn="True"
+                 AcceptsTab="True"
+                 TextWrapping="NoWrap"
+                 HorizontalScrollBarVisibility="Auto"
+                 VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top" />
+    </DockPanel>
+</Window>

@@ -69,6 +69,7 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 - Rename (F2, or select and click again), move items inside the archive, create empty folders
 - **Whether to compress is decided automatically for each file**. For example, photos and videos, which do not get smaller, are stored as they are
 - Set, change and remove passwords
+- View and edit the comment of a ZIP archive. When an archive with a comment is opened, the status bar tells you
 
 **Inspecting**
 

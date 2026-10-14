@@ -671,6 +671,12 @@ public partial class MainWindow : Window
         HashMenuItem.IsEnabled = NewArchiveFromSelectionMenuItem.IsEnabled;
         ArchiveHashMenuItem.IsEnabled = Contents is not null && _cancellation is null;
 
+        // コメントを持つのは ZIP だけ (#258)。書き換えられない書庫でも見ることはできる
+        // 空のコメントを見るだけの窓は開いても仕方がないので、書き換えられない書庫では押せなくする
+        CommentMenuItem.IsEnabled = Contents is { Comment: { } comment }
+                                    && _cancellation is null
+                                    && (comment.Length > 0 || ContentsEditable);
+
         // 名前の変更も1件ずつ (#15)
         RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled && CanEdit;
 
@@ -1608,6 +1614,9 @@ public partial class MainWindow : Window
         AddButton.IsEnabled = contents.IsEditable;
         PasswordButton.IsEnabled = contents.IsEditable;
 
+        // コメントがあることは、開いた時点で気付けるようにする (#258)
+        CommentItem.Visibility = string.IsNullOrEmpty(contents.Comment) ? Visibility.Collapsed : Visibility.Visible;
+
         // 保存は書庫の中の書庫でだけ意味がある (#30)
         SaveButton.Visibility = tab.Nest is null ? Visibility.Collapsed : Visibility.Visible;
         SaveButton.IsEnabled = tab.Nest is not null;
@@ -1685,6 +1694,7 @@ public partial class MainWindow : Window
         ShowSearchBox(null);
         ClearLocation();
         SuspiciousWarningItem.Visibility = Visibility.Collapsed;
+        CommentItem.Visibility = Visibility.Collapsed;
         TotalSizeInfo.Text = string.Empty;
         SelectionInfo.Text = Strings.SelectionNone;
         StatusMessage.Text = Strings.NoArchiveOpen;
@@ -2763,6 +2773,77 @@ public partial class MainWindow : Window
         {
             AddEntriesRecursively(child, entries);
         }
+    }
+
+    // ------------------------------------------------------------------ 書庫のコメント (#258)
+
+    private async void CommentMenuItem_Click(object sender, RoutedEventArgs e) => await ShowCommentAsync();
+
+    private async void CommentButton_Click(object sender, RoutedEventArgs e) => await ShowCommentAsync();
+
+    /// <summary>書庫のコメントを出す。書き換えられる書庫なら、直して保存できる。</summary>
+    private async Task ShowCommentAsync()
+    {
+        if (Contents is not { Comment: { } comment } contents || _cancellation is not null)
+        {
+            return;
+        }
+
+        var dialog = new CommentDialog(this, Path.GetFileName(contents.FilePath), comment, CanEdit);
+        if (dialog.ShowDialog() != true || dialog.Edited is not { } edited)
+        {
+            return;
+        }
+
+        await RunCommentWriteAsync(contents.FilePath, edited);
+    }
+
+    /// <summary>コメントを書き込んで、書庫を読み直す。</summary>
+    /// <remarks>
+    /// 書き換えるのは末尾の終端レコードだけなので、パスワード付きの書庫でも作り直しにならず、
+    /// パスワードも尋ねない (<see cref="ZipComment"/>)。
+    /// </remarks>
+    private async Task RunCommentWriteAsync(string archivePath, string text)
+    {
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var restore = CurrentFolder?.FullPath;
+        var done = false;
+        try
+        {
+            await Task.Run(() => ZipComment.Write(archivePath, text));
+            done = true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            ShowIdleStatus();
+            MessageBox.Show(
+                this,
+                Strings.CommentSaveFailed(Strings.Reason(ex)),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        if (_closeWhenIdle || !done)
+        {
+            return;
+        }
+
+        await OpenArchiveAsync(archivePath, restore);
+
+        // 読み直しで出た件数の代わりに、いま何をしたかを出す
+        StatusMessage.Text = text.Length == 0 ? Strings.CommentRemoved : Strings.CommentSaved;
     }
 
     /// <summary>
@@ -7870,6 +7951,10 @@ public partial class MainWindow : Window
         NewArchiveFromSelectionMenuItem.Header = Strings.MenuNewArchiveFromSelection;
         HashMenuItem.Header = Strings.MenuHash;
         ArchiveHashMenuItem.Header = Strings.MenuArchiveHash;
+        CommentMenuItem.Header = Strings.MenuComment;
+        CommentText.Text = Strings.CommentPresent;
+        CommentButton.ToolTip = Strings.CommentPresentTooltip;
+        AutomationProperties.SetName(CommentButton, Strings.CommentPresent);
         RenameMenuItem.Header = Strings.MenuRename;
         DeleteMenuItem.Header = Strings.MenuDelete;
         NewFolderMenuItem.Header = Strings.MenuNewFolder;

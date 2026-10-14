@@ -136,7 +136,8 @@ internal static class ZipArchiveReader
             hasEncryptedEntries: encryption.IsEncrypted,
             requiresPassword: encryption.IsEncrypted,
             usesAes: encryption.UsesAes,
-            isSelfExtracting: ZipPrefix.HasPrefix(path));
+            isSelfExtracting: ZipPrefix.HasPrefix(path),
+            comment: ZipComment.Read(path));
     }
 
     /// <summary>
