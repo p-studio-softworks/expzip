@@ -74,6 +74,8 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 
 - **Archive inspection**. Checks in one go whether the archive is broken and whether it contains anything dangerous (see "Staying safe" below)
 - Scans with your antivirus software through the Windows interface for it
+- Shows the hashes (SHA-256 / SHA-1 / MD5 / CRC32) of the files inside and of the archive file itself.
+  Paste the value published by the distributor and Expzip tells you whether it matches
 
 **Splitting**
 

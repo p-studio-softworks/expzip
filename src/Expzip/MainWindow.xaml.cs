@@ -667,6 +667,10 @@ public partial class MainWindow : Window
                                                     && _cancellation is null
                                                     && editable.Count > 0;
 
+        // ハッシュ値も取り出すだけなので、どの形式でも使える (#259)
+        HashMenuItem.IsEnabled = NewArchiveFromSelectionMenuItem.IsEnabled;
+        ArchiveHashMenuItem.IsEnabled = Contents is not null && _cancellation is null;
+
         // 名前の変更も1件ずつ (#15)
         RenameMenuItem.IsEnabled = OpenMenuItem.IsEnabled && CanEdit;
 
@@ -2655,6 +2659,112 @@ public partial class MainWindow : Window
         }
     }
 
+    // ------------------------------------------------------------------ ハッシュ値 (#259)
+
+    private async void HashMenuItem_Click(object sender, RoutedEventArgs e)
+        => await ShowSelectionHashesAsync();
+
+    private void ArchiveHashMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (Contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        // 書庫ファイルそのもの。ダウンロードした書庫を、配布元の値と照らし合わせる用途
+        var name = Path.GetFileName(Contents.FilePath);
+        new HashWindow(this, name, [new HashTarget(name, Contents.FilePath)]).ShowDialog();
+    }
+
+    /// <summary>
+    /// 選んだファイルのハッシュ値を出す (#259)。フォルダーを選んだら中のファイルすべて。
+    /// </summary>
+    /// <remarks>
+    /// 一時ファイルの置き場に取り出してから計算する。形式ごとの読み方とパスワードの扱いを、
+    /// 展開と同じ道筋に任せられる。取り出したものはウィンドウを閉じたら消す。
+    /// </remarks>
+    private async Task ShowSelectionHashesAsync()
+    {
+        if (Contents is null || _cancellation is not null)
+        {
+            return;
+        }
+
+        var rows = SelectedRowsForEdit();
+        var entries = new List<ArchiveEntry>();
+        foreach (var row in rows)
+        {
+            if (row.Entry is not null)
+            {
+                entries.Add(row.Entry);
+            }
+            else if (row.Folder is not null)
+            {
+                AddEntriesRecursively(row.Folder, entries);
+            }
+        }
+
+        // 検索の結果 (#215) では、フォルダーとその中のファイルを一緒に選べる
+        entries = entries.Distinct().ToList();
+
+        if (entries.Count == 0)
+        {
+            StatusMessage.Text = Strings.NothingToExtract;
+            return;
+        }
+
+        var workspace = EnsureWorkspace();
+        if (workspace is null)
+        {
+            return;
+        }
+
+        var archiveName = Path.GetFileName(Contents.FilePath);
+
+        string directory;
+        try
+        {
+            directory = workspace.CreateScratchDirectory("hash");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ReportTempFailure(ex);
+            return;
+        }
+
+        try
+        {
+            if (await ExtractSelectionAsync(rows, directory, zone: null, Strings.HashExtractFailed) is null)
+            {
+                return;
+            }
+
+            ShowIdleStatus();
+
+            var targets = entries
+                .Select(entry => (Entry: entry, Relative: ArchivePath.ToSafeRelativePath(entry.FullPath)))
+                .Where(static t => t.Relative is not null)
+                .Select(t => new HashTarget(t.Entry.FullPath, Path.Combine(directory, t.Relative!)))
+                .ToList();
+
+            new HashWindow(this, archiveName, targets).ShowDialog();
+        }
+        finally
+        {
+            TempWorkspace.TryDeleteTree(directory);
+        }
+    }
+
+    private static void AddEntriesRecursively(ArchiveFolder folder, List<ArchiveEntry> entries)
+    {
+        entries.AddRange(folder.Files);
+
+        foreach (var child in folder.Folders)
+        {
+            AddEntriesRecursively(child, entries);
+        }
+    }
+
     /// <summary>
     /// 選んだ行を取り出し、新しい書庫に入れるパスを返す (#207)。
     /// 取りやめた場合や、取り出せないものがあった場合は <see langword="null"/>。
@@ -2663,8 +2773,13 @@ public partial class MainWindow : Window
     /// 取り出せないものが 1 個でもあれば、書庫は作らない。欠けた書庫が黙ってできるより、
     /// 何が取り出せなかったかを伝えて止めるほうがよい。
     /// </remarks>
-    private async Task<string[]?> ExtractSelectionAsync(List<EntryRow> rows, string directory, string? zone)
+    /// <param name="failed">
+    /// 取り出せなかったときに出す文。書庫の名前と理由を受け取る。省くと新しい書庫を作れなかった旨の文。
+    /// </param>
+    private async Task<string[]?> ExtractSelectionAsync(
+        List<EntryRow> rows, string directory, string? zone, Func<string, string, string>? failed = null)
     {
+        failed ??= Strings.CreateArchiveFailed;
         var archivePath = Contents!.FilePath;
         var format = Contents.Format;
         var names = CollectSourceNames(rows);
@@ -2698,7 +2813,7 @@ public partial class MainWindow : Window
                 ShowIdleStatus();
                 MessageBox.Show(
                     this,
-                    Strings.CreateArchiveFailed(Path.GetFileName(archivePath), DescribeNotExtracted(result)),
+                    failed(Path.GetFileName(archivePath), DescribeNotExtracted(result)),
                     AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
@@ -2728,7 +2843,7 @@ public partial class MainWindow : Window
             ShowIdleStatus();
             MessageBox.Show(
                 this,
-                Strings.CreateArchiveFailed(Path.GetFileName(archivePath), Strings.Reason(ex)),
+                failed(Path.GetFileName(archivePath), Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return null;
         }
@@ -7753,6 +7868,8 @@ public partial class MainWindow : Window
         OpenMenuItem.Header = Strings.MenuOpen;
         OpenInTabMenuItem.Header = Strings.MenuOpenInNewTab;
         NewArchiveFromSelectionMenuItem.Header = Strings.MenuNewArchiveFromSelection;
+        HashMenuItem.Header = Strings.MenuHash;
+        ArchiveHashMenuItem.Header = Strings.MenuArchiveHash;
         RenameMenuItem.Header = Strings.MenuRename;
         DeleteMenuItem.Header = Strings.MenuDelete;
         NewFolderMenuItem.Header = Strings.MenuNewFolder;

@@ -876,6 +876,14 @@
                             -->
                             <MenuItem x:Name="NewArchiveFromSelectionMenuItem"
                                       Click="NewArchiveFromSelectionMenuItem_Click" />
+                            <!--
+                                ハッシュ値 (#259)。選んだファイルのものと、書庫ファイルそのもののもの。
+                                「選んでいなければ書庫」のように 1 つにまとめると、どちらを計算したのかが分かりにくい
+                            -->
+                            <MenuItem x:Name="HashMenuItem"
+                                      Click="HashMenuItem_Click" />
+                            <MenuItem x:Name="ArchiveHashMenuItem"
+                                      Click="ArchiveHashMenuItem_Click" />
                             <Separator />
                             <!-- 書庫内の名前を変える (#15) -->
                             <MenuItem x:Name="RenameMenuItem"

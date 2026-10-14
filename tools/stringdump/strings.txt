@@ -830,6 +830,96 @@ FormatUnknown
   ja  不明
   en  Unknown
 
+HashCancelled
+  ja  計算を中断しました
+  en  The calculation was stopped
+
+HashClose
+  ja  閉じる
+  en  Close
+
+HashColumnKind
+  ja  種類
+  en  Type
+
+HashColumnName
+  ja  名前
+  en  Name
+
+HashColumnValue
+  ja  値
+  en  Value
+
+HashCompareLabel
+  ja  照らし合わせる値:
+  en  Value to compare:
+
+HashCompareTooltip
+  ja  配布元が公開している値を貼り付けると、一致するものを探す
+  en  Paste the value published by the distributor to find a match
+
+HashComputing (done: 45, total: 120)
+  ja  計算しています… (45 / 120 個)
+  en  Calculating… (45 / 120)
+
+HashCopy
+  ja  コピー
+  en  Copy
+
+HashCopyTooltip
+  ja  選択した行の値をコピーする
+  en  Copy the values of the selected rows
+
+HashDone (count: 3)
+  ja  3 個のファイルのハッシュ値を計算しました
+  en  Calculated hashes for 3 file(s)
+
+HashExtractFailed (archive: 見本, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦見本⟧ から取り出せないものがあったため、ハッシュ値を計算できませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Some items could not be extracted from ⟦見本⟧, so their hashes could not be calculated.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+HashKindName (kind: Crc32)
+  ja  CRC32
+  en  CRC32
+HashKindName (kind: Md5)
+  ja  MD5
+  en  MD5
+HashKindName (kind: Sha1)
+  ja  SHA-1
+  en  SHA-1
+
+HashMatched (name: 報告書.pdf, kind: 見本)
+  ja  一致しました: ⟦報告書.pdf⟧ の ⟦見本⟧
+  en  Match: ⟦見本⟧ of ⟦報告書.pdf⟧
+
+HashNoMatch
+  ja  一致するものはありません
+  en  No match
+
+HashNoMatchYet
+  ja  一致するものはまだありません (計算の途中です)
+  en  No match yet (still calculating)
+
+HashNotHex
+  ja  16 進の値として読めません
+  en  This is not a hexadecimal value
+
+HashReadFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  読めませんでした: ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not read: ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+HashRowName (name: 報告書.pdf, kind: 見本, value: 見本)
+  ja  ⟦報告書.pdf⟧、⟦見本⟧: ⟦見本⟧
+  en  ⟦報告書.pdf⟧, ⟦見本⟧: ⟦見本⟧
+
+HashTitle (name: 報告書.pdf)
+  ja  ハッシュ値 - ⟦報告書.pdf⟧
+  en  Hashes - ⟦報告書.pdf⟧
+
 Inspect
   ja  検査
   en  Inspect
@@ -1099,9 +1189,17 @@ MarkSuspiciousPath
   ja  パスが通常と異なります
   en  Unusual path
 
+MenuArchiveHash
+  ja  書庫ファイルのハッシュ値を計算
+  en  Calculate hashes of the archive file
+
 MenuDelete
   ja  削除
   en  Delete
+
+MenuHash
+  ja  ハッシュ値を計算
+  en  Calculate hashes
 
 MenuNewArchiveFromSelection
   ja  新しい書庫を作成

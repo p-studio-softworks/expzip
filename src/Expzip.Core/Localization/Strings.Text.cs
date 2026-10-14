@@ -181,6 +181,12 @@ internal static partial class Strings
     /// <remarks>選んだ項目の上で右クリックして出すので、「選択した項目から」は言わなくても分かる。</remarks>
     public static string MenuNewArchiveFromSelection => Pick("新しい書庫を作成", "Create a new archive");
 
+    /// <summary>選んだファイルのハッシュ値を出す (#259)。フォルダーなら中のファイルすべて。</summary>
+    public static string MenuHash => Pick("ハッシュ値を計算", "Calculate hashes");
+
+    /// <summary>書庫ファイルそのもののハッシュ値を出す (#259)。ダウンロードした書庫を確かめる用途。</summary>
+    public static string MenuArchiveHash => Pick("書庫ファイルのハッシュ値を計算", "Calculate hashes of the archive file");
+
     public static string MenuRename => Pick("名前の変更", "Rename");
 
     public static string MenuDelete => Pick("削除", "Delete");
@@ -2100,6 +2106,77 @@ internal static partial class Strings
 
         _ => string.Empty,
     };
+
+    // ------------------------------------------------------------------ ハッシュ値 (#259)
+
+    public static string HashTitle(string name) => Pick($"ハッシュ値 - {name}", $"Hashes - {name}");
+
+    public static string HashColumnName => Pick("名前", "Name");
+
+    public static string HashColumnKind => Pick("種類", "Type");
+
+    public static string HashColumnValue => Pick("値", "Value");
+
+    /// <summary>ハッシュ値の種類の名前。訳さない。</summary>
+    public static string HashKindName(HashKind kind) => kind switch
+    {
+        HashKind.Crc32 => "CRC32",
+        HashKind.Md5 => "MD5",
+        HashKind.Sha1 => "SHA-1",
+        _ => "SHA-256",
+    };
+
+    /// <summary>支援技術が読む行の名前。</summary>
+    public static string HashRowName(string name, string kind, string value) => Pick(
+        $"{name}、{kind}: {value}",
+        $"{name}, {kind}: {value}");
+
+    public static string HashComputing(int done, int total) => Pick(
+        $"計算しています… ({done:N0} / {total:N0} 個)",
+        $"Calculating… ({done:N0} / {total:N0})");
+
+    public static string HashDone(int count) => Pick(
+        $"{count:N0} 個のファイルのハッシュ値を計算しました",
+        $"Calculated hashes for {count:N0} file(s)");
+
+    public static string HashCancelled => Pick("計算を中断しました", "The calculation was stopped");
+
+    /// <summary>ファイルを読めなかった行の値の欄。</summary>
+    public static string HashReadFailed(string reason) => Pick(
+        $"読めませんでした: {reason}",
+        $"Could not read: {reason}");
+
+    public static string HashExtractFailed(string archive, string reason) => Pick(
+        $"{archive} から取り出せないものがあったため、ハッシュ値を計算できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Some items could not be extracted from {archive}, so their hashes could not be calculated.{Environment.NewLine}{Environment.NewLine}{reason}");
+
+    public static string HashCompareLabel => Pick("照らし合わせる値:", "Value to compare:");
+
+    public static string HashCompareTooltip => Pick(
+        "配布元が公開している値を貼り付けると、一致するものを探す",
+        "Paste the value published by the distributor to find a match");
+
+    public static string HashMatched(string name, string kind) => Pick(
+        $"一致しました: {name} の {kind}",
+        $"Match: {kind} of {name}");
+
+    public static string HashNoMatch => Pick("一致するものはありません", "No match");
+
+    public static string HashNoMatchYet => Pick(
+        "一致するものはまだありません (計算の途中です)",
+        "No match yet (still calculating)");
+
+    public static string HashNotHex => Pick(
+        "16 進の値として読めません",
+        "This is not a hexadecimal value");
+
+    public static string HashCopy => Pick("コピー", "Copy");
+
+    public static string HashCopyTooltip => Pick(
+        "選択した行の値をコピーする",
+        "Copy the values of the selected rows");
+
+    public static string HashClose => Pick("閉じる", "Close");
 
     // ------------------------------------------------------------------ ファイルの分割 (#59)
 
