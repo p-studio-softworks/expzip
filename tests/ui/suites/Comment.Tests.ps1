@@ -84,6 +84,19 @@ if ($window) {
 $raw = Get-RawComment $archive
 Check '直さなければバイト列もそのまま' (Same $raw.Bytes $original)
 
+Section '直して保存しても、記号は書き込まない'
+# 画面では ESC を ␛ にして出す。直して保存したときに ␛ を文字として書くと、CP932 で表せず全体が UTF-8 になる (#262)
+$window = Open-Comment $app '配布物.zip'
+if ($window) {
+    $box = ById $window 'CommentBox'
+    Set-Text $box ((ValueOf $box) + ' 追記')
+    Push (ById $window 'SaveButton')
+}
+Wait-Idle $app
+$raw = Get-RawComment $archive
+$expected = $cp932.GetBytes("配布元: P studio`r`n連絡先: なし`r`n[31m赤 追記")
+Check '記号を除いて CP932 で書く' (Same $raw.Bytes $expected) ([BitConverter]::ToString($raw.Bytes))
+
 Section '日本語のコメントを書く'
 $window = Open-Comment $app '配布物.zip' -Row 'readme.txt'
 Check '右クリックからも開く' ($null -ne $window)
@@ -138,6 +151,25 @@ if ($window) {
 Wait-Idle $app
 Check '付けると知らせが出る' (Test-CommentShown $app)
 Check 'ASCII はそのまま' (Same (Get-RawComment $plain).Bytes $utf8.GetBytes('hello'))
+Stop-Expzip $app
+
+Section 'コメントの中に終端レコードと同じ並びがある'
+# ほかのツールが書いたバイナリのコメント。中の並びを終端レコードと取り違えない (#263)
+$tricky = New-TestZip (Join-Path $script:Work 'tricky.zip') ([ordered]@{ 'a.txt' = 'a' })
+$fake = [byte[]](0x50, 0x4B, 0x05, 0x06) + (New-Object byte[] 18)
+Set-RawComment $tricky ($utf8.GetBytes('ABCDE') + $fake + $utf8.GetBytes('tail'))
+$app = Start-Expzip @($tricky)
+$window = Open-Comment $app 'tricky.zip'
+if ($window) {
+    $text = ValueOf (ById $window 'CommentBox')
+    Check 'コメント全体を読む' ($text.StartsWith('ABCDEPK') -and $text.EndsWith('tail')) $text
+    Set-Text (ById $window 'CommentBox') 'fixed'
+    Push (ById $window 'SaveButton')
+}
+Wait-Idle $app
+$raw = Get-RawComment $tricky
+Check '本当のコメントの位置に書く' ((Same $raw.Bytes $utf8.GetBytes('fixed')) -and $raw.Trailing -eq 0) "$([BitConverter]::ToString($raw.Bytes)) / $($raw.Trailing)"
+Check '中のファイルはそのまま' (((Get-ZipNames $tricky) -join ', ') -eq 'a.txt') ((Get-ZipNames $tricky) -join ', ')
 Stop-Expzip $app
 
 Section 'パスワード付きの書庫'

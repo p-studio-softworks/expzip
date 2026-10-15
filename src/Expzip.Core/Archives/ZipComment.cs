@@ -110,10 +110,14 @@ internal static class ZipComment
     /// UTF-8 で書くと古いツールでは化けるため。表せない文字 (絵文字など) を含むときだけ
     /// UTF-8 にする。どちらでも、読むときの判定で元の文字に戻る。
     /// 制御文字は書かない。改行とタブだけは残す。
+    /// <see cref="ForDisplay"/> が制御文字の代わりに出した記号 (␛ など) も書かない (#262)。
+    /// 画面で直して保存すると、記号が文字として書き込まれてしまうため。記号は CP932 で表せないので、
+    /// 残すとコメント全体が UTF-8 になる。
     /// </remarks>
     public static byte[] Encode(string text)
     {
-        var clean = new string(text.Where(static c => c is '\r' or '\n' or '\t' || !char.IsControl(c)).ToArray());
+        var clean = new string(text.Where(static c => c is '\r' or '\n' or '\t'
+                                                      || (!char.IsControl(c) && !IsControlPicture(c))).ToArray());
 
         if (LegacyJapanese is not null)
         {
@@ -135,6 +139,9 @@ internal static class ZipComment
 
         return Encoding.UTF8.GetBytes(clean);
     }
+
+    /// <summary><see cref="ForDisplay"/> が制御文字の代わりに出す記号か (U+2400〜U+241F と ␡)。</summary>
+    private static bool IsControlPicture(char c) => c is >= '␀' and <= '␟' or '␡';
 
     /// <summary>コメントとして書ける長さか。終端レコードの欄は 2 バイト。</summary>
     public static bool Fits(string text) => Encode(text).Length <= ushort.MaxValue;
@@ -181,12 +188,9 @@ internal static class ZipComment
     private readonly record struct End(long Offset, int CommentLength);
 
     /// <summary>
-    /// 終端レコードを後ろから探す。見分け方は自己解凍書庫の判定 (<see cref="ZipPrefix"/>) と同じ。
+    /// 終端レコードを後ろから探す。見分け方は自己解凍書庫の判定 (<see cref="ZipPrefix.FindEnd"/>) と同じ。
+    /// コメントの中に終端レコードと同じ並びがあっても取り違えない (#263)。
     /// </summary>
-    /// <remarks>
-    /// コメントの中に同じ並びが入っていることがあるため、見つけた位置がコメントの長さと
-    /// 辻褄が合うところまで確かめる。
-    /// </remarks>
     private static End? Locate(Stream stream)
     {
         var length = stream.Length;
@@ -200,23 +204,13 @@ internal static class ZipComment
         stream.Position = length - window;
         stream.ReadExactly(buffer);
 
-        for (var i = window - EndLength; i >= 0; i--)
+        var i = ZipPrefix.FindEnd(stream, buffer, length);
+        if (i < 0)
         {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i)) != EndSignature)
-            {
-                continue;
-            }
-
-            var comment = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(i + 20));
-            var offset = length - window + i;
-
-            if (offset + EndLength + comment <= length)
-            {
-                return new End(offset, comment);
-            }
+            return null;
         }
 
-        return null;
+        return new End(length - window + i, BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(i + 20)));
     }
 
     private static Encoding? TryGetLegacyJapanese()

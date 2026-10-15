@@ -134,22 +134,7 @@ internal static class ZipPrefix
             stream.Position = length - window;
             stream.ReadExactly(buffer);
 
-            for (var i = window - EndLength; i >= 0; i--)
-            {
-                if (BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i)) != EndSignature)
-                {
-                    continue;
-                }
-
-                var comment = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(i + 20));
-
-                if (length - window + i + EndLength + comment <= length)
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return FindEnd(stream, buffer, length) >= 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or EndOfStreamException)
@@ -172,39 +157,88 @@ internal static class ZipPrefix
         stream.Position = length - window;
         stream.ReadExactly(buffer);
 
-        // 後ろから署名を探す。コメントの中に同じ並びが入っていることがあるため、
-        // 見つけた位置がコメントの長さと辻褄が合うところまで確かめる
-        for (var i = window - EndLength; i >= 0; i--)
+        var i = FindEnd(stream, buffer, length);
+        if (i < 0)
         {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i)) != EndSignature)
-            {
-                continue;
-            }
-
-            var comment = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan(i + 20));
-            var end = length - window + i;
-
-            if (end + EndLength + comment > length)
-            {
-                continue;
-            }
-
-            long directorySize = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i + 12));
-            long directoryOffset = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i + 16));
-
-            // ZIP64 の書庫はここに 0xFFFFFFFF が入り、本当の値は別のレコードにある
-            if (directorySize == uint.MaxValue || directoryOffset == uint.MaxValue)
-            {
-                if (!TryReadZip64(stream, length, out directorySize, out directoryOffset))
-                {
-                    return 0;
-                }
-            }
-
-            return Shift(stream, end, directorySize, directoryOffset);
+            return 0;
         }
 
-        return 0;
+        var end = length - window + i;
+        long directorySize = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i + 12));
+        long directoryOffset = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i + 16));
+
+        // ZIP64 の書庫はここに 0xFFFFFFFF が入り、本当の値は別のレコードにある
+        if (directorySize == uint.MaxValue || directoryOffset == uint.MaxValue)
+        {
+            if (!TryReadZip64(stream, length, out directorySize, out directoryOffset))
+            {
+                return 0;
+            }
+        }
+
+        return Shift(stream, end, directorySize, directoryOffset);
+    }
+
+    /// <summary>
+    /// 末尾を読んだ <paramref name="buffer"/> の中から、終端レコードの位置を探す。無ければ -1。
+    /// </summary>
+    /// <param name="buffer">ファイルの末尾。終端レコードとコメントが入る長さ (<see cref="SearchLength"/>) か、ファイル全体。</param>
+    /// <param name="stream">ファイル。中央ディレクトリの署名を確かめるのに使う。</param>
+    /// <param name="length">ファイルの長さ。</param>
+    /// <remarks>
+    /// <para>
+    /// 後ろから署名を探す。コメントの中に同じ並びが入っていることがあるため、
+    /// 見つけた位置がコメントの長さと辻褄が合うところまで確かめる。
+    /// コメントの中の偽物も「末尾を越えない」は満たすので、後ろから最初に見つけたものを採ると取り違える (#263)。
+    /// 次の順に採る。
+    /// </para>
+    /// <list type="number">
+    /// <item>コメントの終わりがファイルの末尾とぴったり合い、指す先に中央ディレクトリがあるもの</item>
+    /// <item>コメントの終わりがファイルの末尾とぴったり合うもの (ZIP64 など、指す先を確かめられないもの)</item>
+    /// <item>末尾を越えないもの (終端レコードの後ろに余りのある書庫)</item>
+    /// </list>
+    /// <para>
+    /// 偽物がコメントのちょうど末尾にあると、偽物も末尾とぴったり合う。中央ディレクトリまで確かめて見分ける。
+    /// </para>
+    /// </remarks>
+    internal static int FindEnd(Stream stream, ReadOnlySpan<byte> buffer, long length)
+    {
+        var start = length - buffer.Length;
+        var exact = -1;
+        var fallback = -1;
+
+        for (var i = buffer.Length - EndLength; i >= 0; i--)
+        {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(buffer[i..]) != EndSignature)
+            {
+                continue;
+            }
+
+            var comment = BinaryPrimitives.ReadUInt16LittleEndian(buffer[(i + 20)..]);
+            var tail = start + i + EndLength + comment;
+
+            if (tail == length)
+            {
+                // 中央ディレクトリは終端レコードの直前で終わっている。先頭に何か付いていても、この位置は変わらない
+                long size = BinaryPrimitives.ReadUInt32LittleEndian(buffer[(i + 12)..]);
+                if (size > 0 && size != uint.MaxValue
+                    && HasSignature(stream, start + i - size, DirectorySignature))
+                {
+                    return i;
+                }
+
+                if (exact < 0)
+                {
+                    exact = i;
+                }
+            }
+            else if (tail < length && fallback < 0)
+            {
+                fallback = i;
+            }
+        }
+
+        return exact >= 0 ? exact : fallback;
     }
 
     /// <summary>ZIP64 の終端レコードから、中央ディレクトリの大きさと位置を読む。</summary>

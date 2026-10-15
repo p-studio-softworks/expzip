@@ -117,6 +117,28 @@ Check 'コメントを付ける前に戻る' ((Hash $archive) -eq $original)
 $notice = ById $app.Window 'CommentButton'
 Check 'コメントの知らせも消える' (-not ($notice -and -not $notice.Current.IsOffscreen))
 
+Section 'コメントを戻したあとに、その前の削除も戻す'
+# コメントは書庫をその場で書き戻す。更新日時まで戻さないと、ほかのソフトが書き換えたと取り違える (#261)
+Remove-Row $app 'top.txt'
+$menu = Open-RowMenu $app 'docs'
+Push (ByName $menu '書庫のコメント')
+$window = Find-Window $app '書庫のコメント - sample.zip' 10000
+if ($window) {
+    Set-Text (ById $window 'CommentBox') '削除のあとのコメント'
+    Push (ById $window 'SaveButton')
+}
+Wait-Idle $app
+Start-Sleep -Milliseconds 1500
+Undo $app
+Check 'コメントが戻る' ((Get-Status $app) -eq '元に戻しました: コメントの変更') (Get-Status $app)
+Start-Sleep -Milliseconds 1500
+Undo $app
+$box = Find-MessageBox $app 2000
+Check 'ほかのソフトのせいにしない' ($null -eq $box) $(if ($box) { $box.Text })
+if ($box) { Close-MessageBox $box 'OK' }
+Check '削除も戻る' ((Sorted $archive) -eq 'docs/a.txt, docs/b.txt, other/c.txt, top.txt') (Sorted $archive)
+Check 'ここでも元どおり' ((Hash $archive) -eq $original)
+
 Section 'ほかのソフトが書き換えたあとは戻さない'
 Remove-Row $app 'top.txt'
 # 外で 1 個足す。戻すとこれが消えるので、戻してはいけない

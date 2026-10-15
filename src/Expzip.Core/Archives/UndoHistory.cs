@@ -245,13 +245,19 @@ internal sealed class UndoHistory
     /// <remarks>
     /// 終端レコードは末尾から 64 KB ほどの中にある。その範囲をそのまま取っておけば、
     /// コメントの書き換えで変わるところはすべて入る。
+    /// <para>
+    /// その場で書き戻すと更新日時が戻した時刻になり、1 つ前の書き換えのあとの状態と合わなくなる。
+    /// そのままだと、続けて戻すときに「ほかのソフトで書き換えられた」と取り違えるので、
+    /// 書き換える前の更新日時も取っておき、書き戻したあとに付け直す (#261)。
+    /// </para>
     /// </remarks>
-    private sealed class TailSnapshot(long offset, byte[] tail) : Snapshot
+    private sealed class TailSnapshot(long offset, byte[] tail, DateTime lastWriteUtc) : Snapshot
     {
         private const int TailLength = 22 + ushort.MaxValue;
 
         public static TailSnapshot Take(string archivePath)
         {
+            var lastWriteUtc = File.GetLastWriteTimeUtc(archivePath);
             using var stream = File.OpenRead(archivePath);
             var length = (int)Math.Min(stream.Length, TailLength);
             var offset = stream.Length - length;
@@ -259,16 +265,21 @@ internal sealed class UndoHistory
             var tail = new byte[length];
             stream.Position = offset;
             stream.ReadExactly(tail);
-            return new TailSnapshot(offset, tail);
+            return new TailSnapshot(offset, tail, lastWriteUtc);
         }
 
         public override void Restore(string archivePath)
         {
-            using var stream = new FileStream(archivePath, FileMode.Open, FileAccess.Write, FileShare.Read);
-            stream.Position = offset;
-            stream.Write(tail);
-            stream.SetLength(offset + tail.Length);
-            stream.Flush(flushToDisk: true);
+            using (var stream = new FileStream(archivePath, FileMode.Open, FileAccess.Write, FileShare.Read))
+            {
+                stream.Position = offset;
+                stream.Write(tail);
+                stream.SetLength(offset + tail.Length);
+                stream.Flush(flushToDisk: true);
+            }
+
+            // 閉じたあとに付ける。開いている間に付けても、閉じるときに書き込んだ時刻で上書きされることがある
+            File.SetLastWriteTimeUtc(archivePath, lastWriteUtc);
         }
 
         public override void Discard()
