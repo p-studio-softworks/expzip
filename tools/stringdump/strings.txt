@@ -1277,6 +1277,31 @@ MenuRename
   ja  名前の変更
   en  Rename
 
+MenuUndo (kind: Move)
+  ja  元に戻す - 移動
+  en  Undo Move
+MenuUndo (kind: Delete)
+  ja  元に戻す - 削除
+  en  Undo Delete
+MenuUndo (kind: Rename)
+  ja  元に戻す - 名前の変更
+  en  Undo Rename
+MenuUndo (kind: NewFolder)
+  ja  元に戻す - フォルダーの作成
+  en  Undo New folder
+MenuUndo (kind: Add)
+  ja  元に戻す - 追加
+  en  Undo Add
+MenuUndo (kind: Password)
+  ja  元に戻す - パスワードの変更
+  en  Undo Password change
+MenuUndo (kind: Comment)
+  ja  元に戻す - コメントの変更
+  en  Undo Comment change
+MenuUndo (kind: WriteBack)
+  ja  元に戻す - 編集の書き戻し
+  en  Undo Saving edits
+
 More (count: 3)
   ja  
       |   ほか 3 個
@@ -1391,6 +1416,10 @@ NotWrittenFilesLine (count: 3)
 NothingToExtract
   ja  展開できるファイルがありません
   en  There are no files to extract
+
+NothingToUndo
+  ja  元に戻せる操作がありません
+  en  There is nothing to undo
 
 NsisNotSupported
   ja  このインストーラーには対応していません。
@@ -2642,6 +2671,72 @@ TotalSize (total: 52428800, compressed: 20971520)
   ja  合計 52,428,800 バイト (圧縮後 20,971,520 バイト)
   en  52,428,800 bytes total (20,971,520 bytes packed)
 
+UndoChangedOutside
+  ja  この書庫はほかのソフトで書き換えられたため、元に戻せません。元に戻すと、その書き換えが消えてしまいます。
+  en  This archive was changed by another program, so it cannot be undone. Undoing would discard that change.
+
+UndoFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  元に戻せませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not undo.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+UndoKindName (kind: Move)
+  ja  移動
+  en  Move
+UndoKindName (kind: Delete)
+  ja  削除
+  en  Delete
+UndoKindName (kind: Rename)
+  ja  名前の変更
+  en  Rename
+UndoKindName (kind: NewFolder)
+  ja  フォルダーの作成
+  en  New folder
+UndoKindName (kind: Add)
+  ja  追加
+  en  Add
+UndoKindName (kind: Password)
+  ja  パスワードの変更
+  en  Password change
+UndoKindName (kind: Comment)
+  ja  コメントの変更
+  en  Comment change
+UndoKindName (kind: WriteBack)
+  ja  編集の書き戻し
+  en  Saving edits
+
+Undoing
+  ja  元に戻しています…
+  en  Undoing…
+
+Undone (kind: Move)
+  ja  元に戻しました: 移動
+  en  Undone: Move
+Undone (kind: Delete)
+  ja  元に戻しました: 削除
+  en  Undone: Delete
+Undone (kind: Rename)
+  ja  元に戻しました: 名前の変更
+  en  Undone: Rename
+Undone (kind: NewFolder)
+  ja  元に戻しました: フォルダーの作成
+  en  Undone: New folder
+Undone (kind: Add)
+  ja  元に戻しました: 追加
+  en  Undone: Add
+Undone (kind: Password)
+  ja  元に戻しました: パスワードの変更
+  en  Undone: Password change
+Undone (kind: Comment)
+  ja  元に戻しました: コメントの変更
+  en  Undone: Comment change
+Undone (kind: WriteBack)
+  ja  元に戻しました: 編集の書き戻し
+  en  Undone: Saving edits
+
 UnhandledError (type: IOException, message: The process cannot access the file because it is being used by another process.)
   ja  処理中に問題が発生しました。書庫の変更はありません。
       | 
@@ -2683,6 +2778,10 @@ ViewMenu
 ViewSmallIcons
   ja  小アイコン
   en  Small icons
+
+WithUndoHint (status: 見本)
+  ja  ⟦見本⟧ (Ctrl+Z で元に戻せます)
+  en  ⟦見本⟧ (Ctrl+Z to undo)
 
 ZipFilter
   ja  ZIP書庫 (*.zip)|*.zip

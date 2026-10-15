@@ -2107,6 +2107,47 @@ internal static partial class Strings
         _ => string.Empty,
     };
 
+    // ------------------------------------------------------------------ 元に戻す (#260)
+
+    /// <summary>元に戻す操作の名前。右クリックのメニューと状態の知らせに使う。</summary>
+    public static string UndoKindName(UndoKind kind) => kind switch
+    {
+        UndoKind.Move => Pick("移動", "Move"),
+        UndoKind.Delete => Pick("削除", "Delete"),
+        UndoKind.Rename => Pick("名前の変更", "Rename"),
+        UndoKind.NewFolder => Pick("フォルダーの作成", "New folder"),
+        UndoKind.Add => Pick("追加", "Add"),
+        UndoKind.Password => Pick("パスワードの変更", "Password change"),
+        UndoKind.Comment => Pick("コメントの変更", "Comment change"),
+        _ => Pick("編集の書き戻し", "Saving edits"),
+    };
+
+    /// <summary>右クリックの「元に戻す」。エクスプローラーと同じく、何を戻すかを添える。</summary>
+    public static string MenuUndo(UndoKind? kind) => kind is { } known
+        ? Pick($"元に戻す - {UndoKindName(known)}", $"Undo {UndoKindName(known)}")
+        : Pick("元に戻す", "Undo");
+
+    /// <summary>移動や削除のあとに添える。うっかり動かしたときに、戻せることに気付けるように。</summary>
+    public static string WithUndoHint(string status) => Pick(
+        $"{status} (Ctrl+Z で元に戻せます)",
+        $"{status} (Ctrl+Z to undo)");
+
+    public static string Undoing => Pick("元に戻しています…", "Undoing…");
+
+    public static string Undone(UndoKind kind) => Pick(
+        $"元に戻しました: {UndoKindName(kind)}",
+        $"Undone: {UndoKindName(kind)}");
+
+    public static string NothingToUndo => Pick("元に戻せる操作がありません", "There is nothing to undo");
+
+    public static string UndoChangedOutside => Pick(
+        "この書庫はほかのソフトで書き換えられたため、元に戻せません。元に戻すと、その書き換えが消えてしまいます。",
+        "This archive was changed by another program, so it cannot be undone. Undoing would discard that change.");
+
+    public static string UndoFailed(string reason) => Pick(
+        $"元に戻せませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not undo.{Environment.NewLine}{Environment.NewLine}{reason}");
+
     // ------------------------------------------------------------------ 書庫のコメント (#258)
 
     public static string MenuComment => Pick("書庫のコメント", "Archive comment");

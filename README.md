@@ -70,6 +70,7 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 - **Whether to compress is decided automatically for each file**. For example, photos and videos, which do not get smaller, are stored as they are
 - Set, change and remove passwords
 - View and edit the comment of a ZIP archive. When an archive with a comment is opened, the status bar tells you
+- **Undo** changes (Ctrl+Z). Even if you move a folder by mistake, you can put it back until you close Expzip
 
 **Inspecting**
 

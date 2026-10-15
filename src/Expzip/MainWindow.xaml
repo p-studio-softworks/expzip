@@ -928,6 +928,13 @@
                                 「最新の情報に更新」と並べる。並べ替えは列の見出しが無い形でも使えるように置く。
                                 中身はメニューを開くときに作る
                             -->
+                            <!--
+                                書き換えを元に戻す (#260)。エクスプローラーと同じく、何を戻すかを添えて
+                                「最新の情報に更新」の並びに置く。うっかりフォルダーを動かしたときの戻り道
+                            -->
+                            <MenuItem x:Name="UndoMenuItem"
+                                      InputGestureText="Ctrl+Z"
+                                      Click="UndoMenuItem_Click" />
                             <MenuItem x:Name="ViewMenuItem" />
                             <MenuItem x:Name="SortMenuItem" />
                             <!--

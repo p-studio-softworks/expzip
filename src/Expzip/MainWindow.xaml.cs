@@ -686,6 +686,11 @@ public partial class MainWindow : Window
         // 読み直しは選んでいるかどうかに関わらず使える (#64)
         RefreshMenuItem.IsEnabled = Contents is not null && _cancellation is null;
 
+        // 元に戻すも選択と関係ない (#260)。何を戻すかを名前に添える
+        var undoable = Contents is { } current ? _undoHistory.Peek(current.FilePath) : null;
+        UndoMenuItem.Header = Strings.MenuUndo(undoable);
+        UndoMenuItem.IsEnabled = undoable is not null && _cancellation is null;
+
         // 表示の形と並べ替え (#216)。中身は開くたびに作り、いまの選び方に印を付ける
         FillViewItems(ViewMenuItem.Items);
         BuildSortMenu();
@@ -956,6 +961,7 @@ public partial class MainWindow : Window
         });
 
         RenameResult? result = null;
+        var undo = await BeginUndoAsync(archivePath, UndoKind.Rename);
         try
         {
             result = await Task.Run(() => password is null
@@ -975,6 +981,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _undoHistory.Complete(undo);
             _cancellation = null;
             SetBusy(false);
 
@@ -1105,6 +1112,7 @@ public partial class MainWindow : Window
         StatusMessage.Text = Strings.CreatingFolder;
 
         var created = false;
+        var undo = await BeginUndoAsync(archivePath, UndoKind.NewFolder);
         try
         {
             created = await Task.Run(() => password is null
@@ -1122,6 +1130,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _undoHistory.Complete(undo);
             _cancellation = null;
             SetBusy(false);
 
@@ -1281,6 +1290,7 @@ public partial class MainWindow : Window
         });
 
         var done = false;
+        var undo = await BeginUndoAsync(archivePath, UndoKind.Password);
         try
         {
             done = await Task.Run(() => ZipEncryptedWriter.ChangePassword(
@@ -1296,6 +1306,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _undoHistory.Complete(undo);
             _cancellation = null;
             ProgressIndicator.IsIndeterminate = false;
             SetBusy(false);
@@ -1446,6 +1457,14 @@ public partial class MainWindow : Window
     {
         if (_editingRow is not null)
         {
+            return;
+        }
+
+        // 書き換えを元に戻す (#260)。文字の欄の中では、その欄の元に戻すが先に受け取る
+        if (e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Control && e.OriginalSource is not TextBoxBase)
+        {
+            e.Handled = true;
+            _ = UndoAsync();
             return;
         }
 
@@ -2274,6 +2293,8 @@ public partial class MainWindow : Window
         ProgressIndicator.IsIndeterminate = true;
         StatusMessage.Text = Strings.Deleting;
 
+        string? done = null;
+        var undo = await BeginUndoAsync(archivePath, UndoKind.Delete);
         try
         {
             var result = await Task.Run(() => password is null
@@ -2290,7 +2311,9 @@ public partial class MainWindow : Window
             }
             else
             {
-                StatusMessage.Text = Strings.DeleteDone(result.Deleted);
+                // うっかり消したときに、戻せることに気付けるようにする (#260)
+                done = Strings.WithUndoHint(Strings.DeleteDone(result.Deleted));
+                StatusMessage.Text = done;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -2302,6 +2325,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _undoHistory.Complete(undo);
             ProgressIndicator.IsIndeterminate = false;
             _cancellation = null;
             SetBusy(false);
@@ -2314,6 +2338,12 @@ public partial class MainWindow : Window
             {
                 // 消したフォルダを表示中だった場合に備え、無ければルートに戻る
                 await OpenArchiveAsync(archivePath, destinationFolder);
+
+                // 読み直すと件数の知らせに替わるので、何をしたかを出し直す
+                if (done is not null)
+                {
+                    StatusMessage.Text = done;
+                }
             }
         }
     }
@@ -2775,6 +2805,106 @@ public partial class MainWindow : Window
         }
     }
 
+    // ------------------------------------------------------------------ 元に戻す (#260)
+
+    /// <summary>書き換えの履歴。Expzip を閉じるまで持つ。取っておいたものは一時フォルダーの置き場に入る。</summary>
+    private readonly UndoHistory _undoHistory = new();
+
+    /// <summary>
+    /// 書き換える直前に呼ぶ。いまの書庫を取っておく。書き換えが済んだら、成否に関わらず
+    /// <see cref="UndoHistory.Complete"/> に渡す (書庫が変わっていなければ捨てられる)。
+    /// </summary>
+    /// <remarks>
+    /// ハードリンクなら一瞬だが、別のドライブの書庫ではコピーになるので、画面を止めないよう裏で行う。
+    /// </remarks>
+    private async Task<UndoHistory.Pending?> BeginUndoAsync(string archivePath, UndoKind kind)
+    {
+        if (EnsureWorkspace() is not { } workspace)
+        {
+            return null;
+        }
+
+        var store = Path.Combine(workspace.Directory, "undo");
+        return await Task.Run(() => _undoHistory.Begin(archivePath, kind, store));
+    }
+
+    private async void UndoMenuItem_Click(object sender, RoutedEventArgs e) => await UndoAsync();
+
+    /// <summary>いま見ている書庫の、いちばん新しい書き換えを元に戻す。</summary>
+    /// <remarks>
+    /// 書き換える前の書庫と差し替えて、読み直す。見ていた場所が戻した後に無ければ
+    /// (移動を戻したときなど)、書庫のいちばん上を出す。
+    /// </remarks>
+    private async Task UndoAsync()
+    {
+        if (Contents is not { } contents || _cancellation is not null)
+        {
+            return;
+        }
+
+        var archivePath = contents.FilePath;
+        if (_undoHistory.Peek(archivePath) is null)
+        {
+            StatusMessage.Text = Strings.NothingToUndo;
+            return;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+        StatusMessage.Text = Strings.Undoing;
+
+        var restore = CurrentFolder?.FullPath;
+        UndoOutcome? outcome = null;
+        UndoKind kind = default;
+        try
+        {
+            outcome = await Task.Run(() => _undoHistory.Undo(archivePath, out kind));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowIdleStatus();
+            MessageBox.Show(
+                this,
+                Strings.UndoFailed(Strings.Reason(ex)),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
+
+        if (_closeWhenIdle || outcome is null)
+        {
+            return;
+        }
+
+        if (outcome == UndoOutcome.ChangedOutside)
+        {
+            ShowIdleStatus();
+            MessageBox.Show(
+                this,
+                Strings.UndoChangedOutside,
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // パスワードの変更を戻すと、覚えている合言葉と書庫が食い違う。次に要るときに尋ね直す
+        if (kind == UndoKind.Password)
+        {
+            _passwords.Remove(archivePath);
+        }
+
+        await OpenArchiveAsync(archivePath, restore);
+        StatusMessage.Text = Strings.Undone(kind);
+    }
+
     // ------------------------------------------------------------------ 書庫のコメント (#258)
 
     private async void CommentMenuItem_Click(object sender, RoutedEventArgs e) => await ShowCommentAsync();
@@ -2811,6 +2941,7 @@ public partial class MainWindow : Window
 
         var restore = CurrentFolder?.FullPath;
         var done = false;
+        var undo = await BeginUndoAsync(archivePath, UndoKind.Comment);
         try
         {
             await Task.Run(() => ZipComment.Write(archivePath, text));
@@ -2826,6 +2957,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _undoHistory.Complete(undo);
             _cancellation = null;
             SetBusy(false);
 
@@ -3111,6 +3243,7 @@ public partial class MainWindow : Window
             StatusMessage.Text = Strings.RebuildingEncrypted;
         }
 
+        var undo = await BeginUndoAsync(archivePath, UndoKind.Add);
         try
         {
             var result = await Task.Run(() => password is null
@@ -3132,6 +3265,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _undoHistory.Complete(undo);
             _cancellation = null;
             SetBusy(false);
 
@@ -3587,7 +3721,29 @@ public partial class MainWindow : Window
 
     /// <summary>編集した一時ファイルを書庫へ書き戻す。</summary>
     /// <returns>書き戻せた場合は true。</returns>
+    /// <remarks>
+    /// 書き戻しは追加と、古い名前の削除の 2 回の書き換えになることがある。元に戻すとき (#260) は
+    /// まとめて 1 回で戻るように、前後を 1 つの履歴にする。中の書庫の保存 (#30) もここを通る。
+    /// </remarks>
     private async Task<bool> ApplyEditAsync(EditSession session)
+    {
+        if (_cancellation is not null)
+        {
+            return false;
+        }
+
+        var undo = await BeginUndoAsync(session.ArchivePath, UndoKind.WriteBack);
+        try
+        {
+            return await WriteBackAsync(session);
+        }
+        finally
+        {
+            _undoHistory.Complete(undo);
+        }
+    }
+
+    private async Task<bool> WriteBackAsync(EditSession session)
     {
         // 見ているタブではなく、書き戻す先の書庫から引く。開いたときと違うタブを
         // 見ている状態で保存されることがあり、そのときに取り違える (#16, #30)
@@ -4857,6 +5013,7 @@ public partial class MainWindow : Window
         });
 
         RenameResult? result = null;
+        var undo = await BeginUndoAsync(archivePath, UndoKind.Move);
         try
         {
             result = await Task.Run(() => password is null
@@ -4874,6 +5031,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _undoHistory.Complete(undo);
             _cancellation = null;
             SetBusy(false);
 
@@ -4896,7 +5054,9 @@ public partial class MainWindow : Window
 
         // 書庫が変わったので開き直す。移動先を見せたほうが結果が分かりやすい
         await OpenArchiveAsync(archivePath, target.FullPath);
-        StatusMessage.Text = Strings.MoveDone(move.Items.Count);
+
+        // うっかり落としたときに、戻せることに気付けるようにする (#260)
+        StatusMessage.Text = Strings.WithUndoHint(Strings.MoveDone(move.Items.Count));
     }
 
     // ------------------------------------------------------------------ 展開
@@ -7952,6 +8112,7 @@ public partial class MainWindow : Window
         HashMenuItem.Header = Strings.MenuHash;
         ArchiveHashMenuItem.Header = Strings.MenuArchiveHash;
         CommentMenuItem.Header = Strings.MenuComment;
+        UndoMenuItem.Header = Strings.MenuUndo(Contents is { } shown ? _undoHistory.Peek(shown.FilePath) : null);
         CommentText.Text = Strings.CommentPresent;
         CommentButton.ToolTip = Strings.CommentPresentTooltip;
         AutomationProperties.SetName(CommentButton, Strings.CommentPresent);
