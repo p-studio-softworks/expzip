@@ -83,45 +83,77 @@ internal sealed class FileHashes
         });
     }
 
+    /// <summary>ハッシュ値の文字数。CRC32 / MD5 / SHA-1 / SHA-256。</summary>
+    private static readonly int[] HashLengths = [8, 32, 40, 64];
+
     /// <summary>
-    /// 貼り付けられた値を、照らし合わせられる形に整える。整えられなければ <see langword="null"/>。
+    /// 貼り付けられた値から、照らし合わせる候補を取り出す。16 進の並びが無ければ <see langword="null"/>。
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 配布元の値は <c>sha256sum</c> の出力 (<c>値 *名前</c>) のまま写されることが多い。
-    /// 先頭の 16 進の並びだけを使う。<c>certutil</c> は 2 文字ずつ空白で区切るので、
-    /// 空白で区切られた 16 進の並びは繋げる。大文字と小文字は区別しない。
+    /// <c>certutil</c> は 2 文字ずつ空白で区切るので、空白で区切られた 16 進の並びは繋げる。
+    /// 大文字と小文字は区別しない。
+    /// </para>
+    /// <para>
+    /// 繋げるだけだと、値の隣に 16 進の文字だけでできた単語 (<c>BAD</c> <c>cafe</c> <c>a1</c> など) があると
+    /// 一緒に繋がって合わなくなる (#264)。そのため、次のものも候補にする。
+    /// </para>
+    /// <list type="bullet">
+    /// <item>1 つの区切りだけでハッシュ値の長さになるもの</item>
+    /// <item>2 文字の区切りが続いている並びを繋げたもの (<c>certutil</c> の形)</item>
+    /// </list>
     /// </remarks>
-    public static string? Normalize(string text)
+    public static IReadOnlyList<string>? Normalize(string text)
     {
-        var digits = new System.Text.StringBuilder();
+        var tokens = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static token => token.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? token[2..] : token)
+            .Select(static part => part.Length > 0 && part.All(Uri.IsHexDigit) ? part.ToLowerInvariant() : null)
+            .ToList();
 
-        foreach (var token in text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        var candidates = new List<string>();
+
+        void Add(string value)
         {
-            var part = token.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? token[2..] : token;
-
-            if (part.Length == 0 || !part.All(Uri.IsHexDigit))
+            if (value.Length > 0 && !candidates.Contains(value))
             {
-                // 値の後ろに名前が続く形。値はもう取れている
-                if (digits.Length > 0)
-                {
-                    break;
-                }
+                candidates.Add(value);
+            }
+        }
 
+        // 最初の 16 進の並びを繋げたもの。値の後ろに名前が続く形では、名前の手前で止まる
+        Add(string.Concat(tokens.SkipWhile(static t => t is null).TakeWhile(static t => t is not null)));
+
+        foreach (var token in tokens)
+        {
+            if (token is not null && HashLengths.Contains(token.Length))
+            {
+                Add(token);
+            }
+        }
+
+        var pairs = new System.Text.StringBuilder();
+        foreach (var token in tokens.Append(null))
+        {
+            if (token is { Length: 2 })
+            {
+                pairs.Append(token);
                 continue;
             }
 
-            digits.Append(part);
+            Add(pairs.ToString());
+            pairs.Clear();
         }
 
-        return digits.Length == 0 ? null : digits.ToString().ToLowerInvariant();
+        return candidates.Count == 0 ? null : candidates;
     }
 
-    /// <summary>整えた値と一致する種類。無ければ <see langword="null"/>。</summary>
-    public HashKind? Match(string normalized)
+    /// <summary>候補のどれかと一致する種類。無ければ <see langword="null"/>。</summary>
+    public HashKind? Match(IReadOnlyList<string> candidates)
     {
         foreach (var kind in Kinds)
         {
-            if (string.Equals(Values[kind], normalized, StringComparison.OrdinalIgnoreCase))
+            if (candidates.Any(c => string.Equals(Values[kind], c, StringComparison.OrdinalIgnoreCase)))
             {
                 return kind;
             }

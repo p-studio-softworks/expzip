@@ -18,9 +18,8 @@ namespace Expzip.Ui;
 /// 閉じれば中断する。
 /// </para>
 /// <para>
-/// 閉じるまで本体を触れないようにしてある (ShowDialog)。計算しているファイルは本体が
-/// 取り出した一時ファイルか書庫そのもので、計算の途中で書庫を書き換えられると、
-/// どちらの中身の値なのか分からなくなるため。
+/// 閉じるまで本体を触れないようにしてある (ShowDialog)。計算しているのは書庫の中身か
+/// 書庫そのもので、計算の途中で書庫を書き換えられると、どちらの中身の値なのか分からなくなるため。
 /// </para>
 /// </remarks>
 // WPF が作る相方の宣言に合わせて public にしてある。受け渡す型は internal のままにしたいので、
@@ -29,6 +28,7 @@ public partial class HashWindow : Window
 {
     private readonly string _title;
     private readonly IReadOnlyList<HashTarget> _targets;
+    private readonly HashSource _source;
     private readonly ObservableCollection<HashRow> _rows = [];
     private readonly List<(HashTarget Target, FileHashes Hashes)> _done = [];
     private readonly CancellationTokenSource _cancellation = new();
@@ -37,14 +37,16 @@ public partial class HashWindow : Window
 
     /// <param name="owner">本体のウィンドウ。</param>
     /// <param name="title">タイトルに出す名前。書庫の名前。</param>
-    /// <param name="targets">計算するファイル。</param>
-    internal HashWindow(Window owner, string title, IReadOnlyList<HashTarget> targets)
+    /// <param name="targets">計算するファイル。数と大きさを進み具合に使う。</param>
+    /// <param name="source">計算するファイルの中身を渡すもの。</param>
+    internal HashWindow(Window owner, string title, IReadOnlyList<HashTarget> targets, HashSource source)
     {
         InitializeComponent();
 
         Owner = owner;
         _title = title;
         _targets = targets;
+        _source = source;
 
         HashList.ItemsSource = _rows;
         HashList.CommandBindings.Add(new CommandBinding(ApplicationCommands.Copy, (_, _) => CopySelection()));
@@ -71,52 +73,76 @@ public partial class HashWindow : Window
     }
 
     /// <summary>1 個ずつ読んで計算し、できたものから一覧に足す。</summary>
+    /// <remarks>
+    /// 読むのは裏で、書庫の読み方に任せて順に進める (#265)。結果は 1 個ずつ画面へ渡す。
+    /// </remarks>
     private async Task ComputeAsync()
     {
         _running = true;
 
-        var total = Math.Max(1, _targets.Sum(static t => LengthOf(t.Path)));
+        var total = Math.Max(1, _targets.Sum(static t => Math.Max(0, t.Length)));
         long read = 0;
         var token = _cancellation.Token;
 
         // 読んだ量は計算の側から届く。画面へは Progress で渡す
-        var progress = new Progress<long>(bytes =>
+        IProgress<long> progress = new Progress<long>(bytes =>
         {
             read += bytes;
             ComputeProgress.Value = Math.Min(1, (double)read / total);
         });
 
-        try
-        {
-            for (var i = 0; i < _targets.Count; i++)
+        IProgress<int> started = new Progress<int>(
+            done => Headline.Text = Strings.HashComputing(done, _targets.Count));
+
+        IProgress<(HashTarget Target, FileHashes? Hashes, string? Failure)> finished =
+            new Progress<(HashTarget Target, FileHashes? Hashes, string? Failure)>(result =>
             {
-                Headline.Text = Strings.HashComputing(i, _targets.Count);
-
-                var target = _targets[i];
-                IProgress<long> report = progress;
-
-                try
+                if (result.Hashes is { } hashes)
                 {
-                    var hashes = await Task.Run(() =>
-                    {
-                        using var stream = new FileStream(
-                            target.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        return FileHashes.Compute(stream, report.Report, token);
-                    }, token);
-
-                    _done.Add((target, hashes));
+                    _done.Add((result.Target, hashes));
 
                     foreach (var kind in FileHashes.Kinds)
                     {
-                        _rows.Add(new HashRow(target.Name, Strings.HashKindName(kind), hashes.Values[kind]));
+                        _rows.Add(new HashRow(result.Target.Name, Strings.HashKindName(kind), hashes.Values[kind]));
                     }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                else
                 {
-                    _rows.Add(new HashRow(target.Name, "-", Strings.HashReadFailed(Strings.Reason(ex))));
+                    _rows.Add(new HashRow(result.Target.Name, "-", Strings.HashReadFailed(result.Failure!)));
                 }
 
                 UpdateMatch();
+            });
+
+        try
+        {
+            started.Report(0);
+            var count = 0;
+
+            try
+            {
+                await Task.Run(() => _source((target, open) =>
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    try
+                    {
+                        using var stream = open();
+                        finished.Report((target, FileHashes.Compute(stream, progress.Report, token), null));
+                    }
+                    catch (Exception ex) when (IsReadFailure(ex))
+                    {
+                        // 1 個読めなくても、ほかは計算する
+                        finished.Report((target, null, Strings.Reason(ex)));
+                    }
+
+                    started.Report(++count);
+                }, token), token);
+            }
+            catch (Exception ex) when (IsReadFailure(ex))
+            {
+                // 書庫そのものが途中から読めない (7z の塊の復号に失敗したなど)。どのファイルとは言えない
+                finished.Report((new HashTarget(_title, 0), null, Strings.Reason(ex)));
             }
 
             Headline.Text = Strings.HashDone(_targets.Count);
@@ -142,17 +168,11 @@ public partial class HashWindow : Window
         }
     }
 
-    private static long LengthOf(string path)
-    {
-        try
-        {
-            return new FileInfo(path).Length;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return 0;
-        }
-    }
+    /// <summary>読めなかったことによる失敗か。読み方ごとに投げる例外が違う。</summary>
+    private static bool IsReadFailure(Exception ex)
+        => ArchiveContentReader.IsReadFailure(ex) || ex is UnauthorizedAccessException
+            or ICSharpCode.SharpZipLib.SharpZipBaseException or SharpCompress.Common.SharpCompressException
+            or OutOfMemoryException;
 
     private void CompareBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateMatch();
 
@@ -256,8 +276,18 @@ public partial class HashWindow : Window
 
 /// <summary>ハッシュ値を計算するファイル (#259)。</summary>
 /// <param name="Name">一覧に出す名前。書庫の中のパス、または書庫の名前。</param>
-/// <param name="Path">読むファイル。</param>
-internal sealed record HashTarget(string Name, string Path);
+/// <param name="Length">大きさ。進み具合に使う。分からなければ 0。</param>
+internal sealed record HashTarget(string Name, long Length);
+
+/// <summary>
+/// 計算するファイルの中身を、1 個ずつ渡す (#265)。渡す順は読み方に任せる (7z は書庫の順にしか読めない)。
+/// </summary>
+/// <param name="visit">
+/// 1 個ごとに呼ぶ。2 番目は中身を読む流れを開く。流れは呼び出しの中で閉じる。
+/// 読めないものは、開くと例外を投げる流れで渡す。
+/// </param>
+/// <param name="cancellationToken">中断用。</param>
+internal delegate void HashSource(Action<HashTarget, Func<Stream>> visit, CancellationToken cancellationToken);
 
 /// <summary>ハッシュ値の一覧に出す 1 行 (#259)。</summary>
 internal sealed class HashRow(string name, string kind, string value)

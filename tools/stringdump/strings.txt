@@ -922,14 +922,6 @@ HashDone (count: 3)
   ja  3 個のファイルのハッシュ値を計算しました
   en  Calculated hashes for 3 file(s)
 
-HashExtractFailed (archive: 見本, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
-  ja  ⟦見本⟧ から取り出せないものがあったため、ハッシュ値を計算できませんでした。
-      | 
-      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
-  en  Some items could not be extracted from ⟦見本⟧, so their hashes could not be calculated.
-      | 
-      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
-
 HashKindName (kind: Crc32)
   ja  CRC32
   en  CRC32

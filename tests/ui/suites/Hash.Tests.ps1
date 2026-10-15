@@ -69,6 +69,15 @@ if ($window) {
     $result = (ById $window 'CompareResult').Current.Name
     Check '空白で区切った値も読む' ($result -eq '一致しました: abc.txt の SHA-1') $result
 
+    # 値の隣に 16 進の文字だけでできた単語があっても読む (#264)
+    Set-Text $box ('BAD ' + $abc['SHA-256'])
+    $result = (ById $window 'CompareResult').Current.Name
+    Check '前に 16 進だけの単語があっても読む' ($result -eq '一致しました: abc.txt の SHA-256') $result
+
+    Set-Text $box ($abc['SHA-256'] + ' be')
+    $result = (ById $window 'CompareResult').Current.Name
+    Check '後ろに 16 進だけの単語があっても読む' ($result -eq '一致しました: abc.txt の SHA-256') $result
+
     Set-Text $box '0000000000000000000000000000000000000000000000000000000000000000'
     $result = (ById $window 'CompareResult').Current.Name
     Check '違う値は一致しない' ($result -eq '一致するものはありません') $result
@@ -85,6 +94,10 @@ Section 'フォルダーを選ぶと中のファイルすべて'
 $window = Open-HashWindow $app 'docs' 'ハッシュ値を計算'
 Check '窓が開く' ($null -ne $window)
 if ($window) {
+    # 取り出さずに、中身を読みながら計算する (#265)
+    $made = @(Get-ChildItem (Join-Path $env:TEMP 'Expzip') -Recurse -Directory -Filter '*-hash' -ErrorAction SilentlyContinue)
+    Check '一時ファイルの置き場を使わない' ($made.Count -eq 0) (($made | ForEach-Object { $_.FullName }) -join ', ')
+
     $rows = Get-HashRows $window
     Check '2 個 × 4 種類' ($rows.Count -eq 8) ($rows -join ' / ')
     Check '書庫の中のパスで出る' (@($rows | Where-Object { $_ -like 'docs/one.txt、*' }).Count -eq 4) ($rows -join ' / ')
@@ -101,7 +114,7 @@ if ($window) {
     Push (ById $window 'CloseButton')
 }
 
-Section '取り出したものを残さない'
+Section '一時ファイルの置き場に何も残さない'
 $left = @(Get-ChildItem (Join-Path $env:TEMP 'Expzip') -Recurse -Directory -Filter '*-hash' -ErrorAction SilentlyContinue)
 Check '一時フォルダーが消えている' ($left.Count -eq 0) (($left | ForEach-Object { $_.FullName }) -join ', ')
 

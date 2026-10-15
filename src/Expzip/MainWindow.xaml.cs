@@ -2701,8 +2701,7 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ ハッシュ値 (#259)
 
-    private async void HashMenuItem_Click(object sender, RoutedEventArgs e)
-        => await ShowSelectionHashesAsync();
+    private void HashMenuItem_Click(object sender, RoutedEventArgs e) => ShowSelectionHashes();
 
     private void ArchiveHashMenuItem_Click(object sender, RoutedEventArgs e)
     {
@@ -2712,18 +2711,23 @@ public partial class MainWindow : Window
         }
 
         // 書庫ファイルそのもの。ダウンロードした書庫を、配布元の値と照らし合わせる用途
-        var name = Path.GetFileName(Contents.FilePath);
-        new HashWindow(this, name, [new HashTarget(name, Contents.FilePath)]).ShowDialog();
+        var path = Contents.FilePath;
+        var name = Path.GetFileName(path);
+        var target = new HashTarget(name, FileStamp.Read(path).Length);
+
+        new HashWindow(this, name, [target], (visit, _) =>
+            visit(target, () => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))).ShowDialog();
     }
 
     /// <summary>
     /// 選んだファイルのハッシュ値を出す (#259)。フォルダーを選んだら中のファイルすべて。
     /// </summary>
     /// <remarks>
-    /// 一時ファイルの置き場に取り出してから計算する。形式ごとの読み方とパスワードの扱いを、
-    /// 展開と同じ道筋に任せられる。取り出したものはウィンドウを閉じたら消す。
+    /// <b>取り出さずに、中身を読みながら計算する</b> (#265)。読み方は書庫検査と同じ
+    /// (<see cref="ArchiveContentReader"/>)。一時ファイルの置き場に取り出していたときは、
+    /// 取り出すと何十 GB にもなる書庫 (ZIP 爆弾) で一時フォルダーのドライブがあふれた。
     /// </remarks>
-    private async Task ShowSelectionHashesAsync()
+    private void ShowSelectionHashes()
     {
         if (Contents is null || _cancellation is not null)
         {
@@ -2753,46 +2757,28 @@ public partial class MainWindow : Window
             return;
         }
 
-        var workspace = EnsureWorkspace();
-        if (workspace is null)
+        if (!TryGetPassword(out var password))
         {
             return;
         }
 
-        var archiveName = Path.GetFileName(Contents.FilePath);
+        var contents = Contents;
+        var archivePath = contents.FilePath;
+        var targets = entries.Select(static entry => new HashTarget(entry.FullPath, entry.Length)).ToList();
+        var wanted = targets.Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
 
-        string directory;
-        try
-        {
-            directory = workspace.CreateScratchDirectory("hash");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            ReportTempFailure(ex);
-            return;
-        }
-
-        try
-        {
-            if (await ExtractSelectionAsync(rows, directory, zone: null, Strings.HashExtractFailed) is null)
+        new HashWindow(this, Path.GetFileName(archivePath), targets, (visit, token) =>
+            ArchiveContentReader.Visit(archivePath, contents, password, item =>
             {
-                return;
-            }
+                if (!wanted.Contains(item.Name))
+                {
+                    return;
+                }
 
-            ShowIdleStatus();
-
-            var targets = entries
-                .Select(entry => (Entry: entry, Relative: ArchivePath.ToSafeRelativePath(entry.FullPath)))
-                .Where(static t => t.Relative is not null)
-                .Select(t => new HashTarget(t.Entry.FullPath, Path.Combine(directory, t.Relative!)))
-                .ToList();
-
-            new HashWindow(this, archiveName, targets).ShowDialog();
-        }
-        finally
-        {
-            TempWorkspace.TryDeleteTree(directory);
-        }
+                visit(new HashTarget(item.Name, item.Size), item.Locked
+                    ? static () => throw new IOException(Strings.MarkEncrypted)
+                    : item.Open);
+            }, token)).ShowDialog();
     }
 
     private static void AddEntriesRecursively(ArchiveFolder folder, List<ArchiveEntry> entries)

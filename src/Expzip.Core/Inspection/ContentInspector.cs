@@ -4,9 +4,6 @@ using Expzip.Archives;
 using Expzip.Localization;
 using ICSharpCode.SharpZipLib.Checksum;
 using ICSharpCode.SharpZipLib.Zip;
-using SharpCompress.Archives;
-using SharpCompress.Common;
-using SharpCompress.Readers;
 
 // 標準ライブラリにも同じ名前の型があるため、こちら側の名前をはっきりさせる
 using SharpZipFile = ICSharpCode.SharpZipLib.Zip.ZipFile;
@@ -104,38 +101,38 @@ internal static class ContentInspector
         if (ArchiveFormats.IsZipBased(context.Contents.Format))
         {
             InspectZip(context, pass);
+            return;
         }
-        else if (context.Contents.Format == ArchiveFormat.Pe)
+
+        // ZIP のほかは、形式ごとの読み方をハッシュ値 (#265) と共通にしてある。書庫の順に 1 本で読む
+        try
         {
-            InspectPe(context, pass);
+            ArchiveContentReader.Visit(context.ArchivePath, context.Contents, context.Password, item =>
+            {
+                var name = item.Name;
+                var order = pass.Entry(context, name);
+
+                // パスワードが分からない項目は中身を見られない。
+                // 黙って飛ばさず、調べられなかったことを報告する (#56)
+                if (item.Locked)
+                {
+                    context.Findings.Add(InspectionIssue.EncryptedNotChecked, name, null, order);
+                    pass.Bytes(context, Math.Max(0, item.Size), name);
+                    return;
+                }
+
+                Read(context, pass, order, name, item.Size, item.ExpectedCrc, item.Open);
+            }, context.Cancellation);
         }
-        else if (context.Contents.Format == ArchiveFormat.Nsis)
+        catch (OperationCanceledException)
         {
-            InspectNsis(context, pass);
+            throw;
         }
-        else if (context.Contents.Format is ArchiveFormat.Cab or ArchiveFormat.CabExe)
+        catch (Exception ex) when (ArchiveContentReader.IsReadFailure(ex) || ex is OutOfMemoryException)
         {
-            InspectCab(context, pass);
-        }
-        else if (context.Contents.Format == ArchiveFormat.Msi)
-        {
-            InspectMsi(context, pass);
-        }
-        else if (context.Contents.Format == ArchiveFormat.Burn)
-        {
-            InspectBurn(context, pass);
-        }
-        else if (context.Contents.Format == ArchiveFormat.MsiExe)
-        {
-            InspectMsiExe(context, pass);
-        }
-        else if (ArchiveFormats.IsCompressedFile(context.Contents.Format))
-        {
-            InspectCompressed(context, pass);
-        }
-        else
-        {
-            InspectSharp(context, pass);
+            // 塊の復号に失敗すると、取り出しの手前で例外になる。
+            // どのエントリとは言えないため、書庫そのものの問題として報告する
+            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
         }
     }
 
@@ -267,12 +264,7 @@ internal static class ContentInspector
 
     /// <summary>検査のために ZIP を開く。</summary>
     private static SharpZipFile OpenZip(InspectionContext context)
-        // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
-        => new(ZipPrefix.Open(context.ArchivePath), leaveOpen: false)
-        {
-            Password = context.Password,
-            StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
-        };
+        => ArchiveContentReader.OpenZip(context.ArchivePath, context.Password);
 
     private static void InspectZipEntry(
         InspectionContext context, Pass pass, SharpZipFile zip, ZipEntry entry, int order,
@@ -302,247 +294,6 @@ internal static class ContentInspector
         // 「検査できなかった」ではなく本当の判定を出せる (#66、#67)
         Read(context, pass, order, name, size, ZipEncryption.ExpectedCrc(entry),
             () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)));
-    }
-
-    /// <summary>exe / dll の区画と部品を 1 つずつ読む (#183)。CRC は持たない。</summary>
-    private static void InspectPe(InspectionContext context, Pass pass)
-    {
-        try
-        {
-            var items = PeReader.ReadLayout(context.ArchivePath, context.Cancellation);
-            using var source = ArchiveFile.OpenRead(context.ArchivePath);
-
-            foreach (var item in items)
-            {
-                if (context.Stopped)
-                {
-                    return;
-                }
-
-                var name = ArchiveTreeBuilder.Trim(item.Path);
-                var order = pass.Entry(context, name);
-                Read(context, pass, order, name, item.Length, -1, () => item.Open(source));
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (IsReadFailure(ex))
-        {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
-        }
-    }
-
-    /// <summary>NSIS インストーラーの中身を 1 つずつ読む (#68)。CRC は持たない。</summary>
-    /// <remarks>
-    /// 取り出しと同じ道筋で読む。以前は tar の読み方に回っていて、壊れていない
-    /// インストーラーでも「中身を読み出せませんでした」と出し、中身を検査していなかった。
-    /// </remarks>
-    private static void InspectNsis(InspectionContext context, Pass pass)
-    {
-        try
-        {
-            var layout = NsisReader.ReadLayout(context.ArchivePath, context.Cancellation);
-
-            NsisExtractor.Visit(context.ArchivePath, layout, layout.Files, (file, size, open) =>
-            {
-                var name = ArchiveTreeBuilder.Trim(NsisReader.ToArchivePath(file.Name));
-                var order = pass.Entry(context, name);
-                Read(context, pass, order, name, size, -1, open);
-            }, context.Cancellation);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (IsReadFailure(ex))
-        {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
-        }
-    }
-
-    /// <summary>単体の圧縮ファイル (#256) の中身を読む。</summary>
-    /// <remarks>
-    /// 照らし合わせる CRC はこちらでは持たない。検査値を持つ形式は伸長の部品が自分で確かめ、
-    /// 合わなければ読み取りが失敗する。
-    /// </remarks>
-    private static void InspectCompressed(InspectionContext context, Pass pass)
-    {
-        if (context.Contents.Root.Files.FirstOrDefault() is not { } entry)
-        {
-            return;
-        }
-
-        var order = pass.Entry(context, entry.FullPath);
-        Read(context, pass, order, entry.FullPath, entry.Length, -1,
-            () => CompressedFile.OpenContent(context.ArchivePath, context.Contents.Format));
-    }
-
-    /// <summary>CAB と、CAB が入った exe の中身を 1 つずつ読む (#182)。</summary>
-    /// <remarks>
-    /// CAB は塊ごとに照合の値を持っていて、cabinet.dll が展開しながら確かめる。
-    /// 合わなければ読み取りが失敗し、書庫そのものの問題として報告する。
-    /// </remarks>
-    private static void InspectCab(InspectionContext context, Pass pass)
-    {
-        try
-        {
-            CabReader.Visit(context.ArchivePath, null, (entry, open) =>
-            {
-                var name = ArchiveTreeBuilder.Trim(entry.Name);
-                var order = pass.Entry(context, name);
-                Read(context, pass, order, name, entry.Length, -1, open);
-            }, context.Cancellation, context.Contents.Format);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (IsReadFailure(ex) || ex is OutOfMemoryException)
-        {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
-        }
-    }
-
-    /// <summary>MSI の中身を 1 つずつ読む (#182)。取り出しと同じ道筋で、CAB から読む。</summary>
-    private static void InspectMsi(InspectionContext context, Pass pass)
-    {
-        try
-        {
-            MsiReader.Visit(context.ArchivePath, null, (file, _, open) =>
-            {
-                var name = ArchiveTreeBuilder.Trim(file.Path);
-                var order = pass.Entry(context, name);
-                Read(context, pass, order, name, file.Length, -1, open);
-            }, context.Cancellation);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (IsReadFailure(ex) || ex is OutOfMemoryException)
-        {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
-        }
-    }
-
-    /// <summary>WiX Burn でまとめた exe の中身を 1 つずつ読む (#182)。入れ物の CAB から読む。</summary>
-    private static void InspectBurn(InspectionContext context, Pass pass)
-    {
-        try
-        {
-            BurnReader.Visit(context.ArchivePath, null, (payload, _, open) =>
-            {
-                var name = ArchiveTreeBuilder.Trim(payload.Path);
-                var order = pass.Entry(context, name);
-                Read(context, pass, order, name, payload.Length, -1, open);
-            }, context.Cancellation);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (IsReadFailure(ex) || ex is OutOfMemoryException)
-        {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
-        }
-    }
-
-    /// <summary>MSI が入った exe の、中の MSI を 1 つずつ読む (#182)。CRC は持たない。</summary>
-    /// <remarks>中の MSI の中身までは見ない。書庫の中の書庫と同じく、開いた先で検査する。</remarks>
-    private static void InspectMsiExe(InspectionContext context, Pass pass)
-    {
-        try
-        {
-            var items = MsiExeReader.Find(context.ArchivePath, cancellationToken: context.Cancellation);
-            using var source = ArchiveFile.OpenRead(context.ArchivePath);
-
-            foreach (var item in items)
-            {
-                if (context.Stopped)
-                {
-                    return;
-                }
-
-                var order = pass.Entry(context, item.Name);
-                Read(context, pass, order, item.Name, item.Length, -1, () => MsiExeReader.Slice(source, item));
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (IsReadFailure(ex))
-        {
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
-        }
-    }
-
-    private static void InspectSharp(InspectionContext context, Pass pass)
-    {
-        IArchive? archive = null;
-        Stream? file = null;
-        IReader? reader = null;
-
-        try
-        {
-            if (context.Contents.Format == ArchiveFormat.SevenZip)
-            {
-                archive = SharpArchiveAccess.OpenSevenZip(context.ArchivePath, context.Password);
-                reader = archive.ExtractAllEntries();
-            }
-            else
-            {
-                file = ArchiveFile.OpenRead(context.ArchivePath);
-                reader = SharpArchiveAccess.OpenTarReader(file);
-            }
-
-            while (reader.MoveToNextEntry())
-            {
-                if (context.Stopped)
-                {
-                    return;
-                }
-
-                var entry = reader.Entry;
-                if (entry.IsDirectory || entry.Key is not { } key)
-                {
-                    continue;
-                }
-
-                var name = ArchiveTreeBuilder.Trim(key);
-                var size = Math.Max(0, entry.Size);
-                var order = pass.Entry(context, name);
-
-                if (entry.IsEncrypted && context.Password is null)
-                {
-                    context.Findings.Add(InspectionIssue.EncryptedNotChecked, name, null, order);
-                    pass.Bytes(context, size, name);
-                    continue;
-                }
-
-                // tar はCRCを持たない。7z は持つ (0 は「無い」の意味で使われる)
-                Read(context, pass, order, name, size, entry.Crc == 0 ? -1 : entry.Crc,
-                    reader.OpenEntryStream);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex) when (IsReadFailure(ex))
-        {
-            // 塊の復号に失敗すると、取り出しの手前で例外になる。
-            // どのエントリとは言えないため、書庫そのものの問題として報告する
-            context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
-        }
-        finally
-        {
-            reader?.Dispose();
-            archive?.Dispose();
-            file?.Dispose();
-        }
     }
 
     /// <summary>
@@ -676,11 +427,7 @@ internal static class ContentInspector
     /// <summary>大きさを MB で表した文字。上限を超えたことを伝えるのに使う。</summary>
     private static string Megabytes(long bytes) => $"{bytes / (1024.0 * 1024.0):N0} MB";
 
-    private static bool IsReadFailure(Exception ex)
-        => ex is System.Security.Cryptography.CryptographicException
-            or SharpCompress.Common.CryptographicException
-            or InvalidFormatException or ArchiveOperationException
-            or IOException or InvalidDataException or NotSupportedException;
+    private static bool IsReadFailure(Exception ex) => ArchiveContentReader.IsReadFailure(ex);
 
     /// <summary>読み通しの途中経過。</summary>
     /// <param name="totalBytes">書庫に入っている中身の合計 (展開後)。</param>

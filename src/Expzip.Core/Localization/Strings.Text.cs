@@ -2224,10 +2224,6 @@ internal static partial class Strings
         $"読めませんでした: {reason}",
         $"Could not read: {reason}");
 
-    public static string HashExtractFailed(string archive, string reason) => Pick(
-        $"{archive} から取り出せないものがあったため、ハッシュ値を計算できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
-        $"Some items could not be extracted from {archive}, so their hashes could not be calculated.{Environment.NewLine}{Environment.NewLine}{reason}");
-
     public static string HashCompareLabel => Pick("照らし合わせる値:", "Value to compare:");
 
     public static string HashCompareTooltip => Pick(
