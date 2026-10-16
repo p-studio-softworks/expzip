@@ -2021,9 +2021,15 @@ internal static partial class Strings
             "中身が壊れています。書庫に記録された CRC と一致しません",
             "The contents are damaged: they do not match the checksum recorded in the archive"),
 
+        // 補足には HeaderMismatchKind の名前が入る。分からないときは括弧ごと出さない。
+        // 照合に使う SharpZipLib の英語の文は出さない (#268)
+        InspectionIssue.HeaderMismatch when Enum.TryParse<HeaderMismatchKind>(detail, out var kind) => Pick(
+            $"書庫の索引と項目のヘッダーが一致しません{Paren(HeaderMismatchReason(kind))}",
+            $"The archive index and the entry header disagree{Paren(HeaderMismatchReason(kind))}"),
+
         InspectionIssue.HeaderMismatch => Pick(
-            $"書庫の索引と項目のヘッダーが一致しません{Paren(detail)}",
-            $"The archive index and the entry header disagree{Paren(detail)}"),
+            "書庫の索引と項目のヘッダーが一致しません",
+            "The archive index and the entry header disagree"),
 
         InspectionIssue.Truncated => Pick(
             "書庫が途中で切れています",
@@ -2048,6 +2054,10 @@ internal static partial class Strings
         InspectionIssue.EncryptedNotChecked => Pick(
             "パスワードが不明なため、中身を検査できませんでした",
             "The contents could not be checked: the password is not known"),
+
+        InspectionIssue.FolderAttribute => Pick(
+            "フォルダーの印が付いたファイルです。ソフトによってはフォルダーとして扱われ、中身が取り出されません",
+            "This file is marked as a folder. Some programs treat it as one and leave its contents out"),
 
         InspectionIssue.EscapingPath => Pick(
             $"展開先の外に書き込もうとするパスです{Paren(detail)}",
@@ -2104,6 +2114,22 @@ internal static partial class Strings
             $"サイズが大きすぎるため、マルウェアの検査を行えませんでした{Paren(detail)}",
             $"Too large to hand over in one piece, so the malware check was skipped{Paren(detail)}"),
 
+        _ => string.Empty,
+    };
+
+    /// <summary>
+    /// 索引とヘッダーの何が違うか (#268)。「一致しません」の括弧の中に入れる。
+    /// </summary>
+    public static string HeaderMismatchReason(HeaderMismatchKind kind) => kind switch
+    {
+        HeaderMismatchKind.Missing => Pick("項目のヘッダーが見つかりません", "the entry header is missing"),
+        HeaderMismatchKind.Name => Pick("名前が異なります", "the names differ"),
+        HeaderMismatchKind.Size => Pick("サイズが異なります", "the sizes differ"),
+        HeaderMismatchKind.Crc => Pick("CRC が異なります", "the checksums differ"),
+        HeaderMismatchKind.Method => Pick("圧縮方式が異なります", "the compression methods differ"),
+        HeaderMismatchKind.Flags => Pick("暗号化などの設定が異なります", "settings such as encryption differ"),
+        HeaderMismatchKind.Invalid => Pick("ヘッダーの値が規格に合いません", "the header holds values the format does not allow"),
+        HeaderMismatchKind.FolderWithData => Pick("フォルダーなのに中身があります", "a folder that holds data"),
         _ => string.Empty,
     };
 

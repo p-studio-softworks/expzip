@@ -960,6 +960,31 @@ HashTitle (name: 報告書.pdf)
   ja  ハッシュ値 - ⟦報告書.pdf⟧
   en  Hashes - ⟦報告書.pdf⟧
 
+HeaderMismatchReason (kind: Missing)
+  ja  項目のヘッダーが見つかりません
+  en  the entry header is missing
+HeaderMismatchReason (kind: Name)
+  ja  名前が異なります
+  en  the names differ
+HeaderMismatchReason (kind: Size)
+  ja  サイズが異なります
+  en  the sizes differ
+HeaderMismatchReason (kind: Crc)
+  ja  CRC が異なります
+  en  the checksums differ
+HeaderMismatchReason (kind: Method)
+  ja  圧縮方式が異なります
+  en  the compression methods differ
+HeaderMismatchReason (kind: Flags)
+  ja  暗号化などの設定が異なります
+  en  settings such as encryption differ
+HeaderMismatchReason (kind: Invalid)
+  ja  ヘッダーの値が規格に合いません
+  en  the header holds values the format does not allow
+HeaderMismatchReason (kind: FolderWithData)
+  ja  フォルダーなのに中身があります
+  en  a folder that holds data
+
 Inspect
   ja  検査
   en  Inspect
@@ -1073,8 +1098,8 @@ InspectionMessage (issue: CrcMismatch, detail: 画像/2024/写真.jpg)
   ja  中身が壊れています。書庫に記録された CRC と一致しません
   en  The contents are damaged: they do not match the checksum recorded in the archive
 InspectionMessage (issue: HeaderMismatch, detail: 画像/2024/写真.jpg)
-  ja  書庫の索引と項目のヘッダーが一致しません (⟦画像/2024/写真.jpg⟧)
-  en  The archive index and the entry header disagree (⟦画像/2024/写真.jpg⟧)
+  ja  書庫の索引と項目のヘッダーが一致しません
+  en  The archive index and the entry header disagree
 InspectionMessage (issue: Truncated, detail: 画像/2024/写真.jpg)
   ja  書庫が途中で切れています
   en  The archive is cut short: it ends before the point its own index refers to
@@ -1093,6 +1118,9 @@ InspectionMessage (issue: Unreadable, detail: 画像/2024/写真.jpg)
 InspectionMessage (issue: EncryptedNotChecked, detail: 画像/2024/写真.jpg)
   ja  パスワードが不明なため、中身を検査できませんでした
   en  The contents could not be checked: the password is not known
+InspectionMessage (issue: FolderAttribute, detail: 画像/2024/写真.jpg)
+  ja  フォルダーの印が付いたファイルです。ソフトによってはフォルダーとして扱われ、中身が取り出されません
+  en  This file is marked as a folder. Some programs treat it as one and leave its contents out
 InspectionMessage (issue: EscapingPath, detail: 画像/2024/写真.jpg)
   ja  展開先の外に書き込もうとするパスです (⟦画像/2024/写真.jpg⟧)
   en  This path would write outside the folder you extract into (⟦画像/2024/写真.jpg⟧)

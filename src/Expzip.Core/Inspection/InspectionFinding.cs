@@ -35,6 +35,12 @@ internal enum InspectionIssue
     /// <summary>パスワードが分からないため、中身を調べられなかった。</summary>
     EncryptedNotChecked,
 
+    /// <summary>
+    /// 名前はファイルなのに、外部属性にフォルダーの印 (0x10) が付いていて中身もある (#268)。
+    /// Expzip はファイルとして扱うが、属性で判断するソフトでは中身が読み飛ばされる。
+    /// </summary>
+    FolderAttribute,
+
     // -------------------------------------------------------------- 安全性 (#55)
 
     /// <summary>展開すると展開先の外へ出るパス。</summary>

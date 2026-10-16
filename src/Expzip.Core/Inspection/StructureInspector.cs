@@ -126,13 +126,27 @@ internal static class StructureInspector
                 // 名前そのものが Windows で使えない項目も、ここでは食い違いとして
                 // 上がってくる。中身は同じことを安全性の検査 (#55) が拾うため、
                 // 二重に報告しない
-                if (message is not null && ZipNameTransform.IsValidName(name))
+                if (message is null || !ZipNameTransform.IsValidName(name))
                 {
-                    context.Findings.Add(
-                        InspectionIssue.HeaderMismatch, ArchiveTreeBuilder.Trim(shown), message);
+                    return;
                 }
+
+                var kind = HeaderMismatchReasons.Classify(message);
+
+                // 名前がファイルでも、属性がフォルダーなら SharpZipLib はフォルダーとして照合し、
+                // 中身があると食い違いと見なす。Expzip はファイルとして扱うので当てはまらない。
+                // 別の事柄として CheckFolderAttributes で出す (#268)
+                if (kind == HeaderMismatchKind.FolderWithData && !ZipEntryKind.IsFolder(name))
+                {
+                    return;
+                }
+
+                // SharpZipLib の英語の文は出さない。種類だけを渡す (#268)
+                context.Findings.Add(
+                    InspectionIssue.HeaderMismatch, ArchiveTreeBuilder.Trim(shown), kind?.ToString());
             });
 
+            CheckFolderAttributes(context, zip);
             CheckCompressionMethods(context, zip);
         }
         catch (OperationCanceledException)
@@ -143,6 +157,54 @@ internal static class StructureInspector
                                    or InvalidDataException or NotSupportedException)
         {
             context.Findings.Add(InspectionIssue.Unreadable, string.Empty, Strings.Reason(ex));
+        }
+    }
+
+    /// <summary>
+    /// 名前はファイルなのに、属性にフォルダーの印が付いたエントリを拾う (#268)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Expzip はファイルとして一覧に出し、展開も検査もする (#266)。ただ、属性で
+    /// フォルダーかを決めるソフトでは中身が読み飛ばされるので、中身があれば知らせる。
+    /// </para>
+    /// <para>
+    /// <c>TestArchive</c> はこのエントリをフォルダーとして照合し、「フォルダーなのに中身がある」で
+    /// 止まる。その後ろにある大きさの照合まで進まないので、ここで補う。<c>GetInputStream</c> は
+    /// 開くときに、フォルダーの照合を含まない形で項目のヘッダーを確かめ、大きさも比べる。
+    /// 中身は読まない。
+    /// </para>
+    /// </remarks>
+    private static void CheckFolderAttributes(InspectionContext context, SharpZipFile zip)
+    {
+        foreach (ZipEntry entry in zip)
+        {
+            if (!entry.IsDirectory || ZipEntryKind.IsFolder(entry) || !ZipNameTransform.IsValidName(entry.Name))
+            {
+                continue;
+            }
+
+            var shown = ArchiveTreeBuilder.Trim(ArchiveFormats.EntryName(context.Contents.Format, entry.Name));
+
+            if (entry.Size > 0)
+            {
+                context.Findings.Add(InspectionIssue.FolderAttribute, shown);
+            }
+
+            try
+            {
+                using var _ = zip.GetInputStream(entry);
+            }
+            catch (ZipException ex)
+            {
+                // パスワードが無い、方式に対応していないなど、ヘッダーと関係のない理由でも
+                // 開けないことがある。それは別の検査が扱うので、大きさの食い違いだけを拾う
+                if (HeaderMismatchReasons.Classify(ex.Message) == HeaderMismatchKind.Size)
+                {
+                    context.Findings.Add(
+                        InspectionIssue.HeaderMismatch, shown, nameof(HeaderMismatchKind.Size));
+                }
+            }
         }
     }
 

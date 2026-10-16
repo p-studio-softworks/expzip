@@ -121,6 +121,40 @@ Check '窓が開く' ($null -ne $window)
 if ($window) {
     $findings = Texts (ById $window 'FindingList')
     Check '中身まで読んで調べる' ($findings -match 'setup\.exe \| 中身が壊れています') $findings
+    # 属性で判断するソフトでは中身が取り出されないので知らせる。索引とヘッダーは
+    # 食い違っていないので、その指摘は出さない (#268)
+    Check 'フォルダーの印を知らせる' ($findings -match 'setup\.exe \| フォルダーの印が付いたファイルです') $findings
+    Check '食い違いとは言わない' (-not ($findings -match 'ヘッダーが一致しません')) $findings
+    Push (ById $window 'CloseButton')
+}
+Stop-Expzip $app
+
+Section '索引とヘッダーの食い違い'
+# 項目のヘッダーに書いた圧縮前のサイズだけを変える。括弧の中は日本語の理由で、
+# SharpZipLib の英語の文は出さない (#268)。属性がフォルダーのファイルでは
+# SharpZipLib の照合がサイズまで届かないので、それも補って見つける
+$sized = New-TestZip (Join-Path $script:Work 'kuichigai.zip') ([ordered]@{
+    'readme.txt' = 'readme'
+    'setup.exe'  = ('not really an exe ' * 20)
+}) @('readme.txt', 'setup.exe')
+$bytes = [System.IO.File]::ReadAllBytes($sized)
+for ($i = 0; $i -lt $bytes.Length - 30; $i++) {
+    if ([BitConverter]::ToUInt32($bytes, $i) -ne 0x04034b50) { continue }
+    $size = [BitConverter]::ToUInt32($bytes, $i + 22)
+    [BitConverter]::GetBytes([uint32]($size + 1)).CopyTo($bytes, $i + 22)
+}
+[System.IO.File]::WriteAllBytes($sized, $bytes)
+Set-DosDirectoryAttribute $sized 'setup.exe'
+
+$app = Start-Expzip @($sized)
+$window = Run-Inspection $app '検査結果 - kuichigai.zip'
+Check '窓が開く' ($null -ne $window)
+if ($window) {
+    $findings = Texts (ById $window 'FindingList')
+    $mismatch = '書庫の索引と項目のヘッダーが一致しません \(サイズが異なります\)'
+    Check '理由を日本語で出す' ($findings -match "readme\.txt \| $mismatch") $findings
+    Check '属性がフォルダーのファイルも照合する' ($findings -match "setup\.exe \| $mismatch") $findings
+    Check '英語の文を出さない' (-not ($findings -match 'Exception|mismatch')) $findings
     Push (ById $window 'CloseButton')
 }
 Stop-Expzip $app

@@ -89,10 +89,15 @@ Expzip は、展開する前に書庫を調べる機能を持つ。**21種類**�
 壊れた書庫、細工された書庫を見つける。
 
 `CrcMismatch` / `HeaderMismatch` / `Truncated` / `TrailingData` /
-`UnsupportedMethod` / `DuplicateName` / `Unreadable` / `EncryptedNotChecked`
+`UnsupportedMethod` / `DuplicateName` / `Unreadable` / `EncryptedNotChecked` /
+`FolderAttribute`
 
 `HeaderMismatch` は、中央ディレクトリとローカルヘッダの食い違いを見る。
 一覧に出る名前と実際に取り出される中身を別物にする細工に対応する。
+
+`FolderAttribute` は、名前はファイルなのに外部属性にフォルダーの印 (0x10) が付いた
+中身のあるエントリ (#268)。属性でフォルダーかを決めるツールでは中身が読み飛ばされるので、
+検査をすり抜ける細工に使える。Expzip 自身はファイルとして読んで調べる (#266)。
 
 ### 2.2. 安全性の検査 (#55)
 
