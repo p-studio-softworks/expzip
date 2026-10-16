@@ -86,6 +86,8 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 
 **Other**
 
+- Tries compressing and extracting on this PC and estimates how long compressing and extracting 1 GB / 10 GB / 100 GB of data takes.
+  It can also measure in a folder on an external disk or a NAS. The results can be copied as text, so you can compare them side by side with results from other PCs
 - The display language is Japanese or English. It can also follow the Windows display language
 - The About window shows the full license texts of the software included in Expzip
 

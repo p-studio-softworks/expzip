@@ -367,6 +367,13 @@
                 <!-- GiftboxOpen。渡した相手のところで開く箱 -->
                 <Button x:Name="SfxButton" Click="SfxButton_Click" IsEnabled="False"
                         Style="{StaticResource ToolGlyph}" Content="&#xF133;" />
+                <!--
+                    処理時間の見積もり (#269)。このパソコンで実際に試して測る。
+                    書庫を開いていなくても押せる
+                -->
+                <!-- SpeedHigh。速度計 -->
+                <Button x:Name="SpeedButton" Click="SpeedButton_Click"
+                        Style="{StaticResource ToolGlyph}" Content="&#xEC4A;" />
                 <Separator />
                 <!--
                     AI の機能 (#104)。歯車ひとつに言語といっしょに入れていたが、

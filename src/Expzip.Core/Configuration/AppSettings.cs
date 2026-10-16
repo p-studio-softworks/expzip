@@ -1,4 +1,5 @@
 ﻿using Expzip.Localization;
+using Expzip.Speed;
 
 namespace Expzip.Configuration;
 
@@ -65,4 +66,10 @@ internal sealed class AppSettings
     /// 別の PC や別の利用者では戻せない。読めなかったときは入れ直してもらう。
     /// </remarks>
     public string AiApiKeyProtected { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 前回、処理時間の見積もりのために測った結果 (#269)。測っていなければ null。
+    /// </summary>
+    /// <remarks>次に開いたときにも前の結果を見られるように残す。</remarks>
+    public SpeedResult? SpeedResult { get; set; }
 }

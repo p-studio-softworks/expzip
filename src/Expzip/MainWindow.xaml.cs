@@ -6195,6 +6195,9 @@ public partial class MainWindow : Window
         // 自己解凍書庫にできない書庫でも押せるようにしておく (#29)。
         // 理由は押したときに言う。押せない理由が画面から読み取れないため
         SfxButton.IsEnabled = !busy && Contents is not null;
+
+        // 作業の途中で測ると、その分だけ遅く測ってしまう (#269)
+        SpeedButton.IsEnabled = !busy;
         EntryList.IsEnabled = !busy;
         FolderTree.IsEnabled = !busy;
 
@@ -7655,6 +7658,24 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
+    // ------------------------------------------------------------------ 処理時間の見積もり (#269)
+
+    /// <summary>このパソコンで圧縮・展開にかかる時間を見積もる。測った結果は設定ファイルに残す。</summary>
+    /// <remarks>
+    /// 一時フォルダーで測るときは、この起動の一時ファイルの置き場の中で試す。
+    /// 途中で落ちても、次の起動で片付く。
+    /// </remarks>
+    private void SpeedButton_Click(object sender, RoutedEventArgs e)
+    {
+        var temp = EnsureWorkspace()?.Directory ?? Path.GetTempPath();
+
+        new SpeedWindow(this, temp, _settings.SpeedResult, result =>
+        {
+            _settings.SpeedResult = result;
+            SettingsStore.TrySave(_settings);
+        }).ShowDialog();
+    }
+
     // ------------------------------------------------------------------ バージョン情報 (#104)
 
     /// <summary>このアプリが何で、どの版なのかを出す。</summary>
@@ -8056,6 +8077,7 @@ public partial class MainWindow : Window
         NameTool(InspectButton, Strings.Inspect, Strings.InspectTooltip);
         NameTool(SplitButton, Strings.Split, Strings.SplitTooltip);
         NameTool(SfxButton, Strings.Sfx, Strings.SfxTooltip);
+        NameTool(SpeedButton, Strings.Speed, Strings.SpeedTooltip);
         NameTool(AiButton, Strings.AiMenu, Strings.AiTooltip);
         NameTool(LanguageButton, Strings.LanguageMenu, Strings.LanguageTooltip);
         NameTool(AboutButton, Strings.AboutTitle, Strings.AboutTooltip);

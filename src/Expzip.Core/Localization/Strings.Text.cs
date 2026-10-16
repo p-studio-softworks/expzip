@@ -2,6 +2,7 @@
 using System.IO.Compression;
 using Expzip.Archives;
 using Expzip.Inspection;
+using Expzip.Speed;
 
 namespace Expzip.Localization;
 
@@ -2277,6 +2278,182 @@ internal static partial class Strings
         "Copy the values of the selected rows");
 
     public static string HashClose => Pick("閉じる", "Close");
+
+    // ------------------------------------------------------------------ 処理時間の見積もり (#269)
+
+    public static string Speed => Pick("処理時間の見積もり", "Time estimate");
+
+    public static string SpeedTooltip => Pick(
+        "このパソコンで圧縮・展開にかかる時間を見積もる",
+        "Estimate how long compressing and extracting takes on this PC");
+
+    public static string SpeedTitle => Pick("処理時間の見積もり", "Time estimate");
+
+    public static string SpeedNotYet => Pick("まだ測定していません", "Not measured yet");
+
+    public static string SpeedPrevious => Pick("前回の測定結果", "Last measurement");
+
+    public static string SpeedDone => Pick("測定しました", "Measurement finished");
+
+    public static string SpeedCancelled => Pick("測定を中断しました", "The measurement was stopped");
+
+    /// <summary>測っている間の見出し。何をしているかと、全体のどこまで来たか。</summary>
+    public static string SpeedRunning(SpeedStep step, SpeedKind kind, int done, int total) => step switch
+    {
+        SpeedStep.Disk => Pick(
+            $"ディスクの読み書きの速さを測定しています… ({done + 1} / {total})",
+            $"Measuring disk speed… ({done + 1} / {total})"),
+        SpeedStep.Preparing => Pick(
+            $"試すデータを作成しています: {SpeedKindName(kind)} ({done + 1} / {total})",
+            $"Creating test data: {SpeedKindName(kind)} ({done + 1} / {total})"),
+        SpeedStep.Compressing => Pick(
+            $"圧縮しています: {SpeedKindName(kind)} ({done + 1} / {total})",
+            $"Compressing: {SpeedKindName(kind)} ({done + 1} / {total})"),
+        _ => Pick(
+            $"展開しています: {SpeedKindName(kind)} ({done + 1} / {total})",
+            $"Extracting: {SpeedKindName(kind)} ({done + 1} / {total})"),
+    };
+
+    public static string SpeedKindName(SpeedKind kind) => kind switch
+    {
+        SpeedKind.Documents => Pick("文書のようなもの", "Documents"),
+        SpeedKind.Media => Pick("写真や動画", "Photos and videos"),
+        _ => Pick("小さなファイルがたくさん", "Many small files"),
+    };
+
+    public static string SpeedIntro => Pick(
+        "このパソコンで実際に圧縮と展開を試して、かかる時間を見積もります。10 秒ほどで終わります。",
+        "Expzip tries compressing and extracting on this PC and estimates how long it takes. "
+        + "It takes about 10 seconds.");
+
+    public static string SpeedPlaceLabel => Pick("測定する場所:", "Where to measure:");
+
+    public static string SpeedPlaceTemp => Pick("一時フォルダー", "Temporary folder");
+
+    public static string SpeedPlaceFolder => Pick("指定したフォルダー", "A folder you choose");
+
+    public static string SpeedPlaceNone => Pick("(選択していません)", "(none selected)");
+
+    public static string SpeedPlaceHint => Pick(
+        "外付けのディスクや NAS で作業するときは、そのフォルダーを指定してください。",
+        "If you work on an external disk or a NAS, choose a folder there.");
+
+    public static string SpeedBrowse => Pick("参照", "Browse");
+
+    public static string SpeedBrowseTitle => Pick("測定するフォルダーを選択", "Choose a folder to measure in");
+
+    public static string SpeedStart => Pick("測定する", "Measure");
+
+    public static string SpeedStop => Pick("中断", "Stop");
+
+    public static string SpeedConditionsLabel => Pick("測定した条件", "Conditions");
+
+    public static string SpeedColumnSize => Pick("中身の大きさ", "Contents");
+
+    /// <summary>表の 1 マス。圧縮と展開の時間を並べる。</summary>
+    public static string SpeedCell(TimeSpan compress, TimeSpan extract) => Pick(
+        $"圧縮 {SpeedDuration(compress)} / 展開 {SpeedDuration(extract)}",
+        $"Compress {SpeedDuration(compress)} / Extract {SpeedDuration(extract)}");
+
+    /// <summary>支援技術が読む行の名前。</summary>
+    public static string SpeedRowName(string size, string documents, string media, string smallFiles) => Pick(
+        $"{size}、{SpeedKindName(SpeedKind.Documents)}: {documents}、{SpeedKindName(SpeedKind.Media)}: {media}、"
+        + $"{SpeedKindName(SpeedKind.SmallFiles)}: {smallFiles}",
+        $"{size}, {SpeedKindName(SpeedKind.Documents)}: {documents}, {SpeedKindName(SpeedKind.Media)}: {media}, "
+        + $"{SpeedKindName(SpeedKind.SmallFiles)}: {smallFiles}");
+
+    /// <summary>見積もりの時間。細かい値は当てにならないので、長いほど粗く出す。</summary>
+    public static string SpeedDuration(TimeSpan time)
+    {
+        var seconds = (long)Math.Round(time.TotalSeconds);
+
+        if (time.TotalSeconds < 1)
+        {
+            return Pick("1 秒未満", "under 1 s");
+        }
+
+        if (seconds < 60)
+        {
+            return Pick($"{seconds} 秒", $"{seconds} s");
+        }
+
+        if (seconds < 600)
+        {
+            return seconds % 60 == 0
+                ? Pick($"{seconds / 60} 分", $"{seconds / 60} min")
+                : Pick($"{seconds / 60} 分 {seconds % 60} 秒", $"{seconds / 60} min {seconds % 60} s");
+        }
+
+        var minutes = (long)Math.Round(time.TotalMinutes);
+        if (minutes < 60)
+        {
+            return Pick($"{minutes} 分", $"{minutes} min");
+        }
+
+        return minutes % 60 == 0
+            ? Pick($"{minutes / 60} 時間", $"{minutes / 60} h")
+            : Pick($"{minutes / 60} 時間 {minutes % 60} 分", $"{minutes / 60} h {minutes % 60} min");
+    }
+
+    /// <summary>表の左の列。1 GB などの大きさ。</summary>
+    public static string SpeedSize(int gigabytes) => $"{gigabytes:N0} GB";
+
+    public static string SpeedNote => Pick(
+        "目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。"
+        + $"中身の大きさは圧縮する前の大きさです。小さなファイルは 1 個 {SpeedTest.SmallFileBytes / 1024} KB として計算しています。",
+        "These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC "
+        + "can change them. Contents are measured before compression. "
+        + $"Small files are counted as {SpeedTest.SmallFileBytes / 1024} KB each.");
+
+    public static string SpeedMeasuredAt(DateTime at) => Pick(
+        $"測定した日時: {at:yyyy/MM/dd HH:mm}",
+        $"Measured: {at:yyyy-MM-dd HH:mm}");
+
+    public static string SpeedMachine(string name) => Pick($"パソコン: {name}", $"PC: {name}");
+
+    public static string SpeedCpu(string name, int cores) => Pick(
+        $"CPU: {(name.Length == 0 ? "不明" : name)} ({cores:N0} コア)",
+        $"CPU: {(name.Length == 0 ? "unknown" : name)} ({cores:N0} {Plural(cores, "core", "cores")})");
+
+    public static string SpeedMemory(long bytes) => Pick(
+        $"メモリー: {(bytes <= 0 ? "不明" : $"{bytes / (1024.0 * 1024 * 1024):N0} GB")}",
+        $"Memory: {(bytes <= 0 ? "unknown" : $"{bytes / (1024.0 * 1024 * 1024):N0} GB")}");
+
+    public static string SpeedStorage(StorageKind kind, string location)
+    {
+        var name = kind switch
+        {
+            StorageKind.Ssd => "SSD",
+            StorageKind.Hdd => "HDD",
+            StorageKind.Network => Pick("ネットワーク", "network"),
+            _ => Pick("不明", "unknown"),
+        };
+        var place = location.Length == 0 ? SpeedPlaceTemp : location;
+        return Pick($"保存先: {name} ({place})", $"Storage: {name} ({place})");
+    }
+
+    public static string SpeedPower(bool onBattery) => onBattery
+        ? Pick("電源: バッテリー", "Power: battery")
+        : Pick("電源: AC 電源", "Power: plugged in");
+
+    public static string SpeedDisk(double read, double write) => Pick(
+        $"ディスクの速さ: 読み込み {read / (1024 * 1024):N0} MB/秒、書き込み {write / (1024 * 1024):N0} MB/秒",
+        $"Disk speed: read {read / (1024 * 1024):N0} MB/s, write {write / (1024 * 1024):N0} MB/s");
+
+    /// <summary>コピーした文の 1 行目。何の結果かが、貼った先でも分かるように。</summary>
+    public static string SpeedCopyHeading => Pick("処理時間の見積もり (Expzip)", "Time estimate (Expzip)");
+
+    public static string SpeedCopy => Pick("結果をコピー", "Copy results");
+
+    public static string SpeedCopyTooltip => Pick(
+        "ほかのパソコンの結果と並べて比べられるように、文としてコピーする",
+        "Copy the results as text to compare with other PCs");
+
+    public static string SpeedFailed(string reason) => Pick(
+        $"測定できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
+        $"Could not measure.{Environment.NewLine}{Environment.NewLine}{reason}");
+
+    public static string SpeedClose => Pick("閉じる", "Close");
 
     // ------------------------------------------------------------------ ファイルの分割 (#59)
 
