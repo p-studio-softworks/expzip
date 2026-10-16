@@ -307,7 +307,9 @@ internal static class ZipEncryptedWriter
                         continue;
                     }
 
-                    if (entry.IsDirectory)
+                    // 属性だけフォルダーで中身のあるエントリを、フォルダーとして
+                    // 書き直すと中身が消える。名前だけで決める (#266)
+                    if (ZipEntryKind.IsFolder(entry))
                     {
                         writer.WriteFolder(name);
                         continue;

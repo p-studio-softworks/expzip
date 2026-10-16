@@ -117,7 +117,7 @@ internal static class ArchiveExtractor
         // 並列で取り出すときは書庫を開き直すので、エントリは番号で指す
         var targets = zip.Entries
             .Select((e, i) => (Index: i, Entry: e, Name: ArchiveFormats.EntryName(format, e.FullName)))
-            .Where(t => !t.Name.EndsWith('/') && !t.Name.EndsWith('\\'))
+            .Where(t => !ZipEntryKind.IsFolder(t.Name))
             .Where(t => sourceNames is null || sourceNames.Contains(t.Name))
             .ToList();
 

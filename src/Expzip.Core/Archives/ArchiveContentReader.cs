@@ -147,7 +147,8 @@ internal static class ArchiveContentReader
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!entry.IsFile)
+            // フォルダーかどうかは一覧と同じく名前だけで決める (#266)
+            if (ZipEntryKind.IsFolder(entry))
             {
                 continue;
             }

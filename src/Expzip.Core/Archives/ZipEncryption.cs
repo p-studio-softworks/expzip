@@ -42,8 +42,8 @@ internal static class ZipEncryption
             foreach (ZipEntry entry in zip)
             {
                 // フォルダのエントリは暗号化されない。数に入れると
-                // 「一部だけ暗号化」と見誤る
-                if (!entry.IsFile)
+                // 「一部だけ暗号化」と見誤る。フォルダーかどうかは名前だけで決める (#266)
+                if (ZipEntryKind.IsFolder(entry))
                 {
                     continue;
                 }
@@ -86,7 +86,7 @@ internal static class ZipEncryption
 
             foreach (ZipEntry entry in zip)
             {
-                if (entry.IsFile && entry.IsCrypted)
+                if (!ZipEntryKind.IsFolder(entry) && entry.IsCrypted)
                 {
                     names.Add(ArchiveTreeBuilder.Trim(entry.Name));
                 }
@@ -111,7 +111,7 @@ internal static class ZipEncryption
     public static bool CanReadContent(ZipArchive zip)
     {
         var first = zip.Entries.FirstOrDefault(
-            static e => e.Length > 0 && !e.FullName.EndsWith('/') && !e.FullName.EndsWith('\\'));
+            static e => e.Length > 0 && !ZipEntryKind.IsFolder(e.FullName));
 
         if (first is null)
         {
@@ -136,7 +136,7 @@ internal static class ZipEncryption
         {
             using var zip = OpenSharp(path, password);
 
-            var entry = zip.Cast<ZipEntry>().FirstOrDefault(e => e.IsFile && e.Size > 0);
+            var entry = zip.Cast<ZipEntry>().FirstOrDefault(e => !ZipEntryKind.IsFolder(e) && e.Size > 0);
             if (entry is null)
             {
                 return true;
@@ -182,7 +182,7 @@ internal static class ZipEncryption
         using var fallback = new ZipMethodFallback(archivePath, password);
 
         var targets = zip.Cast<ZipEntry>()
-            .Where(e => e.IsFile)
+            .Where(e => !ZipEntryKind.IsFolder(e))
             .Where(e => sourceNames is null || sourceNames.Contains(e.Name))
             .ToList();
 

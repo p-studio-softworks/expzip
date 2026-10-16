@@ -270,7 +270,9 @@ internal static class ContentInspector
         InspectionContext context, Pass pass, SharpZipFile zip, ZipEntry entry, int order,
         ZipMethodFallback fallback)
     {
-        if (!entry.IsFile)
+        // フォルダーかどうかは一覧と同じく名前だけで決める。属性で決めると、
+        // 一覧に出ているのに調べないファイルができる (#266)
+        if (ZipEntryKind.IsFolder(entry))
         {
             return;
         }

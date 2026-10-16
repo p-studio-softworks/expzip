@@ -157,7 +157,7 @@ internal static class StructureInspector
 
         foreach (ZipEntry entry in zip)
         {
-            if (!entry.IsFile || entry.CanDecompress)
+            if (ZipEntryKind.IsFolder(entry) || entry.CanDecompress)
             {
                 continue;
             }

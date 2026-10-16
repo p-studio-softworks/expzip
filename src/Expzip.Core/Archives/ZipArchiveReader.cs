@@ -110,8 +110,9 @@ internal static class ZipArchiveReader
 
             var name = ArchiveFormats.EntryName(format, entry.FullName);
 
-            // 末尾が区切り文字のエントリはフォルダそのものを表す
-            if (name.EndsWith('/') || name.EndsWith('\\'))
+            // 末尾が区切り文字のエントリはフォルダそのものを表す。
+            // 書庫検査やハッシュ値も同じ判定で読む (#266)
+            if (ZipEntryKind.IsFolder(name))
             {
                 builder.AddFolder(name, ReadLastWriteTime(entry));
                 continue;

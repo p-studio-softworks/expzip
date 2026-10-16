@@ -94,6 +94,37 @@ if ($window) {
 }
 Stop-Expzip $app
 
+Section 'フォルダーの属性が付いたファイル'
+# 名前は / で終わらず中身もあるのに、属性だけがフォルダーを指す。一覧と展開には
+# ファイルとして出るので、検査でも読む (#266)。読んだかどうかは、格納した中身を
+# 1 バイト変えておき、CRC の食い違いが報告されるかで見る
+$attr = New-TestZip (Join-Path $script:Work 'zokusei.zip') ([ordered]@{
+    'readme.txt' = 'readme'
+    'setup.exe'  = ('not really an exe ' * 20)
+}) @('setup.exe')
+$bytes = [System.IO.File]::ReadAllBytes($attr)
+for ($i = 0; $i -lt $bytes.Length - 30; $i++) {
+    if ([BitConverter]::ToUInt32($bytes, $i) -ne 0x04034b50) { continue }
+    $length = [BitConverter]::ToUInt16($bytes, $i + 26)
+    if ([System.Text.Encoding]::UTF8.GetString($bytes, $i + 30, $length) -ne 'setup.exe') { continue }
+    $data = $i + 30 + $length + [BitConverter]::ToUInt16($bytes, $i + 28)
+    $bytes[$data + 10] = $bytes[$data + 10] -bxor 0x01
+    break
+}
+[System.IO.File]::WriteAllBytes($attr, $bytes)
+Set-DosDirectoryAttribute $attr 'setup.exe'
+
+$app = Start-Expzip @($attr)
+Check '一覧にはファイルとして出る' ($null -ne (Find-Row $app 'setup.exe'))
+$window = Run-Inspection $app '検査結果 - zokusei.zip'
+Check '窓が開く' ($null -ne $window)
+if ($window) {
+    $findings = Texts (ById $window 'FindingList')
+    Check '中身まで読んで調べる' ($findings -match 'setup\.exe \| 中身が壊れています') $findings
+    Push (ById $window 'CloseButton')
+}
+Stop-Expzip $app
+
 Section '中断する'
 # 書庫を丸ごと対策ソフトに渡す間は、途中で止められない。圧縮された実行ファイルが
 # たくさん詰まっていると数秒かかる (120 個 / 142 MB で 4 秒)。格納で数個では速く、試しにならない。

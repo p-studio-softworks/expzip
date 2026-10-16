@@ -157,6 +157,23 @@ function New-TestZip([string]$Path, [System.Collections.IDictionary]$Entries, [s
     return $Path
 }
 
+# 中央ディレクトリの項目に、DOS のフォルダーの属性 (0x10) を付ける (#266)。
+# 名前は / で終わらず中身もあるのに、属性だけがフォルダーを指す項目になる
+function Set-DosDirectoryAttribute([string]$Path, [string]$Name) {
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    for ($i = 0; $i -le $bytes.Length - 46; $i++) {
+        if ([BitConverter]::ToUInt32($bytes, $i) -ne 0x02014b50) { continue }
+        $length = [BitConverter]::ToUInt16($bytes, $i + 28)
+        if ($i + 46 + $length -gt $bytes.Length) { continue }
+        if ([Text.Encoding]::UTF8.GetString($bytes, $i + 46, $length) -ne $Name) { continue }
+        $bytes[$i + 5] = 0                                              # 作った環境: MS-DOS
+        [BitConverter]::GetBytes([uint32]0x10).CopyTo($bytes, $i + 38)  # 外部属性: フォルダー
+        [IO.File]::WriteAllBytes($Path, $bytes)
+        return
+    }
+    throw "見つかりません: $Name"
+}
+
 function Get-ZipNames([string]$Path) {
     $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
     try { return @($zip.Entries | ForEach-Object { $_.FullName }) }

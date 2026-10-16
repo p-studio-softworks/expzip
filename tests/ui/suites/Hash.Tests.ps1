@@ -17,7 +17,7 @@ $sample = New-TestZip (Join-Path $script:Work 'hash.zip') ([ordered]@{
 })
 
 # 右クリックのメニューから押す。押せなかったら $null
-function Open-HashWindow($App, [string]$Row, [string]$Item) {
+function Open-HashWindow($App, [string]$Row, [string]$Item, [string]$Archive = 'hash.zip') {
     $menu = Open-RowMenu $App $Row
     $entry = if ($menu) { ByName $menu $Item }
     if ($null -eq $entry -or -not $entry.Current.IsEnabled) {
@@ -25,7 +25,7 @@ function Open-HashWindow($App, [string]$Row, [string]$Item) {
         return $null
     }
     Push $entry
-    $window = Find-Window $App 'ハッシュ値 - hash.zip' 30000
+    $window = Find-Window $App "ハッシュ値 - $Archive" 30000
     if ($window) {
         Wait-Until { (ById $window 'Headline').Current.Name -match 'ハッシュ値を計算しました$' } 30000 | Out-Null
     }
@@ -119,4 +119,24 @@ $left = @(Get-ChildItem (Join-Path $env:TEMP 'Expzip') -Recurse -Directory -Filt
 Check '一時フォルダーが消えている' ($left.Count -eq 0) (($left | ForEach-Object { $_.FullName }) -join ', ')
 
 Stop-Expzip $app
+
+Section 'フォルダーの属性が付いたファイル'
+# 名前は / で終わらず中身もあるのに、属性だけがフォルダーを指す。一覧に出るファイルは
+# すべて計算する (#266)
+$attr = New-TestZip (Join-Path $script:Work 'zokusei.zip') ([ordered]@{
+    'bin/readme.txt' = 'readme'
+    'bin/setup.exe'  = 'abc'
+})
+Set-DosDirectoryAttribute $attr 'bin/setup.exe'
+$app = Start-Expzip @($attr)
+$window = Open-HashWindow $app 'bin' 'ハッシュ値を計算' 'zokusei.zip'
+Check '窓が開く' ($null -ne $window)
+if ($window) {
+    $rows = Get-HashRows $window
+    Check '2 個 × 4 種類' ($rows.Count -eq 8) ($rows -join ' / ')
+    Check '属性の付いたファイルも出る' ($rows -contains "bin/setup.exe、SHA-256: $($abc['SHA-256'])") ($rows -join ' / ')
+    Push (ById $window 'CloseButton')
+}
+Stop-Expzip $app
+
 Complete-Suite
