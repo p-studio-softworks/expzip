@@ -3713,24 +3713,6 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task<bool> ApplyEditAsync(EditSession session)
     {
-        if (_cancellation is not null)
-        {
-            return false;
-        }
-
-        var undo = await BeginUndoAsync(session.ArchivePath, UndoKind.WriteBack);
-        try
-        {
-            return await WriteBackAsync(session);
-        }
-        finally
-        {
-            _undoHistory.Complete(undo);
-        }
-    }
-
-    private async Task<bool> WriteBackAsync(EditSession session)
-    {
         // 見ているタブではなく、書き戻す先の書庫から引く。開いたときと違うタブを
         // 見ている状態で保存されることがあり、そのときに取り違える (#16, #30)
         if (_cancellation is not null || !TryGetPassword(session.ArchivePath, out var password))
@@ -3738,10 +3720,50 @@ public partial class MainWindow : Window
             return false;
         }
 
+        // ほかの書き換えと同じく、作業中にしてから書庫を取っておく (#267)。逆にすると、
+        // 別のドライブの書庫を写している数秒の間に削除などが始められ、その変化が
+        // 「書き戻し」として履歴に積まれる。古い名前の削除まで終えてから作業中を解く
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         SetBusy(true);
+        StatusMessage.Text = Strings.ApplyingEdit(session.Name);
 
+        bool applied;
+        var undo = await BeginUndoAsync(session.ArchivePath, UndoKind.WriteBack);
+        try
+        {
+            applied = await WriteBackAsync(session, password, cancellation.Token);
+        }
+        finally
+        {
+            _undoHistory.Complete(undo);
+            _cancellation = null;
+            SetBusy(false);
+        }
+
+        if (!applied)
+        {
+            return false;
+        }
+
+        session.MarkApplied();
+
+        // 反映後は大きさや圧縮率が変わっているので、開いている書庫なら表示を更新する
+        if (Contents is not null
+            && string.Equals(Contents.FilePath, session.ArchivePath, StringComparison.OrdinalIgnoreCase))
+        {
+            await OpenArchiveAsync(session.ArchivePath, CurrentFolder?.FullPath);
+        }
+
+        StatusMessage.Text = Strings.ApplyEditDone(session.Name);
+        return true;
+    }
+
+    /// <summary>書き戻しの書き換えそのもの。作業中にしてから呼ぶ。</summary>
+    /// <returns>書き戻せた場合は true。</returns>
+    private async Task<bool> WriteBackAsync(
+        EditSession session, string? password, CancellationToken cancellationToken)
+    {
         var progress = new Progress<AddProgress>(p =>
         {
             ProgressIndicator.Value = p.Percent;
@@ -3756,10 +3778,10 @@ public partial class MainWindow : Window
             result = await Task.Run(() => password is null
                 ? ZipArchiveWriter.Add(
                     session.ArchivePath, [session.TempPath], session.DestinationFolder,
-                    replaceExisting: true, progress, cancellation.Token)
+                    replaceExisting: true, progress, cancellationToken)
                 : ZipEncryptedWriter.Add(
                     session.ArchivePath, [session.TempPath], session.DestinationFolder,
-                    replaceExisting: true, password, progress, cancellation.Token));
+                    replaceExisting: true, password, progress, cancellationToken));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -3768,11 +3790,6 @@ public partial class MainWindow : Window
                 this,
                 Strings.ApplyEditFailed(session.EntryPath, Strings.Reason(ex)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        finally
-        {
-            _cancellation = null;
-            SetBusy(false);
         }
 
         // 失敗は上で知らせてある。「中断しました」で上書きしない
@@ -3820,16 +3837,6 @@ public partial class MainWindow : Window
             }
         }
 
-        session.MarkApplied();
-
-        // 反映後は大きさや圧縮率が変わっているので、開いている書庫なら表示を更新する
-        if (Contents is not null
-            && string.Equals(Contents.FilePath, session.ArchivePath, StringComparison.OrdinalIgnoreCase))
-        {
-            await OpenArchiveAsync(session.ArchivePath, CurrentFolder?.FullPath);
-        }
-
-        StatusMessage.Text = Strings.ApplyEditDone(session.Name);
         return true;
     }
 
