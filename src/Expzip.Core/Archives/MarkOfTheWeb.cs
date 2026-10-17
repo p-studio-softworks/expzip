@@ -10,6 +10,9 @@ internal interface IOriginMark
 
     /// <summary>印を付ける。付けられた場合は true。</summary>
     bool TryApply(string path, string zone);
+
+    /// <summary>インターネットから入手したことを表す印の見本。<see cref="TryApply"/> にそのまま渡せる形。</summary>
+    string Internet { get; }
 }
 
 /// <summary>
@@ -29,6 +32,12 @@ internal static class MarkOfTheWeb
     /// 印の読み書きの方法。画面の側が差し替えられる。<see langword="null"/> なら Zone.Identifier ストリーム。
     /// </summary>
     internal static IOriginMark? Override { get; set; }
+
+    /// <summary>
+    /// インターネットから入手したことを表す印の見本。インターネットから入手した書庫を展開するときと
+    /// 同じ印を付けたいときに使う。
+    /// </summary>
+    public static string Internet => Override?.Internet ?? "[ZoneTransfer]\r\nZoneId=3\r\n";
 
     /// <summary>ファイルに付いている印を読む。</summary>
     /// <returns>印の内容。付いていない場合や読めない場合は <see langword="null"/>。</returns>

@@ -13,9 +13,24 @@ namespace Expzip.Speed;
 /// </remarks>
 internal static class MachineInfo
 {
+    /// <summary>
+    /// CPU の名前を尋ねる関数。画面の側が差し替えられる。<see langword="null"/> なら Windows に尋ねる。
+    /// </summary>
+    internal static Func<string>? CpuNameOverride { get; set; }
+
+    /// <summary>
+    /// バッテリーで動いているかを尋ねる関数。画面の側が差し替えられる。<see langword="null"/> なら Windows に尋ねる。
+    /// </summary>
+    internal static Func<bool?>? OnBatteryOverride { get; set; }
+
     /// <summary>CPU の名前。分からなければ空。</summary>
     public static string CpuName()
     {
+        if (CpuNameOverride is { } query)
+        {
+            return query().Trim();
+        }
+
         if (!OperatingSystem.IsWindows())
         {
             return string.Empty;
@@ -55,6 +70,11 @@ internal static class MachineInfo
     /// <remarks>ノートパソコンはバッテリーで動くと遅くなる設定のことが多い。</remarks>
     public static bool? OnBattery()
     {
+        if (OnBatteryOverride is { } query)
+        {
+            return query();
+        }
+
         if (!OperatingSystem.IsWindows() || !GetSystemPowerStatus(out var status))
         {
             return null;

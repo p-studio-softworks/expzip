@@ -86,8 +86,19 @@ internal static class SpeedTest
     /// </summary>
     private const int WarmUpRuns = 1;
 
-    /// <summary>展開したファイルに付ける出所の印。インターネットから入手したもの。</summary>
-    private const string InternetZone = "[ZoneTransfer]\r\nZoneId=3\r\n";
+    /// <summary>
+    /// 溜め置き (キャッシュ) を通さずに開く関数。画面の側が差し替えられる。<see langword="null"/> なら
+    /// Windows の方法で開く。
+    /// </summary>
+    /// <remarks>
+    /// 受け取るのはパス、開き方、読むか書くか。書き終えるのは <see cref="RandomAccess.FlushToDisk"/> で待つ。
+    /// 開けなければ例外を投げてよい。そのときはふつうに開いて測る。
+    /// </remarks>
+    internal static Func<string, FileMode, FileAccess, Microsoft.Win32.SafeHandles.SafeFileHandle>? OpenUncachedOverride
+    {
+        get;
+        set;
+    }
 
     private static readonly SpeedKind[] Kinds = [SpeedKind.Documents, SpeedKind.Media, SpeedKind.SmallFiles];
 
@@ -234,7 +245,7 @@ internal static class SpeedTest
     {
         Directory.CreateDirectory(output);
         var extracted = ArchiveExtractor.Extract(
-            archive, ArchiveFormat.Zip, null, output, overwrite: true, null, cancellationToken, InternetZone);
+            archive, ArchiveFormat.Zip, null, output, overwrite: true, null, cancellationToken, MarkOfTheWeb.Internet);
 
         cancellationToken.ThrowIfCancellationRequested();
         if (extracted.Cancelled)
@@ -429,7 +440,19 @@ internal static class SpeedTest
         // FILE_FLAG_NO_BUFFERING。.NET に名前は無いが、値を渡せば使える
         const FileOptions noBuffering = (FileOptions)0x20000000;
 
-        if (OperatingSystem.IsWindows())
+        if (OpenUncachedOverride is { } open)
+        {
+            try
+            {
+                return open(path, mode, access);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                       or ArgumentException or NotSupportedException)
+            {
+                // 下でふつうに開く。作りかけのファイルは開き直すときに作り直す
+            }
+        }
+        else if (OperatingSystem.IsWindows())
         {
             try
             {
