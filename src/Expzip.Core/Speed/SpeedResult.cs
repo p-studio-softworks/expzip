@@ -72,6 +72,10 @@ internal static class SpeedRatings
 /// ふつうのパソコンが 1,000 前後になるように、速すぎないものを選んだ。
 /// </para>
 /// <para>
+/// 見積もりではなく、そのとき設定ファイルに残った測った値をそのまま書く。
+/// 基準の見積もりも同じ計算で出すので、ディスクの速さの扱いが食い違わない。
+/// </para>
+/// <para>
 /// <b>一度決めたら変えない。</b>変えると、前に出した点と比べられなくなる。
 /// </para>
 /// </remarks>
@@ -83,13 +87,23 @@ internal static class SpeedScore
     /// <summary>比べる大きさ (圧縮する前)。</summary>
     public const long Bytes = 10L << 30;
 
-    /// <summary>基準のパソコンで <see cref="Bytes"/> を圧縮・展開する時間の見積もり (秒)。</summary>
-    public static readonly (SpeedKind Kind, double Compress, double Extract)[] Baseline =
-    [
-        (SpeedKind.Documents, 46.6, 19.4),
-        (SpeedKind.Media, 18.4, 12.8),
-        (SpeedKind.SmallFiles, 414, 972),
-    ];
+    public static readonly SpeedKind[] Kinds = [SpeedKind.Documents, SpeedKind.Media, SpeedKind.SmallFiles];
+
+    /// <summary>基準のパソコンで測った値。</summary>
+    public static readonly SpeedResult Baseline = new()
+    {
+        DiskReadBytesPerSecond = 2512508994.792193,
+        DiskWriteBytesPerSecond = 1260278698.891862,
+        Kinds =
+        [
+            new() { Kind = SpeedKind.Documents, ContentBytes = 134217728, FileCount = 32,
+                    ArchiveBytes = 50045105, CompressSeconds = 0.582808, ExtractSeconds = 0.2430247 },
+            new() { Kind = SpeedKind.Media, ContentBytes = 268435456, FileCount = 16,
+                    ArchiveBytes = 268437110, CompressSeconds = 0.4587931, ExtractSeconds = 0.106147 },
+            new() { Kind = SpeedKind.SmallFiles, ContentBytes = 32768000, FileCount = 4000,
+                    ArchiveBytes = 17962461, CompressSeconds = 1.2624698, ExtractSeconds = 2.9681231 },
+        ],
+    };
 }
 
 /// <summary>1 種類のデータを試した結果。</summary>
@@ -203,19 +217,20 @@ internal sealed class SpeedResult
     public int? Score()
     {
         var logSum = 0.0;
-        foreach (var (kind, compress, extract) in SpeedScore.Baseline)
+        foreach (var kind in SpeedScore.Kinds)
         {
+            var baseline = SpeedScore.Baseline.Estimate(kind, SpeedScore.Bytes)!.Value;
             if (Estimate(kind, SpeedScore.Bytes) is not { } time
                 || time.Compress <= TimeSpan.Zero || time.Extract <= TimeSpan.Zero)
             {
                 return null;
             }
 
-            logSum += Math.Log(compress / time.Compress.TotalSeconds)
-                      + Math.Log(extract / time.Extract.TotalSeconds);
+            logSum += Math.Log(baseline.Compress / time.Compress)
+                      + Math.Log(baseline.Extract / time.Extract);
         }
 
-        var score = SpeedScore.BaselineScore * Math.Exp(logSum / (SpeedScore.Baseline.Length * 2));
+        var score = SpeedScore.BaselineScore * Math.Exp(logSum / (SpeedScore.Kinds.Length * 2));
         return Math.Max(10, (int)Math.Round(score / 10, MidpointRounding.AwayFromZero) * 10);
     }
 
