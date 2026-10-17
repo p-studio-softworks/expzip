@@ -42,7 +42,8 @@ internal enum SpeedStep
 /// 同じ手間がかかり、ファイルが多いと効く (#200)。
 /// </para>
 /// <para>
-/// 全体で 10 秒ほどに収める。遅いディスクでは試す量を減らす。終わったら、中断しても失敗しても、
+/// 揺れを抑えるため、どれも慣らしの 1 回の後に 3 回測り、真ん中の値を使う。
+/// 速いパソコンで全体が 15 秒ほど。遅いディスクでは試す量を減らす。終わったら、中断しても失敗しても、
 /// 試したファイルは消す。
 /// </para>
 /// </remarks>
@@ -73,6 +74,17 @@ internal static class SpeedTest
     private const long DiskTestBytes = 256L * 1024 * 1024;
 
     private static readonly TimeSpan DiskTestLimit = TimeSpan.FromSeconds(2.5);
+
+    /// <summary>
+    /// 測る回数。真ん中の値を使い、1 回だけほかの処理に割り込まれたときの揺れを抑える。
+    /// </summary>
+    private const int Runs = 3;
+
+    /// <summary>
+    /// 測る前に、捨てる前提で動かす回数。起動して最初の 1 回は、プログラムを機械語に直す手間が入り、
+    /// 2 割ほど遅く出る。
+    /// </summary>
+    private const int WarmUpRuns = 1;
 
     /// <summary>展開したファイルに付ける出所の印。インターネットから入手したもの。</summary>
     private const string InternetZone = "[ZoneTransfer]\r\nZoneId=3\r\n";
@@ -109,14 +121,20 @@ internal static class SpeedTest
         var work = Path.Combine(folder, $"expzip-speedtest-{Guid.NewGuid():N}"[..26]);
         Directory.CreateDirectory(work);
 
-        var total = 1 + (Kinds.Length * 3);
+        var total = 1 + (Kinds.Length * (1 + (2 * (WarmUpRuns + Runs))));
         var done = 0;
 
         try
         {
             progress?.Report(new SpeedProgress(SpeedStep.Disk, default, done, total));
-            (result.DiskWriteBytesPerSecond, result.DiskReadBytesPerSecond) =
-                MeasureDisk(Path.Combine(work, "disk.bin"), cancellationToken);
+            var disks = new List<(double Write, double Read)>();
+            for (var i = 0; i < Runs; i++)
+            {
+                disks.Add(MeasureDisk(Path.Combine(work, "disk.bin"), cancellationToken));
+            }
+
+            result.DiskWriteBytesPerSecond = Median(disks.Select(d => d.Write));
+            result.DiskReadBytesPerSecond = Median(disks.Select(d => d.Read));
             done++;
 
             var slower = Math.Min(result.DiskWriteBytesPerSecond, result.DiskReadBytesPerSecond);
@@ -132,13 +150,28 @@ internal static class SpeedTest
                 var (bytes, files) = Generate(kind, source, scale, cancellationToken);
                 done++;
 
-                progress?.Report(new SpeedProgress(SpeedStep.Compressing, kind, done, total));
-                var compress = Time(() => Compress(source, archive, cancellationToken));
-                done++;
+                // 慣らしの分は捨て、残りの真ん中の値を使う
+                var compress = new List<double>();
+                var extract = new List<double>();
+                for (var i = 0; i < WarmUpRuns + Runs; i++)
+                {
+                    File.Delete(archive);
+                    TempWorkspace.TryDeleteTree(output);
 
-                progress?.Report(new SpeedProgress(SpeedStep.Extracting, kind, done, total));
-                var extract = Time(() => Extract(archive, output, cancellationToken));
-                done++;
+                    progress?.Report(new SpeedProgress(SpeedStep.Compressing, kind, done, total));
+                    var c = Time(() => Compress(source, archive, cancellationToken));
+                    done++;
+
+                    progress?.Report(new SpeedProgress(SpeedStep.Extracting, kind, done, total));
+                    var e = Time(() => Extract(archive, output, cancellationToken));
+                    done++;
+
+                    if (i >= WarmUpRuns)
+                    {
+                        compress.Add(c.TotalSeconds);
+                        extract.Add(e.TotalSeconds);
+                    }
+                }
 
                 result.Kinds.Add(new SpeedKindResult
                 {
@@ -146,8 +179,8 @@ internal static class SpeedTest
                     ContentBytes = bytes,
                     FileCount = files,
                     ArchiveBytes = new FileInfo(archive).Length,
-                    CompressSeconds = compress.TotalSeconds,
-                    ExtractSeconds = extract.TotalSeconds,
+                    CompressSeconds = Median(compress),
+                    ExtractSeconds = Median(extract),
                 });
 
                 // 次の種類を試す前に消す。全部を残すと、試しに要る空きが 3 倍になる
@@ -162,6 +195,13 @@ internal static class SpeedTest
         {
             TempWorkspace.TryDeleteTree(work);
         }
+    }
+
+    private static double Median(IEnumerable<double> values)
+    {
+        var sorted = values.Order().ToList();
+        var middle = sorted.Count / 2;
+        return sorted.Count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
     }
 
     private static TimeSpan Time(Action action)

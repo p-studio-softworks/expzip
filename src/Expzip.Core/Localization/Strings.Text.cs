@@ -2434,10 +2434,9 @@ internal static partial class Strings
 
     public static string SpeedScoreNote => Pick(
         "基準のパソコン (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。"
-        + "2,000 なら基準の 2 倍の速さです。測定するたびに 1 割ほど変わります。",
+        + "2,000 なら基準の 2 倍の速さです。",
         "The reference PC (Core i5-9500T, SSD) scores 1,000. The score averages how many times faster "
-        + "the six times in the table are. A score of 2,000 is twice as fast as the reference. "
-        + "It can vary by about 10% between measurements.");
+        + "the six times in the table are. A score of 2,000 is twice as fast as the reference.");
 
     public static string SpeedMeasuredAt(DateTime at) => Pick(
         $"日時: {at:yyyy/MM/dd HH:mm}",

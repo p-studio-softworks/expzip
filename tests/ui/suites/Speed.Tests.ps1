@@ -95,7 +95,7 @@ if ($window) {
     $clock = [Diagnostics.Stopwatch]::StartNew()
     Push (ById $window 'StartButton') 300
     $running = Get-Headline $window
-    Check '測っている間は何をしているかを出す' ($running -match '\(\d+ / 10\)$') $running
+    Check '測っている間は何をしているかを出す' ($running -match '\(\d+ / 28\)$') $running
     # 進み具合は「測定する」の下に横幅いっぱいで出す
     $bar = ById $window 'MeasureProgress'
     $start = (ById $window 'StartButton').Current.BoundingRectangle
@@ -107,7 +107,7 @@ if ($window) {
     Check '測っている間は「中断」になる' ((ById $window 'StartButton').Current.Name -eq '中断')
     $finished = Wait-Until -TimeoutMs 120000 { (Get-Headline $window) -eq '測定しました' }
     Check '測り終わる' ($finished) ("{0:0.0} 秒 / {1}" -f $clock.Elapsed.TotalSeconds, (Get-Headline $window))
-    # 10 秒ほどに収める。遅い PC でも 1 分はかけない
+    # 揺れを抑えるため 4 回ずつ試す。このパソコンで 15 秒ほど、遅い PC でも 1 分はかけない
     Check '長くかからない' ($clock.Elapsed.TotalSeconds -lt 60) ("{0:0.0} 秒" -f $clock.Elapsed.TotalSeconds)
 
     Check '測り終わるとプログレスバーは消える' ($null -eq (ById $window 'MeasureProgress') -or (ById $window 'MeasureProgress').Current.IsOffscreen)
