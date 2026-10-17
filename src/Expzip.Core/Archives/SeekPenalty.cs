@@ -23,19 +23,34 @@ namespace Expzip.Archives;
 internal static class SeekPenalty
 {
     /// <summary>
+    /// ディスクが HDD かを尋ねる関数。画面の側が差し替えられる。<see langword="null"/> なら Windows に尋ねる。
+    /// </summary>
+    /// <remarks>
+    /// 受け取るのは、実際にあるフォルダーかファイルのパス (展開先がまだ無ければ、その上のフォルダー)。
+    /// ネットワーク上のフォルダーでは呼ばない。答えは <see cref="Of"/> と同じ。
+    /// </remarks>
+    internal static Func<string, bool?>? Override { get; set; }
+
+    /// <summary>
     /// このパスのあるディスクが HDD なら true、SSD なら false。分からなければ <see langword="null"/>。
     /// </summary>
     public static bool? Of(string path)
     {
-        // この問い合わせは Windows の仕組み。使えない環境では SSD として扱う
-        if (!OperatingSystem.IsWindows())
-        {
-            return false;
-        }
-
         try
         {
-            return Query(path);
+            if (Override is null && OperatingSystem.IsWindows())
+            {
+                return Query(path);
+            }
+
+            var existing = ExistingAncestor(Path.GetFullPath(path));
+            if (existing is null || IsNetwork(existing))
+            {
+                return null;
+            }
+
+            // この問い合わせは Windows の仕組み。差し替えていなければ、使えない環境では SSD として扱う
+            return Override is { } query ? query(existing) : false;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException
@@ -43,6 +58,39 @@ internal static class SeekPenalty
         {
             return null;
         }
+    }
+
+    /// <summary>このパスがネットワーク上のフォルダーにあるか。</summary>
+    /// <remarks>
+    /// Windows ではドライブに割り当てていても、ドライブの種類で分かる。
+    /// それ以外ではルートが 1 つ (/) しかないので、ルートではなくそのパスのあるファイルシステムを尋ねる。
+    /// .NET はファイルシステムの種類 (smbfs、nfs など) からネットワークかを答える。
+    /// </remarks>
+    public static bool IsNetwork(string path)
+    {
+        var full = Path.GetFullPath(path);
+        if (full.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var drive = OperatingSystem.IsWindows() ? Path.GetPathRoot(full)! : ExistingAncestor(full) ?? full;
+        return new DriveInfo(drive).DriveType == DriveType.Network;
+    }
+
+    /// <summary>このパスか、その上のフォルダーのうち、実際にあるもの。見つからなければ <see langword="null"/>。</summary>
+    /// <remarks>展開先のフォルダーは、展開を始める前にはまだ無いことがある。</remarks>
+    private static string? ExistingAncestor(string full)
+    {
+        for (var current = full; current is not null; current = Path.GetDirectoryName(current))
+        {
+            if (Directory.Exists(current) || File.Exists(current))
+            {
+                return current;
+            }
+        }
+
+        return null;
     }
 
     private static bool? Query(string path)

@@ -73,11 +73,7 @@ internal static class MachineInfo
     {
         try
         {
-            var full = Path.GetFullPath(path);
-
-            // ネットワーク上のフォルダーは、ドライブに割り当てていても種類で分かる
-            if (full.StartsWith(@"\\", StringComparison.Ordinal)
-                || new DriveInfo(Path.GetPathRoot(full)!).DriveType == DriveType.Network)
+            if (SeekPenalty.IsNetwork(path))
             {
                 return StorageKind.Network;
             }
