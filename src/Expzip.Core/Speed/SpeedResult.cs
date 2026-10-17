@@ -64,6 +64,34 @@ internal static class SpeedRatings
     }
 }
 
+/// <summary>総合スコアの基準 (#272)。</summary>
+/// <remarks>
+/// <para>
+/// 基準のパソコンは Core i5-9500T (6 コア、2019 年の事務用の小型パソコン)、メモリー 16 GB、
+/// SSD (読み込み 2,396 MB/秒、書き込み 1,202 MB/秒)、AC 電源。2026-10-17 に一時フォルダーで測った。
+/// ふつうのパソコンが 1,000 前後になるように、速すぎないものを選んだ。
+/// </para>
+/// <para>
+/// <b>一度決めたら変えない。</b>変えると、前に出した点と比べられなくなる。
+/// </para>
+/// </remarks>
+internal static class SpeedScore
+{
+    /// <summary>基準のパソコンの点。</summary>
+    public const double BaselineScore = 1000;
+
+    /// <summary>比べる大きさ (圧縮する前)。</summary>
+    public const long Bytes = 10L << 30;
+
+    /// <summary>基準のパソコンで <see cref="Bytes"/> を圧縮・展開する時間の見積もり (秒)。</summary>
+    public static readonly (SpeedKind Kind, double Compress, double Extract)[] Baseline =
+    [
+        (SpeedKind.Documents, 46.6, 19.4),
+        (SpeedKind.Media, 18.4, 12.8),
+        (SpeedKind.SmallFiles, 414, 972),
+    ];
+}
+
 /// <summary>1 種類のデータを試した結果。</summary>
 /// <remarks>設定ファイルに残すので、読み書きできる形にしてある。</remarks>
 internal sealed class SpeedKindResult
@@ -156,6 +184,39 @@ internal sealed class SpeedResult
             DiskSeconds(read: archiveBytes, written: contentBytes));
 
         return (TimeSpan.FromSeconds(compress), TimeSpan.FromSeconds(extract));
+    }
+
+    /// <summary>
+    /// 総合スコア (#272)。基準のパソコンを 1,000 とし、その何倍速いかを表す。
+    /// 測っていない種類があれば <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 6 つの見積もり (3 種類 × 圧縮・展開) それぞれで「基準の時間 ÷ この時間」を求め、
+    /// その<b>幾何平均</b>に 1,000 を掛ける。単純な平均だと、1 つの項目だけ速いパソコンが高い点になる。
+    /// </para>
+    /// <para>
+    /// 見積もりを使うので、ディスクの速さも入る。見積もりは大きさに比例するので、どの大きさで比べても同じ。
+    /// 測るたびに 1 割ほど揺れるので、10 の位で丸める。
+    /// </para>
+    /// </remarks>
+    public int? Score()
+    {
+        var logSum = 0.0;
+        foreach (var (kind, compress, extract) in SpeedScore.Baseline)
+        {
+            if (Estimate(kind, SpeedScore.Bytes) is not { } time
+                || time.Compress <= TimeSpan.Zero || time.Extract <= TimeSpan.Zero)
+            {
+                return null;
+            }
+
+            logSum += Math.Log(compress / time.Compress.TotalSeconds)
+                      + Math.Log(extract / time.Extract.TotalSeconds);
+        }
+
+        var score = SpeedScore.BaselineScore * Math.Exp(logSum / (SpeedScore.Baseline.Length * 2));
+        return Math.Max(10, (int)Math.Round(score / 10, MidpointRounding.AwayFromZero) * 10);
     }
 
     /// <summary>ディスクを読み書きするだけにかかる秒数。速さを測れていなければ 0。</summary>

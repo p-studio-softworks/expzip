@@ -2655,6 +2655,18 @@ SpeedRunning (step: Extracting, kind: Documents, done: 45, total: 120)
   ja  展開しています: 文書 (46 / 120)
   en  Extracting: Documents (46 / 120)
 
+SpeedScoreLabel
+  ja  総合スコア
+  en  Overall score
+
+SpeedScoreLine (score: 3)
+  ja  総合スコア: 3
+  en  Overall score: 3
+
+SpeedScoreNote
+  ja  基準のパソコン (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。2,000 なら基準の 2 倍の速さです。測定するたびに 1 割ほど変わります。
+  en  The reference PC (Core i5-9500T, SSD) scores 1,000. The score averages how many times faster the six times in the table are. A score of 2,000 is twice as fast as the reference. It can vary by about 10% between measurements.
+
 SpeedSize (bytes: 1048576)
   ja  1 MB
   en  1 MB

@@ -129,6 +129,22 @@ if ($window) {
     Check '表の見出しが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
     $clipped = Get-ClippedCells (ById $window 'EstimateList')
     Check '表のマスが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
+    # 総合スコア (#272)。表の下に出す。100 GB の行の時間から計算し直した値と比べる
+    # (表の時間は丸めてあるので 5% まで許す)。基準は Core i5-9500T の 100 GB での見積もり
+    $scoreText = ById $window 'ScoreText'
+    $score = if ($scoreText -and $scoreText.Current.Name -match '^総合スコア ([\d,]+)$') { [int]($Matches[1] -replace ',', '') } else { 0 }
+    Check '総合スコアを出す' ($score -gt 0 -and $score % 10 -eq 0) $(if ($scoreText) { $scoreText.Current.Name } else { '' })
+    if ($scoreText) {
+        Check '総合スコアは表の下' ($scoreText.Current.BoundingRectangle.Top -gt (ById $window 'EstimateList').Current.BoundingRectangle.Bottom)
+    }
+    $times = (Get-RowTimes ($rows | Where-Object { $_ -like '100 GB、*' })).Times
+    $baseline = @(466, 194, 184, 128, 4140, 9720)
+    if ($times.Count -eq 6 -and -not ($times -contains 0)) {
+        $log = 0
+        for ($i = 0; $i -lt 6; $i++) { $log += [Math]::Log($baseline[$i] / $times[$i]) }
+        $expected = 1000 * [Math]::Exp($log / 6)
+        Check '総合スコアは基準との比の幾何平均' ([Math]::Abs($score / $expected - 1) -lt 0.05) "出した値 $score / 表から $([Math]::Round($expected))"
+    }
     $conditions = (ById $window 'Conditions').Current.Name
     Check '条件にメモリー' ($conditions -match 'メモリー: \d+ GB') $conditions
     Check '条件にコンピューター名' ($conditions -match "コンピューター名: $([regex]::Escape($env:COMPUTERNAME))") $conditions
@@ -148,6 +164,7 @@ if ($window) {
     Check '表の見出しはタブ区切り' ($lines -contains "サイズ`t文書`t写真や動画`t小さいファイル多数`t判定") ($lines -join ' | ')
     Check '表の行もタブ区切り' (@($lines | Where-Object { $_ -match "^1 TB`t圧縮 .+`t圧縮 .+`t圧縮 .+`t(快適|やや遅い|遅い)$" }).Count -eq 1)
     Check '目安であることも入る' ($clip -match '目安です。')
+    Check '総合スコアも入る' ($lines -contains "総合スコア: $($score.ToString('N0'))") ($lines -match '総合スコア' -join ' | ')
 
     Push (ById $window 'CloseButton')
     Check '閉じる' (Test-WindowGone $app $title)

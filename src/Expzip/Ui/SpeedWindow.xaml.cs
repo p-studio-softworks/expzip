@@ -84,6 +84,8 @@ public partial class SpeedWindow : Window
         SmallFilesColumn.Header = Strings.SpeedKindName(SpeedKind.SmallFiles);
         RatingColumn.Header = Strings.SpeedColumnRating;
         Note.Text = Strings.SpeedNote;
+        ScoreLabel.Text = Strings.SpeedScoreLabel;
+        ScoreNote.Text = Strings.SpeedScoreNote;
         ConditionsLabel.Text = Strings.SpeedConditionsLabel;
         CopyButton.Content = Strings.SpeedCopy;
         CopyButton.ToolTip = Strings.SpeedCopyTooltip;
@@ -216,6 +218,11 @@ public partial class SpeedWindow : Window
 
         ResultPanel.Visibility = Visibility.Visible;
         EstimateList.ItemsSource = Sizes.Select(size => EstimateRow.Of(result, size)).ToList();
+
+        var score = result.Score();
+        ScorePanel.Visibility = score is null ? Visibility.Collapsed : Visibility.Visible;
+        ScoreValue.Text = score is { } value ? $"{value:N0}" : string.Empty;
+
         Conditions.Text = string.Join(Environment.NewLine, ConditionLines(result));
     }
 
@@ -265,6 +272,13 @@ public partial class SpeedWindow : Window
 
         text.AppendLine();
         text.AppendLine(Strings.SpeedNote);
+
+        if (result.Score() is { } score)
+        {
+            text.AppendLine();
+            text.AppendLine(Strings.SpeedScoreLine(score));
+            text.AppendLine(Strings.SpeedScoreNote);
+        }
 
         try
         {
