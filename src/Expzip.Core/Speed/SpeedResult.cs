@@ -68,7 +68,8 @@ internal static class SpeedRatings
 /// <remarks>
 /// <para>
 /// 基準のパソコンは Core i5-9500T (6 コア、2019 年の事務用の小型パソコン)、メモリー 16 GB、
-/// SSD (読み込み 2,396 MB/秒、書き込み 1,202 MB/秒)、AC 電源。2026-10-17 に一時フォルダーで測った。
+/// SSD (読み込み 2,441 MB/秒、書き込み 1,377 MB/秒)、AC 電源。2026-10-17 に一時フォルダーで測った
+/// (慣らしの 1 回の後に 3 回測る形になってから)。
 /// ふつうのパソコンが 1,000 前後になるように、速すぎないものを選んだ。
 /// </para>
 /// <para>
@@ -92,16 +93,16 @@ internal static class SpeedScore
     /// <summary>基準のパソコンで測った値。</summary>
     public static readonly SpeedResult Baseline = new()
     {
-        DiskReadBytesPerSecond = 2512508994.792193,
-        DiskWriteBytesPerSecond = 1260278698.891862,
+        DiskReadBytesPerSecond = 2559567944.0249515,
+        DiskWriteBytesPerSecond = 1444363856.2864845,
         Kinds =
         [
             new() { Kind = SpeedKind.Documents, ContentBytes = 134217728, FileCount = 32,
-                    ArchiveBytes = 50045105, CompressSeconds = 0.582808, ExtractSeconds = 0.2430247 },
+                    ArchiveBytes = 50045105, CompressSeconds = 0.4784453, ExtractSeconds = 0.1889124 },
             new() { Kind = SpeedKind.Media, ContentBytes = 268435456, FileCount = 16,
-                    ArchiveBytes = 268437110, CompressSeconds = 0.4587931, ExtractSeconds = 0.106147 },
+                    ArchiveBytes = 268437110, CompressSeconds = 0.3756366, ExtractSeconds = 0.1013321 },
             new() { Kind = SpeedKind.SmallFiles, ContentBytes = 32768000, FileCount = 4000,
-                    ArchiveBytes = 17962461, CompressSeconds = 1.2624698, ExtractSeconds = 2.9681231 },
+                    ArchiveBytes = 17962461, CompressSeconds = 1.0051511, ExtractSeconds = 3.0159344 },
         ],
     };
 }

@@ -138,7 +138,7 @@ if ($window) {
         Check '総合スコアは表の下' ($scoreText.Current.BoundingRectangle.Top -gt (ById $window 'EstimateList').Current.BoundingRectangle.Bottom)
     }
     $times = (Get-RowTimes ($rows | Where-Object { $_ -like '100 GB、*' })).Times
-    $baseline = @(466.2, 194.4, 183.5, 127.9, 4136.9, 9725.9)
+    $baseline = @(382.8, 151.1, 150.3, 116.3, 3293.7, 9882.6)
     if ($times.Count -eq 6 -and -not ($times -contains 0)) {
         $log = 0
         for ($i = 0; $i -lt 6; $i++) { $log += [Math]::Log($baseline[$i] / $times[$i]) }
