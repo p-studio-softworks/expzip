@@ -26,8 +26,9 @@ namespace Expzip.Ui;
 // それらを受け渡す所だけ internal にする
 public partial class SpeedWindow : Window
 {
-    /// <summary>見積もりを出す中身の大きさ (GB)。</summary>
-    private static readonly int[] Sizes = [1, 10, 100];
+    /// <summary>見積もりを出す中身の大きさ。100 MB から 1 TB まで。</summary>
+    private static readonly long[] Sizes =
+        [100L << 20, 1L << 30, 10L << 30, 100L << 30, 1L << 40];
 
     private static readonly SpeedKind[] Kinds = [SpeedKind.Documents, SpeedKind.Media, SpeedKind.SmallFiles];
 
@@ -82,6 +83,7 @@ public partial class SpeedWindow : Window
         DocumentsColumn.Header = Strings.SpeedKindName(SpeedKind.Documents);
         MediaColumn.Header = Strings.SpeedKindName(SpeedKind.Media);
         SmallFilesColumn.Header = Strings.SpeedKindName(SpeedKind.SmallFiles);
+        RatingColumn.Header = Strings.SpeedColumnRating;
         Note.Text = Strings.SpeedNote;
         ConditionsLabel.Text = Strings.SpeedConditionsLabel;
         CopyButton.Content = Strings.SpeedCopy;
@@ -252,11 +254,14 @@ public partial class SpeedWindow : Window
 
         text.AppendLine();
         text.AppendLine(string.Join('\t',
-            new[] { Strings.SpeedColumnSize }.Concat(Kinds.Select(Strings.SpeedKindName))));
+            new[] { Strings.SpeedColumnSize }
+                .Concat(Kinds.Select(Strings.SpeedKindName))
+                .Append(Strings.SpeedColumnRating)));
         foreach (var size in Sizes)
         {
             var row = EstimateRow.Of(result, size);
-            text.AppendLine(string.Join('\t', row.Size, row.Documents, row.Media, row.SmallFiles));
+            text.AppendLine(string.Join('\t',
+                row.Size, row.Documents.Plain, row.Media.Plain, row.SmallFiles.Plain, row.Rating.Text));
         }
 
         text.AppendLine();
@@ -274,21 +279,63 @@ public partial class SpeedWindow : Window
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
-    /// <summary>見積もりの表の 1 行 (#269)。</summary>
-    private sealed record EstimateRow(string Size, string Documents, string Media, string SmallFiles, string RowName)
+    /// <summary>
+    /// 見積もりの表の 1 行 (#269)。評価は、行の中でいちばん遅い時間で決める。
+    /// </summary>
+    private sealed record EstimateRow(
+        string Size, TimeCell Documents, TimeCell Media, TimeCell SmallFiles, RatedText Rating, string RowName)
     {
-        public static EstimateRow Of(SpeedResult result, int gigabytes)
+        public static EstimateRow Of(SpeedResult result, long bytes)
         {
-            var bytes = gigabytes * 1024L * 1024 * 1024;
-            var cells = Kinds
-                .Select(kind => result.Estimate(kind, bytes) is { } time
-                    ? Strings.SpeedCell(time.Compress, time.Extract)
-                    : "-")
-                .ToList();
-            var size = Strings.SpeedSize(gigabytes);
+            var times = Kinds.Select(kind => result.Estimate(kind, bytes)).ToList();
+            var cells = times.Select(TimeCell.Of).ToList();
+            var size = Strings.SpeedSize(bytes);
 
-            return new EstimateRow(size, cells[0], cells[1], cells[2],
-                Strings.SpeedRowName(size, cells[0], cells[1], cells[2]));
+            var measured = times.OfType<(TimeSpan Compress, TimeSpan Extract)>().ToList();
+            var rating = new RatedText("-", null);
+            if (measured.Count > 0)
+            {
+                var worst = SpeedRatings.Of(measured.Max(static t => t.Compress > t.Extract ? t.Compress : t.Extract));
+                rating = RatedText.Of(Strings.SpeedRatingName(worst), worst);
+            }
+
+            return new EstimateRow(size, cells[0], cells[1], cells[2], rating,
+                Strings.SpeedRowName(size, cells[0].Plain, cells[1].Plain, cells[2].Plain, rating.Text));
         }
+    }
+
+    /// <summary>表の 1 マス。圧縮と展開の時間に、それぞれの評価の色を付ける。</summary>
+    private sealed record TimeCell(string CompressLabel, RatedText Compress, string ExtractLabel, RatedText Extract)
+    {
+        /// <summary>色を付けない形。コピーと、支援技術が読む行の名前に使う。</summary>
+        public string Plain { get; init; } = "-";
+
+        public static TimeCell Of((TimeSpan Compress, TimeSpan Extract)? time)
+        {
+            if (time is not { } t)
+            {
+                return new TimeCell(string.Empty, new RatedText("-", null), string.Empty, new RatedText(string.Empty, null));
+            }
+
+            return new TimeCell(
+                Strings.SpeedCompressLabel,
+                RatedText.Of(Strings.SpeedDuration(t.Compress), SpeedRatings.Of(t.Compress)),
+                Strings.SpeedExtractLabel,
+                RatedText.Of(Strings.SpeedDuration(t.Extract), SpeedRatings.Of(t.Extract)))
+            {
+                Plain = Strings.SpeedCell(t.Compress, t.Extract),
+            };
+        }
+    }
+
+    /// <summary>評価の色を付ける字。色は名前で持つ (#122)。</summary>
+    private sealed record RatedText(string Text, string? AccentKey)
+    {
+        public static RatedText Of(string text, SpeedRating rating) => new(text, rating switch
+        {
+            SpeedRating.Comfortable => "EncryptedBrush",
+            SpeedRating.SomewhatSlow => "CautionBrush",
+            _ => "WarningBrush",
+        });
     }
 }

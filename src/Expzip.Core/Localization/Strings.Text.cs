@@ -2350,17 +2350,30 @@ internal static partial class Strings
 
     public static string SpeedColumnSize => Pick("中身の大きさ", "Contents");
 
+    public static string SpeedColumnRating => Pick("評価", "Rating");
+
+    public static string SpeedCompressLabel => Pick("圧縮", "Compress");
+
+    public static string SpeedExtractLabel => Pick("展開", "Extract");
+
     /// <summary>表の 1 マス。圧縮と展開の時間を並べる。</summary>
-    public static string SpeedCell(TimeSpan compress, TimeSpan extract) => Pick(
-        $"圧縮 {SpeedDuration(compress)} / 展開 {SpeedDuration(extract)}",
-        $"Compress {SpeedDuration(compress)} / Extract {SpeedDuration(extract)}");
+    public static string SpeedCell(TimeSpan compress, TimeSpan extract)
+        => $"{SpeedCompressLabel} {SpeedDuration(compress)} / {SpeedExtractLabel} {SpeedDuration(extract)}";
+
+    public static string SpeedRatingName(SpeedRating rating) => rating switch
+    {
+        SpeedRating.Comfortable => Pick("快適", "Comfortable"),
+        SpeedRating.SomewhatSlow => Pick("やや遅い", "A bit slow"),
+        _ => Pick("遅い", "Slow"),
+    };
 
     /// <summary>支援技術が読む行の名前。</summary>
-    public static string SpeedRowName(string size, string documents, string media, string smallFiles) => Pick(
+    public static string SpeedRowName(
+        string size, string documents, string media, string smallFiles, string rating) => Pick(
         $"{size}、{SpeedKindName(SpeedKind.Documents)}: {documents}、{SpeedKindName(SpeedKind.Media)}: {media}、"
-        + $"{SpeedKindName(SpeedKind.SmallFiles)}: {smallFiles}",
+        + $"{SpeedKindName(SpeedKind.SmallFiles)}: {smallFiles}、{SpeedColumnRating}: {rating}",
         $"{size}, {SpeedKindName(SpeedKind.Documents)}: {documents}, {SpeedKindName(SpeedKind.Media)}: {media}, "
-        + $"{SpeedKindName(SpeedKind.SmallFiles)}: {smallFiles}");
+        + $"{SpeedKindName(SpeedKind.SmallFiles)}: {smallFiles}, {SpeedColumnRating}: {rating}");
 
     /// <summary>見積もりの時間。細かい値は当てにならないので、長いほど粗く出す。</summary>
     public static string SpeedDuration(TimeSpan time)
@@ -2390,19 +2403,32 @@ internal static partial class Strings
             return Pick($"{minutes} 分", $"{minutes} min");
         }
 
-        return minutes % 60 == 0
-            ? Pick($"{minutes / 60} 時間", $"{minutes / 60} h")
-            : Pick($"{minutes / 60} 時間 {minutes % 60} 分", $"{minutes / 60} h {minutes % 60} min");
+        if (minutes < 600)
+        {
+            return minutes % 60 == 0
+                ? Pick($"{minutes / 60} 時間", $"{minutes / 60} h")
+                : Pick($"{minutes / 60} 時間 {minutes % 60} 分", $"{minutes / 60} h {minutes % 60} min");
+        }
+
+        return Pick($"{(long)Math.Round(time.TotalHours):N0} 時間", $"{(long)Math.Round(time.TotalHours):N0} h");
     }
 
-    /// <summary>表の左の列。1 GB などの大きさ。</summary>
-    public static string SpeedSize(int gigabytes) => $"{gigabytes:N0} GB";
+    /// <summary>表の左の列。100 MB、1 GB、1 TB などの大きさ。</summary>
+    public static string SpeedSize(long bytes)
+    {
+        const long mega = 1024L * 1024;
+        return bytes >= mega * 1024 * 1024 ? $"{bytes / (mega * 1024 * 1024):N0} TB"
+            : bytes >= mega * 1024 ? $"{bytes / (mega * 1024):N0} GB"
+            : $"{bytes / mega:N0} MB";
+    }
 
     public static string SpeedNote => Pick(
         "目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。"
+        + "1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、評価はその行でいちばん遅い時間で決めています。"
         + $"中身の大きさは圧縮する前の大きさです。小さなファイルは 1 個 {SpeedTest.SmallFileBytes / 1024} KB として計算しています。",
         "These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC "
-        + "can change them. Contents are measured before compression. "
+        + "can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. "
+        + "The rating is based on the slowest time in the row. Contents are measured before compression. "
         + $"Small files are counted as {SpeedTest.SmallFileBytes / 1024} KB each.");
 
     public static string SpeedMeasuredAt(DateTime at) => Pick(

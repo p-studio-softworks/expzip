@@ -2505,9 +2505,17 @@ SpeedClose
   ja  閉じる
   en  Close
 
+SpeedColumnRating
+  ja  評価
+  en  Rating
+
 SpeedColumnSize
   ja  中身の大きさ
   en  Contents
+
+SpeedCompressLabel
+  ja  圧縮
+  en  Compress
 
 SpeedConditionsLabel
   ja  測定した条件
@@ -2543,6 +2551,10 @@ SpeedDone
 SpeedDuration (time: 00:01:23)
   ja  1 分 23 秒
   en  1 min 23 s
+
+SpeedExtractLabel
+  ja  展開
+  en  Extract
 
 SpeedFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
   ja  測定できませんでした。
@@ -2586,8 +2598,8 @@ SpeedNotYet
   en  Not measured yet
 
 SpeedNote
-  ja  目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。中身の大きさは圧縮する前の大きさです。小さなファイルは 1 個 8 KB として計算しています。
-  en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Contents are measured before compression. Small files are counted as 8 KB each.
+  ja  目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、評価はその行でいちばん遅い時間で決めています。中身の大きさは圧縮する前の大きさです。小さなファイルは 1 個 8 KB として計算しています。
+  en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the slowest time in the row. Contents are measured before compression. Small files are counted as 8 KB each.
 
 SpeedPlaceFolder
   ja  指定したフォルダー
@@ -2620,9 +2632,19 @@ SpeedPrevious
   ja  前回の測定結果
   en  Last measurement
 
-SpeedRowName (size: 見本, documents: 見本, media: 見本, smallFiles: 見本)
-  ja  ⟦見本⟧、文書のようなもの: ⟦見本⟧、写真や動画: ⟦見本⟧、小さなファイルがたくさん: ⟦見本⟧
-  en  ⟦見本⟧, Documents: ⟦見本⟧, Photos and videos: ⟦見本⟧, Many small files: ⟦見本⟧
+SpeedRatingName (rating: Comfortable)
+  ja  快適
+  en  Comfortable
+SpeedRatingName (rating: SomewhatSlow)
+  ja  やや遅い
+  en  A bit slow
+SpeedRatingName (rating: Slow)
+  ja  遅い
+  en  Slow
+
+SpeedRowName (size: 見本, documents: 見本, media: 見本, smallFiles: 見本, rating: 見本)
+  ja  ⟦見本⟧、文書のようなもの: ⟦見本⟧、写真や動画: ⟦見本⟧、小さなファイルがたくさん: ⟦見本⟧、評価: ⟦見本⟧
+  en  ⟦見本⟧, Documents: ⟦見本⟧, Photos and videos: ⟦見本⟧, Many small files: ⟦見本⟧, Rating: ⟦見本⟧
 
 SpeedRunning (step: Disk, kind: Documents, done: 45, total: 120)
   ja  ディスクの読み書きの速さを測定しています… (46 / 120)
@@ -2637,9 +2659,9 @@ SpeedRunning (step: Extracting, kind: Documents, done: 45, total: 120)
   ja  展開しています: 文書のようなもの (46 / 120)
   en  Extracting: Documents (46 / 120)
 
-SpeedSize (gigabytes: 3)
-  ja  3 GB
-  en  3 GB
+SpeedSize (bytes: 1048576)
+  ja  1 MB
+  en  1 MB
 
 SpeedStart
   ja  測定する

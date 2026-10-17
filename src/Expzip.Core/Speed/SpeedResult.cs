@@ -30,6 +30,40 @@ internal enum StorageKind
     Network,
 }
 
+/// <summary>見積もった時間の評価 (#269)。</summary>
+internal enum SpeedRating
+{
+    /// <summary>1 分未満。</summary>
+    Comfortable,
+
+    /// <summary>1 分以上 10 分未満。</summary>
+    SomewhatSlow,
+
+    /// <summary>10 分以上。</summary>
+    Slow,
+}
+
+/// <summary>見積もった時間を評価する (#269)。</summary>
+internal static class SpeedRatings
+{
+    /// <summary>これより短ければ快適。</summary>
+    public static readonly TimeSpan ComfortableLimit = TimeSpan.FromMinutes(1);
+
+    /// <summary>これより短ければやや遅い。これ以上は遅い。</summary>
+    public static readonly TimeSpan SlowLimit = TimeSpan.FromMinutes(10);
+
+    /// <remarks>
+    /// 表示と同じく秒に丸めてから比べる。丸めないと 59.6 秒が「1 分」と出ながら快適になる。
+    /// </remarks>
+    public static SpeedRating Of(TimeSpan time)
+    {
+        var seconds = Math.Round(time.TotalSeconds);
+        return seconds < ComfortableLimit.TotalSeconds ? SpeedRating.Comfortable
+            : seconds < SlowLimit.TotalSeconds ? SpeedRating.SomewhatSlow
+            : SpeedRating.Slow;
+    }
+}
+
 /// <summary>1 種類のデータを試した結果。</summary>
 /// <remarks>設定ファイルに残すので、読み書きできる形にしてある。</remarks>
 internal sealed class SpeedKindResult
