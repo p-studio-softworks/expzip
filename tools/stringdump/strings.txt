@@ -2598,8 +2598,8 @@ SpeedNotYet
   en  Not measured
 
 SpeedNote
-  ja  目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行でいちばん遅い時間で決めています。サイズは圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています。
-  en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the slowest time in the row. Sizes are before compression. Small files are counted as 8 KB each.
+  ja  目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行の 6 つの時間の平均で決めています。サイズは圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています。
+  en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the average of the six times in the row. Sizes are before compression. Small files are counted as 8 KB each.
 
 SpeedPlaceFolder
   ja  指定したフォルダー

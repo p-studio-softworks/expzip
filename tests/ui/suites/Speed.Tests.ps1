@@ -116,12 +116,12 @@ if ($window) {
     $sizes = @($rows | ForEach-Object { ($_ -split '、')[0] })
     Check '100 MB から 1 TB までの 5 行' (($sizes -join ',') -eq '100 MB,1 GB,10 GB,100 GB,1 TB') ($sizes -join ', ')
     Check '行の名前に大きさと 3 種類の時間と判定' ($rows.Count -gt 0 -and $rows[0] -match '^100 MB、文書: 圧縮 .+ / 展開 .+、写真や動画: 圧縮 .+、小さいファイル多数: 圧縮 .+、判定: (快適|やや遅い|遅い)$') $rows[0]
-    # 判定は行でいちばん遅い時間で決める。1 分未満は快適、10 分未満はやや遅い、それ以上は遅い
+    # 判定は行の 6 つの時間の平均で決める (#272)。1 分未満は快適、10 分未満はやや遅い、それ以上は遅い
     foreach ($row in $rows) {
         $parsed = Get-RowTimes $row
-        $slowest = ($parsed.Times | Measure-Object -Maximum).Maximum
-        $expected = if ($slowest -lt 60) { '快適' } elseif ($slowest -lt 600) { 'やや遅い' } else { '遅い' }
-        Check "判定: $(($row -split '、')[0])" ($parsed.Times.Count -eq 6 -and $parsed.Rating -eq $expected) "いちばん遅い $slowest 秒 / $($parsed.Rating)"
+        $average = [Math]::Round(($parsed.Times | Measure-Object -Average).Average)
+        $expected = if ($average -lt 60) { '快適' } elseif ($average -lt 600) { 'やや遅い' } else { '遅い' }
+        Check "判定: $(($row -split '、')[0])" ($parsed.Times.Count -eq 6 -and $parsed.Rating -eq $expected) "平均 $average 秒 / $($parsed.Rating)"
     }
     Check '1 TB の小さいファイルは遅い' ($rows[-1] -match '判定: 遅い$') $rows[-1]
     # 見出しも、いちばん長くなる 100 GB の行も欄に収まる (#143)

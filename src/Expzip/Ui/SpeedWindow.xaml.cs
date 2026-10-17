@@ -293,8 +293,12 @@ public partial class SpeedWindow : Window
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>
-    /// 見積もりの表の 1 行 (#269)。評価は、行の中でいちばん遅い時間で決める。
+    /// 見積もりの表の 1 行 (#269)。評価は、行の時間の平均で決める (#272)。
     /// </summary>
+    /// <remarks>
+    /// いちばん遅い時間で決めていたときは、小さいファイル多数の展開 1 つだけで行が「遅い」になり、厳しすぎた。
+    /// 平均は、圧縮と展開を種類ごとに 1 回ずつ行ったときの、1 回あたりの待ち時間になる。
+    /// </remarks>
     private sealed record EstimateRow(
         string Size, TimeCell Documents, TimeCell Media, TimeCell SmallFiles, RatedText Rating, string RowName)
     {
@@ -308,8 +312,9 @@ public partial class SpeedWindow : Window
             var rating = new RatedText("-", null);
             if (measured.Count > 0)
             {
-                var worst = SpeedRatings.Of(measured.Max(static t => t.Compress > t.Extract ? t.Compress : t.Extract));
-                rating = RatedText.Of(Strings.SpeedRatingName(worst), worst);
+                var average = SpeedRatings.Of(TimeSpan.FromSeconds(
+                    measured.Average(static t => (t.Compress.TotalSeconds + t.Extract.TotalSeconds) / 2)));
+                rating = RatedText.Of(Strings.SpeedRatingName(average), average);
             }
 
             return new EstimateRow(size, cells[0], cells[1], cells[2], rating,
