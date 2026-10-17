@@ -1,9 +1,9 @@
-﻿# 処理時間の見積もり (#269)。このパソコンで実際に試して測り、結果を残す
+﻿# ベンチマーク (処理時間の見積もり、#269、#271)。このパソコンで実際に試して測り、結果を残す
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'Speed'
 Set-Settings
 
-$title = '処理時間の見積もり'
+$title = 'ベンチマーク'
 $place = Join-Path $script:Work 'place'
 New-Item -ItemType Directory -Force -Path $place | Out-Null
 
@@ -52,11 +52,11 @@ function ConvertTo-Seconds([string]$Text) {
     return $seconds
 }
 
-# 行の名前から、時間 6 つと評価を取り出す
+# 行の名前から、時間 6 つと判定を取り出す
 function Get-RowTimes([string]$Row) {
     $times = @([regex]::Matches($Row, '(?:圧縮|展開) ((?:[\d,]+ (?:時間|分|秒) ?)+|1 秒未満)') |
         ForEach-Object { ConvertTo-Seconds $_.Groups[1].Value })
-    $rating = if ($Row -match '評価: (.+)$') { $Matches[1] } else { '' }
+    $rating = if ($Row -match '判定: (.+)$') { $Matches[1] } else { '' }
     return [pscustomobject]@{ Times = $times; Rating = $rating }
 }
 
@@ -77,7 +77,7 @@ Check '書庫を開いていなくても押せる' ((ById $app.Window 'SpeedButt
 $window = Open-SpeedWindow $app
 Check 'ウィンドウが開く' ($null -ne $window)
 if ($window) {
-    Check '見出し' ((Get-Headline $window) -eq 'まだ測定していません') (Get-Headline $window)
+    Check '見出し' ((Get-Headline $window) -eq '未測定') (Get-Headline $window)
     Check '結果の表は出さない' ((Get-EstimateRows $window).Count -eq 0)
     Check 'コピーは押せない' (-not (ById $window 'CopyButton').Current.IsEnabled)
     $temp = ById $window 'TempChoice'
@@ -115,15 +115,15 @@ if ($window) {
     $rows = Get-EstimateRows $window
     $sizes = @($rows | ForEach-Object { ($_ -split '、')[0] })
     Check '100 MB から 1 TB までの 5 行' (($sizes -join ',') -eq '100 MB,1 GB,10 GB,100 GB,1 TB') ($sizes -join ', ')
-    Check '行の名前に大きさと 3 種類の時間と評価' ($rows.Count -gt 0 -and $rows[0] -match '^100 MB、文書のようなもの: 圧縮 .+ / 展開 .+、写真や動画: 圧縮 .+、小さなファイルがたくさん: 圧縮 .+、評価: (快適|やや遅い|遅い)$') $rows[0]
-    # 評価は行でいちばん遅い時間で決める。1 分未満は快適、10 分未満はやや遅い、それ以上は遅い
+    Check '行の名前に大きさと 3 種類の時間と判定' ($rows.Count -gt 0 -and $rows[0] -match '^100 MB、文書: 圧縮 .+ / 展開 .+、写真や動画: 圧縮 .+、小さいファイル多数: 圧縮 .+、判定: (快適|やや遅い|遅い)$') $rows[0]
+    # 判定は行でいちばん遅い時間で決める。1 分未満は快適、10 分未満はやや遅い、それ以上は遅い
     foreach ($row in $rows) {
         $parsed = Get-RowTimes $row
         $slowest = ($parsed.Times | Measure-Object -Maximum).Maximum
         $expected = if ($slowest -lt 60) { '快適' } elseif ($slowest -lt 600) { 'やや遅い' } else { '遅い' }
-        Check "評価: $(($row -split '、')[0])" ($parsed.Times.Count -eq 6 -and $parsed.Rating -eq $expected) "いちばん遅い $slowest 秒 / $($parsed.Rating)"
+        Check "判定: $(($row -split '、')[0])" ($parsed.Times.Count -eq 6 -and $parsed.Rating -eq $expected) "いちばん遅い $slowest 秒 / $($parsed.Rating)"
     }
-    Check '1 TB の小さなファイルは遅い' ($rows[-1] -match '評価: 遅い$') $rows[-1]
+    Check '1 TB の小さいファイルは遅い' ($rows[-1] -match '判定: 遅い$') $rows[-1]
     # 見出しも、いちばん長くなる 100 GB の行も欄に収まる (#143)
     $clipped = Get-ClippedHeaders (ById $window 'EstimateList')
     Check '表の見出しが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
@@ -131,7 +131,7 @@ if ($window) {
     Check '表のマスが切れていない' ($clipped.Count -eq 0) ($clipped -join ' / ')
     $conditions = (ById $window 'Conditions').Current.Name
     Check '条件にメモリー' ($conditions -match 'メモリー: \d+ GB') $conditions
-    Check '条件にパソコンの名前' ($conditions -match "パソコン: $([regex]::Escape($env:COMPUTERNAME))") $conditions
+    Check '条件にコンピューター名' ($conditions -match "コンピューター名: $([regex]::Escape($env:COMPUTERNAME))") $conditions
     Check '条件にコアの数' ($conditions -match "\($([Environment]::ProcessorCount) コア\)") $conditions
     Check '条件に保存先' ($conditions -match "保存先: (SSD|HDD|ネットワーク|不明) \($([regex]::Escape($place))\)") $conditions
     Check '条件にディスクの速さ' ($conditions -match 'ディスクの速さ: 読み込み [\d,]+ MB/秒、書き込み [\d,]+ MB/秒') $conditions
@@ -143,9 +143,9 @@ if ($window) {
     Push $copy
     $clip = [System.Windows.Forms.Clipboard]::GetText()
     $lines = $clip -split "`r`n"
-    Check '1 行目は何の結果か' ($lines[0] -eq '処理時間の見積もり (Expzip)') $lines[0]
-    Check '条件も入る' ($clip -match "パソコン: $([regex]::Escape($env:COMPUTERNAME))")
-    Check '表の見出しはタブ区切り' ($lines -contains "中身の大きさ`t文書のようなもの`t写真や動画`t小さなファイルがたくさん`t評価") ($lines -join ' | ')
+    Check '1 行目は何の結果か' ($lines[0] -eq 'ベンチマーク (Expzip)') $lines[0]
+    Check '条件も入る' ($clip -match "コンピューター名: $([regex]::Escape($env:COMPUTERNAME))")
+    Check '表の見出しはタブ区切り' ($lines -contains "サイズ`t文書`t写真や動画`t小さいファイル多数`t判定") ($lines -join ' | ')
     Check '表の行もタブ区切り' (@($lines | Where-Object { $_ -match "^1 TB`t圧縮 .+`t圧縮 .+`t圧縮 .+`t(快適|やや遅い|遅い)$" }).Count -eq 1)
     Check '目安であることも入る' ($clip -match '目安です。')
 
@@ -184,12 +184,12 @@ Stop-Expzip $app
 Set-Settings @{ Language = 'en' }
 $app = Start-Expzip
 $button = ById $app.Window 'SpeedButton'
-Check '英語の名前' ($button.Current.Name -eq 'Time estimate') $button.Current.Name
+Check '英語の名前' ($button.Current.Name -eq 'Benchmark') $button.Current.Name
 Push $button
-$window = Find-Window $app 'Time estimate' 15000
+$window = Find-Window $app 'Benchmark' 15000
 Check '英語のウィンドウ' ($null -ne $window)
 if ($window) {
-    Check '英語の見出し' ((Get-Headline $window) -eq 'Not measured yet') (Get-Headline $window)
+    Check '英語の見出し' ((Get-Headline $window) -eq 'Not measured') (Get-Headline $window)
     Push (ById $window 'CloseButton')
 }
 

@@ -61,7 +61,6 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock x:Name="PlaceLabel"
@@ -81,11 +80,6 @@
                             MinWidth="96"
                             Margin="12,0,0,0"
                             Click="BrowseButton_Click" />
-                    <TextBlock x:Name="PlaceHint"
-                               Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
-                               Margin="0,4,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Grid>
 
                 <Button x:Name="StartButton"

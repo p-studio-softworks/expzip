@@ -2482,8 +2482,8 @@ SortMenu
   en  Sort by
 
 Speed
-  ja  処理時間の見積もり
-  en  Time estimate
+  ja  ベンチマーク
+  en  Benchmark
 
 SpeedBrowse
   ja  参照
@@ -2506,32 +2506,32 @@ SpeedClose
   en  Close
 
 SpeedColumnRating
-  ja  評価
+  ja  判定
   en  Rating
 
 SpeedColumnSize
-  ja  中身の大きさ
-  en  Contents
+  ja  サイズ
+  en  Size
 
 SpeedCompressLabel
   ja  圧縮
   en  Compress
 
 SpeedConditionsLabel
-  ja  測定した条件
-  en  Conditions
+  ja  測定環境
+  en  Environment
 
 SpeedCopy
-  ja  結果をコピー
-  en  Copy results
+  ja  コピー
+  en  Copy
 
 SpeedCopyHeading
-  ja  処理時間の見積もり (Expzip)
-  en  Time estimate (Expzip)
+  ja  ベンチマーク (Expzip)
+  en  Benchmark (Expzip)
 
 SpeedCopyTooltip
-  ja  ほかのパソコンの結果と並べて比べられるように、文としてコピーする
-  en  Copy the results as text to compare with other PCs
+  ja  測定結果をクリップボードにコピーする
+  en  Copy the results to the clipboard
 
 SpeedCpu (name: 報告書.pdf, cores: 3)
   ja  CPU: ⟦報告書.pdf⟧ (3 コア)
@@ -2565,26 +2565,26 @@ SpeedFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒�
       | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
 
 SpeedIntro
-  ja  このパソコンで実際に圧縮と展開を試して、かかる時間を見積もります。10 秒ほどで終わります。
-  en  Expzip tries compressing and extracting on this PC and estimates how long it takes. It takes about 10 seconds.
+  ja  実際に圧縮と展開を実施して大きさごとに要する時間を見積もります。
+  en  Expzip actually compresses and extracts data and estimates the time needed for each size.
 
 SpeedKindName (kind: Documents)
-  ja  文書のようなもの
+  ja  文書
   en  Documents
 SpeedKindName (kind: Media)
   ja  写真や動画
   en  Photos and videos
 SpeedKindName (kind: SmallFiles)
-  ja  小さなファイルがたくさん
+  ja  小さいファイル多数
   en  Many small files
 
 SpeedMachine (name: 報告書.pdf)
-  ja  パソコン: ⟦報告書.pdf⟧
-  en  PC: ⟦報告書.pdf⟧
+  ja  コンピューター名: ⟦報告書.pdf⟧
+  en  Computer name: ⟦報告書.pdf⟧
 
 SpeedMeasuredAt (at: (なし))
-  ja  測定した日時: 0001/01/01 00:00
-  en  Measured: 0001-01-01 00:00
+  ja  日時: 0001/01/01 00:00
+  en  Date: 0001-01-01 00:00
 
 SpeedMemory (bytes: 1048576)
   ja  メモリー: 0 GB
@@ -2594,20 +2594,16 @@ SpeedMemory (bytes: 0)
   en  Memory: unknown
 
 SpeedNotYet
-  ja  まだ測定していません
-  en  Not measured yet
+  ja  未測定
+  en  Not measured
 
 SpeedNote
-  ja  目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、評価はその行でいちばん遅い時間で決めています。中身の大きさは圧縮する前の大きさです。小さなファイルは 1 個 8 KB として計算しています。
-  en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the slowest time in the row. Contents are measured before compression. Small files are counted as 8 KB each.
+  ja  目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行でいちばん遅い時間で決めています。サイズは圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています。
+  en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the slowest time in the row. Sizes are before compression. Small files are counted as 8 KB each.
 
 SpeedPlaceFolder
   ja  指定したフォルダー
   en  A folder you choose
-
-SpeedPlaceHint
-  ja  外付けのディスクや NAS で作業するときは、そのフォルダーを指定してください。
-  en  If you work on an external disk or a NAS, choose a folder there.
 
 SpeedPlaceLabel
   ja  測定する場所:
@@ -2643,20 +2639,20 @@ SpeedRatingName (rating: Slow)
   en  Slow
 
 SpeedRowName (size: 見本, documents: 見本, media: 見本, smallFiles: 見本, rating: 見本)
-  ja  ⟦見本⟧、文書のようなもの: ⟦見本⟧、写真や動画: ⟦見本⟧、小さなファイルがたくさん: ⟦見本⟧、評価: ⟦見本⟧
+  ja  ⟦見本⟧、文書: ⟦見本⟧、写真や動画: ⟦見本⟧、小さいファイル多数: ⟦見本⟧、判定: ⟦見本⟧
   en  ⟦見本⟧, Documents: ⟦見本⟧, Photos and videos: ⟦見本⟧, Many small files: ⟦見本⟧, Rating: ⟦見本⟧
 
 SpeedRunning (step: Disk, kind: Documents, done: 45, total: 120)
   ja  ディスクの読み書きの速さを測定しています… (46 / 120)
   en  Measuring disk speed… (46 / 120)
 SpeedRunning (step: Preparing, kind: Documents, done: 45, total: 120)
-  ja  試すデータを作成しています: 文書のようなもの (46 / 120)
+  ja  テスト用データを作成しています: 文書 (46 / 120)
   en  Creating test data: Documents (46 / 120)
 SpeedRunning (step: Compressing, kind: Documents, done: 45, total: 120)
-  ja  圧縮しています: 文書のようなもの (46 / 120)
+  ja  圧縮しています: 文書 (46 / 120)
   en  Compressing: Documents (46 / 120)
 SpeedRunning (step: Extracting, kind: Documents, done: 45, total: 120)
-  ja  展開しています: 文書のようなもの (46 / 120)
+  ja  展開しています: 文書 (46 / 120)
   en  Extracting: Documents (46 / 120)
 
 SpeedSize (bytes: 1048576)
@@ -2685,12 +2681,12 @@ SpeedStorage (kind: Network, location: 見本)
   en  Storage: network (⟦見本⟧)
 
 SpeedTitle
-  ja  処理時間の見積もり
-  en  Time estimate
+  ja  ベンチマーク
+  en  Benchmark
 
 SpeedTooltip
-  ja  このパソコンで圧縮・展開にかかる時間を見積もる
-  en  Estimate how long compressing and extracting takes on this PC
+  ja  圧縮・展開にかかる時間を見積もる
+  en  Estimate how long compressing and extracting takes
 
 Split
   ja  分割

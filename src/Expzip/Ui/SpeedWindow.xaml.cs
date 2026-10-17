@@ -76,7 +76,6 @@ public partial class SpeedWindow : Window
         PlaceLabel.Text = Strings.SpeedPlaceLabel;
         TempChoice.Content = $"{Strings.SpeedPlaceTemp} ({Path.TrimEndingDirectorySeparator(Path.GetTempPath())})";
         FolderChoice.Content = $"{Strings.SpeedPlaceFolder} ({_folder ?? Strings.SpeedPlaceNone})";
-        PlaceHint.Text = Strings.SpeedPlaceHint;
         BrowseButton.Content = Strings.SpeedBrowse;
         AutomationProperties.SetName(BrowseButton, Strings.SpeedBrowseTitle);
         SizeColumn.Header = Strings.SpeedColumnSize;

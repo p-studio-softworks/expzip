@@ -13,7 +13,7 @@ $tools = [ordered]@{
     InspectButton  = @('検査', 'この書庫が壊れていないか、危険なものが入っていないかを調べる')
     SplitButton    = @('分割', 'ファイルを指定した大きさに分割する。結合用のプログラムも作成する')
     SfxButton      = @('自己解凍', '自己解凍書庫として書き出す')
-    SpeedButton    = @('処理時間の見積もり', 'このパソコンで圧縮・展開にかかる時間を見積もる')
+    SpeedButton    = @('ベンチマーク', '圧縮・展開にかかる時間を見積もる')
     AiButton       = @('AI機能', 'AI機能の設定')
     LanguageButton = @('言語', '言語設定')
     AboutButton    = @('バージョン情報', 'Expzip について')
@@ -100,7 +100,7 @@ $menu = Open-DropDown $app 'LanguageButton'
 Push (ByName $menu 'English') 1200
 $english = [ordered]@{
     OpenButton = 'Open'; ExtractButton = 'Extract'; AddButton = 'Add'; PasswordButton = 'Password'
-    InspectButton = 'Inspect'; SplitButton = 'Split'; SfxButton = 'Self-extract'; SpeedButton = 'Time estimate'
+    InspectButton = 'Inspect'; SplitButton = 'Split'; SfxButton = 'Self-extract'; SpeedButton = 'Benchmark'
     AiButton = 'AI features'; LanguageButton = 'Language'; AboutButton = 'About'
 }
 foreach ($id in $english.Keys) {

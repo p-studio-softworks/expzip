@@ -2279,17 +2279,17 @@ internal static partial class Strings
 
     public static string HashClose => Pick("閉じる", "Close");
 
-    // ------------------------------------------------------------------ 処理時間の見積もり (#269)
+    // ------------------------------------------------------------------ ベンチマーク (処理時間の見積もり、#269、#271)
 
-    public static string Speed => Pick("処理時間の見積もり", "Time estimate");
+    public static string Speed => Pick("ベンチマーク", "Benchmark");
 
     public static string SpeedTooltip => Pick(
-        "このパソコンで圧縮・展開にかかる時間を見積もる",
-        "Estimate how long compressing and extracting takes on this PC");
+        "圧縮・展開にかかる時間を見積もる",
+        "Estimate how long compressing and extracting takes");
 
-    public static string SpeedTitle => Pick("処理時間の見積もり", "Time estimate");
+    public static string SpeedTitle => Pick("ベンチマーク", "Benchmark");
 
-    public static string SpeedNotYet => Pick("まだ測定していません", "Not measured yet");
+    public static string SpeedNotYet => Pick("未測定", "Not measured");
 
     public static string SpeedPrevious => Pick("前回の測定結果", "Last measurement");
 
@@ -2304,7 +2304,7 @@ internal static partial class Strings
             $"ディスクの読み書きの速さを測定しています… ({done + 1} / {total})",
             $"Measuring disk speed… ({done + 1} / {total})"),
         SpeedStep.Preparing => Pick(
-            $"試すデータを作成しています: {SpeedKindName(kind)} ({done + 1} / {total})",
+            $"テスト用データを作成しています: {SpeedKindName(kind)} ({done + 1} / {total})",
             $"Creating test data: {SpeedKindName(kind)} ({done + 1} / {total})"),
         SpeedStep.Compressing => Pick(
             $"圧縮しています: {SpeedKindName(kind)} ({done + 1} / {total})",
@@ -2316,15 +2316,14 @@ internal static partial class Strings
 
     public static string SpeedKindName(SpeedKind kind) => kind switch
     {
-        SpeedKind.Documents => Pick("文書のようなもの", "Documents"),
+        SpeedKind.Documents => Pick("文書", "Documents"),
         SpeedKind.Media => Pick("写真や動画", "Photos and videos"),
-        _ => Pick("小さなファイルがたくさん", "Many small files"),
+        _ => Pick("小さいファイル多数", "Many small files"),
     };
 
     public static string SpeedIntro => Pick(
-        "このパソコンで実際に圧縮と展開を試して、かかる時間を見積もります。10 秒ほどで終わります。",
-        "Expzip tries compressing and extracting on this PC and estimates how long it takes. "
-        + "It takes about 10 seconds.");
+        "実際に圧縮と展開を実施して大きさごとに要する時間を見積もります。",
+        "Expzip actually compresses and extracts data and estimates the time needed for each size.");
 
     public static string SpeedPlaceLabel => Pick("測定する場所:", "Where to measure:");
 
@@ -2334,10 +2333,6 @@ internal static partial class Strings
 
     public static string SpeedPlaceNone => Pick("(選択していません)", "(none selected)");
 
-    public static string SpeedPlaceHint => Pick(
-        "外付けのディスクや NAS で作業するときは、そのフォルダーを指定してください。",
-        "If you work on an external disk or a NAS, choose a folder there.");
-
     public static string SpeedBrowse => Pick("参照", "Browse");
 
     public static string SpeedBrowseTitle => Pick("測定するフォルダーを選択", "Choose a folder to measure in");
@@ -2346,11 +2341,11 @@ internal static partial class Strings
 
     public static string SpeedStop => Pick("中断", "Stop");
 
-    public static string SpeedConditionsLabel => Pick("測定した条件", "Conditions");
+    public static string SpeedConditionsLabel => Pick("測定環境", "Environment");
 
-    public static string SpeedColumnSize => Pick("中身の大きさ", "Contents");
+    public static string SpeedColumnSize => Pick("サイズ", "Size");
 
-    public static string SpeedColumnRating => Pick("評価", "Rating");
+    public static string SpeedColumnRating => Pick("判定", "Rating");
 
     public static string SpeedCompressLabel => Pick("圧縮", "Compress");
 
@@ -2424,18 +2419,18 @@ internal static partial class Strings
 
     public static string SpeedNote => Pick(
         "目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。"
-        + "1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、評価はその行でいちばん遅い時間で決めています。"
-        + $"中身の大きさは圧縮する前の大きさです。小さなファイルは 1 個 {SpeedTest.SmallFileBytes / 1024} KB として計算しています。",
+        + "1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行でいちばん遅い時間で決めています。"
+        + $"サイズは圧縮する前の大きさです。小さいファイルは 1 個 {SpeedTest.SmallFileBytes / 1024} KB として計算しています。",
         "These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC "
         + "can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. "
-        + "The rating is based on the slowest time in the row. Contents are measured before compression. "
+        + "The rating is based on the slowest time in the row. Sizes are before compression. "
         + $"Small files are counted as {SpeedTest.SmallFileBytes / 1024} KB each.");
 
     public static string SpeedMeasuredAt(DateTime at) => Pick(
-        $"測定した日時: {at:yyyy/MM/dd HH:mm}",
-        $"Measured: {at:yyyy-MM-dd HH:mm}");
+        $"日時: {at:yyyy/MM/dd HH:mm}",
+        $"Date: {at:yyyy-MM-dd HH:mm}");
 
-    public static string SpeedMachine(string name) => Pick($"パソコン: {name}", $"PC: {name}");
+    public static string SpeedMachine(string name) => Pick($"コンピューター名: {name}", $"Computer name: {name}");
 
     public static string SpeedCpu(string name, int cores) => Pick(
         $"CPU: {(name.Length == 0 ? "不明" : name)} ({cores:N0} コア)",
@@ -2467,13 +2462,13 @@ internal static partial class Strings
         $"Disk speed: read {read / (1024 * 1024):N0} MB/s, write {write / (1024 * 1024):N0} MB/s");
 
     /// <summary>コピーした文の 1 行目。何の結果かが、貼った先でも分かるように。</summary>
-    public static string SpeedCopyHeading => Pick("処理時間の見積もり (Expzip)", "Time estimate (Expzip)");
+    public static string SpeedCopyHeading => Pick("ベンチマーク (Expzip)", "Benchmark (Expzip)");
 
-    public static string SpeedCopy => Pick("結果をコピー", "Copy results");
+    public static string SpeedCopy => Pick("コピー", "Copy");
 
     public static string SpeedCopyTooltip => Pick(
-        "ほかのパソコンの結果と並べて比べられるように、文としてコピーする",
-        "Copy the results as text to compare with other PCs");
+        "測定結果をクリップボードにコピーする",
+        "Copy the results to the clipboard");
 
     public static string SpeedFailed(string reason) => Pick(
         $"測定できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
