@@ -906,13 +906,11 @@
                             <MenuItem x:Name="NewArchiveFromSelectionMenuItem"
                                       Click="NewArchiveFromSelectionMenuItem_Click" />
                             <!--
-                                ハッシュ値 (#259)。選んだファイルのものと、書庫ファイルそのもののもの。
-                                「選んでいなければ書庫」のように 1 つにまとめると、どちらを計算したのかが分かりにくい
+                                ハッシュ値 (#259)。選んだファイルのものと、書庫ファイルそのもののものを一緒に出す (#283)。
+                                書庫ファイルの行は名前に「書庫ファイル」と添えて分けるので、どちらの値かは迷わない
                             -->
                             <MenuItem x:Name="HashMenuItem"
                                       Click="HashMenuItem_Click" />
-                            <MenuItem x:Name="ArchiveHashMenuItem"
-                                      Click="ArchiveHashMenuItem_Click" />
                             <!-- 書庫全体のコメントを見る・直す (#258)。コメントが無い書庫では付けられる -->
                             <MenuItem x:Name="CommentMenuItem"
                                       Click="CommentMenuItem_Click" />

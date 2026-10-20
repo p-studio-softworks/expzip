@@ -40,17 +40,26 @@ function Get-HashRows($Window) {
 }
 
 $app = Start-Expzip @($sample)
+$archiveSha256 = (Get-FileHash -Algorithm SHA256 $sample).Hash.ToLowerInvariant()
 
-Section '選んだファイル'
+Section '右クリックの項目は 1 つ (#283)'
+$menu = Open-RowMenu $app 'abc.txt'
+Check '書庫ファイル用の項目は無い' ($null -eq (ByName $menu '書庫ファイルのハッシュ値を計算'))
+Close-DropDown $app
+
+Section '選んだファイルと書庫ファイル'
 $window = Open-HashWindow $app 'abc.txt' 'ハッシュ値を計算'
 Check '窓が開く' ($null -ne $window)
 if ($window) {
-    Check '計算し終わる' ((ById $window 'Headline').Current.Name -eq '1 個のファイルのハッシュ値を計算しました') (ById $window 'Headline').Current.Name
+    Check '計算し終わる' ((ById $window 'Headline').Current.Name -eq '2 個のファイルのハッシュ値を計算しました') (ById $window 'Headline').Current.Name
     $rows = Get-HashRows $window
-    Check '4 種類並ぶ' ($rows.Count -eq 4) ($rows -join ' / ')
+    Check '2 個 × 4 種類並ぶ' ($rows.Count -eq 8) ($rows -join ' / ')
     foreach ($kind in $abc.Keys) {
         Check "値: $kind" ($rows -contains "abc.txt、$($kind): $($abc[$kind])") ($rows -join ' / ')
     }
+    # 書庫ファイルの行は最後に計算するが、いちばん上に、書庫ファイルと分かる名前で出る
+    Check '書庫ファイルの値' ($rows -contains "hash.zip (書庫ファイル)、SHA-256: $archiveSha256") ($rows -join ' / ')
+    Check '書庫ファイルの行が上' (@($rows[0..3] | Where-Object { $_ -like 'hash.zip (書庫ファイル)、*' }).Count -eq 4) ($rows -join ' / ')
 
     # sha256sum の出力をそのまま貼る。大文字でも一致とみなす
     $box = ById $window 'CompareBox'
@@ -98,19 +107,37 @@ if ($window) {
     $made = @(Get-ChildItem (Join-Path $env:TEMP 'Expzip') -Recurse -Directory -Filter '*-hash' -ErrorAction SilentlyContinue)
     Check '一時ファイルの置き場を使わない' ($made.Count -eq 0) (($made | ForEach-Object { $_.FullName }) -join ', ')
 
+    # 一覧は見えている行しか作らないので、数は見出しで確かめる
+    $headline = (ById $window 'Headline').Current.Name
+    Check '2 個 + 書庫ファイル' ($headline -eq '3 個のファイルのハッシュ値を計算しました') $headline
     $rows = Get-HashRows $window
-    Check '2 個 × 4 種類' ($rows.Count -eq 8) ($rows -join ' / ')
     Check '書庫の中のパスで出る' (@($rows | Where-Object { $_ -like 'docs/one.txt、*' }).Count -eq 4) ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }
 
-Section '書庫ファイルそのもの'
-$window = Open-HashWindow $app 'abc.txt' '書庫ファイルのハッシュ値を計算'
+Section '何も選んでいなければ書庫ファイルだけ'
+$row = Select-Row $app 'abc.txt'
+$row.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).RemoveFromSelection()
+Start-Sleep -Milliseconds 300
+Send-Keys $app '+{F10}'
+$menu = Find-DropDown $app
+$entry = if ($menu) { ByName $menu 'ハッシュ値を計算' }
+Check '押せる' ($null -ne $entry -and $entry.Current.IsEnabled)
+$window = $null
+if ($entry -and $entry.Current.IsEnabled) {
+    Push $entry
+    $window = Find-Window $app 'ハッシュ値 - hash.zip' 30000
+    if ($window) {
+        Wait-Until { (ById $window 'Headline').Current.Name -match 'ハッシュ値を計算しました$' } 30000 | Out-Null
+    }
+} else {
+    Close-DropDown $app
+}
 Check '窓が開く' ($null -ne $window)
 if ($window) {
-    $expected = (Get-FileHash -Algorithm SHA256 $sample).Hash.ToLowerInvariant()
     $rows = Get-HashRows $window
-    Check '書庫ファイルの値' ($rows -contains "hash.zip、SHA-256: $expected") ($rows -join ' / ')
+    Check '書庫ファイルの 4 種類だけ' ($rows.Count -eq 4) ($rows -join ' / ')
+    Check '書庫ファイルの値' ($rows -contains "hash.zip (書庫ファイル)、SHA-256: $archiveSha256") ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }
 
@@ -132,8 +159,9 @@ $app = Start-Expzip @($attr)
 $window = Open-HashWindow $app 'bin' 'ハッシュ値を計算' 'zokusei.zip'
 Check '窓が開く' ($null -ne $window)
 if ($window) {
+    $headline = (ById $window 'Headline').Current.Name
+    Check '2 個 + 書庫ファイル' ($headline -eq '3 個のファイルのハッシュ値を計算しました') $headline
     $rows = Get-HashRows $window
-    Check '2 個 × 4 種類' ($rows.Count -eq 8) ($rows -join ' / ')
     Check '属性の付いたファイルも出る' ($rows -contains "bin/setup.exe、SHA-256: $($abc['SHA-256'])") ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }

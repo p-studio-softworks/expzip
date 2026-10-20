@@ -667,9 +667,9 @@ public partial class MainWindow : Window
                                                     && _cancellation is null
                                                     && editable.Count > 0;
 
-        // ハッシュ値も取り出すだけなので、どの形式でも使える (#259)
-        HashMenuItem.IsEnabled = NewArchiveFromSelectionMenuItem.IsEnabled;
-        ArchiveHashMenuItem.IsEnabled = Contents is not null && _cancellation is null;
+        // ハッシュ値も取り出すだけなので、どの形式でも使える (#259)。
+        // 書庫ファイルそのものの値も出すので、何も選んでいなくても使える (#283)
+        HashMenuItem.IsEnabled = Contents is not null && _cancellation is null;
 
         // コメントを持つのは ZIP だけ (#258)。書き換えられない書庫でも見ることはできる
         // 空のコメントを見るだけの窓は開いても仕方がないので、書き換えられない書庫では押せなくする
@@ -2703,24 +2703,9 @@ public partial class MainWindow : Window
 
     private void HashMenuItem_Click(object sender, RoutedEventArgs e) => ShowSelectionHashes();
 
-    private void ArchiveHashMenuItem_Click(object sender, RoutedEventArgs e)
-    {
-        if (Contents is null || _cancellation is not null)
-        {
-            return;
-        }
-
-        // 書庫ファイルそのもの。ダウンロードした書庫を、配布元の値と照らし合わせる用途
-        var path = Contents.FilePath;
-        var name = Path.GetFileName(path);
-        var target = new HashTarget(name, FileStamp.Read(path).Length);
-
-        new HashWindow(this, name, [target], (visit, _) =>
-            visit(target, () => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))).ShowDialog();
-    }
-
     /// <summary>
     /// 選んだファイルのハッシュ値を出す (#259)。フォルダーを選んだら中のファイルすべて。
+    /// 書庫ファイルそのものの値も一緒に出す (#283)。何も選んでいなければ書庫ファイルだけ。
     /// </summary>
     /// <remarks>
     /// <b>取り出さずに、中身を読みながら計算する</b> (#265)。読み方は書庫検査と同じ
@@ -2751,9 +2736,12 @@ public partial class MainWindow : Window
         // 検索の結果 (#215) では、フォルダーとその中のファイルを一緒に選べる
         entries = entries.Distinct().ToList();
 
+        var contents = Contents;
+        var archivePath = contents.FilePath;
+
         if (entries.Count == 0)
         {
-            StatusMessage.Text = Strings.NothingToExtract;
+            new HashWindow(this, archivePath, [], null).ShowDialog();
             return;
         }
 
@@ -2762,12 +2750,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var contents = Contents;
-        var archivePath = contents.FilePath;
         var targets = entries.Select(static entry => new HashTarget(entry.FullPath, entry.Length)).ToList();
         var wanted = targets.Select(static t => t.Name).ToHashSet(StringComparer.Ordinal);
 
-        new HashWindow(this, Path.GetFileName(archivePath), targets, (visit, token) =>
+        new HashWindow(this, archivePath, targets, (visit, token) =>
             ArchiveContentReader.Visit(archivePath, contents, password, item =>
             {
                 if (!wanted.Contains(item.Name))
@@ -8125,7 +8111,6 @@ public partial class MainWindow : Window
         OpenInTabMenuItem.Header = Strings.MenuOpenInNewTab;
         NewArchiveFromSelectionMenuItem.Header = Strings.MenuNewArchiveFromSelection;
         HashMenuItem.Header = Strings.MenuHash;
-        ArchiveHashMenuItem.Header = Strings.MenuArchiveHash;
         CommentMenuItem.Header = Strings.MenuComment;
         UndoMenuItem.Header = Strings.MenuUndo(Contents is { } shown ? _undoHistory.Peek(shown.FilePath) : null);
         CommentText.Text = Strings.CommentPresent;

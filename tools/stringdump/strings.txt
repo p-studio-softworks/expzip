@@ -878,6 +878,10 @@ FormatUnknown
   ja  不明
   en  Unknown
 
+HashArchiveFile (name: 報告書.pdf)
+  ja  ⟦報告書.pdf⟧ (書庫ファイル)
+  en  ⟦報告書.pdf⟧ (archive file)
+
 HashCancelled
   ja  計算を中断しました
   en  The calculation was stopped
@@ -1256,10 +1260,6 @@ MarkRuleBreak
 MarkSuspiciousPath
   ja  パスが通常と異なります
   en  Unusual path
-
-MenuArchiveHash
-  ja  書庫ファイルのハッシュ値を計算
-  en  Calculate hashes of the archive file
 
 MenuComment
   ja  書庫のコメント

@@ -182,11 +182,10 @@ internal static partial class Strings
     /// <remarks>選んだ項目の上で右クリックして出すので、「選択した項目から」は言わなくても分かる。</remarks>
     public static string MenuNewArchiveFromSelection => Pick("新しい書庫を作成", "Create a new archive");
 
-    /// <summary>選んだファイルのハッシュ値を出す (#259)。フォルダーなら中のファイルすべて。</summary>
+    /// <summary>
+    /// 選んだファイルと、書庫ファイルそのもののハッシュ値を出す (#259、#283)。フォルダーなら中のファイルすべて。
+    /// </summary>
     public static string MenuHash => Pick("ハッシュ値を計算", "Calculate hashes");
-
-    /// <summary>書庫ファイルそのもののハッシュ値を出す (#259)。ダウンロードした書庫を確かめる用途。</summary>
-    public static string MenuArchiveHash => Pick("書庫ファイルのハッシュ値を計算", "Calculate hashes of the archive file");
 
     public static string MenuRename => Pick("名前の変更", "Rename");
 
@@ -2221,6 +2220,11 @@ internal static partial class Strings
     public static string HashColumnKind => Pick("種類", "Type");
 
     public static string HashColumnValue => Pick("値", "Value");
+
+    /// <summary>
+    /// 書庫ファイルそのものの行の名前 (#283)。書庫の中に同じ名前の書庫があっても見分けられるように添える。
+    /// </summary>
+    public static string HashArchiveFile(string name) => Pick($"{name} (書庫ファイル)", $"{name} (archive file)");
 
     /// <summary>ハッシュ値の種類の名前。訳さない。</summary>
     public static string HashKindName(HashKind kind) => kind switch

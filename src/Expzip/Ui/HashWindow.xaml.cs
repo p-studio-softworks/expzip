@@ -18,6 +18,10 @@ namespace Expzip.Ui;
 /// 閉じれば中断する。
 /// </para>
 /// <para>
+/// 選んだファイルのほかに、書庫ファイルそのものの値も出す (#283)。行はいちばん上に置き、計算は最後にする。
+/// 書庫ファイルの値は書庫を全部読まないと出ず、大きな書庫では時間がかかる。欲しい値が出たら閉じれば止まる。
+/// </para>
+/// <para>
 /// 閉じるまで本体を触れないようにしてある (ShowDialog)。計算しているのは書庫の中身か
 /// 書庫そのもので、計算の途中で書庫を書き換えられると、どちらの中身の値なのか分からなくなるため。
 /// </para>
@@ -27,8 +31,10 @@ namespace Expzip.Ui;
 public partial class HashWindow : Window
 {
     private readonly string _title;
+    private readonly string _archivePath;
+    private readonly HashTarget _archive;
     private readonly IReadOnlyList<HashTarget> _targets;
-    private readonly HashSource _source;
+    private readonly HashSource? _source;
     private readonly ObservableCollection<HashRow> _rows = [];
     private readonly List<(HashTarget Target, FileHashes Hashes)> _done = [];
     private readonly CancellationTokenSource _cancellation = new();
@@ -36,16 +42,20 @@ public partial class HashWindow : Window
     private bool _running;
 
     /// <param name="owner">本体のウィンドウ。</param>
-    /// <param name="title">タイトルに出す名前。書庫の名前。</param>
-    /// <param name="targets">計算するファイル。数と大きさを進み具合に使う。</param>
-    /// <param name="source">計算するファイルの中身を渡すもの。</param>
-    internal HashWindow(Window owner, string title, IReadOnlyList<HashTarget> targets, HashSource source)
+    /// <param name="archivePath">書庫ファイル。名前をタイトルに出し、ファイルそのものの値も計算する。</param>
+    /// <param name="targets">書庫の中で計算するファイル。数と大きさを進み具合に使う。</param>
+    /// <param name="source">
+    /// 書庫の中で計算するファイルの中身を渡すもの。<see langword="null"/> なら書庫ファイルだけを計算する。
+    /// </param>
+    internal HashWindow(Window owner, string archivePath, IReadOnlyList<HashTarget> targets, HashSource? source)
     {
         InitializeComponent();
 
         Owner = owner;
-        _title = title;
-        _targets = targets;
+        _title = Path.GetFileName(archivePath);
+        _archivePath = archivePath;
+        _archive = new HashTarget(Strings.HashArchiveFile(_title), FileStamp.Read(archivePath).Length);
+        _targets = [.. targets, _archive];
         _source = source;
 
         HashList.ItemsSource = _rows;
@@ -97,18 +107,21 @@ public partial class HashWindow : Window
         IProgress<(HashTarget Target, FileHashes? Hashes, string? Failure)> finished =
             new Progress<(HashTarget Target, FileHashes? Hashes, string? Failure)>(result =>
             {
+                // 書庫ファイルの行は最後に計算するが、いちばん上に置く (#283)
+                var at = ReferenceEquals(result.Target, _archive) ? 0 : _rows.Count;
+
                 if (result.Hashes is { } hashes)
                 {
                     _done.Add((result.Target, hashes));
 
                     foreach (var kind in FileHashes.Kinds)
                     {
-                        _rows.Add(new HashRow(result.Target.Name, Strings.HashKindName(kind), hashes.Values[kind]));
+                        _rows.Insert(at++, new HashRow(result.Target.Name, Strings.HashKindName(kind), hashes.Values[kind]));
                     }
                 }
                 else
                 {
-                    _rows.Add(new HashRow(result.Target.Name, "-", Strings.HashReadFailed(result.Failure!)));
+                    _rows.Insert(at, new HashRow(result.Target.Name, "-", Strings.HashReadFailed(result.Failure!)));
                 }
 
                 UpdateMatch();
@@ -119,31 +132,40 @@ public partial class HashWindow : Window
             started.Report(0);
             var count = 0;
 
-            try
+            void Visit(HashTarget target, Func<Stream> open)
             {
-                await Task.Run(() => _source((target, open) =>
+                token.ThrowIfCancellationRequested();
+
+                try
                 {
-                    token.ThrowIfCancellationRequested();
+                    using var stream = open();
+                    finished.Report((target, FileHashes.Compute(stream, progress.Report, token), null));
+                }
+                catch (Exception ex) when (IsReadFailure(ex))
+                {
+                    // 1 個読めなくても、ほかは計算する
+                    finished.Report((target, null, Strings.Reason(ex)));
+                }
 
-                    try
-                    {
-                        using var stream = open();
-                        finished.Report((target, FileHashes.Compute(stream, progress.Report, token), null));
-                    }
-                    catch (Exception ex) when (IsReadFailure(ex))
-                    {
-                        // 1 個読めなくても、ほかは計算する
-                        finished.Report((target, null, Strings.Reason(ex)));
-                    }
-
-                    started.Report(++count);
-                }, token), token);
+                started.Report(++count);
             }
-            catch (Exception ex) when (IsReadFailure(ex))
+
+            if (_source is { } source)
             {
-                // 書庫そのものが途中から読めない (7z の塊の復号に失敗したなど)。どのファイルとは言えない
-                finished.Report((new HashTarget(_title, 0), null, Strings.Reason(ex)));
+                try
+                {
+                    await Task.Run(() => source(Visit, token), token);
+                }
+                catch (Exception ex) when (IsReadFailure(ex))
+                {
+                    // 書庫そのものが途中から読めない (7z の塊の復号に失敗したなど)。どのファイルとは言えない
+                    finished.Report((new HashTarget(_title, 0), null, Strings.Reason(ex)));
+                }
             }
+
+            // 書庫ファイルそのもの。ダウンロードした書庫を、配布元の値と照らし合わせる用途 (#283)
+            await Task.Run(() => Visit(_archive,
+                () => new FileStream(_archivePath, FileMode.Open, FileAccess.Read, FileShare.Read)), token);
 
             Headline.Text = Strings.HashDone(_targets.Count);
         }
