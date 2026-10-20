@@ -32,6 +32,21 @@ namespace ExpzipUi
             Thread.Sleep(80);
             mouse_event(0x0010, 0, 0, 0, UIntPtr.Zero);
         }
+
+        // 左ボタンで続けて 2 回押す
+        public static void DoubleClick(int x, int y)
+        {
+            SetThreadDpiAwarenessContext(new IntPtr(-4));
+            SetCursorPos(x, y);
+            Thread.Sleep(200);
+            for (var i = 0; i < 2; i++)
+            {
+                mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+                Thread.Sleep(40);
+                mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+                Thread.Sleep(60);
+            }
+        }
     }
 }
 '@
@@ -41,11 +56,12 @@ function Get-Box($App, [string]$Id) {
     return ByType (ById $App.Window $Id) $script:ControlType::Edit | Select-Object -First 1
 }
 
-# 入力欄の左寄りを右クリックして、出たメニューを返す
-function Open-BoxMenu($App, $Box) {
+# 入力欄の左寄り (左端からの距離) を右クリックして、出たメニューを返す。
+# 選んでいる文字の外を押すと、カーソルがそこへ移って選択が外れる (エクスプローラーと同じ)
+function Open-BoxMenu($App, $Box, [int]$Offset = 10) {
     Focus-App $App
     $rect = $Box.Current.BoundingRectangle
-    [ExpzipUi.RightClicker]::Click([int]($rect.X + 10), [int]($rect.Y + $rect.Height / 2))
+    [ExpzipUi.RightClicker]::Click([int]($rect.X + $Offset), [int]($rect.Y + $rect.Height / 2))
     return Find-DropDown $App
 }
 
@@ -64,7 +80,69 @@ function Get-BoxSelection($Box) {
     return ($ranges | ForEach-Object { $_.GetText(-1) }) -join ''
 }
 
+# 入力欄の中を、左寄りから少し右までマウスでなぞる
+function Drag-InBox($Box) {
+    $rect = $Box.Current.BoundingRectangle
+    $y = [int]($rect.Y + $rect.Height / 2)
+    Invoke-MouseDrag ([int]($rect.X + 20)) $y ([int]($rect.X + 45)) $y
+}
+
+# なぞって名前の一部を選び、メニューの「コピー」でその部分だけが入るか確かめる
+function Check-DragCopy($App, [string]$Id, [string]$Name) {
+    $box = Get-Box $App $Id
+    Drag-InBox $box
+    $box = Get-Box $App $Id
+    Check 'なぞっても入力欄は開いたまま' ($null -ne $box)
+    if (-not $box) { return }
+    Check '持ち出しが始まらない' ((Get-Status $App) -notmatch '展開') (Get-Status $App)
+    $part = Get-BoxSelection $box
+    Check 'なぞった所だけが選ばれる' ($part.Length -gt 0 -and $part -ne $Name -and $Name.Contains($part)) "'$part'"
+    # なぞった範囲の上を右クリックする
+    $menu = Open-BoxMenu $App $box 32
+    if ($menu) {
+        [System.Windows.Forms.Clipboard]::Clear()
+        Check '選んだ文字の上の右クリックで選択が残る' (Is-Enabled $menu 'コピー')
+        if (Is-Enabled $menu 'コピー') { Push (ByName $menu 'コピー') } else { Close-DropDown $App }
+        $copied = Wait-Until { [System.Windows.Forms.Clipboard]::GetText() } 3000
+        Check '選んだ一部だけコピーされる' ($part.Length -gt 0 -and $copied -eq $part) "'$copied'"
+    }
+    else { Check 'メニューが出る' $false }
+}
+
 $app = Start-Expzip @($archive)
+
+Section 'ファイルの名前の一部をなぞって選び、コピーする'
+Select-Row $app 'report.txt' | Out-Null
+Send-Keys $app '{F2}'
+if (Wait-Until { Get-Box $app 'EntryList' }) {
+    Check-DragCopy $app 'EntryList' 'report.txt'
+    Send-Keys $app '{ESC}'
+    Start-Sleep -Milliseconds 400
+}
+else { Check '入力欄が開く' $false }
+
+Section 'フォルダーの名前の一部をなぞって選び、コピーする'
+Select-Row $app 'docs' | Out-Null
+Send-Keys $app '{F2}'
+if (Wait-Until { Get-Box $app 'EntryList' }) {
+    Check-DragCopy $app 'EntryList' 'docs'
+}
+else { Check '入力欄が開く' $false }
+
+Section '入力欄の中のダブルクリックでは開かない'
+$box = Get-Box $app 'EntryList'
+if ($box) {
+    $rect = $box.Current.BoundingRectangle
+    [ExpzipUi.RightClicker]::DoubleClick([int]($rect.X + 20), [int]($rect.Y + $rect.Height / 2))
+    Start-Sleep -Milliseconds 800
+    Check 'フォルダーの中へ入らない' ((Get-RowNames $app) -contains 'report.txt') ((Get-RowNames $app) -join ', ')
+    $box = Get-Box $app 'EntryList'
+    Check '入力欄は開いたまま' ($null -ne $box)
+    if ($box) { Check '語が選ばれる' ((Get-BoxSelection $box) -eq 'docs') (Get-BoxSelection $box) }
+    Send-Keys $app '{ESC}'
+    Start-Sleep -Milliseconds 400
+}
+Check '名前は変わらない' (((Get-ZipNames $archive) -contains 'report.txt') -and ((Get-ZipNames $archive) -contains 'docs/memo.txt'))
 
 Section '一覧の入力欄'
 Select-Row $app 'report.txt' | Out-Null
@@ -167,6 +245,7 @@ if ($node) {
             Check 'フォルダーの名前をコピーできる' ($copied -eq 'docs') $copied
         }
         Check '入力欄が開いたまま' ($null -ne (Get-Box $app 'FolderTree'))
+        Check-DragCopy $app 'FolderTree' 'docs'
         $box = Get-Box $app 'FolderTree'
         if ($box) {
             $box.SetFocus()

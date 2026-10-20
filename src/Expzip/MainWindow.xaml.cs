@@ -970,6 +970,29 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>押された所が、名前を書き換えている入力欄の中か。</summary>
+    private static bool InRenameBox(object? source)
+        => source is DependencyObject element
+           && FindAncestor<TextBox>(element) is { DataContext: EntryRow { IsEditing: true } };
+
+    /// <summary>
+    /// 名前の入力欄の中で押したら、選んでいる文字を外し、押した所から選び直せるようにする (#284)。
+    /// </summary>
+    /// <remarks>
+    /// WPF の入力欄は、選んだ文字の上を押してなぞると、その文字を運ぶドラッグになる。
+    /// 書き換えを始めたときは拡張子を除いた部分を選んでいるので、名前の一部をなぞって選べなかった。
+    /// エクスプローラーと同じく、押した所から選び直す。Shift を押しているときは選択を広げるので外さない
+    /// </remarks>
+    private static void BeginSelectingInRenameBox(object? source)
+    {
+        if (source is DependencyObject element
+            && FindAncestor<TextBox>(element) is { SelectionLength: > 0 } box
+            && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        {
+            box.Select(box.SelectionStart, 0);
+        }
+    }
+
     /// <summary>名前の入力欄のメニューに付ける印。Fluent の既定のメニューと見分ける。</summary>
     private static readonly object RenameMenuTag = new();
 
@@ -4260,6 +4283,17 @@ public partial class MainWindow : Window
     {
         CancelPendingRename();
 
+        // 名前の入力欄の中は、文字を選ぶための操作。持ち出しや囲む選択を始めない (#284)
+        if (InRenameBox(e.OriginalSource))
+        {
+            BeginSelectingInRenameBox(e.OriginalSource);
+            _dragCandidate = false;
+            _marqueeCandidate = false;
+            _pressedOnBlank = false;
+            _selectOnRelease = null;
+            return;
+        }
+
         // 名前の上か、選んである行の上で押された場合はドラッグの起点にする。
         // それ以外 (選んでいない行の名前以外の列と、行の下の余白) からは、囲んで選ぶ (#205)。
         // エクスプローラーと同じ。選んだ行は、どの列をつかんでも持ち出せる
@@ -4828,6 +4862,13 @@ public partial class MainWindow : Window
 
         if (e.OriginalSource is not DependencyObject source)
         {
+            return;
+        }
+
+        // 名前の入力欄の中は、文字を選ぶための操作。ドラッグにしない (#284)
+        if (InRenameBox(source))
+        {
+            BeginSelectingInRenameBox(source);
             return;
         }
 
@@ -7517,6 +7558,12 @@ public partial class MainWindow : Window
     {
         // 開くつもりのダブルクリックで名前の変更が始まらないようにする (#44)
         CancelPendingRename();
+
+        // 名前の入力欄の中のダブルクリックは、語を選ぶためのもの。開かない (#284)
+        if (InRenameBox(e.OriginalSource))
+        {
+            return;
+        }
 
         // 列見出しや余白のダブルクリックでは何もしない。
         // 行の上で押されたかを確かめないと、見出しをダブルクリックしただけで
