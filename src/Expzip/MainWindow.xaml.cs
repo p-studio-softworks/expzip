@@ -717,7 +717,93 @@ public partial class MainWindow : Window
     }
 
     private void FolderTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
-        => TreeNewFolderMenuItem.IsEnabled = CanEdit;
+    {
+        // 押せる条件は一覧のメニューと同じ (#282)。いちばん上の節は書庫そのものなので、
+        // フォルダーを対象にする項目 (新しい書庫、名前の変更、削除) は押せない
+        var idle = Contents is not null && _cancellation is null;
+        var folder = TreeFolderRows().Count == 1;
+
+        TreeNewArchiveMenuItem.IsEnabled = idle && folder;
+        TreeRenameMenuItem.IsEnabled = idle && folder && CanEdit;
+        TreeDeleteMenuItem.IsEnabled = idle && folder && CanEdit;
+
+        // ハッシュ値はいちばん上でも出せる。書庫ファイルの値だけになる (#283)
+        TreeHashMenuItem.IsEnabled = idle;
+        TreeCommentMenuItem.IsEnabled = Contents is { Comment: { } comment }
+                                        && _cancellation is null
+                                        && (comment.Length > 0 || ContentsEditable);
+        TreeNewFolderMenuItem.IsEnabled = CanEdit;
+        TreeRefreshMenuItem.IsEnabled = idle;
+
+        var undoable = Contents is { } current ? _undoHistory.Peek(current.FilePath) : null;
+        TreeUndoMenuItem.Header = Strings.MenuUndo(undoable);
+        TreeUndoMenuItem.IsEnabled = undoable is not null && _cancellation is null;
+    }
+
+    /// <summary>
+    /// ツリーで選んでいる節のフォルダーを、一覧の行と同じ形で返す (#282)。一覧の操作をそのまま使うため。
+    /// いちばん上の節 (書庫そのもの) や、選んでいなければ空。
+    /// </summary>
+    private List<EntryRow> TreeFolderRows()
+        => FolderTree.SelectedItem is ArchiveFolder { Parent: { } parent } folder
+            ? [new EntryRow { Name = folder.Name, Kind = EntryRowKind.Folder, Folder = folder, Parent = parent }]
+            : [];
+
+    private async void TreeNewArchiveMenuItem_Click(object sender, RoutedEventArgs e)
+        => await CreateArchiveFromSelectionAsync(TreeFolderRows());
+
+    private void TreeHashMenuItem_Click(object sender, RoutedEventArgs e) => ShowHashes(TreeFolderRows());
+
+    private void TreeRenameMenuItem_Click(object sender, RoutedEventArgs e) => RenameTreeFolder();
+
+    private async void TreeDeleteMenuItem_Click(object sender, RoutedEventArgs e) => await DeleteTreeFolderAsync();
+
+    /// <summary>
+    /// ツリーにフォーカスがあるときのキー (#282)。一覧と同じく F2 で名前の変更、Del で削除、
+    /// Ctrl+Shift+N で新しいフォルダー。対象は一覧で選んでいるものではなく、ツリーで選んでいる節。
+    /// </summary>
+    private async void FolderTree_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (_editingRow is not null || e.OriginalSource is TextBoxBase)
+        {
+            return;
+        }
+
+        if (e.Key == Key.F2 && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            e.Handled = true;
+            RenameTreeFolder();
+        }
+        else if (e.Key == Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            e.Handled = true;
+            await DeleteTreeFolderAsync();
+        }
+        else if (e.Key == Key.N && Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            await CreateFolderAsync();
+        }
+    }
+
+    /// <summary>ツリーの節の上で名前を書き換え始める (#282)。確定の仕方は一覧と同じ。</summary>
+    private void RenameTreeFolder()
+    {
+        if (!CanEdit || _cancellation is not null || TreeFolderRows() is not [var row]
+            || FindTreeViewItem(FolderTree, row.Folder!) is not { } container
+            || FindDescendant<TextBox>(container, box => ReferenceEquals(FindAncestor<TreeViewItem>(box), container))
+                is not { } box)
+        {
+            return;
+        }
+
+        box.DataContext = row;
+        BeginEditing(row);
+    }
+
+    /// <summary>ツリーで選んでいる節のフォルダーを消す (#282)。消したら一つ上のフォルダーへ移る。</summary>
+    private Task DeleteTreeFolderAsync()
+        => TreeFolderRows() is [var row] ? DeleteAsync([row], row.Parent.FullPath) : Task.CompletedTask;
 
     private async void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
         => await DeleteSelectedAsync();
@@ -841,7 +927,17 @@ public partial class MainWindow : Window
             e.Handled = true;
             row.IsEditing = false;
             _editingRow = null;
-            EntryList.Focus();
+
+            // ツリーで書き換えていたら (#282)、ツリーの節へ戻す
+            if (FindAncestor<TreeViewItem>(box) is { } node)
+            {
+                node.Focus();
+            }
+            else
+            {
+                EntryList.Focus();
+            }
+
             return;
         }
 
@@ -896,7 +992,9 @@ public partial class MainWindow : Window
         var parent = row.Parent.FullPath;
         var newPath = parent.Length == 0 ? newName : parent + "/" + newName;
 
-        await RunRenameAsync(Contents.FilePath, oldPath, newPath, isFolder, CurrentFolder.FullPath);
+        // いま見ているフォルダーそのもの (ツリーで書き換えたとき、#282) なら、新しい名前のフォルダーを見る
+        var restore = ReferenceEquals(row.Folder, CurrentFolder) ? newPath : CurrentFolder.FullPath;
+        await RunRenameAsync(Contents.FilePath, oldPath, newPath, isFolder, restore);
     }
 
     /// <summary>入力された名前が書庫内で使えるかを確かめ、駄目な理由を伝える。</summary>
@@ -2223,14 +2321,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task DeleteSelectedAsync()
+    private Task DeleteSelectedAsync() => DeleteAsync(SelectedRowsForEdit(), null);
+
+    /// <param name="restorePath">
+    /// 消した後に見るフォルダー。<see langword="null"/> ならいま見ているフォルダー (無くなっていれば書庫のいちばん上)。
+    /// </param>
+    private async Task DeleteAsync(List<EntryRow> rows, string? restorePath)
     {
         if (!CanEdit || Contents is null)
         {
             return;
         }
 
-        var rows = SelectedRowsForEdit();
         if (rows.Count == 0)
         {
             return;
@@ -2272,10 +2374,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        await RunDeleteAsync(files, folders);
+        await RunDeleteAsync(files, folders, restorePath);
     }
 
-    private async Task RunDeleteAsync(IReadOnlySet<string> files, IReadOnlyList<string> folders)
+    private async Task RunDeleteAsync(IReadOnlySet<string> files, IReadOnlyList<string> folders, string? restorePath)
     {
         if (Contents is null || !TryGetPassword(out var password))
         {
@@ -2283,7 +2385,7 @@ public partial class MainWindow : Window
         }
 
         var archivePath = Contents.FilePath;
-        var destinationFolder = CurrentFolder?.FullPath ?? string.Empty;
+        var destinationFolder = restorePath ?? CurrentFolder?.FullPath ?? string.Empty;
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -2617,7 +2719,7 @@ public partial class MainWindow : Window
     }
 
     private async void NewArchiveFromSelectionMenuItem_Click(object sender, RoutedEventArgs e)
-        => await CreateArchiveFromSelectionAsync();
+        => await CreateArchiveFromSelectionAsync(SelectedRowsForEdit());
 
     /// <summary>
     /// 一覧で選んだものを入れた新しい書庫を作り、元の書庫のタブのすぐ右に開く (#207)。
@@ -2627,14 +2729,13 @@ public partial class MainWindow : Window
     /// 落としたものから書庫を作るとき (#156) と同じ手順で、入れ方は追加と同じになる。
     /// 階層は展開と同じく、いまのフォルダーから下だけにする (#48)。
     /// </remarks>
-    private async Task CreateArchiveFromSelectionAsync()
+    private async Task CreateArchiveFromSelectionAsync(List<EntryRow> rows)
     {
         if (Contents is null || Tab is not { } source || _cancellation is not null)
         {
             return;
         }
 
-        var rows = SelectedRowsForEdit();
         if (rows.Count == 0)
         {
             return;
@@ -2701,7 +2802,7 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ ハッシュ値 (#259)
 
-    private void HashMenuItem_Click(object sender, RoutedEventArgs e) => ShowSelectionHashes();
+    private void HashMenuItem_Click(object sender, RoutedEventArgs e) => ShowHashes(SelectedRowsForEdit());
 
     /// <summary>
     /// 選んだファイルのハッシュ値を出す (#259)。フォルダーを選んだら中のファイルすべて。
@@ -2712,14 +2813,13 @@ public partial class MainWindow : Window
     /// (<see cref="ArchiveContentReader"/>)。一時ファイルの置き場に取り出していたときは、
     /// 取り出すと何十 GB にもなる書庫 (ZIP 爆弾) で一時フォルダーのドライブがあふれた。
     /// </remarks>
-    private void ShowSelectionHashes()
+    private void ShowHashes(List<EntryRow> rows)
     {
         if (Contents is null || _cancellation is not null)
         {
             return;
         }
 
-        var rows = SelectedRowsForEdit();
         var entries = new List<ArchiveEntry>();
         foreach (var row in rows)
         {
@@ -8123,6 +8223,12 @@ public partial class MainWindow : Window
         ViewMenuItem.Header = Strings.ViewMenu;
         SortMenuItem.Header = Strings.SortMenu;
         TreeNewFolderMenuItem.Header = Strings.MenuNewFolder;
+        TreeNewArchiveMenuItem.Header = Strings.MenuNewArchiveFromSelection;
+        TreeHashMenuItem.Header = Strings.MenuHash;
+        TreeCommentMenuItem.Header = Strings.MenuComment;
+        TreeRenameMenuItem.Header = Strings.MenuRename;
+        TreeDeleteMenuItem.Header = Strings.MenuDelete;
+        TreeRefreshMenuItem.Header = Strings.MenuRefresh;
 
         // ツリーと一覧の両方から使い回している説明 (#36、#20)
         if (Resources["SuspiciousPathTooltip"] is ToolTip { Content: TextBlock suspiciousText })

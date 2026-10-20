@@ -749,14 +749,41 @@
                       PreviewMouseMove="FolderTree_PreviewMouseMove"
                       PreviewMouseRightButtonDown="FolderTree_PreviewMouseRightButtonDown"
                       ContextMenuOpening="FolderTree_ContextMenuOpening"
+                      KeyDown="FolderTree_KeyDown"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling">
-                <!-- ツリー側からもフォルダを作れるようにする (#50) -->
+                <!--
+                    ツリーの右クリック (#50、#282)。対象は右クリックした節のフォルダー
+                    (右クリックするとその節へ移る)。並びと区切りは一覧のメニューと同じにし、
+                    フォルダーに意味の無い項目だけ除く。開くはクリックで済み、新しいタブで開くはフォルダーに使えず、
+                    表示と並べ替えは一覧の見た目なので一覧の右クリックに任せる
+                -->
                 <TreeView.ContextMenu>
                     <ContextMenu>
+                        <MenuItem x:Name="TreeNewArchiveMenuItem"
+                                  Click="TreeNewArchiveMenuItem_Click" />
+                        <MenuItem x:Name="TreeHashMenuItem"
+                                  Click="TreeHashMenuItem_Click" />
+                        <MenuItem x:Name="TreeCommentMenuItem"
+                                  Click="CommentMenuItem_Click" />
+                        <Separator />
+                        <MenuItem x:Name="TreeRenameMenuItem"
+                                  InputGestureText="F2"
+                                  Click="TreeRenameMenuItem_Click" />
+                        <MenuItem x:Name="TreeDeleteMenuItem"
+                                  InputGestureText="Del"
+                                  Click="TreeDeleteMenuItem_Click" />
+                        <Separator />
                         <MenuItem x:Name="TreeNewFolderMenuItem"
                                   InputGestureText="Ctrl+Shift+N"
                                   Click="NewFolderMenuItem_Click" />
+                        <Separator />
+                        <MenuItem x:Name="TreeUndoMenuItem"
+                                  InputGestureText="Ctrl+Z"
+                                  Click="UndoMenuItem_Click" />
+                        <MenuItem x:Name="TreeRefreshMenuItem"
+                                  InputGestureText="F5"
+                                  Click="RefreshMenuItem_Click" />
                     </ContextMenu>
                 </TreeView.ContextMenu>
                 <TreeView.ItemContainerStyle>
@@ -809,10 +836,28 @@
                                 背景色を敷いたときに文字が縁にくっつかないよう、
                                 余白を取る。**どの節にも同じだけ**取るので、段はずれない
                             -->
-                            <TextBlock Text="{Binding Name}"
-                                       VerticalAlignment="Center"
-                                       Padding="3,0"
-                                       Style="{StaticResource FolderNameText}" />
+                            <Grid>
+                                <TextBlock Text="{Binding Name}"
+                                           VerticalAlignment="Center"
+                                           Padding="3,0"
+                                           Style="{StaticResource FolderNameText}" />
+                                <!--
+                                    名前の変更 (#282)。節はフォルダーそのものに束ねてあり、書き換え中の名前を
+                                    持たないので、書き換えるときだけコードが一覧の行と同じ型を渡す。
+                                    ふだんは渡さず (x:Null)、出さない。入力の扱いは一覧の入力欄と同じ
+                                -->
+                                <TextBox DataContext="{x:Null}"
+                                         Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                         MinWidth="120"
+                                         MinHeight="0"
+                                         Padding="3,0"
+                                         VerticalAlignment="Center"
+                                         Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"
+                                         Loaded="RenameBox_Loaded"
+                                         IsVisibleChanged="RenameBox_IsVisibleChanged"
+                                         KeyDown="RenameBox_KeyDown"
+                                         LostKeyboardFocus="RenameBox_LostKeyboardFocus" />
+                            </Grid>
                         </StackPanel>
                     </HierarchicalDataTemplate>
                 </TreeView.Resources>
