@@ -2598,7 +2598,7 @@ SpeedNotYet
   en  Not measured
 
 SpeedNote
-  ja  目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行の 6 つの時間の平均で決めています。サイズは圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています。
+  ja  目安です。ウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行の 6 つの時間の平均で決めています。サイズは圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています。
   en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the average of the six times in the row. Sizes are before compression. Small files are counted as 8 KB each.
 
 SpeedPlaceFolder
@@ -2664,7 +2664,7 @@ SpeedScoreLine (score: 3)
   en  Overall score: 3
 
 SpeedScoreNote
-  ja  基準のパソコン (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。2,000 なら基準の 2 倍の速さです。
+  ja  基準の PC (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。2,000 なら基準の 2 倍の速さです。
   en  The reference PC (Core i5-9500T, SSD) scores 1,000. The score averages how many times faster the six times in the table are. A score of 2,000 is twice as fast as the reference.
 
 SpeedSize (bytes: 1048576)

@@ -2418,7 +2418,7 @@ internal static partial class Strings
     }
 
     public static string SpeedNote => Pick(
-        "目安です。ウイルス対策ソフトの検査、電源の設定、パソコンの温度などで変わります。"
+        "目安です。ウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります。"
         + "1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行の 6 つの時間の平均で決めています。"
         + $"サイズは圧縮する前の大きさです。小さいファイルは 1 個 {SpeedTest.SmallFileBytes / 1024} KB として計算しています。",
         "These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC "
@@ -2433,7 +2433,7 @@ internal static partial class Strings
     public static string SpeedScoreLine(int score) => $"{SpeedScoreLabel}: {score:N0}";
 
     public static string SpeedScoreNote => Pick(
-        "基準のパソコン (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。"
+        "基準の PC (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。"
         + "2,000 なら基準の 2 倍の速さです。",
         "The reference PC (Core i5-9500T, SSD) scores 1,000. The score averages how many times faster "
         + "the six times in the table are. A score of 2,000 is twice as fast as the reference.");

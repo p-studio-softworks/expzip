@@ -368,7 +368,7 @@
                 <Button x:Name="SfxButton" Click="SfxButton_Click" IsEnabled="False"
                         Style="{StaticResource ToolGlyph}" Content="&#xF133;" />
                 <!--
-                    処理時間の見積もり (#269)。このパソコンで実際に試して測る。
+                    処理時間の見積もり (#269)。この PC で実際に試して測る。
                     書庫を開いていなくても押せる
                 -->
                 <!-- SpeedHigh。速度計 -->

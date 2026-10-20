@@ -1,4 +1,4 @@
-﻿# ベンチマーク (処理時間の見積もり、#269、#271)。このパソコンで実際に試して測り、結果を残す
+﻿# ベンチマーク (処理時間の見積もり、#269、#271)。この PC で実際に試して測り、結果を残す
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'Speed'
 Set-Settings
@@ -107,7 +107,7 @@ if ($window) {
     Check '測っている間は「中断」になる' ((ById $window 'StartButton').Current.Name -eq '中断')
     $finished = Wait-Until -TimeoutMs 120000 { (Get-Headline $window) -eq '測定しました' }
     Check '測り終わる' ($finished) ("{0:0.0} 秒 / {1}" -f $clock.Elapsed.TotalSeconds, (Get-Headline $window))
-    # 揺れを抑えるため 4 回ずつ試す。このパソコンで 15 秒ほど、遅い PC でも 1 分はかけない
+    # 揺れを抑えるため 4 回ずつ試す。この PC で 15 秒ほど、遅い PC でも 1 分はかけない
     Check '長くかからない' ($clock.Elapsed.TotalSeconds -lt 60) ("{0:0.0} 秒" -f $clock.Elapsed.TotalSeconds)
 
     Check '測り終わるとプログレスバーは消える' ($null -eq (ById $window 'MeasureProgress') -or (ById $window 'MeasureProgress').Current.IsOffscreen)

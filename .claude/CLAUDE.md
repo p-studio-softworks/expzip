@@ -41,6 +41,8 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 - Verbs for operations are written in kanji (入力する、設定する、削除する、作成する、選択する、使用する、展開する)
 - Do not use developer jargon (断片 → 分割ファイル、置き場 → 保存先). **Write 「ビルド」, not 「建てる」**
 - Use the words people actually say: 「ウィンドウ」, not 「窓」; 「バージョン」, not 「版」 (#142). This also applies to `README.ja.md`
+- **Call the machine 「PC」, not 「パソコン」 or 「コンピューター」 (#280)**, as Windows does (「この PC」). Put a half-width space on each side: 「この PC で」.
+  The one exception is 「コンピューター名」, which is the name Windows itself uses. This also applies to documents, comments and tickets
 - Do not write 「〜製」 for the tool an installer was built with: 「NSIS インストーラー」, not 「NSIS 製インストーラー」 (#181).
   「製」 means where something was manufactured (日本製). Also in tickets, the wiki and replies to the user
 - For one file inside another, write 「MSI が入った exe」, not 「MSI を包んだ exe」 (#182). Also in tickets, the wiki and replies to the user

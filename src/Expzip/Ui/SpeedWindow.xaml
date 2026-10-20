@@ -233,7 +233,7 @@
                     <TextBlock x:Name="ConditionsLabel"
                                Margin="0,16,0,4"
                                FontWeight="SemiBold" />
-                    <!-- 別のパソコンの結果と比べるとき、何が違うかを読み取れるように -->
+                    <!-- 別の PC の結果と比べるとき、何が違うかを読み取れるように -->
                     <TextBlock x:Name="Conditions"
                                TextWrapping="Wrap"
                                Margin="0,0,0,12" />

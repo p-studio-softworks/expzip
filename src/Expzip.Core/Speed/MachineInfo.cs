@@ -5,10 +5,10 @@ using Expzip.Archives;
 namespace Expzip.Speed;
 
 /// <summary>
-/// 測った条件として一緒に出す、このパソコンのこと (#269)。
+/// 測った条件として一緒に出す、この PC のこと (#269)。
 /// </summary>
 /// <remarks>
-/// 別のパソコンで測った結果と並べたとき、どこが違うから速さが違うのかを読み取れるようにする。
+/// 別の PC で測った結果と並べたとき、どこが違うから速さが違うのかを読み取れるようにする。
 /// どれも分からなければ空のままにし、測ること自体は止めない。
 /// </remarks>
 internal static class MachineInfo
@@ -54,7 +54,7 @@ internal static class MachineInfo
     /// <summary>メモリーの大きさ。分からなければ 0。</summary>
     /// <remarks>
     /// 取り付けた量を出す。.NET が教える使える量は、Windows が取り置く分だけ少なく、
-    /// 64 GB のパソコンで 63 GB と出てしまう。
+    /// 64 GB の PC で 63 GB と出てしまう。
     /// </remarks>
     public static long MemoryBytes()
     {
@@ -67,7 +67,7 @@ internal static class MachineInfo
     }
 
     /// <summary>バッテリーで動いているか。分からなければ <see langword="null"/>。</summary>
-    /// <remarks>ノートパソコンはバッテリーで動くと遅くなる設定のことが多い。</remarks>
+    /// <remarks>ノート PC はバッテリーで動くと遅くなる設定のことが多い。</remarks>
     public static bool? OnBattery()
     {
         if (OnBatteryOverride is { } query)

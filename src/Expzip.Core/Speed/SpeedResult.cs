@@ -67,10 +67,10 @@ internal static class SpeedRatings
 /// <summary>総合スコアの基準 (#272)。</summary>
 /// <remarks>
 /// <para>
-/// 基準のパソコンは Core i5-9500T (6 コア、2019 年の事務用の小型パソコン)、メモリー 16 GB、
+/// 基準の PC は Core i5-9500T (6 コア、2019 年の事務用の小型 PC)、メモリー 16 GB、
 /// SSD (読み込み 2,441 MB/秒、書き込み 1,377 MB/秒)、AC 電源。2026-10-17 に一時フォルダーで測った
 /// (慣らしの 1 回の後に 3 回測る形になってから)。
-/// ふつうのパソコンが 1,000 前後になるように、速すぎないものを選んだ。
+/// ふつうの PC が 1,000 前後になるように、速すぎないものを選んだ。
 /// </para>
 /// <para>
 /// 見積もりではなく、そのとき設定ファイルに残った測った値をそのまま書く。
@@ -82,7 +82,7 @@ internal static class SpeedRatings
 /// </remarks>
 internal static class SpeedScore
 {
-    /// <summary>基準のパソコンの点。</summary>
+    /// <summary>基準の PC の点。</summary>
     public const double BaselineScore = 1000;
 
     /// <summary>比べる大きさ (圧縮する前)。</summary>
@@ -90,7 +90,7 @@ internal static class SpeedScore
 
     public static readonly SpeedKind[] Kinds = [SpeedKind.Documents, SpeedKind.Media, SpeedKind.SmallFiles];
 
-    /// <summary>基準のパソコンで測った値。</summary>
+    /// <summary>基準の PC で測った値。</summary>
     public static readonly SpeedResult Baseline = new()
     {
         DiskReadBytesPerSecond = 2559567944.0249515,
@@ -130,7 +130,7 @@ internal sealed class SpeedKindResult
 }
 
 /// <summary>
-/// このパソコンで測った結果 (#269)。ここから書庫の大きさごとの時間を見積もる。
+/// この PC で測った結果 (#269)。ここから書庫の大きさごとの時間を見積もる。
 /// </summary>
 /// <remarks>
 /// 見積もりではなく測った値を残す。見積もる大きさや言葉を変えても、測り直さずに済む。
@@ -202,13 +202,13 @@ internal sealed class SpeedResult
     }
 
     /// <summary>
-    /// 総合スコア (#272)。基準のパソコンを 1,000 とし、その何倍速いかを表す。
+    /// 総合スコア (#272)。基準の PC を 1,000 とし、その何倍速いかを表す。
     /// 測っていない種類があれば <see langword="null"/>。
     /// </summary>
     /// <remarks>
     /// <para>
     /// 6 つの見積もり (3 種類 × 圧縮・展開) それぞれで「基準の時間 ÷ この時間」を求め、
-    /// その<b>幾何平均</b>に 1,000 を掛ける。単純な平均だと、1 つの項目だけ速いパソコンが高い点になる。
+    /// その<b>幾何平均</b>に 1,000 を掛ける。単純な平均だと、1 つの項目だけ速い PC が高い点になる。
     /// </para>
     /// <para>
     /// 見積もりを使うので、ディスクの速さも入る。見積もりは大きさに比例するので、どの大きさで比べても同じ。
