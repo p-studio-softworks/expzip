@@ -684,6 +684,30 @@ DragTooLarge (fileLimit: 3, megabyteLimit: 1048576, count: 3, megabytes: 1048576
       | 
       | Use Extract on the toolbar instead.
 
+EditCopy
+  ja  コピー
+  en  Copy
+
+EditCut
+  ja  切り取り
+  en  Cut
+
+EditDelete
+  ja  削除
+  en  Delete
+
+EditPaste
+  ja  貼り付け
+  en  Paste
+
+EditSelectAll
+  ja  すべて選択
+  en  Select all
+
+EditUndo
+  ja  元に戻す
+  en  Undo
+
 EmbeddedToolMissing (resource: Expzip.Resources.THIRD-PARTY-NOTICES.txt)
   ja  Expzip.exe に必要なファイルが含まれていません (⟦Expzip.Resources.THIRD-PARTY-NOTICES.txt⟧)。
   en  A file Expzip.exe needs is missing from it (⟦Expzip.Resources.THIRD-PARTY-NOTICES.txt⟧).

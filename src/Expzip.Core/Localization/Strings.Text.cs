@@ -193,6 +193,20 @@ internal static partial class Strings
 
     public static string MenuNewFolder => Pick("新しいフォルダー", "New folder");
 
+    // 名前の入力欄の右クリック (#284)。エクスプローラーの入力欄と同じ項目と文言にする
+
+    public static string EditUndo => Pick("元に戻す", "Undo");
+
+    public static string EditCut => Pick("切り取り", "Cut");
+
+    public static string EditCopy => Pick("コピー", "Copy");
+
+    public static string EditPaste => Pick("貼り付け", "Paste");
+
+    public static string EditDelete => Pick("削除", "Delete");
+
+    public static string EditSelectAll => Pick("すべて選択", "Select all");
+
     /// <summary>書庫を読み直す (#64)。エクスプローラーと同じ文言にする。</summary>
     public static string MenuRefresh => Pick("最新の情報に更新", "Refresh");
 

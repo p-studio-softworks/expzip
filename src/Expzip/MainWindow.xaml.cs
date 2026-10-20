@@ -881,6 +881,13 @@ public partial class MainWindow : Window
             peer.EventsSource?.ResetChildrenCache();
         }
 
+        // 入力欄の右クリック (#284)。書き換えを始めた入力欄にだけ作る。
+        // Fluent のスタイルが既定のメニューを付けているので、空かどうかではなく自分のものかで見分ける
+        if (!ReferenceEquals(box.ContextMenu?.Tag, RenameMenuTag))
+        {
+            box.ContextMenu = CreateRenameMenu(box);
+        }
+
         box.Focus();
         Keyboard.Focus(box);
 
@@ -953,7 +960,93 @@ public partial class MainWindow : Window
         // エクスプローラーと同じく、他所をクリックした場合も確定させる
         if (sender is TextBox box && box.DataContext is EntryRow row && row.IsEditing)
         {
+            // 入力欄の右クリックのメニューへ移っただけなら、まだ書き換えている (#284)
+            if (box.ContextMenu is { IsOpen: true })
+            {
+                return;
+            }
+
             await CommitRenameAsync(row, box.Text);
+        }
+    }
+
+    /// <summary>名前の入力欄のメニューに付ける印。Fluent の既定のメニューと見分ける。</summary>
+    private static readonly object RenameMenuTag = new();
+
+    /// <summary>
+    /// 名前の入力欄の右クリックのメニュー (#284)。
+    /// </summary>
+    /// <remarks>
+    /// エクスプローラーと同じく、名前の一部を選んでコピーしたり、貼り付けたりできるようにする。
+    /// Fluent のスタイルが付ける既定のメニューは 3 項目だけで、文言も表示の言語ではなく Windows の言語になる。
+    /// </remarks>
+    private static ContextMenu CreateRenameMenu(TextBox box)
+    {
+        MenuItem Item(string gesture, Action action)
+        {
+            var item = new MenuItem { InputGestureText = gesture };
+            item.Click += (_, _) => action();
+            return item;
+        }
+
+        var undo = Item("Ctrl+Z", () => box.Undo());
+        var cut = Item("Ctrl+X", box.Cut);
+        var copy = Item("Ctrl+C", box.Copy);
+        var paste = Item("Ctrl+V", box.Paste);
+        var delete = Item("Del", () => box.SelectedText = string.Empty);
+        var selectAll = Item("Ctrl+A", box.SelectAll);
+
+        var menu = new ContextMenu { Tag = RenameMenuTag };
+        menu.Items.Add(undo);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(cut);
+        menu.Items.Add(copy);
+        menu.Items.Add(paste);
+        menu.Items.Add(delete);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(selectAll);
+
+        menu.Opened += (_, _) =>
+        {
+            // 文言は開くたびに入れる。書き換えの途中で表示の言語を変えることもある
+            undo.Header = Strings.EditUndo;
+            cut.Header = Strings.EditCut;
+            copy.Header = Strings.EditCopy;
+            paste.Header = Strings.EditPaste;
+            delete.Header = Strings.EditDelete;
+            selectAll.Header = Strings.EditSelectAll;
+
+            var selected = box.SelectionLength > 0;
+            undo.IsEnabled = box.CanUndo;
+            cut.IsEnabled = selected;
+            copy.IsEnabled = selected;
+            delete.IsEnabled = selected;
+            paste.IsEnabled = ClipboardHasText();
+            selectAll.IsEnabled = box.SelectionLength < box.Text.Length;
+        };
+
+        // メニューを閉じたら、続けて入力できるように入力欄へ戻す
+        menu.Closed += (_, _) =>
+        {
+            if (box.DataContext is EntryRow { IsEditing: true })
+            {
+                box.Focus();
+            }
+        };
+
+        return menu;
+    }
+
+    /// <summary>クリップボードに文字があるか。ほかのアプリが使っている最中は読めないので、あるものとして扱う。</summary>
+    private static bool ClipboardHasText()
+    {
+        try
+        {
+            return Clipboard.ContainsText();
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            return true;
         }
     }
 
