@@ -878,9 +878,17 @@ FormatUnknown
   ja  不明
   en  Unknown
 
+HashArchiveDone
+  ja  書庫ファイルのハッシュ値を計算しました
+  en  Calculated hashes of the archive file
+
 HashArchiveFile (name: 報告書.pdf)
   ja  ⟦報告書.pdf⟧ (書庫ファイル)
   en  ⟦報告書.pdf⟧ (archive file)
+
+HashArchiveHeading (name: 報告書.pdf)
+  ja  書庫ファイル: ⟦報告書.pdf⟧
+  en  Archive file: ⟦報告書.pdf⟧
 
 HashCancelled
   ja  計算を中断しました
@@ -913,6 +921,10 @@ HashCompareTooltip
 HashComputing (done: 45, total: 120)
   ja  計算しています… (45 / 120 個)
   en  Calculating… (45 / 120)
+
+HashComputingArchive
+  ja  書庫ファイルのハッシュ値を計算しています…
+  en  Calculating hashes of the archive file…
 
 HashCopy
   ja  コピー

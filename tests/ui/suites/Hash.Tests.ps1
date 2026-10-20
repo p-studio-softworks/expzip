@@ -32,8 +32,8 @@ function Open-HashWindow($App, [string]$Row, [string]$Item, [string]$Archive = '
     return $window
 }
 
-function Get-HashRows($Window) {
-    $list = ById $Window 'HashList'
+function Get-HashRows($Window, [string]$Id = 'HashList') {
+    $list = ById $Window $Id
     return @($list.FindAll($script:Scope::Children,
         (Condition $script:Automation::ControlTypeProperty $script:ControlType::DataItem)) |
         ForEach-Object { $_.Current.Name })
@@ -51,15 +51,30 @@ Section '選んだファイルと書庫ファイル'
 $window = Open-HashWindow $app 'abc.txt' 'ハッシュ値を計算'
 Check '窓が開く' ($null -ne $window)
 if ($window) {
-    Check '計算し終わる' ((ById $window 'Headline').Current.Name -eq '2 個のファイルのハッシュ値を計算しました') (ById $window 'Headline').Current.Name
+    # 数えるのは選んだファイルだけ。書庫ファイルは数えない
+    Check '計算し終わる' ((ById $window 'Headline').Current.Name -eq '1 個のファイルのハッシュ値を計算しました') (ById $window 'Headline').Current.Name
     $rows = Get-HashRows $window
-    Check '2 個 × 4 種類並ぶ' ($rows.Count -eq 8) ($rows -join ' / ')
+    Check '選んだファイルの 4 種類だけ並ぶ' ($rows.Count -eq 4) ($rows -join ' / ')
     foreach ($kind in $abc.Keys) {
         Check "値: $kind" ($rows -contains "abc.txt、$($kind): $($abc[$kind])") ($rows -join ' / ')
     }
-    # 書庫ファイルの行は最後に計算するが、いちばん上に、書庫ファイルと分かる名前で出る
-    Check '書庫ファイルの値' ($rows -contains "hash.zip (書庫ファイル)、SHA-256: $archiveSha256") ($rows -join ' / ')
-    Check '書庫ファイルの行が上' (@($rows[0..3] | Where-Object { $_ -like 'hash.zip (書庫ファイル)、*' }).Count -eq 4) ($rows -join ' / ')
+    # 書庫ファイルは別の欄に出る
+    $heading = (ById $window 'ArchiveHeading').Current.Name
+    Check '書庫ファイルの欄の見出し' ($heading -eq '書庫ファイル: hash.zip') $heading
+    $archiveRows = Get-HashRows $window 'ArchiveList'
+    Check '書庫ファイルの欄に 4 種類' ($archiveRows.Count -eq 4) ($archiveRows -join ' / ')
+    Check '書庫ファイルの値' ($archiveRows -contains "hash.zip (書庫ファイル)、SHA-256: $archiveSha256") ($archiveRows -join ' / ')
+    # 欄の分かれ方を目で確かめるための写し
+    Save-Shot @{ Window = $window } (Join-Path $script:Work 'hash.png')
+
+    # 書庫ファイルの値も照らし合わせる
+    Set-Text (ById $window 'CompareBox') $archiveSha256
+    $result = (ById $window 'CompareResult').Current.Name
+    Check '書庫ファイルの値とも一致する' ($result -eq '一致しました: hash.zip (書庫ファイル) の SHA-256') $result
+    $copy = ById $window 'CopyButton'
+    Push $copy
+    $clip = [System.Windows.Forms.Clipboard]::GetText()
+    Check '書庫ファイルの値を写せる' ($clip -eq $archiveSha256) $clip
 
     # sha256sum の出力をそのまま貼る。大文字でも一致とみなす
     $box = ById $window 'CompareBox'
@@ -107,10 +122,8 @@ if ($window) {
     $made = @(Get-ChildItem (Join-Path $env:TEMP 'Expzip') -Recurse -Directory -Filter '*-hash' -ErrorAction SilentlyContinue)
     Check '一時ファイルの置き場を使わない' ($made.Count -eq 0) (($made | ForEach-Object { $_.FullName }) -join ', ')
 
-    # 一覧は見えている行しか作らないので、数は見出しで確かめる
-    $headline = (ById $window 'Headline').Current.Name
-    Check '2 個 + 書庫ファイル' ($headline -eq '3 個のファイルのハッシュ値を計算しました') $headline
     $rows = Get-HashRows $window
+    Check '2 個 × 4 種類' ($rows.Count -eq 8) ($rows -join ' / ')
     Check '書庫の中のパスで出る' (@($rows | Where-Object { $_ -like 'docs/one.txt、*' }).Count -eq 4) ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }
@@ -135,8 +148,13 @@ if ($entry -and $entry.Current.IsEnabled) {
 }
 Check '窓が開く' ($null -ne $window)
 if ($window) {
-    $rows = Get-HashRows $window
-    Check '書庫ファイルの 4 種類だけ' ($rows.Count -eq 4) ($rows -join ' / ')
+    $headline = (ById $window 'Headline').Current.Name
+    Check '書庫ファイルだけを計算した' ($headline -eq '書庫ファイルのハッシュ値を計算しました') $headline
+    $list = ById $window 'HashList'
+    Check '選んだファイルの一覧は出さない' ($null -eq $list -or $list.Current.IsOffscreen)
+    $rows = Get-HashRows $window 'ArchiveList'
+    Check '書庫ファイルの 4 種類' ($rows.Count -eq 4) ($rows -join ' / ')
+    Save-Shot @{ Window = $window } (Join-Path $script:Work 'hash-archive.png')
     Check '書庫ファイルの値' ($rows -contains "hash.zip (書庫ファイル)、SHA-256: $archiveSha256") ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }
@@ -159,9 +177,8 @@ $app = Start-Expzip @($attr)
 $window = Open-HashWindow $app 'bin' 'ハッシュ値を計算' 'zokusei.zip'
 Check '窓が開く' ($null -ne $window)
 if ($window) {
-    $headline = (ById $window 'Headline').Current.Name
-    Check '2 個 + 書庫ファイル' ($headline -eq '3 個のファイルのハッシュ値を計算しました') $headline
     $rows = Get-HashRows $window
+    Check '2 個 × 4 種類' ($rows.Count -eq 8) ($rows -join ' / ')
     Check '属性の付いたファイルも出る' ($rows -contains "bin/setup.exe、SHA-256: $($abc['SHA-256'])") ($rows -join ' / ')
     Push (ById $window 'CloseButton')
 }

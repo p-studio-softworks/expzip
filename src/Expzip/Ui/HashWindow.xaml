@@ -1,8 +1,8 @@
 ﻿<Window x:Class="Expzip.Ui.HashWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Width="1000" Height="480"
-        MinWidth="520" MinHeight="300"
+        Width="1000" Height="640"
+        MinWidth="520" MinHeight="420"
         Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
@@ -90,15 +90,18 @@
             </Grid>
         </Border>
 
-        <ListView x:Name="HashList"
-                  BorderThickness="0"
-                  SelectionMode="Extended"
-                  SelectionChanged="HashList_SelectionChanged"
-                  VirtualizingPanel.IsVirtualizing="True"
-                  VirtualizingPanel.VirtualizationMode="Recycling">
-            <ListView.ItemContainerStyle>
+        <!--
+            上に選んだファイルの一覧、下に書庫ファイルそのものの欄 (#283)。
+            混ぜると、選んだより多くのファイルを計算したように見える
+        -->
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.Resources>
                 <!-- 列のある一覧なので、Fluent のデフォルトはこちらを継承する (#122) -->
-                <Style TargetType="ListViewItem"
+                <Style x:Key="HashRowStyle" TargetType="ListViewItem"
                        BasedOn="{StaticResource {x:Static GridView.GridViewItemContainerStyleKey}}">
                     <!-- 入れておかないと、支援技術には束ねている型の名前が読まれる (#109) -->
                     <Setter Property="AutomationProperties.Name"
@@ -106,8 +109,6 @@
                     <!-- 行の間隔はメインの一覧と同じ (#131、値は App.xaml) -->
                     <Setter Property="MinHeight" Value="{StaticResource ListRowMinHeight}" />
                 </Style>
-            </ListView.ItemContainerStyle>
-            <ListView.Resources>
                 <!-- 本体の一覧と同じく、列見出しは左揃えにする -->
                 <Style TargetType="GridViewColumnHeader">
                     <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -121,18 +122,54 @@
                 <DataTemplate x:Key="ValueCell">
                     <TextBlock Text="{Binding Value}" FontFamily="Consolas" />
                 </DataTemplate>
-            </ListView.Resources>
-            <ListView.View>
-                <GridView>
-                    <GridViewColumn x:Name="NameColumn" Width="240"
-                                    CellTemplate="{StaticResource NameCell}" />
-                    <GridViewColumn x:Name="KindColumn" Width="80"
-                                    DisplayMemberBinding="{Binding Kind}" />
-                    <!-- SHA-256 の 64 桁が収まる幅 -->
-                    <GridViewColumn x:Name="ValueColumn" Width="620"
-                                    CellTemplate="{StaticResource ValueCell}" />
-                </GridView>
-            </ListView.View>
-        </ListView>
+            </Grid.Resources>
+
+            <ListView x:Name="HashList"
+                      BorderThickness="0"
+                      SelectionMode="Extended"
+                      SelectionChanged="HashList_SelectionChanged"
+                      ItemContainerStyle="{StaticResource HashRowStyle}"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn x:Name="NameColumn" Width="240"
+                                        CellTemplate="{StaticResource NameCell}" />
+                        <GridViewColumn x:Name="KindColumn" Width="80"
+                                        DisplayMemberBinding="{Binding Kind}" />
+                        <!-- SHA-256 の 64 桁が収まる幅 -->
+                        <GridViewColumn x:Name="ValueColumn" Width="620"
+                                        CellTemplate="{StaticResource ValueCell}" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <!-- 書庫ファイルの欄。名前は見出しに出すので、一覧には種類と値だけ -->
+            <Border x:Name="ArchivePanel"
+                    Grid.Row="1"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                    BorderThickness="0,1,0,0">
+                <StackPanel>
+                    <TextBlock x:Name="ArchiveHeading"
+                               Margin="8,10,8,4"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <ListView x:Name="ArchiveList"
+                              BorderThickness="0"
+                              SelectionMode="Extended"
+                              SelectionChanged="HashList_SelectionChanged"
+                              ItemContainerStyle="{StaticResource HashRowStyle}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn x:Name="ArchiveKindColumn" Width="80"
+                                                DisplayMemberBinding="{Binding Kind}" />
+                                <GridViewColumn x:Name="ArchiveValueColumn" Width="620"
+                                                CellTemplate="{StaticResource ValueCell}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </StackPanel>
+            </Border>
+        </Grid>
     </DockPanel>
 </Window>

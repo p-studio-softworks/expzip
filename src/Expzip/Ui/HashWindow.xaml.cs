@@ -18,7 +18,8 @@ namespace Expzip.Ui;
 /// 閉じれば中断する。
 /// </para>
 /// <para>
-/// 選んだファイルのほかに、書庫ファイルそのものの値も出す (#283)。行はいちばん上に置き、計算は最後にする。
+/// 選んだファイルのほかに、書庫ファイルそのものの値も出す (#283)。選んだファイルと混ぜず、一覧の下の別の欄に出す。
+/// 混ぜると、選んだより多くのファイルを計算したように見える。計算は最後にする。
 /// 書庫ファイルの値は書庫を全部読まないと出ず、大きな書庫では時間がかかる。欲しい値が出たら閉じれば止まる。
 /// </para>
 /// <para>
@@ -36,6 +37,7 @@ public partial class HashWindow : Window
     private readonly IReadOnlyList<HashTarget> _targets;
     private readonly HashSource? _source;
     private readonly ObservableCollection<HashRow> _rows = [];
+    private readonly ObservableCollection<HashRow> _archiveRows = [];
     private readonly List<(HashTarget Target, FileHashes Hashes)> _done = [];
     private readonly CancellationTokenSource _cancellation = new();
 
@@ -55,11 +57,24 @@ public partial class HashWindow : Window
         _title = Path.GetFileName(archivePath);
         _archivePath = archivePath;
         _archive = new HashTarget(Strings.HashArchiveFile(_title), FileStamp.Read(archivePath).Length);
-        _targets = [.. targets, _archive];
+        _targets = targets;
         _source = source;
 
         HashList.ItemsSource = _rows;
-        HashList.CommandBindings.Add(new CommandBinding(ApplicationCommands.Copy, (_, _) => CopySelection()));
+        ArchiveList.ItemsSource = _archiveRows;
+        foreach (var list in new[] { HashList, ArchiveList })
+        {
+            list.CommandBindings.Add(new CommandBinding(ApplicationCommands.Copy, (_, _) => CopySelection()));
+        }
+
+        // 選んだものが無ければ、書庫ファイルの欄だけを上に出す
+        if (targets.Count == 0)
+        {
+            HashList.Visibility = Visibility.Collapsed;
+            Grid.SetRow(ArchivePanel, 0);
+            ArchivePanel.VerticalAlignment = VerticalAlignment.Top;
+            ArchivePanel.BorderThickness = new Thickness(0);
+        }
 
         ApplyLanguage();
 
@@ -74,6 +89,9 @@ public partial class HashWindow : Window
         NameColumn.Header = Strings.HashColumnName;
         KindColumn.Header = Strings.HashColumnKind;
         ValueColumn.Header = Strings.HashColumnValue;
+        ArchiveKindColumn.Header = Strings.HashColumnKind;
+        ArchiveValueColumn.Header = Strings.HashColumnValue;
+        ArchiveHeading.Text = Strings.HashArchiveHeading(_title);
         CompareLabel.Text = Strings.HashCompareLabel;
         CompareBox.ToolTip = Strings.HashCompareTooltip;
         AutomationProperties.SetName(CompareBox, Strings.HashCompareLabel.TrimEnd(':', '：'));
@@ -90,7 +108,7 @@ public partial class HashWindow : Window
     {
         _running = true;
 
-        var total = Math.Max(1, _targets.Sum(static t => Math.Max(0, t.Length)));
+        var total = Math.Max(1, _targets.Append(_archive).Sum(static t => Math.Max(0, t.Length)));
         long read = 0;
         var token = _cancellation.Token;
 
@@ -107,8 +125,8 @@ public partial class HashWindow : Window
         IProgress<(HashTarget Target, FileHashes? Hashes, string? Failure)> finished =
             new Progress<(HashTarget Target, FileHashes? Hashes, string? Failure)>(result =>
             {
-                // 書庫ファイルの行は最後に計算するが、いちばん上に置く (#283)
-                var at = ReferenceEquals(result.Target, _archive) ? 0 : _rows.Count;
+                // 書庫ファイルは選んだファイルと混ぜず、下の欄に出す (#283)
+                var rows = ReferenceEquals(result.Target, _archive) ? _archiveRows : _rows;
 
                 if (result.Hashes is { } hashes)
                 {
@@ -116,12 +134,12 @@ public partial class HashWindow : Window
 
                     foreach (var kind in FileHashes.Kinds)
                     {
-                        _rows.Insert(at++, new HashRow(result.Target.Name, Strings.HashKindName(kind), hashes.Values[kind]));
+                        rows.Add(new HashRow(result.Target.Name, Strings.HashKindName(kind), hashes.Values[kind]));
                     }
                 }
                 else
                 {
-                    _rows.Insert(at, new HashRow(result.Target.Name, "-", Strings.HashReadFailed(result.Failure!)));
+                    rows.Add(new HashRow(result.Target.Name, "-", Strings.HashReadFailed(result.Failure!)));
                 }
 
                 UpdateMatch();
@@ -147,7 +165,10 @@ public partial class HashWindow : Window
                     finished.Report((target, null, Strings.Reason(ex)));
                 }
 
-                started.Report(++count);
+                if (!ReferenceEquals(target, _archive))
+                {
+                    started.Report(++count);
+                }
             }
 
             if (_source is { } source)
@@ -164,10 +185,12 @@ public partial class HashWindow : Window
             }
 
             // 書庫ファイルそのもの。ダウンロードした書庫を、配布元の値と照らし合わせる用途 (#283)
+            Headline.Text = Strings.HashComputingArchive;
             await Task.Run(() => Visit(_archive,
                 () => new FileStream(_archivePath, FileMode.Open, FileAccess.Read, FileShare.Read)), token);
 
-            Headline.Text = Strings.HashDone(_targets.Count);
+            // 数えるのは選んだファイルだけ。書庫ファイルまで数えると、選んだより多く計算したように見える
+            Headline.Text = _targets.Count > 0 ? Strings.HashDone(_targets.Count) : Strings.HashArchiveDone;
         }
         catch (OperationCanceledException)
         {
@@ -223,11 +246,12 @@ public partial class HashWindow : Window
             }
 
             var name = Strings.HashKindName(kind);
-            var row = _rows.FirstOrDefault(r => r.Name == target.Name && r.Kind == name);
+            var (list, rows) = ReferenceEquals(target, _archive) ? (ArchiveList, _archiveRows) : (HashList, _rows);
+            var row = rows.FirstOrDefault(r => r.Name == target.Name && r.Kind == name);
             if (row is not null)
             {
-                HashList.SelectedItem = row;
-                HashList.ScrollIntoView(row);
+                list.SelectedItem = row;
+                list.ScrollIntoView(row);
             }
 
             ShowResult("", Strings.HashMatched(target.Name, name), "EncryptedBrush");
@@ -262,8 +286,19 @@ public partial class HashWindow : Window
         }
     }
 
+    /// <summary>
+    /// 行を選べるのは、選んだファイルの一覧か書庫ファイルの欄のどちらか一方だけ (#283)。
+    /// 両方で選べると、「コピー」でどちらを写すのかが分からない。
+    /// </summary>
     private void HashList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        => CopyButton.IsEnabled = HashList.SelectedItems.Count > 0;
+    {
+        if (sender is ListView { SelectedItems.Count: > 0 } list)
+        {
+            (ReferenceEquals(list, HashList) ? ArchiveList : HashList).UnselectAll();
+        }
+
+        CopyButton.IsEnabled = HashList.SelectedItems.Count > 0 || ArchiveList.SelectedItems.Count > 0;
+    }
 
     private void CopyButton_Click(object sender, RoutedEventArgs e) => CopySelection();
 
@@ -273,7 +308,8 @@ public partial class HashWindow : Window
     /// <remarks>1 行のときに値だけにするのは、そのまま検索欄や照らし合わせに貼れるようにするため。</remarks>
     private void CopySelection()
     {
-        var rows = HashList.SelectedItems.OfType<HashRow>().OrderBy(_rows.IndexOf).ToList();
+        var (list, all) = ArchiveList.SelectedItems.Count > 0 ? (ArchiveList, _archiveRows) : (HashList, _rows);
+        var rows = list.SelectedItems.OfType<HashRow>().OrderBy(all.IndexOf).ToList();
         if (rows.Count == 0)
         {
             return;

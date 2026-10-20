@@ -2226,6 +2226,18 @@ internal static partial class Strings
     /// </summary>
     public static string HashArchiveFile(string name) => Pick($"{name} (書庫ファイル)", $"{name} (archive file)");
 
+    /// <summary>書庫ファイルの欄の見出し (#283)。選んだファイルの一覧とは分けて出す。</summary>
+    public static string HashArchiveHeading(string name) => Pick($"書庫ファイル: {name}", $"Archive file: {name}");
+
+    public static string HashComputingArchive => Pick(
+        "書庫ファイルのハッシュ値を計算しています…",
+        "Calculating hashes of the archive file…");
+
+    /// <summary>何も選ばずに計算したとき (#283)。計算したのは書庫ファイルだけ。</summary>
+    public static string HashArchiveDone => Pick(
+        "書庫ファイルのハッシュ値を計算しました",
+        "Calculated hashes of the archive file");
+
     /// <summary>ハッシュ値の種類の名前。訳さない。</summary>
     public static string HashKindName(HashKind kind) => kind switch
     {
