@@ -2283,9 +2283,8 @@ internal static partial class Strings
 
     public static string Speed => Pick("ベンチマーク", "Benchmark");
 
-    public static string SpeedTooltip => Pick(
-        "圧縮・展開にかかる時間を見積もる",
-        "Estimate how long compressing and extracting takes");
+    /// <summary>ボタンのツールチップ。押すと出るウィンドウの題名とそろえ、ボタンの名前と同じにする (#279)。</summary>
+    public static string SpeedTooltip => Speed;
 
     public static string SpeedTitle => Pick("ベンチマーク", "Benchmark");
 
@@ -2417,14 +2416,29 @@ internal static partial class Strings
             : $"{bytes / mega:N0} MB";
     }
 
+    // 表とスコアの説明は、いつも出しておかず、説明しているものに乗せたツールチップにする (#279)。
+    // 一度読めば分かることで、測るたびに読むものではないため。コピーした文には、つないで入れる
+
+    /// <summary>列の見出し「サイズ」のツールチップ。</summary>
+    public static string SpeedSizeHelp => Pick(
+        $"圧縮する前の大きさです。小さいファイルは 1 個 {SpeedTest.SmallFileBytes / 1024} KB として計算しています",
+        $"Sizes are before compression. Small files are counted as {SpeedTest.SmallFileBytes / 1024} KB each");
+
+    /// <summary>時間の列の見出しのツールチップ。</summary>
+    public static string SpeedTimeHelp => Pick(
+        "ウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります",
+        "Antivirus scanning, power settings, and the temperature of the PC can change these times");
+
+    /// <summary>列の見出し「判定」のツールチップ。</summary>
+    public static string SpeedRatingHelp => Pick(
+        "1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとします。判定はその行の 6 つの時間の平均で決めています",
+        "Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. "
+        + "The rating is based on the average of the six times in the row");
+
+    /// <summary>コピーした文に入れる、表の説明。貼った先にはツールチップが無いので、つないで入れる。</summary>
     public static string SpeedNote => Pick(
-        "目安です。ウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります。"
-        + "1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行の 6 つの時間の平均で決めています。"
-        + $"サイズは圧縮する前の大きさです。小さいファイルは 1 個 {SpeedTest.SmallFileBytes / 1024} KB として計算しています。",
-        "These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC "
-        + "can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. "
-        + "The rating is based on the average of the six times in the row. Sizes are before compression. "
-        + $"Small files are counted as {SpeedTest.SmallFileBytes / 1024} KB each.");
+        $"時間は{SpeedTimeHelp}。{SpeedRatingHelp}。サイズは{SpeedSizeHelp}。",
+        $"{SpeedTimeHelp}. {SpeedRatingHelp}. {SpeedSizeHelp}.");
 
     /// <summary>総合スコアの見出し (#272)。</summary>
     public static string SpeedScoreLabel => Pick("総合スコア", "Overall score");
@@ -2432,11 +2446,15 @@ internal static partial class Strings
     /// <summary>コピーした文に入れる総合スコアの行。</summary>
     public static string SpeedScoreLine(int score) => $"{SpeedScoreLabel}: {score:N0}";
 
-    public static string SpeedScoreNote => Pick(
+    /// <summary>総合スコアのツールチップ。</summary>
+    public static string SpeedScoreHelp => Pick(
         "基準の PC (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。"
-        + "2,000 なら基準の 2 倍の速さです。",
+        + "2,000 なら基準の 2 倍の速さです",
         "The reference PC (Core i5-9500T, SSD) scores 1,000. The score averages how many times faster "
-        + "the six times in the table are. A score of 2,000 is twice as fast as the reference.");
+        + "the six times in the table are. A score of 2,000 is twice as fast as the reference");
+
+    /// <summary>コピーした文に入れる、総合スコアの説明。</summary>
+    public static string SpeedScoreNote => SpeedScoreHelp + Pick("。", ".");
 
     public static string SpeedMeasuredAt(DateTime at) => Pick(
         $"日時: {at:yyyy/MM/dd HH:mm}",

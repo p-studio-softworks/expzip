@@ -145,6 +145,22 @@ if ($window) {
         $expected = 1000 * [Math]::Exp($log / 6)
         Check '総合スコアは基準との比の幾何平均' ([Math]::Abs($score / $expected - 1) -lt 0.05) "出した値 $score / 表から $([Math]::Round($expected))"
     }
+    # 説明はいつも出しておかず、説明しているもののツールチップにする (#279)。読み上げソフト向けに HelpText にも入る
+    Check '表の下に説明を出さない' ($null -eq (ById $window 'Note'))
+    Check 'スコアの下に説明を出さない' ($null -eq (ById $window 'ScoreNote'))
+    $helps = @{}
+    foreach ($header in @(ByType (ById $window 'EstimateList') $script:ControlType::HeaderItem)) {
+        if ($header.Current.Name) { $helps[$header.Current.Name] = $header.Current.HelpText }
+    }
+    Check '「サイズ」の説明' ($helps['サイズ'] -eq '圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています') $helps['サイズ']
+    foreach ($kind in '文書', '写真や動画', '小さいファイル多数') {
+        Check "「$kind」の説明" ($helps[$kind] -eq 'ウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります') $helps[$kind]
+    }
+    Check '「判定」の説明は分け方' ($helps['判定'] -eq '1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとします。判定はその行の 6 つの時間の平均で決めています') $helps['判定']
+    if ($scoreText) {
+        Check '総合スコアの説明' ($scoreText.Current.HelpText -like '基準の PC (Core i5-9500T、SSD) を 1,000 とし、*2,000 なら基準の 2 倍の速さです') $scoreText.Current.HelpText
+    }
+    Check 'ツールチップは「。」で終えない' (@($helps.Values + @($scoreText.Current.HelpText) | Where-Object { $_ -like '*。' }).Count -eq 0)
     $conditions = (ById $window 'Conditions').Current.Name
     Check '条件にメモリー' ($conditions -match 'メモリー: \d+ GB') $conditions
     Check '条件にコンピューター名' ($conditions -match "コンピューター名: $([regex]::Escape($env:COMPUTERNAME))") $conditions
@@ -163,7 +179,10 @@ if ($window) {
     Check '条件も入る' ($clip -match "コンピューター名: $([regex]::Escape($env:COMPUTERNAME))")
     Check '表の見出しはタブ区切り' ($lines -contains "サイズ`t文書`t写真や動画`t小さいファイル多数`t判定") ($lines -join ' | ')
     Check '表の行もタブ区切り' (@($lines | Where-Object { $_ -match "^1 TB`t圧縮 .+`t圧縮 .+`t圧縮 .+`t(快適|やや遅い|遅い)$" }).Count -eq 1)
-    Check '目安であることも入る' ($clip -match '目安です。')
+    # 貼った先にはツールチップが無いので、説明はつないで入れる (#279)。「目安です。」は入れない
+    Check '説明も入る' ($clip -match '時間はウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります。1 分未満を快適、.+判定はその行の 6 つの時間の平均で決めています。サイズは圧縮する前の大きさです。') ($lines -match '時間は' -join ' | ')
+    Check '「目安です」は入れない' ($clip -notmatch '目安です')
+    Check 'スコアの説明も入る' ($clip -match '2,000 なら基準の 2 倍の速さです。')
     Check '総合スコアも入る' ($lines -contains "総合スコア: $($score.ToString('N0'))") ($lines -match '総合スコア' -join ' | ')
 
     Push (ById $window 'CloseButton')

@@ -123,11 +123,22 @@
                             </Style>
 
                             <!--
+                                説明のツールチップを付ける見出し (#279)。コードで列ごとに継承して説明を足す。
+                                列に直接付けるスタイルは上の型のスタイルの代わりになるので、Fluent のデフォルトを
+                                継承し直す。しないと古い見た目に戻り、暗い表示でも見出しが白くなる
+                            -->
+                            <Style x:Key="HelpHeader" TargetType="GridViewColumnHeader"
+                                   BasedOn="{StaticResource DefaultGridViewColumnHeaderStyle}">
+                                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                <Setter Property="Padding" Value="6,2" />
+                            </Style>
+
+                            <!--
                                 評価の色 (1 分未満は緑、10 分未満は黄、それより長いと赤)。
                                 色は意味を表す 4 色の組から採る (#119、仕様書 4.9節)。
                                 付けるのは、こちらで色を決めてよいときだけ (#121)。ハイコントラストでは
                                 行を選ぶと背景色が Windows の選択色に変わり、こちらで決めた色は組にならない。
-                                評価は字でも出し、分け方は表の下に書いてある。色だけでは伝えない
+                                評価は字でも出し、分け方は「判定」の見出しのツールチップにある。色だけでは伝えない
                             -->
                             <Style x:Key="AccentRun" TargetType="Run">
                                 <Style.Triggers>
@@ -210,24 +221,15 @@
                         </ListView.View>
                     </ListView>
 
-                    <TextBlock x:Name="Note"
-                               Margin="0,8,0,0"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
                     <!--
                         総合スコア (#272)。表の結果を踏まえた点なので、表の下に置く。
-                        測っていない種類があれば出さない
+                        測っていない種類があれば出さない。説明はツールチップにする (#279)
                     -->
                     <StackPanel x:Name="ScorePanel" Margin="0,16,0,0">
                         <TextBlock x:Name="ScoreText">
                             <Run x:Name="ScoreLabel" FontWeight="SemiBold" />
                             <Run x:Name="ScoreValue" FontSize="28" FontWeight="SemiBold" />
                         </TextBlock>
-                        <TextBlock x:Name="ScoreNote"
-                                   Margin="0,4,0,0"
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
 
                     <TextBlock x:Name="ConditionsLabel"

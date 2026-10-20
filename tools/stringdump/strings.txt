@@ -2598,8 +2598,8 @@ SpeedNotYet
   en  Not measured
 
 SpeedNote
-  ja  目安です。ウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとし、判定はその行の 6 つの時間の平均で決めています。サイズは圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています。
-  en  These are rough estimates. Antivirus scanning, power settings, and the temperature of the PC can change them. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the average of the six times in the row. Sizes are before compression. Small files are counted as 8 KB each.
+  ja  時間はウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります。1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとします。判定はその行の 6 つの時間の平均で決めています。サイズは圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています。
+  en  Antivirus scanning, power settings, and the temperature of the PC can change these times. Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the average of the six times in the row. Sizes are before compression. Small files are counted as 8 KB each.
 
 SpeedPlaceFolder
   ja  指定したフォルダー
@@ -2628,6 +2628,10 @@ SpeedPrevious
   ja  前回の測定結果
   en  Last measurement
 
+SpeedRatingHelp
+  ja  1 分未満を快適、1 分以上 10 分未満をやや遅い、10 分以上を遅いとします。判定はその行の 6 つの時間の平均で決めています
+  en  Under 1 minute is comfortable, 1 to 10 minutes is a bit slow, and 10 minutes or more is slow. The rating is based on the average of the six times in the row
+
 SpeedRatingName (rating: Comfortable)
   ja  快適
   en  Comfortable
@@ -2655,6 +2659,10 @@ SpeedRunning (step: Extracting, kind: Documents, done: 45, total: 120)
   ja  展開しています: 文書 (46 / 120)
   en  Extracting: Documents (46 / 120)
 
+SpeedScoreHelp
+  ja  基準の PC (Core i5-9500T、SSD) を 1,000 とし、表の 6 種類の時間がその何倍速いかを平均したものです。2,000 なら基準の 2 倍の速さです
+  en  The reference PC (Core i5-9500T, SSD) scores 1,000. The score averages how many times faster the six times in the table are. A score of 2,000 is twice as fast as the reference
+
 SpeedScoreLabel
   ja  総合スコア
   en  Overall score
@@ -2670,6 +2678,10 @@ SpeedScoreNote
 SpeedSize (bytes: 1048576)
   ja  1 MB
   en  1 MB
+
+SpeedSizeHelp
+  ja  圧縮する前の大きさです。小さいファイルは 1 個 8 KB として計算しています
+  en  Sizes are before compression. Small files are counted as 8 KB each
 
 SpeedStart
   ja  測定する
@@ -2692,13 +2704,17 @@ SpeedStorage (kind: Network, location: 見本)
   ja  保存先: ネットワーク (⟦見本⟧)
   en  Storage: network (⟦見本⟧)
 
+SpeedTimeHelp
+  ja  ウイルス対策ソフトの検査、電源の設定、PC の温度などで変わります
+  en  Antivirus scanning, power settings, and the temperature of the PC can change these times
+
 SpeedTitle
   ja  ベンチマーク
   en  Benchmark
 
 SpeedTooltip
-  ja  圧縮・展開にかかる時間を見積もる
-  en  Estimate how long compressing and extracting takes
+  ja  ベンチマーク
+  en  Benchmark
 
 Split
   ja  分割

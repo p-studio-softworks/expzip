@@ -2,6 +2,7 @@
 using System.Text;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Controls;
 using Expzip.Localization;
 using Expzip.Speed;
 using Microsoft.Win32;
@@ -78,14 +79,13 @@ public partial class SpeedWindow : Window
         FolderChoice.Content = $"{Strings.SpeedPlaceFolder} ({_folder ?? Strings.SpeedPlaceNone})";
         BrowseButton.Content = Strings.SpeedBrowse;
         AutomationProperties.SetName(BrowseButton, Strings.SpeedBrowseTitle);
-        SizeColumn.Header = Strings.SpeedColumnSize;
-        DocumentsColumn.Header = Strings.SpeedKindName(SpeedKind.Documents);
-        MediaColumn.Header = Strings.SpeedKindName(SpeedKind.Media);
-        SmallFilesColumn.Header = Strings.SpeedKindName(SpeedKind.SmallFiles);
-        RatingColumn.Header = Strings.SpeedColumnRating;
-        Note.Text = Strings.SpeedNote;
+        SetHeader(SizeColumn, Strings.SpeedColumnSize, Strings.SpeedSizeHelp);
+        SetHeader(DocumentsColumn, Strings.SpeedKindName(SpeedKind.Documents), Strings.SpeedTimeHelp);
+        SetHeader(MediaColumn, Strings.SpeedKindName(SpeedKind.Media), Strings.SpeedTimeHelp);
+        SetHeader(SmallFilesColumn, Strings.SpeedKindName(SpeedKind.SmallFiles), Strings.SpeedTimeHelp);
+        SetHeader(RatingColumn, Strings.SpeedColumnRating, Strings.SpeedRatingHelp);
         ScoreLabel.Text = Strings.SpeedScoreLabel;
-        ScoreNote.Text = Strings.SpeedScoreNote;
+        SetHelp(ScoreText, Strings.SpeedScoreHelp);
         ConditionsLabel.Text = Strings.SpeedConditionsLabel;
         CopyButton.Content = Strings.SpeedCopy;
         CopyButton.ToolTip = Strings.SpeedCopyTooltip;
@@ -94,6 +94,30 @@ public partial class SpeedWindow : Window
 
         ShowResult();
         UpdateButtons();
+    }
+
+    /// <summary>
+    /// 列の見出しの字と、その列の説明を入れる (#279)。説明はいつも出しておかず、見出しのツールチップにする。
+    /// </summary>
+    /// <remarks>
+    /// 見出しのセル全体で出るよう、見出しの入れ物に付ける。見た目は XAML の <c>HelpHeader</c> (Fluent を継承したもの) を受け継ぐ。
+    /// </remarks>
+    private void SetHeader(GridViewColumn column, string header, string help)
+    {
+        column.Header = header;
+        var style = new Style(typeof(GridViewColumnHeader), (Style)EstimateList.FindResource("HelpHeader"));
+        style.Setters.Add(new Setter(ToolTipProperty, help));
+        style.Setters.Add(new Setter(AutomationProperties.HelpTextProperty, help));
+        column.HeaderContainerStyle = style;
+    }
+
+    /// <summary>
+    /// 説明をツールチップにする。ツールチップはキーボードでは出せないので、読み上げソフト向けにも入れる。
+    /// </summary>
+    private static void SetHelp(FrameworkElement element, string help)
+    {
+        element.ToolTip = help;
+        AutomationProperties.SetHelpText(element, help);
     }
 
     private bool Running => _cancellation is not null;
