@@ -754,9 +754,10 @@
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <!--
                     ツリーの右クリック (#50、#282)。対象は右クリックした節のフォルダー
-                    (右クリックするとその節へ移る)。並びと区切りは一覧のメニューと同じにし、
-                    フォルダーに意味の無い項目だけ除く。開くはクリックで済み、新しいタブで開くはフォルダーに使えず、
-                    表示と並べ替えは一覧の見た目なので一覧の右クリックに任せる
+                    (右クリックするとその節へ移る)。一覧の項目の上のメニューと同じ並びで、
+                    フォルダーに意味の無い項目だけ除く。開くはクリックで済み、新しいタブで開くはフォルダーに使えない。
+                    表示と並べ替えは一覧の見た目なので一覧の右クリックに任せる。
+                    元に戻すと最新の情報に更新は、エクスプローラーのツリーには無いが、ここでも使えるよう最後に残す (#289)
                 -->
                 <TreeView.ContextMenu>
                     <ContextMenu>
@@ -767,12 +768,13 @@
                         <MenuItem x:Name="TreeCommentMenuItem"
                                   Click="CommentMenuItem_Click" />
                         <Separator />
-                        <MenuItem x:Name="TreeRenameMenuItem"
-                                  InputGestureText="F2"
-                                  Click="TreeRenameMenuItem_Click" />
+                        <!-- エクスプローラーと同じく、削除、名前の変更の順 (#289) -->
                         <MenuItem x:Name="TreeDeleteMenuItem"
                                   InputGestureText="Del"
                                   Click="TreeDeleteMenuItem_Click" />
+                        <MenuItem x:Name="TreeRenameMenuItem"
+                                  InputGestureText="F2"
+                                  Click="TreeRenameMenuItem_Click" />
                         <Separator />
                         <MenuItem x:Name="TreeNewFolderMenuItem"
                                   InputGestureText="Ctrl+Shift+N"
@@ -927,7 +929,11 @@
                             </Style.Triggers>
                         </Style>
                     </ListView.ItemContainerStyle>
-                    <!-- アプリ内のコンテキストメニュー。OSシェルへの統合はしない -->
+                    <!--
+                        アプリ内のコンテキストメニュー。OSシェルへの統合はしない。
+                        エクスプローラーと同じく、項目の上と何もない所とで出す項目を分ける (#289)。
+                        Tag の Row は項目の上だけ、Blank は何もない所だけに出す。分け方は開くときに決める
+                    -->
                     <ListView.ContextMenu>
                         <ContextMenu>
                             <!--
@@ -935,6 +941,7 @@
                                 保存されたら書庫へ書き戻すか尋ねる (#16, #52)
                             -->
                             <MenuItem x:Name="OpenMenuItem"
+                                      Tag="Row"
                                       InputGestureText="Enter"
                                       FontWeight="Bold"
                                       Click="OpenMenuItem_Click" />
@@ -943,68 +950,91 @@
                                 インストーラーや自己解凍書庫の中を見るための道
                             -->
                             <MenuItem x:Name="OpenInTabMenuItem"
+                                      Tag="Row"
                                       Click="OpenInTabMenuItem_Click" />
+                            <Separator Tag="Row" />
                             <!--
                                 選んだものを入れた新しい書庫を作り、元のタブのすぐ右に開く (#207)。
                                 「新しいタブで開く」と分けるのは、種類によって動きが変わらないようにするため
                             -->
                             <MenuItem x:Name="NewArchiveFromSelectionMenuItem"
+                                      Tag="Row"
                                       Click="NewArchiveFromSelectionMenuItem_Click" />
                             <!--
                                 ハッシュ値 (#259)。選んだファイルのものと、書庫ファイルそのもののものを一緒に出す (#283)。
                                 書庫ファイルの行は名前に「書庫ファイル」と添えて分けるので、どちらの値かは迷わない
                             -->
                             <MenuItem x:Name="HashMenuItem"
+                                      Tag="Row"
                                       Click="HashMenuItem_Click" />
-                            <!-- 書庫全体のコメントを見る・直す (#258)。コメントが無い書庫では付けられる -->
-                            <MenuItem x:Name="CommentMenuItem"
-                                      Click="CommentMenuItem_Click" />
-                            <Separator />
-                            <!-- 書庫内の名前を変える (#15) -->
-                            <MenuItem x:Name="RenameMenuItem"
-                                      InputGestureText="F2"
-                                      Click="RenameMenuItem_Click" />
+                            <Separator Tag="Row" />
+                            <!-- エクスプローラーと同じく、削除、名前の変更の順 (#289) -->
                             <MenuItem x:Name="DeleteMenuItem"
+                                      Tag="Row"
                                       InputGestureText="Del"
                                       Click="DeleteMenuItem_Click" />
-                            <Separator />
-                            <!-- 書庫の中に空のフォルダを作る (#50) -->
-                            <MenuItem x:Name="NewFolderMenuItem"
-                                      InputGestureText="Ctrl+Shift+N"
-                                      Click="NewFolderMenuItem_Click" />
-                            <Separator />
+                            <!-- 書庫内の名前を変える (#15) -->
+                            <MenuItem x:Name="RenameMenuItem"
+                                      Tag="Row"
+                                      InputGestureText="F2"
+                                      Click="RenameMenuItem_Click" />
                             <!--
-                                すべて選択と選択の切り替え (#286)。エクスプローラーではコマンドバーの「…」にあるが、
-                                Expzip にはそれが無いので、「表示」「並べ替え」と同じく右クリックに置く。
-                                選択の解除は置かない。何もない所をクリックすれば外れる (#205)
-                            -->
-                            <MenuItem x:Name="SelectAllMenuItem"
-                                      InputGestureText="Ctrl+A"
-                                      Click="SelectAllMenuItem_Click" />
-                            <MenuItem x:Name="InvertSelectionMenuItem"
-                                      Click="InvertSelectionMenuItem_Click" />
-                            <Separator />
-                            <!--
+                                ここから何もない所のメニュー。
                                 表示の形と並べ替え (#216)。エクスプローラーの右クリックと同じく
                                 「最新の情報に更新」と並べる。並べ替えは列の見出しが無い形でも使えるように置く。
                                 中身はメニューを開くときに作る
                             -->
-                            <!--
-                                書き換えを元に戻す (#260)。エクスプローラーと同じく、何を戻すかを添えて
-                                「最新の情報に更新」の並びに置く。うっかりフォルダーを動かしたときの戻り道
-                            -->
-                            <MenuItem x:Name="UndoMenuItem"
-                                      InputGestureText="Ctrl+Z"
-                                      Click="UndoMenuItem_Click" />
-                            <MenuItem x:Name="ViewMenuItem" />
-                            <MenuItem x:Name="SortMenuItem" />
+                            <MenuItem x:Name="ViewMenuItem" Tag="Blank" />
+                            <MenuItem x:Name="SortMenuItem" Tag="Blank" />
                             <!--
                                 書庫を読み直す (#64)。ふだんは自分で読み直すので要らないが、
                                 エクスプローラーと同じくここと F5 に残す
                             -->
                             <MenuItem x:Name="RefreshMenuItem"
+                                      Tag="Blank"
                                       InputGestureText="F5"
                                       Click="RefreshMenuItem_Click" />
+                            <Separator Tag="Blank" />
+                            <!--
+                                書き換えを元に戻す (#260)。エクスプローラーと同じく、何を戻すかを添えて
+                                区切って置く。うっかりフォルダーを動かしたときの戻り道
+                            -->
+                            <MenuItem x:Name="UndoMenuItem"
+                                      Tag="Blank"
+                                      InputGestureText="Ctrl+Z"
+                                      Click="UndoMenuItem_Click" />
+                            <Separator Tag="Blank" />
+                            <!-- 書庫の中に空のフォルダを作る (#50)。エクスプローラーの「新規作成」の位置 -->
+                            <MenuItem x:Name="NewFolderMenuItem"
+                                      Tag="Blank"
+                                      InputGestureText="Ctrl+Shift+N"
+                                      Click="NewFolderMenuItem_Click" />
+                            <Separator Tag="Blank" />
+                            <!--
+                                すべて選択と選択の切り替え (#286)。エクスプローラーではコマンドバーの「…」にあるが、
+                                Expzip にはそれが無いので、「表示」「並べ替え」と同じく右クリックに置く。
+                                選択の解除は置かない。何もない所をクリックすれば外れる (#205)。
+                                何もない所を右クリックしても選択は外さない。外すと切り替えがすべて選択と同じになる (#289)
+                            -->
+                            <MenuItem x:Name="SelectAllMenuItem"
+                                      Tag="Blank"
+                                      InputGestureText="Ctrl+A"
+                                      Click="SelectAllMenuItem_Click" />
+                            <MenuItem x:Name="InvertSelectionMenuItem"
+                                      Tag="Blank"
+                                      Click="InvertSelectionMenuItem_Click" />
+                            <Separator Tag="Blank" />
+                            <!--
+                                書庫全体のもの。エクスプローラーの「プロパティ」の位置に置く (#289)。
+                                ハッシュ値は選んでいるものに関わらず書庫ファイルだけ (#283)
+                            -->
+                            <MenuItem x:Name="ArchiveHashMenuItem"
+                                      Tag="Blank"
+                                      Click="ArchiveHashMenuItem_Click" />
+                            <!-- 書庫全体のコメントを見る・直す (#258)。コメントが無い書庫では付けられる -->
+                            <MenuItem x:Name="CommentMenuItem"
+                                      Tag="Blank"
+                                      Click="CommentMenuItem_Click" />
                         </ContextMenu>
                     </ListView.ContextMenu>
                     <ListView.Resources>

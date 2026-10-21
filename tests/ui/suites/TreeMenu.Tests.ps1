@@ -50,8 +50,8 @@ $menu = Open-TreeMenu $app 'docs'
 Check 'メニューが出る' ($null -ne $menu)
 if ($menu) {
     $names = Menu-Names $menu
-    $expected = @('新しい書庫を作成', 'ハッシュ値を計算', '書庫のコメント', '名前の変更', '削除', '新しいフォルダー', '元に戻す', '最新の情報に更新')
-    Check '一覧と同じ並び (フォルダーに意味の無い項目は除く)' (($names -join ',') -eq ($expected -join ',')) ($names -join ', ')
+    $expected = @('新しい書庫を作成', 'ハッシュ値を計算', '書庫のコメント', '削除', '名前の変更', '新しいフォルダー', '元に戻す', '最新の情報に更新')
+    Check 'エクスプローラーと同じく削除、名前の変更の順 (#289)' (($names -join ',') -eq ($expected -join ',')) ($names -join ', ')
     foreach ($name in '新しい書庫を作成', 'ハッシュ値を計算', '名前の変更', '削除', '新しいフォルダー', '最新の情報に更新') {
         Check "押せる: $name" (Is-Enabled $menu $name)
     }

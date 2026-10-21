@@ -128,12 +128,10 @@ if ($window) {
     Push (ById $window 'CloseButton')
 }
 
-Section '何も選んでいなければ書庫ファイルだけ'
-$row = Select-Row $app 'abc.txt'
-$row.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).RemoveFromSelection()
-Start-Sleep -Milliseconds 300
-Send-Keys $app '+{F10}'
-$menu = Find-DropDown $app
+Section '何もない所の右クリックでは書庫ファイルだけ (#289)'
+# 何もない所を右クリックしても選択は外さないが、選んでいるファイルの値は出さない
+Select-Row $app 'abc.txt' | Out-Null
+$menu = Open-BlankMenu $app
 $entry = if ($menu) { ByName $menu 'ハッシュ値を計算' }
 Check '押せる' ($null -ne $entry -and $entry.Current.IsEnabled)
 $window = $null

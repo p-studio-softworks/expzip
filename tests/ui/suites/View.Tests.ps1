@@ -60,10 +60,7 @@ function Selection-Text($App) {
 
 # 一覧の右クリックの「表示」の項目。開いた右クリックのメニューは Close-ViewMenu で閉じる
 function Open-ViewMenu($App, [string]$Header = '表示') {
-    Focus-App $App
-    (ById $App.Window 'EntryList').SetFocus()
-    Send-Keys $App '+{F10}'
-    $menu = Find-DropDown $App
+    $menu = Open-BlankMenu $App
     if ($null -eq $menu) { return $null }
     return ByName $menu $Header
 }
@@ -198,10 +195,15 @@ if ($box) {
 }
 
 Section '右クリックの表示と並べ替え'
+# 項目の上のメニューには無く、何もない所のメニューにある (#289)
 Select-Element (Find-Item $app 'b.png')
 (Find-Item $app 'b.png').SetFocus()
 Send-Keys $app '+{F10}'
 $menu = Find-DropDown $app
+Check '項目の上には無い' ($menu -and $null -eq (ByName $menu '表示') -and $null -ne (ByName $menu '開く'))
+Close-DropDown $app
+$menu = Open-BlankMenu $app
+Check '選択は変わらない' (Is-Selected (Find-Item $app 'b.png'))
 $view = if ($menu) { ByName $menu '表示' }
 $sort = if ($menu) { ByName $menu '並べ替え' }
 Check '「表示」がある' ($null -ne $view)

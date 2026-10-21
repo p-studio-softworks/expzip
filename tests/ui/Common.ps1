@@ -746,6 +746,32 @@ function Open-RowMenu($App, [string]$Name) {
     return Find-DropDown $App
 }
 
+# 一覧の何もない所の右クリックのメニュー (#289)。選択は変わらない。
+# 行の下に余白があればそこを、行で埋まっていれば列の見出しを右クリックする。
+# キーボードで出すと、選んでいる項目があれば項目の上のメニューになる
+function Open-BlankMenu($App) {
+    Focus-App $App
+    Initialize-Dropper
+    $list = (ById $App.Window 'EntryList').Current.BoundingRectangle
+    # 詳細の形の行は DataItem、アイコンなどの形の項目は ListItem
+    $items = (ById $App.Window 'EntryList').FindAll($script:Scope::Children, [System.Windows.Automation.Condition]::TrueCondition) |
+        Where-Object { $_.Current.ControlType -in $script:ControlType::DataItem, $script:ControlType::ListItem -and -not $_.Current.IsOffscreen }
+    $bottom = (@($items | ForEach-Object { $_.Current.BoundingRectangle.Bottom }) + $list.Y | Measure-Object -Maximum).Maximum
+    $header = @((ById $App.Window 'EntryList').FindAll($script:Scope::Descendants,
+        (Condition $script:Automation::ControlTypeProperty $script:ControlType::HeaderItem))) | Select-Object -First 1
+    if ($list.Bottom - $bottom -gt 40) {
+        [ExpzipUi.Dropper]::RightClick([int]($list.X + 40), [int](($bottom + $list.Bottom - 20) / 2))
+    } elseif ($header) {
+        $r = $header.Current.BoundingRectangle
+        [ExpzipUi.Dropper]::RightClick([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2))
+    } else {
+        # アイコンの形で項目が一覧を埋めているとき。何も選んでいなければ、キーボードで出しても何もない所のメニュー
+        (ById $App.Window 'EntryList').SetFocus()
+        Send-Keys $App '+{F10}'
+    }
+    return Find-DropDown $App
+}
+
 # 右クリックのメニューの「新しいタブで開く」(#206)。押せなかったら false
 function Open-InNewTab($App, [string]$Name) {
     $menu = Open-RowMenu $App $Name
@@ -908,6 +934,22 @@ namespace ExpzipUi
                 MoveTo(toX, toY);
                 Thread.Sleep(800);
                 mouse_event(LeftUp, 0, 0, 0, UIntPtr.Zero);
+            });
+            thread.Start();
+            thread.Join();
+        }
+
+        // 動かさずに右クリックする。何もない所の右クリックのメニュー (#289) はキーボードでは出せないことがある
+        public static void RightClick(int x, int y)
+        {
+            var thread = new Thread(() =>
+            {
+                UsePhysicalPixels();
+                MoveTo(x, y);
+                Thread.Sleep(200);
+                mouse_event(0x0008, 0, 0, 0, UIntPtr.Zero);
+                Thread.Sleep(100);
+                mouse_event(0x0010, 0, 0, 0, UIntPtr.Zero);
             });
             thread.Start();
             thread.Join();

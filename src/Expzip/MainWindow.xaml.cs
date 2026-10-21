@@ -646,6 +646,17 @@ public partial class MainWindow : Window
 
     private void EntryList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
+        // エクスプローラーと同じく、項目の上と何もない所とで出す項目を分ける (#289)。
+        // キーボードで開いたとき (位置が -1) は、選んでいる項目があれば項目の上のメニュー
+        var onRow = e.CursorLeft < 0 && e.CursorTop < 0
+            ? EntryList.SelectedItems.Count > 0
+            : e.OriginalSource is DependencyObject source
+              && ItemsControl.ContainerFromElement(EntryList, source) is ListViewItem;
+        foreach (var element in EntryList.ContextMenu.Items.OfType<FrameworkElement>())
+        {
+            element.Visibility = (element.Tag as string == "Row") == onRow ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         var editable = SelectedRowsForEdit();
 
         DeleteMenuItem.IsEnabled = CanEdit && editable.Count > 0;
@@ -672,6 +683,7 @@ public partial class MainWindow : Window
         // ハッシュ値も取り出すだけなので、どの形式でも使える (#259)。
         // 書庫ファイルそのものの値も出すので、何も選んでいなくても使える (#283)
         HashMenuItem.IsEnabled = Contents is not null && _cancellation is null;
+        ArchiveHashMenuItem.IsEnabled = HashMenuItem.IsEnabled;
 
         // コメントを持つのは ZIP だけ (#258)。書き換えられない書庫でも見ることはできる
         // 空のコメントを見るだけの窓は開いても仕方がないので、書き換えられない書庫では押せなくする
@@ -955,9 +967,12 @@ public partial class MainWindow : Window
 
     private void RenameBox_Loaded(object sender, RoutedEventArgs e)
     {
+        // 読み込みの途中でメニュー (#284) を差し替えると、スタイルを当てている最中と重なり、
+        // 「Style プロパティを評価中に循環参照」で止まることがあった (#289 のテスト中)。表示されたときと同じく後回しにする
         if (sender is TextBox box)
         {
-            PrepareRenameBox(box);
+            box.Dispatcher.BeginInvoke(new Action(() => PrepareRenameBox(box)),
+                DispatcherPriority.Input);
         }
     }
 
@@ -2968,6 +2983,9 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ ハッシュ値 (#259)
 
     private void HashMenuItem_Click(object sender, RoutedEventArgs e) => ShowHashes(SelectedRowsForEdit());
+
+    // 何もない所の右クリックから。選択は外さないので、選んでいても書庫ファイルだけにする (#289)
+    private void ArchiveHashMenuItem_Click(object sender, RoutedEventArgs e) => ShowHashes([]);
 
     /// <summary>
     /// 選んだファイルのハッシュ値を出す (#259)。フォルダーを選んだら中のファイルすべて。
@@ -8400,6 +8418,7 @@ public partial class MainWindow : Window
         OpenInTabMenuItem.Header = Strings.MenuOpenInNewTab;
         NewArchiveFromSelectionMenuItem.Header = Strings.MenuNewArchiveFromSelection;
         HashMenuItem.Header = Strings.MenuHash;
+        ArchiveHashMenuItem.Header = Strings.MenuHash;
         CommentMenuItem.Header = Strings.MenuComment;
         UndoMenuItem.Header = Strings.MenuUndo(Contents is { } shown ? _undoHistory.Peek(shown.FilePath) : null);
         CommentText.Text = Strings.CommentPresent;

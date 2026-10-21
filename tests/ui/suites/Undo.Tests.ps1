@@ -52,9 +52,9 @@ function Undo($App) {
     Wait-Idle $App
 }
 
-# 右クリックのメニューの「元に戻す」の名前と、押せるか。$Row の行の上で出す
-function Get-UndoItem($App, [string]$Row) {
-    $menu = Open-RowMenu $App $Row
+# 右クリックのメニューの「元に戻す」の名前と、押せるか。何もない所で出す (#289)
+function Get-UndoItem($App) {
+    $menu = Open-BlankMenu $App
     $item = if ($menu) { ByType $menu $script:ControlType::MenuItem | Where-Object { $_.Current.Name -like '元に戻す*' } | Select-Object -First 1 }
     $result = if ($item) { [pscustomobject]@{ Name = $item.Current.Name; Enabled = $item.Current.IsEnabled } }
     Close-DropDown $App
@@ -65,7 +65,7 @@ Section 'うっかり動かしたフォルダーを戻す'
 $archive = New-Sample 'sample.zip'
 $original = Hash $archive
 $app = Start-Expzip @($archive)
-$item = Get-UndoItem $app 'top.txt'
+$item = Get-UndoItem $app
 Check '書き換える前は戻せない' ($item -and $item.Name -eq '元に戻す' -and -not $item.Enabled) "$($item.Name) / $($item.Enabled)"
 Undo $app
 Check '戻せるものが無いと言う' ((Get-Status $app) -eq '元に戻せる操作がありません') (Get-Status $app)
@@ -74,7 +74,7 @@ Move-RowToTree $app 'docs' 'other'
 Check 'docs が other の中へ移る' ((Sorted $archive) -match 'other/docs/a\.txt') (Sorted $archive)
 Check '戻せることを知らせる' ((Get-Status $app) -eq '1 個の項目を移動しました (Ctrl+Z で元に戻せます)') (Get-Status $app)
 # 移した先のフォルダーが開いている
-$item = Get-UndoItem $app 'docs'
+$item = Get-UndoItem $app
 Check 'メニューに何を戻すかが出る' ($item -and $item.Name -eq '元に戻す - 移動' -and $item.Enabled) "$($item.Name) / $($item.Enabled)"
 
 Undo $app
@@ -92,7 +92,7 @@ Check '削除のあとも戻せると知らせる' ((Get-Status $app) -eq '1 個
 Rename-Row $app 'other' 'other2' | Out-Null
 Wait-Idle $app
 Check '消して、名前を変えた' ((Sorted $archive) -eq 'docs/a.txt, docs/b.txt, other2/c.txt') (Sorted $archive)
-$item = Get-UndoItem $app 'docs'
+$item = Get-UndoItem $app
 Check '次に戻すのは名前の変更' ($item -and $item.Name -eq '元に戻す - 名前の変更') $item.Name
 Undo $app
 Check '名前の変更が戻る' ((Sorted $archive) -eq 'docs/a.txt, docs/b.txt, other/c.txt') (Sorted $archive)
@@ -103,7 +103,7 @@ Undo $app
 Check 'もう戻せない' ((Get-Status $app) -eq '元に戻せる操作がありません') (Get-Status $app)
 
 Section 'コメントの変更を戻す'
-$menu = Open-RowMenu $app 'docs'
+$menu = Open-BlankMenu $app
 Push (ByName $menu '書庫のコメント')
 $window = Find-Window $app '書庫のコメント - sample.zip' 10000
 if ($window) {
@@ -120,7 +120,7 @@ Check 'コメントの知らせも消える' (-not ($notice -and -not $notice.Cu
 Section 'コメントを戻したあとに、その前の削除も戻す'
 # コメントは書庫をその場で書き戻す。更新日時まで戻さないと、ほかのソフトが書き換えたと取り違える (#261)
 Remove-Row $app 'top.txt'
-$menu = Open-RowMenu $app 'docs'
+$menu = Open-BlankMenu $app
 Push (ByName $menu '書庫のコメント')
 $window = Find-Window $app '書庫のコメント - sample.zip' 10000
 if ($window) {

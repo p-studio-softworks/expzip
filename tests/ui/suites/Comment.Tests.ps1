@@ -39,10 +39,10 @@ function Get-RawComment([string]$Path) {
 
 function Same([byte[]]$A, [byte[]]$B) { return [Convert]::ToBase64String($A) -eq [Convert]::ToBase64String($B) }
 
-# コメントの窓を開く。ステータスバーの印を押すか、右クリックのメニューから ($Row の行の上で出す)
-function Open-Comment($App, [string]$Name, [string]$Row = '') {
-    if ($Row) {
-        $menu = Open-RowMenu $App $Row
+# コメントの窓を開く。ステータスバーの印を押すか、右クリックのメニューから (何もない所で出す。#289)
+function Open-Comment($App, [string]$Name, [switch]$FromMenu) {
+    if ($FromMenu) {
+        $menu = Open-BlankMenu $App
         $item = if ($menu) { ByName $menu '書庫のコメント' }
         if ($null -eq $item -or -not $item.Current.IsEnabled) {
             Close-DropDown $App
@@ -98,7 +98,7 @@ $expected = $cp932.GetBytes("配布元: P studio`r`n連絡先: なし`r`n[31m赤
 Check '記号を除いて CP932 で書く' (Same $raw.Bytes $expected) ([BitConverter]::ToString($raw.Bytes))
 
 Section '日本語のコメントを書く'
-$window = Open-Comment $app '配布物.zip' -Row 'readme.txt'
+$window = Open-Comment $app '配布物.zip' -FromMenu
 Check '右クリックからも開く' ($null -ne $window)
 if ($window) {
     Set-Text (ById $window 'CommentBox') "新しいコメント`r`n2 行目"
@@ -142,7 +142,7 @@ Section 'コメントの無い書庫に付ける'
 $plain = New-TestZip (Join-Path $script:Work 'plain.zip') ([ordered]@{ 'a.txt' = 'a' })
 $app = Start-Expzip @($plain)
 Check '知らせは出ない' (-not (Test-CommentShown $app))
-$window = Open-Comment $app 'plain.zip' -Row 'a.txt'
+$window = Open-Comment $app 'plain.zip' -FromMenu
 Check '右クリックから付けられる' ($null -ne $window)
 if ($window) {
     Set-Text (ById $window 'CommentBox') 'hello'
@@ -182,7 +182,7 @@ $directory = [BitConverter]::ToUInt32($bytes, $end + 16)
 $bytes[$directory + 8] = $bytes[$directory + 8] -bor 1
 [IO.File]::WriteAllBytes($locked, $bytes)
 $app = Start-Expzip @($locked)
-$window = Open-Comment $app 'locked.zip' -Row 'secret.txt'
+$window = Open-Comment $app 'locked.zip' -FromMenu
 if ($window) {
     Set-Text (ById $window 'CommentBox') 'locked comment'
     Push (ById $window 'SaveButton')

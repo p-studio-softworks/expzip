@@ -48,14 +48,6 @@ function Get-ColumnX($App, [string]$Header) {
     return [int]($r.X + $r.Width / 2)
 }
 
-# 一覧の右クリック。何もない所を押したときと同じく、選択を変えずに出す
-function Open-ListMenu($App) {
-    Focus-App $App
-    (ById $App.Window 'EntryList').SetFocus()
-    Send-Keys $App '+{F10}'
-    return Find-DropDown $App
-}
-
 function Is-RowSelected($App, [string]$Name) {
     return (Find-Row $App $Name).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
 }
@@ -125,28 +117,35 @@ Check '持ち出しになる' ((Get-Status $app) -eq '展開を中止しまし�
 Start-Sleep -Milliseconds 400
 Check 'クリックだけならその行だけを選ぶ' ((Selection-Text $app) -match '^選択 1 個') (Selection-Text $app)
 
+Section '右クリックの並び (#289)'
+# エクスプローラーと同じく、項目の上と何もない所とで分ける
+$menu = Open-RowMenu $app 'b.txt'
+$names = @(if ($menu) { ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name } })
+Check '項目の上' (($names -join ',') -eq '開く,新しいタブで開く,新しい書庫を作成,ハッシュ値を計算,削除,名前の変更') ($names -join ', ')
+Close-DropDown $app
+$menu = Open-BlankMenu $app
+$names = @(if ($menu) { ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name } })
+Check '何もない所' (($names -join ',') -eq '表示,並べ替え,最新の情報に更新,元に戻す,新しいフォルダー,すべて選択,選択の切り替え,ハッシュ値を計算,書庫のコメント') ($names -join ', ')
+Check '何もない所を右クリックしても選択は外さない' ((Selection-Text $app) -match '^選択 1 個') (Selection-Text $app)
+Close-DropDown $app
+
 Section '右クリックのすべて選択と選択の切り替え (#286)'
-$menu = Open-ListMenu $app
+$menu = Open-BlankMenu $app
 Check 'メニューが出る' ($null -ne $menu)
-if ($menu) {
-    $names = @(ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name })
-    $at = [array]::IndexOf($names, '新しいフォルダー')
-    Check '新しいフォルダーと元に戻すの間' (($names[($at + 1)..($at + 3)] -join ',') -eq 'すべて選択,選択の切り替え,元に戻す') ($names -join ', ')
-    Push (ByName $menu '選択の切り替え')
-}
+if ($menu) { Push (ByName $menu '選択の切り替え') }
 Check '切り替えると残りの 4 個' ((Selection-Text $app) -match '^選択 4 個') (Selection-Text $app)
 Check '選んでいた行は外れる' (-not (Is-RowSelected $app 'b.txt'))
 Check '選んでいなかった行を選ぶ' ((Is-RowSelected $app 'a.txt') -and (Is-RowSelected $app 'e.txt'))
-$menu = Open-ListMenu $app
+$menu = Open-BlankMenu $app
 if ($menu) { Push (ByName $menu '選択の切り替え') }
 Check 'もう一度切り替えると元に戻る' ((Selection-Text $app) -match '^選択 1 個' -and (Is-RowSelected $app 'b.txt')) (Selection-Text $app)
-$menu = Open-ListMenu $app
+$menu = Open-BlankMenu $app
 if ($menu) { Push (ByName $menu 'すべて選択') }
 Check 'すべて選択' ((Selection-Text $app) -match '^選択 5 個') (Selection-Text $app)
-$menu = Open-ListMenu $app
+$menu = Open-BlankMenu $app
 if ($menu) { Push (ByName $menu '選択の切り替え') }
 Check 'すべて選んでいれば、切り替えると 0 個' ((Selection-Text $app) -eq '選択 0 個') (Selection-Text $app)
-$menu = Open-ListMenu $app
+$menu = Open-BlankMenu $app
 Check '何も選んでいなくても押せる' ($menu -and (ByName $menu 'すべて選択').Current.IsEnabled -and (ByName $menu '選択の切り替え').Current.IsEnabled)
 if ($menu) { Push (ByName $menu '選択の切り替え') }
 Check '何も選んでいなければ、切り替えると全部' ((Selection-Text $app) -match '^選択 5 個') (Selection-Text $app)
@@ -177,7 +176,7 @@ $first = Find-Row $app 'f001.txt'
 Check '一覧が下へ動く' ($null -eq $first -or $first.Current.IsOffscreen)
 
 Section '見えていない行も切り替える (#286)'
-$menu = Open-ListMenu $app
+$menu = Open-BlankMenu $app
 if ($menu) { Push (ByName $menu '選択の切り替え') }
 $expected = 400 - $count
 Check '選んでいなかった行をすべて選ぶ' ((Selection-Text $app) -match "^選択 $expected 個") "$(Selection-Text $app) / 期待 $expected 個"
