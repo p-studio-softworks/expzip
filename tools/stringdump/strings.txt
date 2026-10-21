@@ -1309,6 +1309,10 @@ MenuHash
   ja  ハッシュ値を計算
   en  Calculate hashes
 
+MenuInvertSelection
+  ja  選択の切り替え
+  en  Invert selection
+
 MenuNewArchiveFromSelection
   ja  新しい書庫を作成
   en  Create a new archive
@@ -1332,6 +1336,10 @@ MenuRefresh
 MenuRename
   ja  名前の変更
   en  Rename
+
+MenuSelectAll
+  ja  すべて選択
+  en  Select all
 
 MenuUndo (kind: Move)
   ja  元に戻す - 移動

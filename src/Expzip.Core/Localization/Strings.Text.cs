@@ -193,6 +193,12 @@ internal static partial class Strings
 
     public static string MenuNewFolder => Pick("新しいフォルダー", "New folder");
 
+    /// <summary>一覧の項目をすべて選ぶ (#286)。エクスプローラーと同じ文言にする。</summary>
+    public static string MenuSelectAll => Pick("すべて選択", "Select all");
+
+    /// <summary>選んでいる項目と選んでいない項目を入れ替える (#286)。エクスプローラーと同じ文言にする。</summary>
+    public static string MenuInvertSelection => Pick("選択の切り替え", "Invert selection");
+
     // 名前の入力欄の右クリック (#284)。エクスプローラーの入力欄と同じ項目と文言にする
 
     public static string EditUndo => Pick("元に戻す", "Undo");

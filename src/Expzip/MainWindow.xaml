@@ -974,6 +974,17 @@
                                       Click="NewFolderMenuItem_Click" />
                             <Separator />
                             <!--
+                                すべて選択と選択の切り替え (#286)。エクスプローラーではコマンドバーの「…」にあるが、
+                                Expzip にはそれが無いので、「表示」「並べ替え」と同じく右クリックに置く。
+                                選択の解除は置かない。何もない所をクリックすれば外れる (#205)
+                            -->
+                            <MenuItem x:Name="SelectAllMenuItem"
+                                      InputGestureText="Ctrl+A"
+                                      Click="SelectAllMenuItem_Click" />
+                            <MenuItem x:Name="InvertSelectionMenuItem"
+                                      Click="InvertSelectionMenuItem_Click" />
+                            <Separator />
+                            <!--
                                 表示の形と並べ替え (#216)。エクスプローラーの右クリックと同じく
                                 「最新の情報に更新」と並べる。並べ替えは列の見出しが無い形でも使えるように置く。
                                 中身はメニューを開くときに作る

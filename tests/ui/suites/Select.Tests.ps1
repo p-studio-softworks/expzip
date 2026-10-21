@@ -48,6 +48,18 @@ function Get-ColumnX($App, [string]$Header) {
     return [int]($r.X + $r.Width / 2)
 }
 
+# 一覧の右クリック。何もない所を押したときと同じく、選択を変えずに出す
+function Open-ListMenu($App) {
+    Focus-App $App
+    (ById $App.Window 'EntryList').SetFocus()
+    Send-Keys $App '+{F10}'
+    return Find-DropDown $App
+}
+
+function Is-RowSelected($App, [string]$Name) {
+    return (Find-Row $App $Name).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected
+}
+
 function Get-RowY($App, [string]$Name) {
     $r = (Find-Row $App $Name).Current.BoundingRectangle
     return [int]($r.Y + $r.Height / 2)
@@ -112,6 +124,39 @@ Check '持ち出しになる' ((Get-Status $app) -eq '展開を中止しまし�
 [ExpzipUi.Keys]::Click($sizeX, (Get-RowY $app 'b.txt'))
 Start-Sleep -Milliseconds 400
 Check 'クリックだけならその行だけを選ぶ' ((Selection-Text $app) -match '^選択 1 個') (Selection-Text $app)
+
+Section '右クリックのすべて選択と選択の切り替え (#286)'
+$menu = Open-ListMenu $app
+Check 'メニューが出る' ($null -ne $menu)
+if ($menu) {
+    $names = @(ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name })
+    $at = [array]::IndexOf($names, '新しいフォルダー')
+    Check '新しいフォルダーと元に戻すの間' (($names[($at + 1)..($at + 3)] -join ',') -eq 'すべて選択,選択の切り替え,元に戻す') ($names -join ', ')
+    Push (ByName $menu '選択の切り替え')
+}
+Check '切り替えると残りの 4 個' ((Selection-Text $app) -match '^選択 4 個') (Selection-Text $app)
+Check '選んでいた行は外れる' (-not (Is-RowSelected $app 'b.txt'))
+Check '選んでいなかった行を選ぶ' ((Is-RowSelected $app 'a.txt') -and (Is-RowSelected $app 'e.txt'))
+$menu = Open-ListMenu $app
+if ($menu) { Push (ByName $menu '選択の切り替え') }
+Check 'もう一度切り替えると元に戻る' ((Selection-Text $app) -match '^選択 1 個' -and (Is-RowSelected $app 'b.txt')) (Selection-Text $app)
+$menu = Open-ListMenu $app
+if ($menu) { Push (ByName $menu 'すべて選択') }
+Check 'すべて選択' ((Selection-Text $app) -match '^選択 5 個') (Selection-Text $app)
+$menu = Open-ListMenu $app
+if ($menu) { Push (ByName $menu '選択の切り替え') }
+Check 'すべて選んでいれば、切り替えると 0 個' ((Selection-Text $app) -eq '選択 0 個') (Selection-Text $app)
+$menu = Open-ListMenu $app
+Check '何も選んでいなくても押せる' ($menu -and (ByName $menu 'すべて選択').Current.IsEnabled -and (ByName $menu '選択の切り替え').Current.IsEnabled)
+if ($menu) { Push (ByName $menu '選択の切り替え') }
+Check '何も選んでいなければ、切り替えると全部' ((Selection-Text $app) -match '^選択 5 個') (Selection-Text $app)
+
+Section 'Ctrl+A ですべて選択'
+[ExpzipUi.Keys]::Click($sizeX, $blankY)
+Start-Sleep -Milliseconds 400
+Send-Keys $app '^a'
+Start-Sleep -Milliseconds 400
+Check 'Ctrl+A' ((Selection-Text $app) -match '^選択 5 個') (Selection-Text $app)
 Stop-Expzip $app
 
 Section '端まで来たら自動でスクロールする'
@@ -130,6 +175,12 @@ $count = if ($text -match '^選択 ([\d,]+) 個') { [int]($Matches[1] -replace '
 Check '見えていた行より多く選ぶ' ($count -gt $visible + 5) "$text / 見えていた行 $visible"
 $first = Find-Row $app 'f001.txt'
 Check '一覧が下へ動く' ($null -eq $first -or $first.Current.IsOffscreen)
+
+Section '見えていない行も切り替える (#286)'
+$menu = Open-ListMenu $app
+if ($menu) { Push (ByName $menu '選択の切り替え') }
+$expected = 400 - $count
+Check '選んでいなかった行をすべて選ぶ' ((Selection-Text $app) -match "^選択 $expected 個") "$(Selection-Text $app) / 期待 $expected 個"
 Stop-Expzip $app
 
 Complete-Suite

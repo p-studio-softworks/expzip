@@ -1,6 +1,8 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Globalization;
@@ -683,6 +685,11 @@ public partial class MainWindow : Window
         // フォルダの作成は選択と関係なく、何もない場所を押したときも使える (#50)
         NewFolderMenuItem.IsEnabled = CanEdit;
 
+        // 選ぶだけなので、書き換えられない書庫でも使える (#286)。検索の結果なら結果の行が対象
+        var hasRows = Contents is not null && EntryList.Items.Count > 0;
+        SelectAllMenuItem.IsEnabled = hasRows;
+        InvertSelectionMenuItem.IsEnabled = hasRows;
+
         // 読み直しは選んでいるかどうかに関わらず使える (#64)
         RefreshMenuItem.IsEnabled = Contents is not null && _cancellation is null;
 
@@ -700,6 +707,48 @@ public partial class MainWindow : Window
 
     private async void NewFolderMenuItem_Click(object sender, RoutedEventArgs e)
         => await CreateFolderAsync();
+
+    private void SelectAllMenuItem_Click(object sender, RoutedEventArgs e)
+        => EntryList.SelectAll();
+
+    private void InvertSelectionMenuItem_Click(object sender, RoutedEventArgs e)
+        => InvertSelection();
+
+    /// <summary>
+    /// 一覧の選択をまとめて入れ替える。<see cref="ListBox"/> が自分の中だけで使えるようにしている仕組み。
+    /// </summary>
+    /// <remarks>
+    /// 1 個ずつ足したり外したりすると、そのたびに選択の変化を知らせ直す。
+    /// 10 万個の書庫で半分を切り替えると 3 分かかった (#286)。まとめて入れ替えれば知らせは 1 回で済む
+    /// </remarks>
+    private static readonly Func<ListBox, IEnumerable, bool> SetSelectedItems =
+        typeof(ListBox).GetMethod("SetSelectedItems", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .CreateDelegate<Func<ListBox, IEnumerable, bool>>();
+
+    /// <summary>選んでいる項目と選んでいない項目を入れ替える (#286、エクスプローラーの「選択の切り替え」)。</summary>
+    private void InvertSelection()
+    {
+        var selected = EntryList.SelectedItems.Cast<object>().ToList();
+
+        // 選んでいるものが少なければ、すべて選んでから外す。すべて選ぶのは一覧が速く済ませる。
+        // 10 万個のうち 1 個を選んでいるとき、まとめて入れ替えると 7 秒、こちらは 0.6 秒
+        if (selected.Count <= FewSelected)
+        {
+            EntryList.SelectAll();
+            foreach (var item in selected)
+            {
+                EntryList.SelectedItems.Remove(item);
+            }
+
+            return;
+        }
+
+        var chosen = selected.ToHashSet(ReferenceEqualityComparer.Instance);
+        SetSelectedItems(EntryList, EntryList.Items.Cast<object>().Where(item => !chosen.Contains(item)).ToList());
+    }
+
+    /// <summary>1 個ずつ外しても待たせない数。1 個外すのに数ミリ秒かかる。</summary>
+    private const int FewSelected = 100;
 
     /// <summary>
     /// ツリーを右クリックしたら、押された節へ移ってからメニューを出す (#50)。
@@ -8359,6 +8408,8 @@ public partial class MainWindow : Window
         RenameMenuItem.Header = Strings.MenuRename;
         DeleteMenuItem.Header = Strings.MenuDelete;
         NewFolderMenuItem.Header = Strings.MenuNewFolder;
+        SelectAllMenuItem.Header = Strings.MenuSelectAll;
+        InvertSelectionMenuItem.Header = Strings.MenuInvertSelection;
         RefreshMenuItem.Header = Strings.MenuRefresh;
         ViewMenuItem.Header = Strings.ViewMenu;
         SortMenuItem.Header = Strings.SortMenu;
