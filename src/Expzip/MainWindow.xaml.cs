@@ -230,6 +230,9 @@ public partial class MainWindow : Window
         // インスタンスの置き場は錠ファイルで守られているため巻き込まない。
         Task.Run(static () => TempWorkspace.CleanUpAbandoned(null));
 
+        // 古いバージョンが取り出したアセンブリも片付ける (#305)。同じく裏で行う
+        Task.Run(OldExtraction.CleanUp);
+
         // 引数で書庫を渡された場合はそれを開く。
         // ウィンドウが出来上がってからでないとエラー表示の親にできないため Loaded で行う。
         var args = Environment.GetCommandLineArgs();
