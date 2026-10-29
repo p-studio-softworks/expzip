@@ -15,6 +15,7 @@ using System.Windows.Automation.Peers;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Input;
+using System.Windows.Shell;
 using System.Windows.Threading;
 using Expzip.Ai;
 using Expzip.Archives;
@@ -197,6 +198,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         UpdateTitle(null);
+
+        // タブをタイトルバーの中に置くか (#309)。ハイコントラストの切り替えにも付いていく
+        ApplyTitleBar();
+        SystemParameters.StaticPropertyChanged += SystemParameters_Changed;
+        Closed += (_, _) => SystemParameters.StaticPropertyChanged -= SystemParameters_Changed;
 
         // 詳細の形の列・台・行の型を控える。ほかの形 (#216) から戻るときに使う
         _detailsView = (GridView)EntryList.View;
@@ -1783,6 +1789,53 @@ public partial class MainWindow : Window
         GoUp();
     }
 
+    /// <summary>XAML に書いたタイトルバーの作り (#309)。ハイコントラストの間は外しておき、戻ったら付け直す。</summary>
+    private WindowChrome? _titleChrome;
+
+    /// <summary>
+    /// タブをタイトルバーの中に置くか、ふつうのタイトルバーの下に置くかを決める (#309)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ハイコントラストでは、Windows が最小化・最大化・閉じるのボタンを描かない (実測)。
+    /// 中身をタイトルバーまで広げたままだとボタンが無くなり、閉じることもできなくなる。
+    /// そのときは Windows のふつうのタイトルバーに戻し、タブはその下に並べる。
+    /// </para>
+    /// <para>
+    /// タイトルバーの中に置くときは、ウィンドウの背景を透かす。Windows のボタンは中身の下に描かれるので、
+    /// 塗るとボタンが隠れる。背景はタイトルバーより下の段で塗ってある。
+    /// </para>
+    /// </remarks>
+    private void ApplyTitleBar()
+    {
+        _titleChrome ??= WindowChrome.GetWindowChrome(this);
+        var inTitleBar = !SystemParameters.HighContrast;
+
+        WindowChrome.SetWindowChrome(this, inTitleBar ? _titleChrome : null);
+        if (inTitleBar)
+        {
+            Background = Brushes.Transparent;
+        }
+        else
+        {
+            SetResourceReference(BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        }
+
+        // ふつうのタイトルバーには、アイコンもボタンも Windows が出す
+        TitleIcon.Visibility = inTitleBar ? Visibility.Visible : Visibility.Collapsed;
+        CaptionButtonSpace.Visibility = inTitleBar ? Visibility.Visible : Visibility.Collapsed;
+        Window_StateChanged(this, EventArgs.Empty);
+    }
+
+    /// <summary>ハイコントラストを入れたり切ったりしたら、タイトルバーの作りを選び直す (#309)。</summary>
+    private void SystemParameters_Changed(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SystemParameters.HighContrast))
+        {
+            Dispatcher.BeginInvoke(ApplyTitleBar);
+        }
+    }
+
     /// <summary>
     /// 最大化したときに、画面の外へはみ出す分だけ中身を内側へ寄せる (#309)。
     /// </summary>
@@ -1792,7 +1845,8 @@ public partial class MainWindow : Window
     /// </remarks>
     private void Window_StateChanged(object? sender, EventArgs e)
     {
-        RootPanel.Margin = WindowState == WindowState.Maximized
+        // ふつうのタイトルバーでは、Windows が枠の内側に収めてくれる
+        RootPanel.Margin = WindowState == WindowState.Maximized && WindowChrome.GetWindowChrome(this) is not null
             ? SystemParameters.WindowResizeBorderThickness
             : new Thickness(0);
     }

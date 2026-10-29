@@ -24,10 +24,12 @@
     <!--
         タブをタイトルバーの中に置く (#309)。エクスプローラーと同じ。
         中身をタイトルバーの高さまで広げ、最小化・最大化・閉じるは Windows のものをそのまま使う
-        (UseAeroCaptionButtons)。自分で描くと、最大化ボタンに乗せたときのスナップ レイアウトが出ない
+        (UseAeroCaptionButtons)。自分で描くと、最大化ボタンに乗せたときのスナップ レイアウトが出ない。
+        **ハイコントラストでは使わない。**Windows がボタンを描かず、閉じるボタンが無くなる。
+        そのときは ふつうのタイトルバーの下にタブが並ぶ (ApplyTitleBar)
     -->
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="40"
+        <WindowChrome CaptionHeight="44"
                       ResizeBorderThickness="6"
                       GlassFrameThickness="-1"
                       UseAeroCaptionButtons="True" />
@@ -363,15 +365,21 @@
             ツリーと一覧の1組を使い回して差し替える。TabControl の見た目は
             見出しの帯だけにしてある
         -->
+        <!--
+            高さは決めておく。タブの有る無しで高さが変わると、下のアドレスバーが上下に動く。
+            WindowChrome の CaptionHeight と同じにする
+        -->
         <Border x:Name="TitleBar"
                 DockPanel.Dock="Top"
+                Height="44"
                 Background="Transparent">
             <DockPanel>
                 <!-- 最小化・最大化・閉じるのボタンは Windows が描く。その分を空けておく -->
                 <Border x:Name="CaptionButtonSpace" DockPanel.Dock="Right" Width="138" />
             <StackPanel Orientation="Horizontal">
                 <!-- タイトルバーにあったアプリのアイコン。絵の正本は Ui/AppIcon.xaml (#126) -->
-                <ui:DecorativeImage Source="{DynamicResource AppIconImage}"
+                <ui:DecorativeImage x:Name="TitleIcon"
+                                    Source="{DynamicResource AppIconImage}"
                                     Width="16" Height="16"
                                     Margin="12,0,8,0"
                                     VerticalAlignment="Center">
@@ -379,7 +387,7 @@
                         <ResourceDictionary Source="Ui/AppIcon.xaml" />
                     </ui:DecorativeImage.Resources>
                 </ui:DecorativeImage>
-                <Grid Margin="0,8,0,0" WindowChrome.IsHitTestVisibleInChrome="True">
+                <Grid VerticalAlignment="Bottom" WindowChrome.IsHitTestVisibleInChrome="True">
                     <TabControl x:Name="ArchiveTabs"
                                 SelectionChanged="ArchiveTabs_SelectionChanged"
                                 PreviewMouseDown="ArchiveTabs_PreviewMouseDown"
