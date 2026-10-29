@@ -235,6 +235,14 @@ AskPasswordAgain (archiveName: 資料.zip)
   en  That password is not correct.
       | Enter the password for "⟦資料.zip⟧".
 
+Back
+  ja  戻る
+  en  Back
+
+BackTooltip
+  ja  戻る (Alt + 左方向キー)
+  en  Back (Alt + Left Arrow)
+
 Bullet
   ja  ・
   en  - 
@@ -845,6 +853,10 @@ FolderCreated (name: 報告書.pdf)
   ja  「⟦報告書.pdf⟧」を作成しました
   en  Created "⟦報告書.pdf⟧"
 
+FormatBadge (format: 7z)
+  ja  [⟦7z⟧]
+  en  [⟦7z⟧]
+
 FormatIsReadOnly (format: 7z)
   ja  ⟦7z⟧ にはファイルを追加できません。読み取りのみに対応しています。
   en  Files cannot be added to ⟦7z⟧. This format is supported for reading only.
@@ -901,6 +913,14 @@ FormatName (format: CabExe)
 FormatUnknown
   ja  不明
   en  Unknown
+
+Forward
+  ja  進む
+  en  Forward
+
+ForwardTooltip
+  ja  進む (Alt + 右方向キー)
+  en  Forward (Alt + Right Arrow)
 
 HashArchiveDone
   ja  書庫ファイルのハッシュ値を計算しました
@@ -3049,6 +3069,14 @@ UnhandledError (type: IOException, message: The process cannot access the file b
 UnsupportedCompressionMethod
   ja  この圧縮方式には対応していません
   en  This compression method is not supported.
+
+Up
+  ja  上へ
+  en  Up
+
+UpTooltip
+  ja  1 つ上のフォルダーへ (Alt + 上方向キー)
+  en  Up to the parent folder (Alt + Up Arrow)
 
 ViewDetails
   ja  詳細

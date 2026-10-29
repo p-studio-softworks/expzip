@@ -115,6 +115,45 @@ Check '1 つ上に戻る' ((Crumbs $app) -eq '外側.zip > 資料') (Crumbs $app
 Send-Keys $app '%{UP}'
 Check 'アドレスバーでも戻る' ((Crumbs $app) -eq '外側.zip') (Crumbs $app)
 
+Section '戻る・進む'
+# タブごとに、移った場所の履歴を持つ (#309)。上の操作で 資料 → 2024 → 資料 → ルート と移っている
+$back = ById $app.Window 'BackButton'
+$forward = ById $app.Window 'ForwardButton'
+$up = ById $app.Window 'UpButton'
+Check '戻るの名前' ($back.Current.Name -eq '戻る') $back.Current.Name
+Check '進むの名前' ($forward.Current.Name -eq '進む') $forward.Current.Name
+Check '上への名前' ($up.Current.Name -eq '上へ') $up.Current.Name
+Check 'ルートでは上へを押せない' (-not $up.Current.IsEnabled)
+Check '戻るを押せる' $back.Current.IsEnabled
+Check 'まだ進むは押せない' (-not $forward.Current.IsEnabled)
+Push $back
+Check '戻るで前の場所へ' ((Crumbs $app) -eq '外側.zip > 資料') (Crumbs $app)
+Check '戻ると進むを押せる' $forward.Current.IsEnabled
+Send-Keys $app '%{LEFT}'
+Check 'Alt+← でもう 1 つ前へ' ((Crumbs $app) -eq '外側.zip > 資料 > 2024') (Crumbs $app)
+Send-Keys $app '%{RIGHT}'
+Check 'Alt+→ で進む' ((Crumbs $app) -eq '外側.zip > 資料') (Crumbs $app)
+Push $forward
+Check '進むで元の場所へ' ((Crumbs $app) -eq '外側.zip') (Crumbs $app)
+Check '進み切ると進むは押せない' (-not $forward.Current.IsEnabled)
+Select-Row $app '資料' | Out-Null
+Send-Keys $app '{ENTER}'
+Push $up
+Check '上へで 1 つ上に' ((Crumbs $app) -eq '外側.zip') (Crumbs $app)
+Send-Keys $app '%{LEFT}'
+Check '上へで移った分も戻れる' ((Crumbs $app) -eq '外側.zip > 資料') (Crumbs $app)
+Push $up
+
+Section '形式と文字付きのボタン'
+# 形式はステータスバーの右端に出す。タイトルバーにはタブを置いたので (#309)
+$format = ById $app.Window 'FormatInfo'
+Check '形式が右端に出る' ($format.Current.Name -eq '[ZIP]') $format.Current.Name
+# よく使うボタンには名前を添える (#309)
+foreach ($id in 'OpenButton', 'ExtractButton', 'AddButton', 'InspectButton') {
+    $button = ById $app.Window $id
+    Check "$id に名前が見える" (((Texts $button) -split ' \| ') -contains $button.Current.Name) (Texts $button)
+}
+
 Section 'ツリー'
 $tree = ById $app.Window 'FolderTree'
 $root = ByType $tree $script:ControlType::TreeItem | Select-Object -First 1

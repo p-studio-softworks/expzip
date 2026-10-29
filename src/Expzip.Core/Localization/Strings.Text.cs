@@ -24,6 +24,19 @@ internal static partial class Strings
 
     public static string RecentTooltip => Pick("最近開いた書庫", "Recently opened archives");
 
+    /// <summary>アドレスバーの左の、戻る・進む・上へ (#309)。説明はエクスプローラーと同じ書き方にする。</summary>
+    public static string Back => Pick("戻る", "Back");
+
+    public static string BackTooltip => Pick("戻る (Alt + 左方向キー)", "Back (Alt + Left Arrow)");
+
+    public static string Forward => Pick("進む", "Forward");
+
+    public static string ForwardTooltip => Pick("進む (Alt + 右方向キー)", "Forward (Alt + Right Arrow)");
+
+    public static string Up => Pick("上へ", "Up");
+
+    public static string UpTooltip => Pick("1 つ上のフォルダーへ (Alt + 上方向キー)", "Up to the parent folder (Alt + Up Arrow)");
+
     public static string Extract => Pick("展開", "Extract");
 
     public static string ExtractTooltip => Pick(
@@ -284,8 +297,11 @@ internal static partial class Strings
     public static string LimitInstallerUnopened(string name) => Pick(
         $"{name} の中身は開けません", $"{name} contents cannot be opened");
 
-    /// <summary>タイトルバーの、場所の後ろに添える形式 (#188)。</summary>
-    public static string TitleFormat(string location, string format) => $"{location} [{format}]";
+    /// <summary>ウィンドウの名前の、場所の後ろに添える形式 (#188)。タスクバーと Alt+Tab に出る (#309)。</summary>
+    public static string TitleFormat(string location, string format) => $"{location} {FormatBadge(format)}";
+
+    /// <summary>ステータスバーの右端に出す形式 (#309)。</summary>
+    public static string FormatBadge(string format) => $"[{format}]";
 
     /// <summary>自己解凍書庫であることの断り書き (#32)。中の形式も言う (#188)。</summary>
     public static string LimitSelfExtracting(string format) => Pick(

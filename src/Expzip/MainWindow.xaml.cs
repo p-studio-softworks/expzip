@@ -1749,7 +1749,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        var altUp = e.Key == Key.System && e.SystemKey == Key.Up && Keyboard.Modifiers == ModifierKeys.Alt;
+        // 戻る・進む (#309)。Alt+←/→ とキーボードの戻る・進むのキー。上へと同じく、文字を消すキーではないので
+        // アドレスバーでも受ける。文字の欄では、Alt+←/→ は欄の中の操作に使わないので奪ってよい
+        var alt = e.Key == Key.System && Keyboard.Modifiers == ModifierKeys.Alt;
+        var walk = (alt && e.SystemKey == Key.Left) || e.Key == Key.BrowserBack ? true
+            : (alt && e.SystemKey == Key.Right) || e.Key == Key.BrowserForward ? false
+            : (bool?)null;
+        if (walk is { } back)
+        {
+            if (e.OriginalSource == AddressBar)
+            {
+                ShowCrumbs();
+                EntryList.Focus();
+            }
+
+            e.Handled = true;
+            WalkHistory(back);
+            return;
+        }
+
+        var altUp = alt && e.SystemKey == Key.Up;
         if (altUp && e.OriginalSource == AddressBar)
         {
             ShowCrumbs();
@@ -1761,18 +1780,30 @@ public partial class MainWindow : Window
         }
 
         e.Handled = true;
+        GoUp();
+    }
 
-        // 検索の結果からは、探す前に見ていたフォルダーへ戻る (#215)。
-        // 書庫全体を探しているので、結果に「一つ上」は無い
-        if (Searching)
-        {
-            LeaveSearch();
-            return;
-        }
+    /// <summary>
+    /// 最大化したときに、画面の外へはみ出す分だけ中身を内側へ寄せる (#309)。
+    /// </summary>
+    /// <remarks>
+    /// Windows は最大化したウィンドウの枠を画面の外へ出す。タイトルバーまで中身を広げたので (WindowChrome)、
+    /// そのままでは枠の分だけタブの上やステータスバーの下が切れる
+    /// </remarks>
+    private void Window_StateChanged(object? sender, EventArgs e)
+    {
+        RootPanel.Margin = WindowState == WindowState.Maximized
+            ? SystemParameters.WindowResizeBorderThickness
+            : new Thickness(0);
+    }
 
-        if (CurrentFolder?.Parent is { } parent)
+    /// <summary>マウスの戻る・進むのボタン (#309)。エクスプローラーと同じく、ウィンドウのどこで押しても効く。</summary>
+    private void Window_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton is MouseButton.XButton1 or MouseButton.XButton2)
         {
-            MoveTo(parent);
+            e.Handled = true;
+            WalkHistory(back: e.ChangedButton == MouseButton.XButton1);
         }
     }
 
@@ -6516,7 +6547,9 @@ public partial class MainWindow : Window
     /// </summary>
     private void Navigate(ArchiveFolder folder)
     {
+        RememberMove(folder);
         CurrentFolder = folder;
+        UpdateHistoryButtons();
 
         if (Tab is { Search.Length: > 0 } searching)
         {
@@ -6729,7 +6762,8 @@ public partial class MainWindow : Window
         AddressBar.Text = text;
         AddressBar.ToolTip = text;
         ShowCrumbs();
-        UpdateTitle(Strings.TitleFormat(text, FormatLabel(tab.Contents)));
+        UpdateTitle(text, FormatLabel(tab.Contents));
+        UpdateHistoryButtons();
         Dispatcher.BeginInvoke(FitCrumbs, DispatcherPriority.Loaded);
     }
 
@@ -6942,6 +6976,99 @@ public partial class MainWindow : Window
         Navigate(folder);
     }
 
+    // ------------------------------------------------------------------ 戻る・進む・上へ (#309)
+
+    /// <summary>履歴をたどって移っている間。たどった移動は履歴に積まない。</summary>
+    private bool _walkingHistory;
+
+    /// <summary>別のフォルダーへ移るときに、いまの場所を「戻る」に積む (#309)。</summary>
+    /// <remarks>
+    /// 同じ場所を出し直すだけのとき (タブの切り替え、書庫の開き直し) は積まない。
+    /// 開き直すとフォルダーは作り直されるので、比べるのはパス。
+    /// </remarks>
+    private void RememberMove(ArchiveFolder folder)
+    {
+        if (_walkingHistory
+            || Tab is not { } tab
+            || string.Equals(tab.CurrentFolder.FullPath, folder.FullPath, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        tab.BackHistory.Add(tab.CurrentFolder.FullPath);
+        tab.ForwardHistory.Clear();
+    }
+
+    /// <summary>「戻る」か「進む」で、履歴の 1 つ先へ移る (#309)。消えたフォルダーは飛ばす。</summary>
+    private void WalkHistory(bool back)
+    {
+        if (Tab is not { } tab)
+        {
+            return;
+        }
+
+        var from = back ? tab.BackHistory : tab.ForwardHistory;
+        var to = back ? tab.ForwardHistory : tab.BackHistory;
+
+        while (from.Count > 0)
+        {
+            var path = from[^1];
+            from.RemoveAt(from.Count - 1);
+
+            if (FindFolder(tab.Contents.Root, path) is not { } folder)
+            {
+                continue;
+            }
+
+            to.Add(tab.CurrentFolder.FullPath);
+            _walkingHistory = true;
+            try
+            {
+                MoveTo(folder);
+            }
+            finally
+            {
+                _walkingHistory = false;
+            }
+
+            return;
+        }
+
+        UpdateHistoryButtons();
+    }
+
+    /// <summary>
+    /// 一つ上のフォルダーへ (#46、#213、#309)。探している間は、探す前に見ていたフォルダーへ戻る (#215)。
+    /// </summary>
+    private void GoUp()
+    {
+        // 書庫全体を探しているので、結果に「一つ上」は無い
+        if (Searching)
+        {
+            LeaveSearch();
+            return;
+        }
+
+        if (CurrentFolder?.Parent is { } parent)
+        {
+            MoveTo(parent);
+        }
+    }
+
+    /// <summary>戻る・進む・上へのボタンを、行ける先があるときだけ押せるようにする。</summary>
+    private void UpdateHistoryButtons()
+    {
+        BackButton.IsEnabled = Tab is { BackHistory.Count: > 0 };
+        ForwardButton.IsEnabled = Tab is { ForwardHistory.Count: > 0 };
+        UpButton.IsEnabled = Searching || CurrentFolder?.Parent is not null;
+    }
+
+    private void BackButton_Click(object sender, RoutedEventArgs e) => WalkHistory(back: true);
+
+    private void ForwardButton_Click(object sender, RoutedEventArgs e) => WalkHistory(back: false);
+
+    private void UpButton_Click(object sender, RoutedEventArgs e) => GoUp();
+
     /// <summary>
     /// 検索の結果の選択から、展開先の最上位に置くフォルダーを決める (#215)。
     /// </summary>
@@ -7024,7 +7151,7 @@ public partial class MainWindow : Window
 
         // 何の形式を開いているかを、消えない場所に出す (#188)。ステータスバーの添え書きは、
         // 操作の知らせが出ている間は見えない
-        UpdateTitle(Strings.TitleFormat(text, FormatLabel(Contents)));
+        UpdateTitle(text, FormatLabel(Contents));
 
         // 収まるかどうかは、並べ終わってからでないと分からない
         Dispatcher.BeginInvoke(FitCrumbs, DispatcherPriority.Loaded);
@@ -7039,6 +7166,7 @@ public partial class MainWindow : Window
         CrumbOverflow.Visibility = Visibility.Collapsed;
         ShowCrumbs();
         UpdateTitle(null);
+        UpdateHistoryButtons();
     }
 
     /// <summary>
@@ -7903,18 +8031,22 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ 見た目の調整
 
     /// <summary>
-    /// タイトルバーに、いまの場所を出す (#90)。
+    /// ウィンドウの名前に、いまの場所と形式を出す (#90)。形式はステータスバーの右端にも出す (#309)。
     /// </summary>
     /// <remarks>
-    /// **パスはここに出す。**アドレスバーは区切りごとに
-    /// 押せる形にしたので (#90)、パスの文字を読みたいときの行き先はここになる。
+    /// タブをタイトルバーに移したので (#309)、ウィンドウの名前は画面には出ない。
+    /// タスクバーと Alt+Tab に出る (エクスプローラーと同じ)。パスの文字を読みたいときは、
+    /// アドレスバーの空きを押すと文字の欄が出る。
     /// 書庫を1つも開いていなければアプリの名前だけにする。
     /// </remarks>
-    private void UpdateTitle(string? location)
+    private void UpdateTitle(string? location, string? format = null)
     {
         Title = string.IsNullOrEmpty(location)
             ? AppName
-            : $"{location} - {AppName}";
+            : $"{(format is null ? location : Strings.TitleFormat(location, format))} - {AppName}";
+
+        FormatInfo.Text = format is null ? string.Empty : Strings.FormatBadge(format);
+        FormatSeparator.Visibility = format is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // ------------------------------------------------------------------ 言語 (#23)
@@ -8404,6 +8536,10 @@ public partial class MainWindow : Window
         ShowSearchBox(Tab);
         SearchClear.ToolTip = Strings.SearchClear;
         AutomationProperties.SetName(SearchClear, Strings.SearchClear);
+
+        NameTool(BackButton, Strings.Back, Strings.BackTooltip);
+        NameTool(ForwardButton, Strings.Forward, Strings.ForwardTooltip);
+        NameTool(UpButton, Strings.Up, Strings.UpTooltip);
 
         NewTabButton.ToolTip = Strings.NewTabTooltip;
         AutomationProperties.SetName(NewTabButton, Strings.NewTabName);

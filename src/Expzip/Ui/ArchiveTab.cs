@@ -74,6 +74,16 @@ internal sealed class ArchiveTab(ArchiveContents contents) : INotifyPropertyChan
     /// <remarks>探している間 (#215) も残しておく。探すのをやめたら、ここへ戻る。</remarks>
     public ArchiveFolder CurrentFolder { get; set; } = contents.Root;
 
+    /// <summary>「戻る」で行ける、前に見ていたフォルダー (#309)。書庫の中のパスで持ち、最後が直前。</summary>
+    /// <remarks>
+    /// フォルダーそのものではなくパスで持つ。削除などで書庫を開き直すとフォルダーは作り直されるので、
+    /// 戻るときにパスから探し直す。消えたフォルダーは飛ばす。
+    /// </remarks>
+    public List<string> BackHistory { get; } = [];
+
+    /// <summary>「進む」で行けるフォルダー (#309)。最後が次。別の場所へ移ると空になる。</summary>
+    public List<string> ForwardHistory { get; } = [];
+
     /// <summary>
     /// 検索の欄に入っている文字 (#215)。空なら探していない。
     /// </summary>
