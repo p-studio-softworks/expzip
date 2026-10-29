@@ -20,6 +20,7 @@
     配布用の Expzip.exe を作ったあと、Microsoft Store に出す MSIX も publish\msix に作る (#176)。
     Windows SDK (makeappx.exe) が要る。署名はしない。Store に出すと Microsoft が署名する。
     手元で試すときは、publish\msix\layout を開発者モードで登録する。
+    最後に tools\dllcheck\Test-DllPlanting.ps1 で、exe の隣に置かれた DLL を読み込まないかを確かめる (#310)。
 
 .EXAMPLE
     .\build\build.ps1
@@ -136,6 +137,16 @@ if ($Msix -and -not $Debug) {
 
     Write-Host ("できました: {0}" -f $package)
     Write-Host 'Store に出すものです。署名していないので、このままでは手元に入れられません。'
+
+    # 配る exe が隣に置かれた DLL を読み込まないか (#305)。1 つにまとめた exe でだけ起きる分があり、
+    # 画面テストでは確かめられないので、配るものを作ったここで毎回見る (#310)
+    Write-Host ''
+    Write-Host 'exe の隣に置かれた DLL を読み込まないかを確かめています。Expzip のウィンドウが 2 回出て消えます…'
+    & (Join-Path $repo 'tools\dllcheck\Test-DllPlanting.ps1') -Exe $exe
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host '確かめた結果が NG でした。このビルドは配らないでください。'
+        exit 1
+    }
 }
 
 if ($Test) {
