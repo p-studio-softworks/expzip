@@ -162,6 +162,10 @@ internal static partial class Strings
 
     public static string NewTabName => Pick("新しい書庫", "New archive");
 
+    public static string TabScrollBack => Pick("左のタブを表示", "Show tabs to the left");
+
+    public static string TabScrollForward => Pick("右のタブを表示", "Show tabs to the right");
+
     public static string CloseTabTooltip => Pick(
         "このタブを閉じる (Ctrl+W)", "Close this tab (Ctrl+W)");
 

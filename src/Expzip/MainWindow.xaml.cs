@@ -222,6 +222,7 @@ public partial class MainWindow : Window
         ShowLocationColumn(false);
 
         ArchiveTabs.ItemsSource = _tabs;
+        _tabs.CollectionChanged += (_, _) => UpdateTabArea();
 
         _settings = SettingsStore.Load();
 
@@ -1824,8 +1825,45 @@ public partial class MainWindow : Window
         // ふつうのタイトルバーには、アイコンもボタンも Windows が出す
         TitleIcon.Visibility = inTitleBar ? Visibility.Visible : Visibility.Collapsed;
         CaptionButtonSpace.Visibility = inTitleBar ? Visibility.Visible : Visibility.Collapsed;
+        UpdateTabArea();
         Window_StateChanged(this, EventArgs.Empty);
     }
+
+    // ------------------------------------------------------------------ タブの帯の幅とスクロール (#315)
+
+    private EqualTabPanel? TabStrip => ArchiveTabs.Template.FindName("TabStrip", ArchiveTabs) as EqualTabPanel;
+
+    /// <summary>タブの帯に使える幅を決め、入りきらないならスクロールのボタンを出す。</summary>
+    private void UpdateTabArea()
+    {
+        static double Outer(FrameworkElement e) => e.Visibility == Visibility.Collapsed
+            ? 0
+            : e.Width + e.Margin.Left + e.Margin.Right;
+
+        // タブを並べた段の幅は見ない。中身より狭くならないので、ウィンドウを狭めても縮まない
+        var width = Math.Max(0, TitleBar.ActualWidth - Outer(CaptionButtonSpace) - Outer(TitleIcon) - Outer(NewTabButton));
+        TabArea.MaxWidth = width;
+
+        var overflow = _tabs.Count * EqualTabPanel.MinTabWidth > width;
+        TabScrollBack.Visibility = overflow ? Visibility.Visible : Visibility.Collapsed;
+        TabScrollForward.Visibility = overflow ? Visibility.Visible : Visibility.Collapsed;
+        TabStrip?.ShowSelected();
+    }
+
+    private void TitleBar_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateTabArea();
+
+    private void TabStrip_ScrollChanged(object? sender, EventArgs e)
+    {
+        if (sender is EqualTabPanel strip)
+        {
+            TabScrollBack.IsEnabled = strip.CanScrollBack;
+            TabScrollForward.IsEnabled = strip.CanScrollForward;
+        }
+    }
+
+    private void TabScrollBack_Click(object sender, RoutedEventArgs e) => TabStrip?.Scroll(-1);
+
+    private void TabScrollForward_Click(object sender, RoutedEventArgs e) => TabStrip?.Scroll(1);
 
     /// <summary>ハイコントラストを入れたり切ったりしたら、タイトルバーの作りを選び直す (#309)。</summary>
     private void SystemParameters_Changed(object? sender, PropertyChangedEventArgs e)
@@ -2100,6 +2138,11 @@ public partial class MainWindow : Window
 
     private void ArchiveTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (ReferenceEquals(e.OriginalSource, ArchiveTabs))
+        {
+            TabStrip?.ShowSelected();
+        }
+
         // タブを足した直後は、開く処理の側で画面を作る
         if (_switchingTab || !ReferenceEquals(e.OriginalSource, ArchiveTabs))
         {
@@ -2235,8 +2278,8 @@ public partial class MainWindow : Window
     /// 動かないなら <see langword="null"/>。
     /// </summary>
     /// <remarks>
-    /// タブの左右の半分で、その手前か後ろかを決める。帯は折り返さない (横に並べたパネルの中に
-    /// あり、幅の限りが無い) ので、横の位置だけを見ればよい。
+    /// タブの左右の半分で、その手前か後ろかを決める。帯は折り返さない (#315) ので、
+    /// 横の位置だけを見ればよい。
     /// </remarks>
     private int? TabDropIndex(double x)
     {
@@ -8597,6 +8640,10 @@ public partial class MainWindow : Window
 
         NewTabButton.ToolTip = Strings.NewTabTooltip;
         AutomationProperties.SetName(NewTabButton, Strings.NewTabName);
+        TabScrollBack.ToolTip = Strings.TabScrollBack;
+        AutomationProperties.SetName(TabScrollBack, Strings.TabScrollBack);
+        TabScrollForward.ToolTip = Strings.TabScrollForward;
+        AutomationProperties.SetName(TabScrollForward, Strings.TabScrollForward);
 
         CancelButton.Content = Strings.Stop;
 

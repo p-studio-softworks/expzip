@@ -240,6 +240,10 @@ function Select-Tab($App, [int]$Index) {
 }
 
 $app = Start-Expzip @($family)
+# + の幅 24 から、表示倍率を求める
+$tabScale = (ById $app.Window 'NewTabButton').Current.BoundingRectangle.Width / 24
+$oneTab = (Get-Tabs $app)[0].Current.BoundingRectangle.Width
+Check 'タブが 1 つなら幅は 240 (#315)' ([Math]::Abs($oneTab / $tabScale - 240) -le 1) "$($oneTab / $tabScale)"
 # 親と関係のないタブを右に置いておく。右の端に足していたら、中の書庫のタブがこれより右に出る
 Push (ById $app.Window 'NewTabButton')
 Check '+ で別の書庫を作る' (Complete-FileDialog $app '新しい書庫を作成' (Join-Path $script:Work '別.zip'))
@@ -285,6 +289,50 @@ $menu = Open-RowMenu $app '中.zip'
 $names = @(if ($menu) { ByType $menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name } })
 Check '「開く」のすぐ下' (($names -join ', ') -match '^開く, 新しいタブで開く, ') ($names -join ', ')
 Close-DropDown $app
+
+Section 'タブの幅とスクロール (#315)'
+$tabWidths = @(Get-Tabs $app | ForEach-Object { $_.Current.BoundingRectangle.Width })
+$tabSpread = ($tabWidths | Measure-Object -Maximum).Maximum - ($tabWidths | Measure-Object -Minimum).Minimum
+Check '名前の長さによらず幅がそろう' ($tabSpread -le 1) ($tabWidths -join ', ')
+Check '入りきる間はスクロールのボタンを出さない' ($null -eq (ById $app.Window 'TabScrollBack'))
+
+# 最小の幅まで狭める。タブ 5 個は入りきらなくなる
+$tabHandle = $app.Process.MainWindowHandle
+$tabWindow = $app.Window.Current.BoundingRectangle
+[ExpzipUi.Native]::MoveWindow($tabHandle, [int]$tabWindow.Left, [int]$tabWindow.Top, 10, [int]$tabWindow.Height, $true) | Out-Null
+Start-Sleep -Milliseconds 500
+Wait-Idle $app
+$tabBack = ById $app.Window 'TabScrollBack'
+$tabForward = ById $app.Window 'TabScrollForward'
+Check '入りきらないとスクロールのボタンを出す' ($tabBack -and $tabForward)
+Check 'ボタンに名前がある' ($tabBack.Current.Name -eq '左のタブを表示' -and $tabForward.Current.Name -eq '右のタブを表示')
+$tabWidth = (Get-Tabs $app)[0].Current.BoundingRectangle.Width / $tabScale
+Check '最小の幅まで縮む' ([Math]::Abs($tabWidth - 100) -le 1) "$tabWidth"
+$newRect = (ById $app.Window 'NewTabButton').Current.BoundingRectangle
+$grabRight = $app.Window.Current.BoundingRectangle.Right - 138 * $tabScale
+Check '+ に届き、つかむ空きが残る' ($newRect.Right -le $grabRight - 47 * $tabScale) "+ の右 $($newRect.Right) / 上限 $grabRight"
+
+function Tab-InView($App, [int]$Index) {
+    $strip = (ById $App.Window 'ArchiveTabs').Current.BoundingRectangle
+    $rect = (Get-Tabs $App)[$Index].Current.BoundingRectangle
+    return $rect.Left -ge $strip.Left - 1 -and $rect.Right -le $strip.Right + 1
+}
+Select-Tab $app 4
+Check '選んだ右端のタブが見える' (Tab-InView $app 4)
+Check '右の端では右へ送れない' (-not $tabForward.Current.IsEnabled)
+Check '左へ送れる' ($tabBack.Current.IsEnabled)
+Push $tabBack
+Wait-Idle $app
+Check '送ると右へ送れるようになる' ($tabForward.Current.IsEnabled)
+Check '送っても選んだタブは変わらない' ((Get-Selected (ById $app.Window 'ArchiveTabs')) -eq (Get-Tabs $app)[4].Current.Name)
+Select-Tab $app 0
+Check '選んだ左端のタブが見える' (Tab-InView $app 0)
+Check '左の端では左へ送れない' (-not $tabBack.Current.IsEnabled)
+
+[ExpzipUi.Native]::MoveWindow($tabHandle, [int]$tabWindow.Left, [int]$tabWindow.Top, [int]$tabWindow.Width, [int]$tabWindow.Height, $true) | Out-Null
+Start-Sleep -Milliseconds 500
+Wait-Idle $app
+Check '広げるとスクロールのボタンが消える' ($null -eq (ById $app.Window 'TabScrollBack'))
 
 Section 'タブの並べ替え (#208)'
 function Selected-Tab($App) { return Get-Selected (ById $App.Window 'ArchiveTabs') }

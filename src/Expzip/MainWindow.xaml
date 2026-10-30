@@ -351,6 +351,23 @@
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!--
+            タブの帯に置く絵だけのボタン (+ とスクロール)。
+            下の余白は、タブの閉じる × と上下の中心をそろえるためのもの (#313)
+        -->
+        <Style x:Key="TabStripButton" TargetType="Button"
+               BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Margin" Value="0,0,0,4.5" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+        </Style>
     </Window.Resources>
 
     <!--
@@ -372,10 +389,14 @@
         <Border x:Name="TitleBar"
                 DockPanel.Dock="Top"
                 Height="44"
-                Background="Transparent">
+                Background="Transparent"
+                SizeChanged="TitleBar_SizeChanged">
             <DockPanel>
-                <!-- 最小化・最大化・閉じるのボタンは Windows が描く。その分を空けておく -->
-                <Border x:Name="CaptionButtonSpace" DockPanel.Dock="Right" Width="138" />
+                <!--
+                    最小化・最大化・閉じるのボタンは Windows が描く。その分 (138) を空けておく。
+                    タブが増えてもウィンドウをつかめるように、さらに 48 を残す (#315)
+                -->
+                <Border x:Name="CaptionButtonSpace" DockPanel.Dock="Right" Width="186" />
             <StackPanel Orientation="Horizontal">
                 <!--
                     タイトルバーにあったアプリのアイコン。絵の正本は Ui/AppIcon.xaml (#126)。
@@ -390,7 +411,18 @@
                         <ResourceDictionary Source="Ui/AppIcon.xaml" />
                     </ui:DecorativeImage.Resources>
                 </ui:DecorativeImage>
-                <Grid VerticalAlignment="Bottom" WindowChrome.IsHitTestVisibleInChrome="True">
+                <!-- 最大の幅はタイトルバーの幅から決める。横に並べたパネルの中なので、ここで限らないと帯の幅が決まらない -->
+                <DockPanel x:Name="TabArea" VerticalAlignment="Bottom" WindowChrome.IsHitTestVisibleInChrome="True">
+                <!-- 入りきらないときだけ出す (#315)。ChevronLeft / ChevronRight -->
+                <Button x:Name="TabScrollBack" DockPanel.Dock="Left"
+                        Style="{StaticResource TabStripButton}"
+                        Content="&#xE76B;" Visibility="Collapsed"
+                        Click="TabScrollBack_Click" />
+                <Button x:Name="TabScrollForward" DockPanel.Dock="Right"
+                        Style="{StaticResource TabStripButton}"
+                        Content="&#xE76C;" Visibility="Collapsed"
+                        Click="TabScrollForward_Click" />
+                <Grid>
                     <TabControl x:Name="ArchiveTabs"
                                 SelectionChanged="ArchiveTabs_SelectionChanged"
                                 PreviewMouseDown="ArchiveTabs_PreviewMouseDown"
@@ -400,7 +432,8 @@
                                 LostMouseCapture="ArchiveTabs_LostMouseCapture">
                         <TabControl.Template>
                             <ControlTemplate TargetType="TabControl">
-                                <TabPanel IsItemsHost="True" />
+                                <ui:EqualTabPanel x:Name="TabStrip" IsItemsHost="True"
+                                                  ScrollChanged="TabStrip_ScrollChanged" />
                             </ControlTemplate>
                         </TabControl.Template>
                         <TabControl.ItemContainerStyle>
@@ -411,14 +444,16 @@
                             <Style TargetType="TabItem"
                                    BasedOn="{StaticResource DefaultTabItemStyle}">
                                 <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+                                <!-- × をタブの右端に置くため、中身をタブの幅いっぱいに広げる (#315) -->
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             </Style>
                         </TabControl.ItemContainerStyle>
                         <TabControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type ui:ArchiveTab}">
-                        <StackPanel Orientation="Horizontal" ToolTip="{Binding FilePath}">
-                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+                        <DockPanel ToolTip="{Binding FilePath}">
                             <!-- 閉じるボタン。エクスプローラーやブラウザと同じ位置に置く -->
-                            <Button Content="&#xE711;"
+                            <Button DockPanel.Dock="Right"
+                                    Content="&#xE711;"
                                     FontFamily="Segoe MDL2 Assets"
                                     FontSize="9"
                                     Width="18" Height="18"
@@ -429,37 +464,34 @@
                                     ToolTip="{Binding CloseTooltip}"
                                     AutomationProperties.Name="{Binding CloseTooltip}"
                                     Click="CloseTabButton_Click" />
-                        </StackPanel>
+                            <!-- 長い名前は省略する。名前の全体は説明で確かめられる (#315) -->
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
                             </DataTemplate>
                         </TabControl.ItemTemplate>
                     </TabControl>
 
                     <!-- タブをドラッグしている間に、落とす位置を示す縦の線 (#208) -->
-                    <Canvas IsHitTestVisible="False">
+                    <Canvas IsHitTestVisible="False" ClipToBounds="True">
                         <Rectangle x:Name="TabDropMark"
                                    Width="2"
                                    Fill="{DynamicResource TextFillColorPrimaryBrush}"
                                    Visibility="Collapsed" />
                     </Canvas>
                 </Grid>
+                </DockPanel>
 
                 <!--
                     エクスプローラーと同じく、タブの右で新しい書庫を作る (#22)。
                     以前ツールバーにあった「新規作成」はここに移した。
                     タブの中に置くと、WPF の TabControl は中の部品を
-                    支援技術に見せないため、外に出してある。
-                    下の余白は、タブの閉じる × と上下の中心をそろえるためのもの (#313)
+                    支援技術に見せないため、外に出してある。スクロールのボタンも同じ
                 -->
                 <Button x:Name="NewTabButton"
+                        Style="{StaticResource TabStripButton}"
                         Content="&#xE710;"
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="10"
-                        Width="24" Height="22"
                         Margin="4,0,4,4.5"
-                        Padding="0"
-                        BorderThickness="0"
-                        Background="Transparent"
-                        VerticalAlignment="Bottom"
                         WindowChrome.IsHitTestVisibleInChrome="True"
                         Click="NewTabButton_Click" />
             </StackPanel>

@@ -2958,6 +2958,14 @@ TabMoved (position: 3, count: 3)
   ja  タブを 3 個のうち 3 番目に移動しました
   en  Moved the tab to position 3 of 3
 
+TabScrollBack
+  ja  左のタブを表示
+  en  Show tabs to the left
+
+TabScrollForward
+  ja  右のタブを表示
+  en  Show tabs to the right
+
 TempUnavailable
   ja  一時フォルダーを使用できないため、ファイルを開けません
   en  Files cannot be opened because the temporary folder is unavailable
