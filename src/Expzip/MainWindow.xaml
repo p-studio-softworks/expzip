@@ -444,14 +444,15 @@
                     エクスプローラーと同じく、タブの右で新しい書庫を作る (#22)。
                     以前ツールバーにあった「新規作成」はここに移した。
                     タブの中に置くと、WPF の TabControl は中の部品を
-                    支援技術に見せないため、外に出してある
+                    支援技術に見せないため、外に出してある。
+                    下の余白は、タブの閉じる × と上下の中心をそろえるためのもの (#313)
                 -->
                 <Button x:Name="NewTabButton"
                         Content="&#xE710;"
                         FontFamily="Segoe MDL2 Assets"
                         FontSize="10"
                         Width="24" Height="22"
-                        Margin="4,4,4,0"
+                        Margin="4,0,4,4.5"
                         Padding="0"
                         BorderThickness="0"
                         Background="Transparent"

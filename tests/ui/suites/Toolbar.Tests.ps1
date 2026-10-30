@@ -92,6 +92,11 @@ foreach ($id in $dim.Keys) {
 }
 $close = ByName $app.Window 'このタブを閉じる (Ctrl+W)'
 Check 'タブを閉じる口に名前がある' ($null -ne $close)
+# 上下の中心をそろえる。1 px までは表示倍率の丸めで動く (#313)
+$closeRect = $close.Current.BoundingRectangle
+$newRect = (ById $app.Window 'NewTabButton').Current.BoundingRectangle
+$gap = [Math]::Abs(($closeRect.Top + $closeRect.Bottom) / 2 - ($newRect.Top + $newRect.Bottom) / 2)
+Check 'タブの + と閉じる × の高さがそろう' ($gap -le 1) "差 $gap px"
 Test-NoGlyphNames $app '開いた後も記号が名前になっていない'
 Save-Shot $app (Join-Path $script:Work 'toolbar.png')
 
