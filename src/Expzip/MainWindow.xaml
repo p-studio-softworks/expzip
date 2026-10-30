@@ -377,12 +377,15 @@
                 <!-- 最小化・最大化・閉じるのボタンは Windows が描く。その分を空けておく -->
                 <Border x:Name="CaptionButtonSpace" DockPanel.Dock="Right" Width="138" />
             <StackPanel Orientation="Horizontal">
-                <!-- タイトルバーにあったアプリのアイコン。絵の正本は Ui/AppIcon.xaml (#126) -->
+                <!--
+                    タイトルバーにあったアプリのアイコン。絵の正本は Ui/AppIcon.xaml (#126)。
+                    下の余白は、タブの名前と上下の中心をそろえるためのもの (#314)
+                -->
                 <ui:DecorativeImage x:Name="TitleIcon"
                                     Source="{DynamicResource AppIconImage}"
                                     Width="16" Height="16"
-                                    Margin="12,0,8,0"
-                                    VerticalAlignment="Center">
+                                    Margin="12,0,8,8"
+                                    VerticalAlignment="Bottom">
                     <ui:DecorativeImage.Resources>
                         <ResourceDictionary Source="Ui/AppIcon.xaml" />
                     </ui:DecorativeImage.Resources>
