@@ -668,6 +668,14 @@
                         Style="{StaticResource ToolLabeled}" Content="&#xE710;" />
                 <Separator />
                 <!--
+                    書庫検査 (#53)。押したときだけ走る。書庫を丸ごと読むため、
+                    開くたびに走らせると開く速さが中身の大きさに引きずられる
+                -->
+                <!-- Shield。検査は中身を探すのでなく、無事かどうかを見る操作 -->
+                <Button x:Name="InspectButton" Click="InspectButton_Click" IsEnabled="False"
+                        Style="{StaticResource ToolLabeled}" Content="&#xEA18;" />
+                <Separator />
+                <!--
                     更新ボタンは置かない (#64)。外で書庫が書き換わったら自分で読み直す。
                     念のための読み直しは F5 と右クリックメニューに残してある
                 -->
@@ -683,14 +691,6 @@
                 <Button x:Name="SaveButton" Click="SaveButton_Click"
                         IsEnabled="False" Visibility="Collapsed"
                         Style="{StaticResource ToolGlyph}" Content="&#xE74E;" />
-                <Separator />
-                <!--
-                    書庫検査 (#53)。押したときだけ走る。書庫を丸ごと読むため、
-                    開くたびに走らせると開く速さが中身の大きさに引きずられる
-                -->
-                <!-- Shield。検査は中身を探すのでなく、無事かどうかを見る操作 -->
-                <Button x:Name="InspectButton" Click="InspectButton_Click" IsEnabled="False"
-                        Style="{StaticResource ToolLabeled}" Content="&#xEA18;" />
                 <!--
                     ファイルの分割 (#59)。書庫でなくても分けられるので、
                     書庫を開いていなくても押せる
