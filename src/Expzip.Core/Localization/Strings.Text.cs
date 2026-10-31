@@ -2812,4 +2812,125 @@ internal static partial class Strings
     public static string EmbeddedToolMissing(string resource) => Pick(
         $"Expzip.exe に必要なファイルが含まれていません ({resource})。",
         $"A file Expzip.exe needs is missing from it ({resource}).");
+
+    // ------------------------------------------------------------------ コマンドライン (#316)
+
+    /// <summary>コマンドラインの使用方法。</summary>
+    public static string CommandHelp => Pick(
+        """
+        Expzip をコマンドラインで使用する方法
+
+          Expzip.exe --compress <ソース> <書庫> [--overwrite]
+              ファイルまたはフォルダーを、ウィンドウを出さずに ZIP 書庫へ圧縮します。
+
+          Expzip.exe --list <一覧ファイル> [--overwrite]
+              一覧ファイルの 1 行ごとに、書庫を 1 個作成します。
+              各行は「ソース,書庫」の形式で書きます。カンマを含むパスは " で囲みます。
+              相対パスは、一覧ファイルのあるフォルダーを基準にします。
+
+          --overwrite  既にある書庫を置き換えます。
+          --help       この説明を表示します。
+
+        終了コード: 0 = すべて成功、1 = 一部または全部が失敗、2 = 指定に不備があり未実行
+        """,
+        """
+        Using Expzip from the command line
+
+          Expzip.exe --compress <source> <archive> [--overwrite]
+              Compresses a file or folder into a ZIP archive without opening a window.
+
+          Expzip.exe --list <list file> [--overwrite]
+              Creates one archive for each line of the list file.
+              Write each line as "source,archive". Enclose paths that contain commas in ".
+              Relative paths are based on the folder that contains the list file.
+
+          --overwrite  Replaces an existing archive.
+          --help       Shows this help.
+
+        Exit codes: 0 = all succeeded, 1 = some or all failed, 2 = invalid arguments, nothing was run
+        """).ReplaceLineEndings();
+
+    public static string CommandWrongArguments => Pick(
+        "引数の指定が正しくありません。--help で使用方法を表示できます。",
+        "The arguments are not valid. Use --help to see how to use them.");
+
+    public static string CommandUnknownOption(string option) => Pick(
+        $"{option} は使用できません。--help で使用方法を表示できます。",
+        $"{option} cannot be used. Use --help to see how to use the command line.");
+
+    public static string CommandAtLine(int line, string message) => Pick(
+        $"{line} 行目: {message}",
+        $"Line {line}: {message}");
+
+    public static string CommandListUnreadable(string path, string reason) => Pick(
+        $"一覧ファイル {path} を読み込めませんでした: {reason}",
+        $"Could not read the list file {path}: {reason}");
+
+    public static string CommandListEmpty(string path) => Pick(
+        $"一覧ファイル {path} には何も書かれていません。",
+        $"The list file {path} is empty.");
+
+    public static string CommandListFormat => Pick(
+        "「ソース,書庫」の形式で書いてください。カンマを含むパスは \" で囲みます。",
+        "Write the line as \"source,archive\". Enclose paths that contain commas in \".");
+
+    public static string CommandInvalidPath(string path) => Pick(
+        $"パスが正しくありません: {path}",
+        $"The path is not valid: {path}");
+
+    public static string CommandSourceNotFound(string path) => Pick(
+        $"ソースが見つかりません: {path}",
+        $"The source was not found: {path}");
+
+    public static string CommandSourceIsDrive(string path) => Pick(
+        $"ドライブ全体は圧縮できません: {path}",
+        $"A whole drive cannot be compressed: {path}");
+
+    public static string CommandTargetNotZip(string path) => Pick(
+        $"作成できるのは .zip だけです: {path}",
+        $"Only .zip archives can be created: {path}");
+
+    public static string CommandTargetIsFolder(string path) => Pick(
+        $"同じ名前のフォルダーがあります: {path}",
+        $"A folder with the same name exists: {path}");
+
+    public static string CommandTargetExists(string path) => Pick(
+        $"書庫が既にあります: {path} (置き換えるときは --overwrite を指定してください)",
+        $"The archive already exists: {path} (use --overwrite to replace it)");
+
+    public static string CommandTargetFolderNotFound(string path) => Pick(
+        $"保存先のフォルダーがありません: {path}",
+        $"The destination folder does not exist: {path}");
+
+    public static string CommandTargetDuplicate(string path, int line) => Pick(
+        $"同じ書庫が {line} 行目にもあります: {path}",
+        $"The same archive is also on line {line}: {path}");
+
+    public static string CommandTargetInsideSource(string target, string source) => Pick(
+        $"書庫 {target} は、ソース {source} の外に作成してください。",
+        $"Create the archive {target} outside the source {source}.");
+
+    public static string CommandNothingDone => Pick(
+        "指定に不備があるため、何も圧縮していません。",
+        "Nothing was compressed because of the problems above.");
+
+    public static string CommandCreated(string path, int count) => Pick(
+        $"{path} を作成しました ({count} 個)",
+        $"Created {path} ({count} {Plural(count, "item", "items")})");
+
+    public static string CommandCreateFailed(string path, string reason) => Pick(
+        $"{path} を作成できませんでした: {reason}",
+        $"Could not create {path}: {reason}");
+
+    public static string CommandFilesFailed(int count) => Pick(
+        $"{count} 個のファイルを圧縮できませんでした。",
+        $"{count} {Plural(count, "file", "files")} could not be compressed.");
+
+    public static string CommandFileFailed(string name, string reason) => Pick(
+        $"  {name}: {reason}",
+        $"  {name}: {reason}");
+
+    public static string CommandSummary(int succeeded, int failed) => Pick(
+        $"成功 {succeeded} 個、失敗 {failed} 個",
+        $"{succeeded} succeeded, {failed} failed");
 }

@@ -126,6 +126,38 @@ You can carry it around on a USB drive.
 | Ctrl+Shift+PageUp / PageDown | Move the tab left / right |
 | F5 | Reload the archive |
 
+### Command line
+
+You can create ZIP archives without opening a window. You can use this from batch files and Task Scheduler.
+
+```
+Expzip.exe --compress <source> <archive> [--overwrite]
+Expzip.exe --list <list file> [--overwrite]
+Expzip.exe --help
+```
+
+In the list file, write "source,archive" on each line. One archive is created for each line.
+Enclose paths that contain commas in `"`. The file can be in UTF-8 or Shift_JIS.
+
+```
+C:\data\report,D:\backup\report.zip
+"C:\data\sales,2026",D:\backup\sales.zip
+```
+
+- An existing archive is replaced only when you specify `--overwrite`
+- If several lines point to the same archive, nothing is compressed and an error is reported
+- If even one file cannot be read, that archive is not created
+- Relative paths are based on the folder that contains the list file
+
+| Exit code | Meaning |
+|---|---|
+| 0 | All succeeded |
+| 1 | Some or all failed |
+| 2 | Invalid arguments; nothing was compressed |
+
+If you run it directly in Command Prompt, the prompt returns without waiting for it to finish.
+To wait, use `start /wait`, or `Start-Process -Wait` in PowerShell. Batch files wait automatically.
+
 ## Visibility and screen readers
 
 People see colors differently.

@@ -315,6 +315,126 @@ ColumnSize
   ja  サイズ
   en  Size
 
+CommandAtLine (line: 3, message: The process cannot access the file because it is being used by another process.)
+  ja  3 行目: ⟦The process cannot access the file because it is being used by another process.⟧
+  en  Line 3: ⟦The process cannot access the file because it is being used by another process.⟧
+
+CommandCreateFailed (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を作成できませんでした: ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not create ⟦C:\Users\user\Desktop\資料.zip⟧: ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+CommandCreated (path: C:\Users\user\Desktop\資料.zip, count: 3)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を作成しました (3 個)
+  en  Created ⟦C:\Users\user\Desktop\資料.zip⟧ (3 items)
+CommandCreated (path: C:\Users\user\Desktop\資料.zip, count: 1)
+  ja  ⟦C:\Users\user\Desktop\資料.zip⟧ を作成しました (1 個)
+  en  Created ⟦C:\Users\user\Desktop\資料.zip⟧ (1 item)
+
+CommandFileFailed (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja    ⟦報告書.pdf⟧: ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en    ⟦報告書.pdf⟧: ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+CommandFilesFailed (count: 3)
+  ja  3 個のファイルを圧縮できませんでした。
+  en  3 files could not be compressed.
+CommandFilesFailed (count: 1)
+  ja  1 個のファイルを圧縮できませんでした。
+  en  1 file could not be compressed.
+
+CommandHelp
+  ja  Expzip をコマンドラインで使用する方法
+      | 
+      |   Expzip.exe --compress <ソース> <書庫> [--overwrite]
+      |       ファイルまたはフォルダーを、ウィンドウを出さずに ZIP 書庫へ圧縮します。
+      | 
+      |   Expzip.exe --list <一覧ファイル> [--overwrite]
+      |       一覧ファイルの 1 行ごとに、書庫を 1 個作成します。
+      |       各行は「ソース,書庫」の形式で書きます。カンマを含むパスは " で囲みます。
+      |       相対パスは、一覧ファイルのあるフォルダーを基準にします。
+      | 
+      |   --overwrite  既にある書庫を置き換えます。
+      |   --help       この説明を表示します。
+      | 
+      | 終了コード: 0 = すべて成功、1 = 一部または全部が失敗、2 = 指定に不備があり未実行
+  en  Using Expzip from the command line
+      | 
+      |   Expzip.exe --compress <source> <archive> [--overwrite]
+      |       Compresses a file or folder into a ZIP archive without opening a window.
+      | 
+      |   Expzip.exe --list <list file> [--overwrite]
+      |       Creates one archive for each line of the list file.
+      |       Write each line as "source,archive". Enclose paths that contain commas in ".
+      |       Relative paths are based on the folder that contains the list file.
+      | 
+      |   --overwrite  Replaces an existing archive.
+      |   --help       Shows this help.
+      | 
+      | Exit codes: 0 = all succeeded, 1 = some or all failed, 2 = invalid arguments, nothing was run
+
+CommandInvalidPath (path: C:\Users\user\Desktop\資料.zip)
+  ja  パスが正しくありません: ⟦C:\Users\user\Desktop\資料.zip⟧
+  en  The path is not valid: ⟦C:\Users\user\Desktop\資料.zip⟧
+
+CommandListEmpty (path: C:\Users\user\Desktop\資料.zip)
+  ja  一覧ファイル ⟦C:\Users\user\Desktop\資料.zip⟧ には何も書かれていません。
+  en  The list file ⟦C:\Users\user\Desktop\資料.zip⟧ is empty.
+
+CommandListFormat
+  ja  「ソース,書庫」の形式で書いてください。カンマを含むパスは " で囲みます。
+  en  Write the line as "source,archive". Enclose paths that contain commas in ".
+
+CommandListUnreadable (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  一覧ファイル ⟦C:\Users\user\Desktop\資料.zip⟧ を読み込めませんでした: ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not read the list file ⟦C:\Users\user\Desktop\資料.zip⟧: ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+CommandNothingDone
+  ja  指定に不備があるため、何も圧縮していません。
+  en  Nothing was compressed because of the problems above.
+
+CommandSourceIsDrive (path: C:\Users\user\Desktop\資料.zip)
+  ja  ドライブ全体は圧縮できません: ⟦C:\Users\user\Desktop\資料.zip⟧
+  en  A whole drive cannot be compressed: ⟦C:\Users\user\Desktop\資料.zip⟧
+
+CommandSourceNotFound (path: C:\Users\user\Desktop\資料.zip)
+  ja  ソースが見つかりません: ⟦C:\Users\user\Desktop\資料.zip⟧
+  en  The source was not found: ⟦C:\Users\user\Desktop\資料.zip⟧
+
+CommandSummary (succeeded: 3, failed: 3)
+  ja  成功 3 個、失敗 3 個
+  en  3 succeeded, 3 failed
+
+CommandTargetDuplicate (path: C:\Users\user\Desktop\資料.zip, line: 3)
+  ja  同じ書庫が 3 行目にもあります: ⟦C:\Users\user\Desktop\資料.zip⟧
+  en  The same archive is also on line 3: ⟦C:\Users\user\Desktop\資料.zip⟧
+
+CommandTargetExists (path: C:\Users\user\Desktop\資料.zip)
+  ja  書庫が既にあります: ⟦C:\Users\user\Desktop\資料.zip⟧ (置き換えるときは --overwrite を指定してください)
+  en  The archive already exists: ⟦C:\Users\user\Desktop\資料.zip⟧ (use --overwrite to replace it)
+
+CommandTargetFolderNotFound (path: C:\Users\user\Desktop\資料.zip)
+  ja  保存先のフォルダーがありません: ⟦C:\Users\user\Desktop\資料.zip⟧
+  en  The destination folder does not exist: ⟦C:\Users\user\Desktop\資料.zip⟧
+
+CommandTargetInsideSource (target: 画像/2024/写真.jpg, source: 見本)
+  ja  書庫 ⟦画像/2024/写真.jpg⟧ は、ソース ⟦見本⟧ の外に作成してください。
+  en  Create the archive ⟦画像/2024/写真.jpg⟧ outside the source ⟦見本⟧.
+
+CommandTargetIsFolder (path: C:\Users\user\Desktop\資料.zip)
+  ja  同じ名前のフォルダーがあります: ⟦C:\Users\user\Desktop\資料.zip⟧
+  en  A folder with the same name exists: ⟦C:\Users\user\Desktop\資料.zip⟧
+
+CommandTargetNotZip (path: C:\Users\user\Desktop\資料.zip)
+  ja  作成できるのは .zip だけです: ⟦C:\Users\user\Desktop\資料.zip⟧
+  en  Only .zip archives can be created: ⟦C:\Users\user\Desktop\資料.zip⟧
+
+CommandUnknownOption (option: 見本)
+  ja  ⟦見本⟧ は使用できません。--help で使用方法を表示できます。
+  en  ⟦見本⟧ cannot be used. Use --help to see how to use the command line.
+
+CommandWrongArguments
+  ja  引数の指定が正しくありません。--help で使用方法を表示できます。
+  en  The arguments are not valid. Use --help to see how to use them.
+
 CommentCancel
   ja  キャンセル
   en  Cancel
