@@ -12,39 +12,48 @@ internal static class ArchiveReader
     /// <exception cref="InvalidDataException">書庫として解釈できない場合。</exception>
     /// <exception cref="IOException">ファイルを読めない場合。</exception>
     /// <exception cref="FormatUnavailableException">この環境では使えない形式の場合 (#221)。</exception>
+    /// <exception cref="ArchiveTooLargeException">書庫が大きすぎて開けない場合 (#294)。</exception>
     /// <exception cref="OperationCanceledException">中断された場合。</exception>
     public static ArchiveContents Open(
         string path,
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        // 自己解凍書庫は名前が .exe なので、中身も見て判断する (#32)
-        var format = ArchiveFormats.Detect(path);
-
-        if (ArchiveFormats.UnavailableReason?.Invoke(format) is { } reason)
+        try
         {
-            throw new FormatUnavailableException(reason);
+            // 自己解凍書庫は名前が .exe なので、中身も見て判断する (#32)
+            var format = ArchiveFormats.Detect(path);
+
+            if (ArchiveFormats.UnavailableReason?.Invoke(format) is { } reason)
+            {
+                throw new FormatUnavailableException(reason);
+            }
+
+            return format switch
+            {
+                ArchiveFormat.Nsis => NsisReader.Open(path, progress, cancellationToken),
+                ArchiveFormat.Pe => PeReader.Open(path, progress, cancellationToken),
+                ArchiveFormat.Cab => CabReader.Open(path, progress, cancellationToken),
+                ArchiveFormat.Msi => MsiReader.Open(path, progress, cancellationToken),
+                ArchiveFormat.Burn => BurnReader.Open(path, progress, cancellationToken),
+                ArchiveFormat.MsiExe => MsiExeReader.Open(path, progress, cancellationToken),
+                ArchiveFormat.CabExe => CabReader.Open(path, progress, cancellationToken, format),
+                ArchiveFormat.SevenZip or ArchiveFormat.Tar
+                    => SharpArchiveReader.Open(path, format, progress, cancellationToken),
+                ArchiveFormat.GZip or ArchiveFormat.BZip2 or ArchiveFormat.Xz or ArchiveFormat.Zstandard
+                    => CompressedFile.Open(path, format, progress, cancellationToken),
+                ArchiveFormat.Msix => ZipArchiveReader.Open(path, progress, cancellationToken, format),
+
+                // 拡張子で判別できなかったものは ZIP として試す。
+                // 拡張子を変えただけの ZIP は珍しくなく、開けるなら開く
+                _ => ZipArchiveReader.Open(path, progress, cancellationToken),
+            };
         }
-
-        return format switch
+        catch (OutOfMemoryException)
         {
-            ArchiveFormat.Nsis => NsisReader.Open(path, progress, cancellationToken),
-            ArchiveFormat.Pe => PeReader.Open(path, progress, cancellationToken),
-            ArchiveFormat.Cab => CabReader.Open(path, progress, cancellationToken),
-            ArchiveFormat.Msi => MsiReader.Open(path, progress, cancellationToken),
-            ArchiveFormat.Burn => BurnReader.Open(path, progress, cancellationToken),
-            ArchiveFormat.MsiExe => MsiExeReader.Open(path, progress, cancellationToken),
-            ArchiveFormat.CabExe => CabReader.Open(path, progress, cancellationToken, format),
-            ArchiveFormat.SevenZip or ArchiveFormat.Tar
-                => SharpArchiveReader.Open(path, format, progress, cancellationToken),
-            ArchiveFormat.GZip or ArchiveFormat.BZip2 or ArchiveFormat.Xz or ArchiveFormat.Zstandard
-                => CompressedFile.Open(path, format, progress, cancellationToken),
-            ArchiveFormat.Msix => ZipArchiveReader.Open(path, progress, cancellationToken, format),
-
-            // 拡張子で判別できなかったものは ZIP として試す。
-            // 拡張子を変えただけの ZIP は珍しくなく、開けるなら開く
-            _ => ZipArchiveReader.Open(path, progress, cancellationToken),
-        };
+            // 組み立てかけの一覧はここで手放される。ほかのタブの中身には触っていない (#294)
+            throw new ArchiveTooLargeException(ArchiveLimit.Memory);
+        }
     }
 }
 

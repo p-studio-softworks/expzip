@@ -106,6 +106,19 @@ internal static class CancellableCopy
         }
     }
 
+    /// <summary>
+    /// 書庫を開く途中でライブラリが投げる、データの壊れによる例外か (#294)。
+    /// </summary>
+    /// <remarks>
+    /// 壊れたデータに当たると、SharpCompress は独自の例外のほかに範囲外や null 参照なども投げる。
+    /// 受け口を抜けると、英語の文がそのまま画面に出る。
+    /// </remarks>
+    public static bool IsLibraryFailure(Exception ex)
+        => ex is NullReferenceException or IndexOutOfRangeException or ArgumentException or ArithmeticException
+            or InvalidOperationException or InvalidCastException or FormatException
+           || (ex is SharpCompress.Common.SharpCompressException
+               && ex is not SharpCompress.Common.CryptographicException);
+
     /// <summary>読み取りの失敗のうち、データが壊れていると見てよいもの。</summary>
     /// <remarks>
     /// 書庫のファイルそのものを読めない (ほかのプログラムが使用中など) ときは、

@@ -16,8 +16,15 @@ internal sealed class ArchiveTreeBuilder
 
     private readonly ArchiveFolder _root;
 
-    public ArchiveTreeBuilder(string archivePath)
+    /// <summary>一覧に使ってよいメモリの残り (#294)。</summary>
+    private long _memoryLeft;
+
+    /// <param name="archivePath">書庫ファイルのパス。</param>
+    /// <param name="reservedMemory">読み取りの部品が先に使うメモリの見積もり。予算は 1 つにまとめる。</param>
+    public ArchiveTreeBuilder(string archivePath, long reservedMemory = 0)
     {
+        _memoryLeft = ArchiveLimits.MemoryBudget - reservedMemory;
+
         _root = new ArchiveFolder
         {
             Name = Path.GetFileName(archivePath),
@@ -44,6 +51,8 @@ internal sealed class ArchiveTreeBuilder
         var normalized = Trim(path);
         if (normalized.Length != 0)
         {
+            ArchiveLimits.CheckDepth(normalized, isFolder: true);
+
             var folder = GetOrCreateFolder(normalized);
             if (lastWriteTime != default)
             {
@@ -70,6 +79,8 @@ internal sealed class ArchiveTreeBuilder
     {
         var fullName = Trim(sourceName);
 
+        ArchiveLimits.CheckDepth(fullName, isFolder: false);
+
         var separator = fullName.LastIndexOf('/');
         var parentPath = separator < 0 ? string.Empty : fullName[..separator];
         var name = separator < 0 ? fullName : fullName[(separator + 1)..];
@@ -79,6 +90,9 @@ internal sealed class ArchiveTreeBuilder
         {
             return;
         }
+
+        // 元の名前は整えた名前と別に持つ。\ を / に置き換えただけなら長さは同じなので、同じ文字列かどうかで見る
+        Charge(fullName, name, ReferenceEquals(sourceName, fullName) ? 0 : sourceName.Length);
 
         GetOrCreateFolder(parentPath).Files.Add(new ArchiveEntry
         {
@@ -152,10 +166,14 @@ internal sealed class ArchiveTreeBuilder
     {
         var normalized = ArchivePath.Normalize(entryName).TrimEnd('/');
 
-        while (normalized.StartsWith("./", StringComparison.Ordinal))
+        // 1 回ずつ外すと、名前の長さの 2 乗の時間がかかる (#294)
+        var start = 0;
+        while (string.CompareOrdinal(normalized, start, "./", 0, 2) == 0)
         {
-            normalized = normalized[2..];
+            start += 2;
         }
+
+        normalized = normalized[start..];
 
         return normalized == "." ? string.Empty : normalized;
     }
@@ -241,6 +259,9 @@ internal sealed class ArchiveTreeBuilder
         var parentPath = separator < 0 ? string.Empty : path[..separator];
         var name = separator < 0 ? path : path[(separator + 1)..];
 
+        // フォルダーはそれぞれパス全体を持つ。深い階層は 1 個のエントリでも場所を取る
+        Charge(path, name);
+
         var parent = GetOrCreateFolder(parentPath);
         var folder = new ArchiveFolder
         {
@@ -253,6 +274,18 @@ internal sealed class ArchiveTreeBuilder
         parent.Folders.Add(folder);
         _folders[path] = folder;
         return folder;
+    }
+
+    /// <summary>項目 1 個ぶんのメモリを差し引く。足りなければ読むのをやめる (#294)。</summary>
+    /// <exception cref="ArchiveTooLargeException">上限を超えた場合。</exception>
+    private void Charge(string path, string name, int sourceLength = 0)
+    {
+        _memoryLeft -= ArchiveLimits.BytesPerEntry + (2L * (path.Length + name.Length + sourceLength));
+
+        if (_memoryLeft < 0)
+        {
+            throw new ArchiveTooLargeException(ArchiveLimit.Entries);
+        }
     }
 
     /// <summary>表示順を安定させるため、フォルダとファイルを名前順に並べる。</summary>

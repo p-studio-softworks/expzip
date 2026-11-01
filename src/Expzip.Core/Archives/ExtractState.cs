@@ -82,11 +82,16 @@ internal sealed class ExtractState(
                 Directory.CreateDirectory(directory);
             }
 
-            using (var source = openEntry())
-            using (var destination = new FileStream(
-                       target, FileMode.Create, FileAccess.Write, FileShare.None))
+            var source = Open(openEntry);
+            try
             {
+                using var destination = new FileStream(
+                    target, FileMode.Create, FileAccess.Write, FileShare.None);
                 CancellableCopy.CopyContent(source, destination, cancellationToken, expectedCrc);
+            }
+            finally
+            {
+                Close(source);
             }
 
             ArchiveExtractor.ApplyStamp(target, lastWriteTime ?? default, zoneIdentifier);
@@ -121,6 +126,32 @@ internal sealed class ExtractState(
         }
 
         Advance(size, key);
+    }
+
+    /// <summary>中身を開く。開く時点で壊れに気付くものも、読むときと同じに扱う (#294)。</summary>
+    private static Stream Open(Func<Stream> openEntry)
+    {
+        try
+        {
+            return openEntry();
+        }
+        catch (Exception ex) when (CancellableCopy.IsLibraryFailure(ex))
+        {
+            throw new DamagedDataException(ex);
+        }
+    }
+
+    /// <summary>中身を閉じる。読み残しを読み飛ばす処理が、壊れたデータで失敗することがある (#294)。</summary>
+    private static void Close(Stream source)
+    {
+        try
+        {
+            source.Dispose();
+        }
+        catch (Exception ex) when (CancellableCopy.IsLibraryFailure(ex))
+        {
+            throw new DamagedDataException(ex);
+        }
     }
 
     /// <summary>書庫ごと読めなかったことを記録する。</summary>

@@ -79,6 +79,11 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 
 ## How to work
 
+- **Before implementing a ticket that changes archive reading, writing, extraction, startup, the input passed to third-party libraries, or what is sent to AI, have `security-reviewer` check the design (#294).**
+  Show it a short design and ask for a 「設計の確認」. Explain the findings and any decisions to the user in plain words, and start building only after they are settled. Put the attack samples into the tests first. It still reviews the result after implementation, because a design check cannot find everything
+
+- **A failure must leave the user's files as they were (#294).** Never write directly onto a path that may already hold the user's data, and never delete such a path as cleanup. Write to a temporary name in the same folder, finish everything (including the mark of the web), then replace in one step, using `AtomicFile`.
+  Think through all three kinds of failure: an error, a cancel, and a forced end (hang, crash, power loss). This covers extraction, created files, settings and saved data, and the self-extractor. Before building something that cannot follow this, tell the user what could be lost and let them decide
 - Change files with Edit / Write. **Rewriting them with an external script makes the whole file get read again, which is wasteful**
 - **Do not use `sed -i` from Git Bash on repository files.** It rewrites CRLF as LF across the whole file
 - Only look at the lines of logs and output that you need (for example `Select-String 'NG'`)

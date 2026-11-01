@@ -54,6 +54,23 @@ $names = Get-ZipNames (Join-Path $out 'folder.zip')
 Check 'フォルダー: 階層が残る' ($names -match 'data/x\.txt' -and $names -match 'data/sub/y\.txt') $names
 Check '一時ファイルが残らない' (@(Get-ChildItem $out -Filter '*.tmp').Count -eq 0)
 
+Section '開けない深さの書庫は作らない (#294)'
+# 段の数はソースのフォルダーを含めて数える
+function New-DeepFolder([string]$Name, [int]$Depth) {
+    $root = Join-Path $script:Work $Name
+    $path = $root + ('\a' * ($Depth - 1))
+    New-Item -ItemType Directory -Force -Path $path | Out-Null
+    [IO.File]::WriteAllText((Join-Path $path 'x.txt'), 'deep', $utf8)
+    return $root
+}
+$r = Invoke-Cli @('--compress', (New-DeepFolder 'd64' 64), (Join-Path $out 'd64.zip'))
+Check '上限の深さなら作る' ($r.Code -eq 0) "$($r.Code) $($r.Err)"
+$deepTarget = Join-Path $out 'd65.zip'
+$r = Invoke-Cli @('--compress', (New-DeepFolder 'd65' 65), $deepTarget)
+Check '上限を超えると失敗する' ($r.Code -ne 0) $r.Code
+Check '階層が深すぎると出す' ($r.Err -match '階層が深すぎます') $r.Err
+Check '書庫も一時ファイルも残らない' ((-not (Test-Path $deepTarget)) -and @(Get-ChildItem $out -Filter '*.tmp').Count -eq 0)
+
 Section '既にある書庫'
 $before = [IO.File]::ReadAllBytes($target)
 $r = Invoke-Cli @('--compress', $folder, $target)

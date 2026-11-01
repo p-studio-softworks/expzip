@@ -1692,6 +1692,15 @@ internal static partial class Strings
     public static string ApplyEditDone(string name) => Pick(
         $"{name} を書庫に反映しました", $"Put {name} back into the archive");
 
+    public static string ConfirmAbandonEdits(string names) => Pick(
+        $"書庫の読み取りが止まっているため、変更を書庫に反映できません。{Environment.NewLine}{Environment.NewLine}{names}"
+        + $"{Environment.NewLine}{Environment.NewLine}変更を破棄して終了しますか?{Environment.NewLine}"
+        + "「いいえ」を選ぶと、終了しません。",
+        $"Reading the archive has stopped responding, so your edits cannot be put back into the archive."
+        + $"{Environment.NewLine}{Environment.NewLine}{names}"
+        + $"{Environment.NewLine}{Environment.NewLine}Discard the edits and quit?{Environment.NewLine}"
+        + "Choose No to keep Expzip open.");
+
     public static string ConfirmPendingEdits(string names) => Pick(
         $"書庫に反映していない変更があります。{Environment.NewLine}{Environment.NewLine}{names}"
         + $"{Environment.NewLine}{Environment.NewLine}反映してから終了しますか?{Environment.NewLine}"
@@ -2778,6 +2787,19 @@ internal static partial class Strings
             IOException { HResult: DiskFull or HandleDiskFull } => Pick(
                 "ディスクの空き容量が足りません。", "There is not enough free disk space."),
 
+            // 壊れているのではないので、そうは言わない (#294)
+            Expzip.Archives.ArchiveTooLargeException { Limit: Expzip.Archives.ArchiveLimit.Depth } => Pick(
+                "書庫の中のフォルダーの階層が深すぎます。", "The folders in the archive are nested too deeply."),
+
+            Expzip.Archives.ArchiveTooLargeException { Limit: Expzip.Archives.ArchiveLimit.Memory } => Pick(
+                "書庫を読むにはメモリーが足りません。", "There is not enough memory to read the archive."),
+
+            Expzip.Archives.ArchiveTooLargeException => Pick(
+                "書庫の項目が多すぎます。", "The archive has too many items."),
+
+            Expzip.Archives.EncryptedHeaderException => Pick(
+                "ファイル名まで暗号化された 7z は開けません。", "7z archives with encrypted file names cannot be opened."),
+
             // 開けた後で中身を読めなかった。方式には対応しているので、形式の話はしない (#167)。
             // SharpCompress は壊れたデータに独自の例外を投げ、文は英語のまま出てくる
             Expzip.Archives.DamagedDataException
@@ -2792,6 +2814,12 @@ internal static partial class Strings
             System.Net.Http.HttpRequestException => Pick(
                 "接続先に接続できませんでした。URL とネットワークを確認してください。",
                 "Could not connect. Check the URL and your network."),
+
+            // ライブラリの文は英語のまま出てしまう (#294)
+            NotSupportedException => UnsupportedCompressionMethod,
+
+            ArgumentException => Pick(
+                "名前に使えない文字が含まれています。", "The name contains characters that cannot be used."),
 
             _ => error.Message,
         };

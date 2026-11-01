@@ -25,10 +25,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .claude\skills\finish-ticket
 | 変えたもの | すること |
 |---|---|
 | 画面の文言 | `build.cmd -Debug` のあとで `dotnet run --project tools/stringdump`。**直した文言が差分に出ていること**を確かめる (出ないなら古い DLL を読んでいる)。`tests/ui/suites` の期待値も直す |
-| 動き | `docs/SPEC.md` を今の形に直す。予定や段階は書かない |
+| 動き | `docs/SPEC.md` を今の形に直す。予定や段階は書かない。**仕様書の照合係 (`spec-checker`) に、変えた動きに関わる節だけを見てもらう** (#304)。リリースの前には全体を見てもらう |
 | 利用者に見える機能 | `README.ja.md` と `README.md` を同じコミットで直す |
 | XAML の Style や色 | 色と見え方の係 (`color-reviewer`) に見てもらうかを利用者に確かめる |
-| 書庫の読み書き、起動 | セキュリティ係 (`security-reviewer`) に見てもらうかを利用者に確かめる |
+| 書庫の読み書き・展開・取り出し、起動、外部の部品に渡す入力、AI に送る中身 | **セキュリティ係 (`security-reviewer`) に必ず見てもらい、結果まで含めて報告する** (#294)。実装の前に設計の確認を受けたかも確かめ、受けていなければ報告に書く |
 | ほかの OS の版にも要る変更 | その版用のスキルでチケットを作るかを確かめる |
 
 ## 3. テストする
@@ -62,6 +62,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .claude\skills\finish-ticket
 
 1. `git push origin main` (GitHub と NAS の両方へ行く)
 2. `redmine` スキルの `revision <ハッシュ>` で、Redmine から見えることを確かめる
-3. 同じスキルの `close` で、報告のノートを書いて閉じる。次に出すバージョンを `versions` で調べて付ける
+3. `docs/SPEC.md` を変えたら、同じスキルの `spec-sync` で Wiki の仕様書へ反映する (#304)。`close` は Wiki が古いと閉じない
+4. 同じスキルの `close` で、報告のノートを書いて閉じる。次に出すバージョンを `versions` で調べて付ける
 
 頼まれた範囲を超えるなら止める。「コミットして」だけなら push しない。「push して」だけのときに閉じてよいかは、前に「push したら閉じます」と伝えて了承されているかで判断する。

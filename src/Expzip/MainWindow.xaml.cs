@@ -126,6 +126,15 @@ public partial class MainWindow : Window
     /// <summary>終了前の書き戻しを済ませてから閉じる途中。</summary>
     private bool _closingAfterSave;
 
+    /// <summary>閉じる操作のあと、読み取りの処理を待つ時間 (#294)。</summary>
+    private static readonly TimeSpan StuckWorkWait = TimeSpan.FromSeconds(5);
+
+    /// <summary>書庫を変えない処理の印 (#294)。戻らなければ、閉じる操作でプロセスを終了してよい。既定では付けない。</summary>
+    private CancellationTokenSource? _abandonable;
+
+    /// <summary>閉じる操作のあとの待ち時間を計るタイマー (#294)。</summary>
+    private DispatcherTimer? _stuckWatch;
+
     /// <summary>ドラッグアウトの起点 (#17)。押した位置から一定以上動いたら開始する。</summary>
     private Point _dragOrigin;
     private bool _dragCandidate;
@@ -410,6 +419,7 @@ public partial class MainWindow : Window
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
+        _abandonable = cancellation;
         SetBusy(true);
 
         // 読み始める前に控える (#64)。読んだあとに控えると、読んでいる最中の
@@ -3390,6 +3400,7 @@ public partial class MainWindow : Window
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
+        _abandonable = cancellation;
         SetBusy(true);
 
         StatusMessage.Text = Strings.ExtractingCount(names.Count);
@@ -5679,6 +5690,7 @@ public partial class MainWindow : Window
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
+        _abandonable = cancellation;
         SetBusy(true);
 
         var progress = new Progress<ExtractProgress>(p =>
@@ -5997,6 +6009,7 @@ public partial class MainWindow : Window
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
+        _abandonable = cancellation;
         SetBusy(true);
 
         var progress = new Progress<ExtractProgress>(p =>
@@ -6071,6 +6084,7 @@ public partial class MainWindow : Window
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
+        _abandonable = cancellation;
         SetBusy(true);
 
         var progress = new Progress<InspectProgress>(p =>
@@ -6481,6 +6495,78 @@ public partial class MainWindow : Window
             StatusMessage.Text = Strings.Stopping;
             _cancellation.Cancel();
         }
+
+        WatchForStuckWork(_cancellation);
+    }
+
+    /// <summary>
+    /// 閉じる操作のあと、読み取りが戻らなければプロセスを終了する (#294)。
+    /// </summary>
+    /// <remarks>
+    /// 壊れた書庫を読むライブラリの中で止まると、中断は届かず、スレッドも止められない。書庫を書き換える処理では
+    /// 終了しない (書庫を壊すため)。読み取りの処理の印が付いたものだけを対象にする。
+    /// </remarks>
+    private void WatchForStuckWork(CancellationTokenSource work)
+    {
+        if (_stuckWatch is not null || !ReferenceEquals(_abandonable, work))
+        {
+            return;
+        }
+
+        _stuckWatch = new DispatcherTimer { Interval = StuckWorkWait };
+        _stuckWatch.Tick += (_, _) =>
+        {
+            _stuckWatch.Stop();
+            _stuckWatch = null;
+
+            // 書き戻しの途中の読み直しで終了すると、残りの書き戻しが失われる
+            if (!_closeWhenIdle || _closingAfterSave || !ReferenceEquals(_cancellation, work))
+            {
+                return;
+            }
+
+            AbandonStuckWork();
+        };
+        _stuckWatch.Start();
+    }
+
+    /// <summary>止まった読み取りを残して終了する。未保存の編集があれば先に尋ねる。</summary>
+    private void AbandonStuckWork()
+    {
+        foreach (var tab in _tabs)
+        {
+            if (tab.Nest is { Orphaned: false } nest)
+            {
+                nest.DetectChange();
+            }
+        }
+
+        var pending = _edits.Where(static s => s.HasPendingChanges)
+            .Select(static s => s.EntryPath)
+            .Concat(_tabs.Select(static t => t.Nest)
+                .Where(static n => n is { Orphaned: false, HasPendingChanges: true })
+                .Select(static n => n!.EntryPath))
+            .ToList();
+
+        // 止まっている間は書き戻しが動かないので、保存はできない
+        if (pending.Count > 0
+            && MessageBox.Show(
+                this,
+                Strings.ConfirmAbandonEdits(string.Join(
+                    Environment.NewLine, pending.Select(static name => Strings.Bullet + name))),
+                AppName, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            _closeWhenIdle = false;
+            return;
+        }
+
+        // 取り残されたスレッドは書庫を読んでいるだけなので、そのまま終わらせてよい
+        _editWatch?.Stop();
+        CaptureSettings();
+        SettingsStore.TrySave(_settings);
+        _temp?.Dispose();
+        _temp = null;
+        Environment.Exit(0);
     }
 
     private void ShowExtractResult(ExtractResult result, string destination)

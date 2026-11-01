@@ -36,13 +36,21 @@ internal static class SharpArchiveExtractor
         var state = new ExtractState(
             Path.GetFullPath(destinationDirectory), overwrite, zoneIdentifier, basePath, progress);
 
-        if (format == ArchiveFormat.SevenZip)
+        try
         {
-            ExtractSevenZip(archivePath, sourceNames, state, cancellationToken);
+            if (format == ArchiveFormat.SevenZip)
+            {
+                ExtractSevenZip(archivePath, sourceNames, state, cancellationToken);
+            }
+            else
+            {
+                ExtractTar(archivePath, sourceNames, state, cancellationToken);
+            }
         }
-        else
+        catch (Exception ex) when (CancellableCopy.IsLibraryFailure(ex))
         {
-            ExtractTar(archivePath, sourceNames, state, cancellationToken);
+            // 開く時点で壊れに気付くと、ライブラリの英語の文のまま画面に出る (#294)
+            state.Fail(Path.GetFileName(archivePath), Strings.Reason(new DamagedDataException(ex)));
         }
 
         return state.ToResult();
@@ -52,6 +60,8 @@ internal static class SharpArchiveExtractor
         string archivePath, IReadOnlySet<string>? sourceNames, ExtractState state,
         CancellationToken cancellationToken)
     {
+        SharpArchiveAccess.CheckSevenZipContent(archivePath, cancellationToken);
+
         using var archive = SharpArchiveAccess.OpenSevenZip(archivePath);
 
         var targets = archive.Entries

@@ -186,6 +186,7 @@ internal static class ArchiveContentReader
         {
             if (format == ArchiveFormat.SevenZip)
             {
+                SharpArchiveAccess.CheckSevenZipContent(archivePath, cancellationToken);
                 archive = SharpArchiveAccess.OpenSevenZip(archivePath, password);
                 reader = archive.ExtractAllEntries();
             }

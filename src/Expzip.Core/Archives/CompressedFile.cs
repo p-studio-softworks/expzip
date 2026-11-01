@@ -61,7 +61,7 @@ internal static class CompressedFile
             using var file = ArchiveFile.OpenRead(path);
             compressed = file.Length;
 
-            using var content = Decompress(file, format);
+            using var content = OpenDecompressor(file, format);
 
             var reported = 0.0;
             int read;
@@ -125,7 +125,7 @@ internal static class CompressedFile
     /// <summary>伸長した中身を読む流れを開く。</summary>
     /// <exception cref="InvalidDataException">その形式の圧縮ファイルではない場合。</exception>
     public static Stream OpenContent(string path, ArchiveFormat format)
-        => Decompress(ArchiveFile.OpenRead(path), format);
+        => OpenDecompressor(ArchiveFile.OpenRead(path), format);
 
     /// <summary>中身の名前。書庫の中のパスとしても使う。</summary>
     public static string EntryName(string path, ArchiveFormat format) => ReadHeader(path, format).Name;
@@ -226,7 +226,9 @@ internal static class CompressedFile
                 ArchiveFormat.BZip2 => BZip2Stream.Create(
                     source, SharpCompress.Compressors.CompressionMode.Decompress,
                     decompressConcatenated: true, leaveOpen: true, tolerateTruncatedStream: false),
-                ArchiveFormat.Xz => new XZStream(source),
+
+                // 途中で切れた xz を読み続けて止まらなくなるのを防ぐ (#294)
+                ArchiveFormat.Xz => SharpArchiveAccess.OpenXz(source),
                 ArchiveFormat.Zstandard => new DecompressionStream(
                     source, bufferSize: 0, checkEndOfStream: true, leaveOpen: true),
                 _ => throw new ArgumentOutOfRangeException(nameof(format)),
@@ -260,6 +262,19 @@ internal static class CompressedFile
     }
 
     /// <summary>1 回分を読む。壊れたデータに当たったら、壊れていると言い直す。</summary>
+    /// <summary>伸長の部品は、作る時点で見出しを読むものがある。壊れていれば読むときと同じに扱う (#294)。</summary>
+    private static Stream OpenDecompressor(Stream source, ArchiveFormat format)
+    {
+        try
+        {
+            return Decompress(source, format);
+        }
+        catch (Exception ex) when (CancellableCopy.IsLibraryFailure(ex))
+        {
+            throw new DamagedDataException(ex);
+        }
+    }
+
     private static int Read(Stream content, byte[] buffer)
     {
         try

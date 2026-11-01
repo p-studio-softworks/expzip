@@ -26,6 +26,16 @@ internal static class SharpArchiveReader
                 ? OpenSevenZip(path, progress, cancellationToken)
                 : OpenTar(path, progress, cancellationToken);
         }
+        catch (EndOfStreamException ex)
+        {
+            // 途中で切れている。ファイルを読めないのではない (#294)
+            throw new DamagedDataException(ex);
+        }
+        catch (SharpCompress.Common.CryptographicException ex) when (format == ArchiveFormat.SevenZip)
+        {
+            // 一覧を読むだけで出るのは、ファイル名まで暗号化された書庫 (#294)
+            throw new EncryptedHeaderException(ex);
+        }
         catch (SharpCompress.Common.SharpCompressException ex)
             when (ex is not SharpCompress.Common.CryptographicException)
         {
@@ -34,15 +44,20 @@ internal static class SharpArchiveReader
             // すり抜けて「処理中に問題が発生しました」と英語の文で出ていた (#167)
             throw new DamagedDataException(ex);
         }
+        catch (Exception ex) when (CancellableCopy.IsLibraryFailure(ex))
+        {
+            throw new DamagedDataException(ex);
+        }
     }
 
     private static ArchiveContents OpenSevenZip(
         string path, IProgress<OpenProgress>? progress, CancellationToken cancellationToken)
     {
-        var builder = new ArchiveTreeBuilder(path);
+        var builder = new ArchiveTreeBuilder(path, CheckSevenZipHeader(path, cancellationToken));
+
         using var archive = SharpArchiveAccess.OpenSevenZip(path);
 
-        var entries = archive.Entries.ToList();
+        var entries = ReadSevenZipEntries(archive);
         var reportStep = Math.Max(1, entries.Count / 100);
         var done = 0;
         var encrypted = false;
@@ -83,12 +98,44 @@ internal static class SharpArchiveReader
             isSelfExtracting: SharpArchiveAccess.SevenZipOffset(path) > 0);
     }
 
+    /// <summary>
+    /// 見出しに書かれた数が多すぎる 7z を、読み始める前に断る (#294)。
+    /// SharpCompress は数のぶんの部品を先に作り、その間は中断もできない。
+    /// </summary>
+    /// <returns>見出しの部品に使うメモリの見積もり。</returns>
+    private static long CheckSevenZipHeader(string path, CancellationToken cancellationToken)
+    {
+        using var stream = SharpArchiveAccess.OpenSevenZipStream(path);
+
+        return SevenZipHeader.Check(stream, ArchiveLimits.MemoryBudget, cancellationToken);
+    }
+
+    /// <summary>
+    /// 7z の一覧を読む。見出しの数が食い違っていると、SharpCompress は独自の例外ではなく
+    /// 範囲外や桁あふれなどの例外を投げる (#294)。どれも書庫の壊れであって、作りの誤りではない。
+    /// </summary>
+    private static List<SharpCompress.Archives.IArchiveEntry> ReadSevenZipEntries(
+        SharpCompress.Archives.IArchive archive)
+    {
+        try
+        {
+            return archive.Entries.ToList();
+        }
+        catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException
+                                       or SharpCompress.Common.SharpCompressException
+                                       or InvalidDataException or IOException or UnauthorizedAccessException))
+        {
+            throw new DamagedDataException(ex);
+        }
+    }
+
     private static ArchiveContents OpenTar(
         string path, IProgress<OpenProgress>? progress, CancellationToken cancellationToken)
     {
         var builder = new ArchiveTreeBuilder(path);
 
-        using var stream = ArchiveFile.OpenRead(path);
+        // 大きな中身を読み飛ばす間も中断できるように、読むたびに確かめる (#294)
+        using var stream = new CancellableReadStream(ArchiveFile.OpenRead(path), cancellationToken);
         using var reader = SharpArchiveAccess.OpenTarReader(stream);
 
         // tar は中央の索引を持たないため、総数は最後まで読むまで分からない。

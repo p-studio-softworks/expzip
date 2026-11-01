@@ -61,7 +61,8 @@ internal static class SharpArchiveAccess
         var offset = SevenZipOffset(path);
         var stream = ArchiveFile.OpenRead(path);
 
-        return offset > 0 ? new OffsetStream(stream, offset) : stream;
+        // 7z のしるしが無いものは SharpCompress が中身を見て形式を判断し、xz なら伸長する (#294)
+        return new EndGuardStream(new SevenZipVersionStream(offset > 0 ? new OffsetStream(stream, offset) : stream));
     }
 
     /// <summary>7z の本体が始まる位置を返す。ふつうの 7z では 0。</summary>
@@ -102,5 +103,39 @@ internal static class SharpArchiveAccess
     /// 先頭から順にしか読めないが、一覧も取り出しも一度なめれば済む。
     /// </remarks>
     public static IReader OpenTarReader(Stream stream)
-        => ReaderFactory.OpenReader(stream, Options());
+        => ReaderFactory.OpenReader(IsXz(stream) ? OpenXz(stream) : stream, Options());
+
+    /// <summary>
+    /// xz を読む流れを開く。入力の終わりを超えて読もうとしたら例外にする (#294)。
+    /// </summary>
+    /// <remarks>
+    /// SharpCompress の LZMA2 は入力の終わりで残りの長さを負にして、入力を読まずに回り続ける。その前に読むのは
+    /// 2 回ほどなので、回数を許せない。<see cref="ReaderFactory"/> の中の xz には外から見張りを挟めないので、
+    /// 先に xz を剥がして渡す。
+    /// </remarks>
+    public static Stream OpenXz(Stream stream)
+        => new SharpCompress.Compressors.Xz.XZStream(new EndGuardStream(stream, allowedEndReads: 0));
+
+    /// <summary>xz のしるしで始まるか。読む位置は変えない。</summary>
+    public static bool IsXz(Stream stream)
+    {
+        Span<byte> head = stackalloc byte[6];
+        var start = stream.Position;
+        var read = stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false);
+        stream.Position = start;
+
+        return read == head.Length && head.SequenceEqual<byte>([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]);
+    }
+
+    /// <summary>
+    /// 7z の中身を読む前に、見出しと圧縮データを確かめる (#294)。
+    /// </summary>
+    /// <exception cref="DamagedDataException">データが切れている場合。</exception>
+    /// <exception cref="ArchiveTooLargeException">書庫が大きすぎる場合。</exception>
+    public static void CheckSevenZipContent(string path, CancellationToken cancellationToken)
+    {
+        using var stream = OpenSevenZipStream(path);
+
+        SevenZipHeader.CheckContent(stream, ArchiveLimits.MemoryBudget, cancellationToken);
+    }
 }

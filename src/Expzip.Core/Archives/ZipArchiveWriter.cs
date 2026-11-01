@@ -124,6 +124,7 @@ internal static class ZipArchiveWriter
         CancellationToken cancellationToken)
     {
         var plan = BuildPlan(sourcePaths, destinationFolder);
+        CheckPlanDepth(plan);
 
         if (ZipParallelWriter.TryAdd(archivePath, plan, replaceExisting, progress, cancellationToken) is { } fast)
         {
@@ -331,6 +332,8 @@ internal static class ZipArchiveWriter
     public static bool CreateFolder(string archivePath, string folderPath)
     {
         var entryName = ArchivePath.Normalize(folderPath) + "/";
+        ArchiveLimits.CheckDepthToWrite(entryName);
+
         using var zip = ZipUpdate.Open(archivePath);
 
         // 同名のエントリだけでなく配下の有無も見る。中身のあるフォルダは
@@ -532,6 +535,15 @@ internal static class ZipArchiveWriter
     /// 追加した場合に書庫内で使われる名前の一覧。
     /// 追加を始める前に、既存のエントリと衝突するかどうかを調べるために使う。
     /// </summary>
+    /// <summary>追加する名前の階層を、書き始める前に確かめる (#294)。</summary>
+    internal static void CheckPlanDepth(List<PlanItem> plan)
+    {
+        foreach (var item in plan)
+        {
+            ArchiveLimits.CheckDepthToWrite(item.IsDirectory ? item.EntryName.TrimEnd('/') + "/" : item.EntryName);
+        }
+    }
+
     public static IReadOnlyList<string> PlanEntryNames(
         IReadOnlyList<string> sourcePaths, string destinationFolder)
         => BuildPlan(sourcePaths, destinationFolder).Select(static p => p.EntryName).ToList();
@@ -674,6 +686,12 @@ internal static class ZipArchiveWriter
                     .Select(e => (Entry: e, NewName: MapAny(e.Name, changes)))
                     .Where(static x => x.NewName is not null)
                     .ToList();
+
+                // 動かすフォルダーの中身まで含めて、移したあとの名前で確かめる (#294)
+                foreach (var (_, newName) in targets)
+                {
+                    ArchiveLimits.CheckDepthToWrite(newName!);
+                }
 
                 // 名前を変えるものの中身だけ、いったん外へ取り出す。
                 // 書き換えの最中に同じ書庫から読むのは避けたいため。

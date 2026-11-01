@@ -40,6 +40,8 @@ internal static class ZipEncryptedWriter
         CancellationToken cancellationToken)
     {
         var plan = ZipArchiveWriter.BuildPlan(sourcePaths, destinationFolder);
+        ZipArchiveWriter.CheckPlanDepth(plan);
+
         var additions = plan.Where(static p => !p.IsDirectory).ToList();
         var totalBytes = additions.Sum(static p => p.Length);
         long doneBytes = 0;
@@ -182,6 +184,9 @@ internal static class ZipEncryptedWriter
                     return name;
                 }
 
+                // 動かすフォルダーの中身まで含めて、移したあとの名前で確かめる。書き換える前の一時ファイルの段階で止まる (#294)
+                ArchiveLimits.CheckDepthToWrite(mapped);
+
                 namesAfter.Add(mapped);
                 renamed++;
                 progress?.Report(renamed);
@@ -205,6 +210,8 @@ internal static class ZipEncryptedWriter
     public static bool CreateFolder(string archivePath, string folderPath, string password)
     {
         var entryName = ArchivePath.Normalize(folderPath) + "/";
+        ArchiveLimits.CheckDepthToWrite(entryName);
+
         var taken = false;
 
         var result = Rewrite(

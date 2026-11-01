@@ -43,6 +43,9 @@ internal static class BurnReader
     /// <summary>目録を並べるときの名前。目録の一番外の要素の名前。</summary>
     private const string ManifestName = "BurnManifest.xml";
 
+    /// <summary>目録の大きさの上限 (#294)。</summary>
+    private const long MaxManifestLength = 64L * 1024 * 1024;
+
     /// <summary><c>.wixburn</c> 区画のしるし。</summary>
     private const uint Magic = 0x00F14300;
 
@@ -254,7 +257,14 @@ internal static class BurnReader
                 {
                     using var content = open();
                     using var copy = new MemoryStream();
-                    content.CopyTo(copy);
+
+                    // 目録は小さい。3 MB の exe から 2 GB 近くに伸長できるので、読みながら確かめる (#294)
+                    new BoundedStream(content, MaxManifestLength + 1).CopyTo(copy);
+                    if (copy.Length > MaxManifestLength)
+                    {
+                        throw new ArchiveTooLargeException(ArchiveLimit.Memory);
+                    }
+
                     manifest = copy.ToArray();
                 }
             }, cancellationToken);
