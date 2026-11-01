@@ -2718,6 +2718,9 @@ SfxFilter
 SfxRejected (reason: NotZip)
   ja  自己解凍書庫にできるのは ZIP のみです。
   en  Only ZIP archives can be made self-extracting.
+SfxRejected (reason: Split)
+  ja  分割された書庫は自己解凍書庫にできません。
+  en  A split archive cannot be made self-extracting.
 SfxRejected (reason: AlreadySelfExtracting)
   ja  この書庫は既に自己解凍書庫です。
   en  This archive is already self-extracting.

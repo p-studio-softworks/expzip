@@ -142,125 +142,10 @@ static unsigned __int64 ReadU64(const unsigned char *p)
     return (unsigned __int64)ReadU32(p) | ((unsigned __int64)ReadU32(p + 4) << 32);
 }
 
+#include "..\sfx\zone.h"
+
 /* フォルダーと名前を足せる大きさ。~12345678.tmp、番号、:Zone.Identifier の分も取る */
-#define PATH_SIZE (MAX_PATH * 2 + 48)
-#define ZONE_MAX 4096
-
-static const WCHAR ZONE_STREAM[] = L":Zone.Identifier";
-static char g_zone[ZONE_MAX];
-static DWORD g_zoneLength;
-
-/* 印のストリームを開くパスを作る。上限の無い形は名前を整えないので、先に整える */
-static int ZonePath(const WCHAR *path, WCHAR *stream)
-{
-    WCHAR full[PATH_SIZE];
-
-    if (GetFullPathNameW(path, PATH_SIZE - 32, full, NULL) == 0)
-    {
-        return 0;
-    }
-
-    stream[0] = 0;
-
-    if (full[0] == L'\\' && full[1] == L'\\' && full[2] == L'?' && full[3] == L'\\')
-    {
-        /* 既に上限の無い形 */
-        Append(stream, full);
-    }
-    else if (full[0] == L'\\' && full[1] == L'\\')
-    {
-        Append(stream, L"\\\\?\\UNC\\");
-        Append(stream, full + 2);
-    }
-    else
-    {
-        Append(stream, L"\\\\?\\");
-        Append(stream, full);
-    }
-
-    Append(stream, ZONE_STREAM);
-    return 1;
-}
-
-/* 印に書かれた区分の番号。読めなければインターネットと同じ 3 として扱う */
-static int ZoneOf(const char *zone, DWORD length)
-{
-    static const char KEY[] = "ZoneId=";
-    DWORD i, k;
-
-    for (i = 0; i + 7 < length; i++)
-    {
-        for (k = 0; k < 7 && zone[i + k] == KEY[k]; k++)
-        {
-        }
-
-        if (k == 7 && zone[i + 7] >= '0' && zone[i + 7] <= '9')
-        {
-            return zone[i + 7] - '0';
-        }
-    }
-
-    return 3;
-}
-
-/*
- * ファイルの印を読み、今までのものより警戒度が高ければ控える (#321)。
- * USB メモリーを通ると、一部の分割ファイルだけ印が消えることがある。1 個でも付いていれば、付いているものとして扱う。
- */
-static void TakeZone(const WCHAR *path)
-{
-    static char read[ZONE_MAX];
-    WCHAR stream[PATH_SIZE];
-    HANDLE h;
-    DWORD got, i;
-
-    if (!ZonePath(path, stream))
-    {
-        return;
-    }
-
-    h = CreateFileW(stream, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-
-    if (h == INVALID_HANDLE_VALUE)
-    {
-        return;
-    }
-
-    if (ReadFile(h, read, ZONE_MAX, &got, NULL) && got > 0
-        && (g_zoneLength == 0 || ZoneOf(read, got) > ZoneOf(g_zone, g_zoneLength)))
-    {
-        for (i = 0; i < got; i++)
-        {
-            /* C ランタイムの memcpy に置き換えられないようにする */
-            ((volatile char *)g_zone)[i] = read[i];
-        }
-
-        g_zoneLength = got;
-    }
-
-    CloseHandle(h);
-}
-
-/* 印を付ける。付けられないドライブでも、結合は続ける */
-static void ApplyZone(const WCHAR *path)
-{
-    WCHAR stream[PATH_SIZE];
-    HANDLE h;
-    DWORD wrote;
-
-    if (g_zoneLength == 0 || !ZonePath(path, stream))
-    {
-        return;
-    }
-
-    h = CreateFileW(stream, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-    if (h != INVALID_HANDLE_VALUE)
-    {
-        WriteFile(h, g_zone, g_zoneLength, &wrote, NULL);
-        CloseHandle(h);
-    }
-}
+#define PATH_SIZE ZONE_PATH_SIZE
 
 /*
  * 同じフォルダーに一時ファイルを作る。既にあるファイルには書かない (CREATE_NEW)。
@@ -409,7 +294,7 @@ int WINAPI WinMainCRTStartup(void)
     }
 
     /* 分割ファイルの全部と、自分に付いている印を見る。書き始める前に一時ファイルへ付ける */
-    TakeZone(self);
+    ZoneTake(self);
 
     for (i = 1; (unsigned long)i <= count; i++)
     {
@@ -417,7 +302,7 @@ int WINAPI WinMainCRTStartup(void)
         Append(part, target);
         Append(part, L".");
         AppendNumber(part, i);
-        TakeZone(part);
+        ZoneTake(part);
     }
 
     /* 書き終えて確かめるまで、本来の名前は使わない。止められても、書きかけが本来の名前で残らない (#321) */
@@ -429,7 +314,7 @@ int WINAPI WinMainCRTStartup(void)
         ExitProcess(1);
     }
 
-    ApplyZone(temporary);
+    ZoneApply(temporary);
 
     crc = 0xFFFFFFFFUL;
     total = 0;

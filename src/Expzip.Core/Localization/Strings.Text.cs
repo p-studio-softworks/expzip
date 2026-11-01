@@ -462,6 +462,9 @@ internal static partial class Strings
         SfxRejection.NotZip => Pick(
             "自己解凍書庫にできるのは ZIP のみです。",
             "Only ZIP archives can be made self-extracting."),
+        SfxRejection.Split => Pick(
+            "分割された書庫は自己解凍書庫にできません。",
+            "A split archive cannot be made self-extracting."),
         SfxRejection.AlreadySelfExtracting => Pick(
             "この書庫は既に自己解凍書庫です。",
             "This archive is already self-extracting."),

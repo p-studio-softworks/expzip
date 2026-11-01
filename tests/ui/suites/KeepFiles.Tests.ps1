@@ -7,6 +7,7 @@ $fixtures = Join-Path $PSScriptRoot '..\fixtures'
 
 function Read-Text([string]$Path) { [System.IO.File]::ReadAllText($Path) }
 function Write-Text([string]$Path, [string]$Text) { [System.IO.File]::WriteAllText($Path, $Text) }
+
 function Get-Leftovers([string]$Folder) { @(Get-ChildItem $Folder -Force -Filter '~*.tmp' | ForEach-Object { $_.Name }) }
 
 function New-Folder([string]$Name) {

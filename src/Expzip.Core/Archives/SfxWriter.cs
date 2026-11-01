@@ -51,6 +51,12 @@ internal static class SfxWriter
             return SfxRejection.AlreadySelfExtracting;
         }
 
+        // 1 つ目の分割ファイルしか写さないので、中身が途中までのものができる (#325)
+        if (contents.IsSplit)
+        {
+            return SfxRejection.Split;
+        }
+
         if (contents.RequiresPassword || contents.HasEncryptedEntries)
         {
             return SfxRejection.Encrypted;
@@ -107,6 +113,9 @@ internal enum SfxRejection
 {
     /// <summary>ZIP ではない。作れるのは ZIP だけ。</summary>
     NotZip,
+
+    /// <summary>分割された書庫。</summary>
+    Split,
 
     /// <summary>もう自己解凍書庫になっている。</summary>
     AlreadySelfExtracting,

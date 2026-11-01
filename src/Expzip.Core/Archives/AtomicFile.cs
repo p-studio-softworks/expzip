@@ -272,10 +272,21 @@ internal sealed class AtomicFile : IDisposable
             stream.Flush(flushToDisk: true);
         }
 
-        // 印を付けると更新日時が変わるので、同じ印が付いていれば付けない
-        if (zone is not null && MarkOfTheWeb.TryRead(work) != zone)
+        // 印を付けると更新日時が変わるので、同じ印が付いていれば付けず、付けたら更新日時を戻す。
+        // 元に戻すときの作業用ファイルには、前の読めない印が残っていることがあるので、原文で比べる (#325)
+        if (zone is not null && !MarkOfTheWeb.HasExactly(work, zone))
         {
+            var written = File.GetLastWriteTimeUtc(work);
             MarkOfTheWeb.TryApply(work, zone);
+
+            try
+            {
+                File.SetLastWriteTimeUtc(work, written);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // 更新日時が今の時刻になるだけで、書庫の中身と印は正しい
+            }
         }
 
         Move(work, target, overwrite);
