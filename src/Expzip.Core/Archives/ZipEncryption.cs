@@ -172,6 +172,7 @@ internal static class ZipEncryption
 
         var extracted = 0;
         var skipped = 0;
+        var marks = new MarkWatch();
         var rejected = new List<string>();
         var failed = new List<(string, string)>();
         var cancelled = false;
@@ -238,6 +239,7 @@ internal static class ZipEncryption
                 if (file.Commit(entry.DateTime))
                 {
                     extracted++;
+                    marks.Committed(file, target);
                 }
                 else
                 {
@@ -263,7 +265,7 @@ internal static class ZipEncryption
             progress?.Report(new ExtractProgress(doneBytes, totalBytes, entry.Name));
         }
 
-        return new ExtractResult(extracted, skipped, rejected, failed, cancelled);
+        return new ExtractResult(extracted, skipped, rejected, failed, cancelled, marks.Lost);
     }
 
     /// <summary>

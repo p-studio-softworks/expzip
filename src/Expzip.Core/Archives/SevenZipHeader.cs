@@ -66,6 +66,17 @@ internal static class SevenZipHeader
 
     private static ReadOnlySpan<byte> Lzma2Method => [0x21];
 
+    private static ReadOnlySpan<byte> DeflateMethod => [0x04, 0x01, 0x08];
+
+    /// <summary>
+    /// CRC が無く、正しく読めるか確かめる手段も無いファイルの印 (#321)。
+    /// </summary>
+    /// <remarks>
+    /// SharpCompress 0.50.7 は、複数のファイルをまとめて Deflate で圧縮したフォルダーを正しく読めないことがある。
+    /// CRC があれば失敗として見つかるが、無いと、大きさが合ったまま違う中身を書き出す。
+    /// </remarks>
+    public const long Unverifiable = -2;
+
     /// <summary>見出しを確かめる。使うメモリの見積もりを返す。</summary>
     /// <param name="archive">7z の本体が先頭に来る、読み取りと移動ができる流れ。</param>
     /// <param name="memoryBudget">見出しの部品に使ってよいメモリ。</param>
@@ -92,11 +103,14 @@ internal static class SevenZipHeader
     /// <exception cref="ArchiveTooLargeException">部品か、伸長に要るメモリが大きすぎる場合。</exception>
     /// <exception cref="DamagedDataException">見出しを読めないか、データが切れている場合。</exception>
     /// <exception cref="OperationCanceledException">中断された場合。</exception>
-    public static void CheckContent(Stream archive, long memoryBudget, CancellationToken cancellationToken)
+    /// <returns>
+    /// ファイルの番号ごとの、フォルダー側の CRC。無ければ -1 (#321)。見出しが暗号化されていて読めなければ <see langword="null"/>。
+    /// </returns>
+    public static long[]? CheckContent(Stream archive, long memoryBudget, CancellationToken cancellationToken)
     {
         if (Inspect(archive, new Budget(memoryBudget), collect: true, cancellationToken) is not { } streams)
         {
-            return;
+            return null;
         }
 
         try
@@ -121,6 +135,8 @@ internal static class SevenZipHeader
         {
             throw new DamagedDataException(ex);
         }
+
+        return streams.FileCrcs;
     }
 
     /// <summary>LZMA2 の塊の見出しを順にたどる。範囲の中で終わりの印に届かなければ切れている。</summary>
@@ -378,7 +394,7 @@ internal static class SevenZipHeader
         if (id == FilesInfo)
         {
             files = reader.ReadCount(BytesPerFile);
-            ReadFileProperties(reader);
+            ReadFileProperties(reader, streams, files);
         }
         else if (id != End)
         {
@@ -391,7 +407,83 @@ internal static class SevenZipHeader
             throw new InvalidDataException();
         }
 
+        if (collect)
+        {
+            streams.FileCrcs = FileCrcs(streams, files);
+        }
+
         return streams;
+    }
+
+    /// <summary>
+    /// ファイルの番号ごとに、フォルダー側の CRC を並べる (#321)。
+    /// </summary>
+    /// <remarks>
+    /// ストリームが 1 個のフォルダーでは、この CRC がそのファイルの CRC になる。SharpCompress はこれをファイルに渡さないので、
+    /// このままでは壊れていても照合されない。ストリームが 2 個以上のフォルダーの CRC は、ファイルごとには使えない。
+    /// 中身のあるファイルの数とストリームの数が合わなければ、見出しが矛盾している。
+    /// </remarks>
+    private static long[] FileCrcs(Streams streams, ulong files)
+    {
+        var result = new long[checked((int)files)];
+        var empty = streams.EmptyStream;
+
+        // SubStreamsInfo が無ければ、フォルダーごとに 1 個
+        var counts = streams.StreamCounts;
+        if (counts is null)
+        {
+            counts = new ulong[checked((int)streams.Folders)];
+            Array.Fill(counts, 1UL);
+        }
+
+        var folder = 0;
+        var left = 0UL;
+
+        for (var i = 0; i < result.Length; i++)
+        {
+            result[i] = -1;
+
+            if (empty is not null && empty[i])
+            {
+                continue;
+            }
+
+            // ストリームが 0 個のフォルダーは飛ばす
+            while (left == 0)
+            {
+                if (folder >= counts.Length)
+                {
+                    throw new InvalidDataException();
+                }
+
+                left = counts[folder++];
+            }
+
+            var current = folder - 1;
+            if (counts[current] == 1 && current < streams.FolderHasCrc.Length && streams.FolderHasCrc[current])
+            {
+                result[i] = streams.FolderCrc[current];
+            }
+            else if (counts[current] > 1 && current < streams.FolderList.Count && streams.FolderList[current].Deflate)
+            {
+                result[i] = Unverifiable;
+            }
+
+            left--;
+        }
+
+        // 余ったストリームがあれば、ファイルの数が足りない
+        for (; folder < counts.Length; folder++)
+        {
+            left = checked(left + counts[folder]);
+        }
+
+        if (left != 0)
+        {
+            throw new InvalidDataException();
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -401,7 +493,7 @@ internal static class SevenZipHeader
     /// SharpCompress は属性を読むたびにファイルの数だけ処理する。繰り返されると、小さな見出しで長い時間を使われ、
     /// その間は中断もできない。Dummy は 7-Zip が位置をそろえるために何度も書くが、長さのぶんしか時間を使わない。
     /// </remarks>
-    private static void ReadFileProperties(Reader reader)
+    private static void ReadFileProperties(Reader reader, Streams streams, ulong files)
     {
         var seen = new HashSet<ulong>();
 
@@ -418,6 +510,12 @@ internal static class SevenZipHeader
                 && !seen.Add(id))
             {
                 throw new InvalidDataException();
+            }
+
+            if (id == EmptyStream && streams.Collect)
+            {
+                streams.EmptyStream = reader.ReadEmptyStream(files);
+                continue;
             }
 
             reader.SkipData();
@@ -555,7 +653,7 @@ internal static class SevenZipHeader
             else
             {
                 sawCrc = true;
-                streams.FolderHasCrc = reader.ReadFolderDigests(folders);
+                (streams.FolderHasCrc, streams.FolderCrc) = reader.ReadFolderDigests(folders, streams.Collect);
             }
         }
     }
@@ -653,7 +751,9 @@ internal static class SevenZipHeader
         if (streams.Collect)
         {
             streams.FolderList.Add(new FolderInfo(
-                packedStreams, path is not null && path[^1].Method.AsSpan().SequenceEqual(Lzma2Method)));
+                packedStreams,
+                path is not null && path[^1].Method.AsSpan().SequenceEqual(Lzma2Method),
+                coders.Exists(static coder => coder.Method.AsSpan().SequenceEqual(DeflateMethod))));
         }
 
         return outputs;
@@ -709,6 +809,7 @@ internal static class SevenZipHeader
         // フォルダーはここまでに読み終えているので、この数のぶんの見出しの中身がある
         var counts = new ulong[checked((int)streams.Folders)];
         Array.Fill(counts, 1UL);
+        streams.StreamCounts = counts;
         var sawCounts = false;
 
         ulong id;
@@ -792,7 +893,7 @@ internal static class SevenZipHeader
     private sealed record Coder(byte[] Method, ulong Inputs, ulong Outputs, byte[] Properties);
 
     /// <summary>中身を読む前の確認に使う、フォルダーのこと。</summary>
-    private readonly record struct FolderInfo(ulong PackStreams, bool ReadsLzma2);
+    private readonly record struct FolderInfo(ulong PackStreams, bool ReadsLzma2, bool Deflate = false);
 
     /// <summary>見出しから読み取ったこと。</summary>
     private sealed class Streams
@@ -820,6 +921,14 @@ internal static class SevenZipHeader
         public ulong SubStreams { get; set; }
 
         public bool[] FolderHasCrc { get; set; } = [];
+
+        public uint[] FolderCrc { get; set; } = [];
+
+        public ulong[]? StreamCounts { get; set; }
+
+        public bool[]? EmptyStream { get; set; }
+
+        public long[]? FileCrcs { get; set; }
 
         public List<Coder>? FirstPath { get; set; }
 
@@ -961,8 +1070,34 @@ internal static class SevenZipHeader
             Skip(checked(present * 4));
         }
 
-        /// <summary>フォルダーの CRC を読み飛ばす。どのフォルダーに CRC があるかを返す。</summary>
-        public bool[] ReadFolderDigests(ulong count)
+        /// <summary>
+        /// 中身の無いファイルの印を読む。上位のビットから順に、ファイルの数だけ並ぶ。長さが合わなければ見出しが矛盾している。
+        /// </summary>
+        public bool[] ReadEmptyStream(ulong files)
+        {
+            var length = ReadNumber();
+            if (length != (files + 7) / 8)
+            {
+                throw new InvalidDataException();
+            }
+
+            var empty = new bool[checked((int)files)];
+            var current = 0;
+            for (var i = 0; i < empty.Length; i++)
+            {
+                if (i % 8 == 0)
+                {
+                    current = ReadByte();
+                }
+
+                empty[i] = (current & (0x80 >> (i % 8))) != 0;
+            }
+
+            return empty;
+        }
+
+        /// <summary>フォルダーの CRC を読む。どのフォルダーに CRC があるかと、<paramref name="keep"/> なら値を返す。</summary>
+        public (bool[] Defined, uint[] Values) ReadFolderDigests(ulong count, bool keep)
         {
             Charge(count, BytesPerDigest);
 
@@ -986,8 +1121,22 @@ internal static class SevenZipHeader
                 }
             }
 
-            Skip((ulong)defined.Count(static d => d) * 4);
-            return defined;
+            if (!keep)
+            {
+                Skip((ulong)defined.Count(static d => d) * 4);
+                return (defined, []);
+            }
+
+            var values = new uint[defined.Length];
+            for (var i = 0; i < defined.Length; i++)
+            {
+                if (defined[i])
+                {
+                    values[i] = (uint)(ReadByte() | ReadByte() << 8 | ReadByte() << 16 | ReadByte() << 24);
+                }
+            }
+
+            return (defined, values);
         }
 
         private void Skip(ulong count)

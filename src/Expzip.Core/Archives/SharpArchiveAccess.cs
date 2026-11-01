@@ -103,7 +103,30 @@ internal static class SharpArchiveAccess
     /// 先頭から順にしか読めないが、一覧も取り出しも一度なめれば済む。
     /// </remarks>
     public static IReader OpenTarReader(Stream stream)
-        => ReaderFactory.OpenReader(IsXz(stream) ? OpenXz(stream) : stream, Options());
+        => ReaderFactory.OpenReader(
+            IsXz(stream) ? OpenXz(stream) : IsBZip2(stream) ? OpenBZip2(stream) : stream,
+            Options());
+
+    /// <summary>
+    /// bzip2 を読む流れを開く。<see cref="ReaderFactory"/> に任せると、形式を見分けるのに 1 つ目の塊を伸長したあとで
+    /// 巻き戻せず、塊が大きい正しい書庫 (元の大きさが 900 KB ほどより大きい tar.bz2) を読めない (#321)。
+    /// </summary>
+    private static Stream OpenBZip2(Stream stream)
+        => SharpCompress.Compressors.BZip2.BZip2Stream.Create(
+            stream, SharpCompress.Compressors.CompressionMode.Decompress,
+            decompressConcatenated: true, leaveOpen: true, tolerateTruncatedStream: false);
+
+    /// <summary>bzip2 のしるしで始まるか。読む位置は変えない。</summary>
+    private static bool IsBZip2(Stream stream)
+    {
+        Span<byte> head = stackalloc byte[4];
+        var start = stream.Position;
+        var read = stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false);
+        stream.Position = start;
+
+        return read == head.Length && head[0] == (byte)'B' && head[1] == (byte)'Z' && head[2] == (byte)'h'
+               && head[3] is >= (byte)'1' and <= (byte)'9';
+    }
 
     /// <summary>
     /// xz を読む流れを開く。入力の終わりを超えて読もうとしたら例外にする (#294)。
@@ -132,10 +155,67 @@ internal static class SharpArchiveAccess
     /// </summary>
     /// <exception cref="DamagedDataException">データが切れている場合。</exception>
     /// <exception cref="ArchiveTooLargeException">書庫が大きすぎる場合。</exception>
-    public static void CheckSevenZipContent(string path, CancellationToken cancellationToken)
+    /// <returns>ファイルの番号ごとの、フォルダー側の CRC。読めなければ <see langword="null"/>。</returns>
+    public static long[]? CheckSevenZipContent(string path, CancellationToken cancellationToken)
     {
         using var stream = OpenSevenZipStream(path);
 
-        SevenZipHeader.CheckContent(stream, ArchiveLimits.MemoryBudget, cancellationToken);
+        return SevenZipHeader.CheckContent(stream, ArchiveLimits.MemoryBudget, cancellationToken);
     }
+
+    /// <summary>
+    /// フォルダー側の CRC を、書庫の中の名前で引けるようにする (#321)。
+    /// </summary>
+    /// <remarks>
+    /// 順に読むときの項目は別のオブジェクトで、順番も違うことがあるので、名前で引く。
+    /// 同じ名前が 2 回以上あるものには使わない。どちらの CRC か分からない。
+    /// 項目の数が見出しのファイル数と違えば、こちらと SharpCompress の読み方がずれている。
+    /// </remarks>
+    /// <exception cref="DamagedDataException">項目の数が合わない場合。</exception>
+    public static IReadOnlyDictionary<string, long> FolderCrcsByName(IArchive archive, long[]? fileCrcs)
+    {
+        var result = new Dictionary<string, long>(StringComparer.Ordinal);
+
+        if (fileCrcs is null)
+        {
+            return result;
+        }
+
+        var entries = archive.Entries.ToList();
+        if (entries.Count != fileCrcs.Length)
+        {
+            throw new DamagedDataException(new InvalidDataException());
+        }
+
+        var repeated = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < entries.Count; i++)
+        {
+            if (entries[i].Key is not { } key)
+            {
+                continue;
+            }
+
+            if (!result.TryAdd(key, fileCrcs[i]))
+            {
+                repeated.Add(key);
+            }
+        }
+
+        foreach (var key in repeated)
+        {
+            result.Remove(key);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 7z の項目の CRC。項目に無ければフォルダー側の値。どちらも無ければ -1 (#168、#321)。
+    /// 正しく読めるか確かめる手段が無いものは <see cref="SevenZipHeader.Unverifiable"/>。
+    /// </summary>
+    /// <remarks>項目の 0 は「無い」の意味で使われる。フォルダー側に書かれた 0 は本当の値。</remarks>
+    public static long SevenZipCrc(IEntry entry, IReadOnlyDictionary<string, long> folderCrcs)
+        => entry.Crc != 0 ? entry.Crc
+            : entry.Key is { } key && folderCrcs.TryGetValue(key, out var crc) ? crc
+            : -1;
 }

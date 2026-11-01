@@ -102,6 +102,12 @@ internal sealed record NsisLayout(
         var value = BinaryPrimitives.ReadUInt32LittleEndian(lead);
         var stored = value & 0x7FFFFFFF;
 
+        // 塊の終わりがファイルの中にあるか。大きさが分からないので、読んだあとでは切れたことに気付けない (#321)
+        if (source.Position + stored > source.Length)
+        {
+            throw new DamagedDataException(new EndOfStreamException());
+        }
+
         // 圧縮されていない塊は、そのまま読ませる
         if ((value & 0x80000000) == 0)
         {

@@ -351,7 +351,9 @@ internal static class ContentInspector
             while ((read = stream.Read(
                        buffer,
                        whole is null ? 0 : filled,
-                       whole is null ? buffer.Length : whole.Length - filled)) > 0)
+                       // ファイルの大きさと同じ単位で一度に読まない。SharpCompress の 7z の Deflate は、
+                       // 読む単位によって結果が変わることがある。取り出しと同じ単位にそろえる (#321)
+                       whole is null ? buffer.Length : Math.Min(whole.Length - filled, ChunkSize))) > 0)
             {
                 crc.Update(new ArraySegment<byte>(buffer, whole is null ? 0 : filled, read));
                 filled += read;
@@ -372,6 +374,15 @@ internal static class ContentInspector
 
                 pass.Bytes(context, read, name);
                 context.Cancellation.ThrowIfCancellationRequested();
+            }
+
+            // 書かれた大きさのぶんを読み切っても、続きがあれば、残りを検査に渡せていない (#321)。
+            // 足りなければ途中で切れている
+            if (size >= 0 && (total != size || (whole is not null && stream.Read(chunk, 0, 1) > 0)))
+            {
+                context.Findings.Add(
+                    InspectionIssue.Unreadable, name,
+                    Strings.Reason(new DamagedDataException(new InvalidDataException())), order);
             }
         }
         catch (OperationCanceledException)

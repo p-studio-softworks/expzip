@@ -6,6 +6,40 @@ using System.Text;
 namespace Expzip.Archives;
 
 /// <summary>
+/// 取り出したファイルに、インターネットから来た印を付けられなかったことを見張る (#321)。
+/// </summary>
+/// <remarks>
+/// 書けたように見えても残らないドライブがあるので、最初の 1 個だけ、置き換えたあとで読み直す。
+/// 取り出しの途中のファイルはこの読み方では読めないので、置き換えたあとに行う。並列の取り出しからも呼ばれる。
+/// </remarks>
+internal sealed class MarkWatch
+{
+    private int _verified;
+    private volatile bool _lost;
+
+    /// <summary>印が保存されなかったファイルがあった。</summary>
+    public bool Lost => _lost;
+
+    /// <summary>取り出せたファイルを 1 個知らせる。</summary>
+    public void Committed(AtomicFile file, string target)
+    {
+        if (file.Zone is not { } zone || !MarkOfTheWeb.IsFromInternet(zone))
+        {
+            return;
+        }
+
+        if (file.MarkLost)
+        {
+            _lost = true;
+        }
+        else if (Interlocked.Exchange(ref _verified, 1) == 0 && MarkOfTheWeb.TryRead(target) is null)
+        {
+            _lost = true;
+        }
+    }
+}
+
+/// <summary>
 /// 失敗しても元のファイルが残るように書く (#320)。
 /// </summary>
 /// <remarks>
@@ -61,7 +95,8 @@ internal sealed class AtomicFile : IDisposable
             Stream = Open(temporary);
 
             // 印を先に付ける。アクセス権を写すと、印を書けなくなることがある
-            MarkOfTheWeb.TryApply(temporary, zone);
+            Zone = zone;
+            MarkLost = zone is not null && !MarkOfTheWeb.TryApply(temporary, zone);
 
             if (_replacing)
             {
@@ -78,6 +113,12 @@ internal sealed class AtomicFile : IDisposable
 
     /// <summary>書き込む先。</summary>
     public FileStream Stream { get; }
+
+    /// <summary>付けるように渡された印。</summary>
+    public string? Zone { get; }
+
+    /// <summary>印を渡されたのに、付けられなかった (exFAT など、印を保存できないドライブ)。</summary>
+    public bool MarkLost { get; }
 
     /// <summary>書き始める。</summary>
     /// <param name="target">できあがったときの名前。</param>

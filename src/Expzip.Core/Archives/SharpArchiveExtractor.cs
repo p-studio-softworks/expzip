@@ -60,9 +60,11 @@ internal static class SharpArchiveExtractor
         string archivePath, IReadOnlySet<string>? sourceNames, ExtractState state,
         CancellationToken cancellationToken)
     {
-        SharpArchiveAccess.CheckSevenZipContent(archivePath, cancellationToken);
+        var fileCrcs = SharpArchiveAccess.CheckSevenZipContent(archivePath, cancellationToken);
 
         using var archive = SharpArchiveAccess.OpenSevenZip(archivePath);
+
+        var folderCrcs = SharpArchiveAccess.FolderCrcsByName(archive, fileCrcs);
 
         var targets = archive.Entries
             .Where(e => !e.IsDirectory && e.Key is not null)
@@ -75,9 +77,14 @@ internal static class SharpArchiveExtractor
         if (targets.Count == 1)
         {
             var only = targets[0];
+            if (Refuse(only, folderCrcs, state))
+            {
+                return;
+            }
+
             state.Write(
                 only.Key!, only.Size, only.LastModifiedTime, () => only.OpenEntryStream(), cancellationToken,
-                SevenZipCrc(only), sizeIsExact: true);
+                SharpArchiveAccess.SevenZipCrc(only, folderCrcs), sizeIsExact: true);
             return;
         }
 
@@ -107,15 +114,34 @@ internal static class SharpArchiveExtractor
                     continue;
                 }
 
+                if (Refuse(entry, folderCrcs, state))
+                {
+                    continue;
+                }
+
                 state.Write(
                     key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken,
-                    SevenZipCrc(entry), sizeIsExact: true);
+                    SharpArchiveAccess.SevenZipCrc(entry, folderCrcs), sizeIsExact: true);
             }
         }
         catch (Exception ex) when (IsReadFailure(ex))
         {
             state.Fail(Path.GetFileName(archivePath), Explain(ex));
         }
+    }
+
+    /// <summary>
+    /// 正しく読めるか確かめる手段が無いファイルは取り出さない (#321)。違う中身を、成功として書き出さないため。
+    /// </summary>
+    private static bool Refuse(IEntry entry, IReadOnlyDictionary<string, long> folderCrcs, ExtractState state)
+    {
+        if (SharpArchiveAccess.SevenZipCrc(entry, folderCrcs) != SevenZipHeader.Unverifiable)
+        {
+            return false;
+        }
+
+        state.Fail(entry.Key ?? string.Empty, Strings.UnsupportedCompressionMethod);
+        return true;
     }
 
     private static void ExtractTar(
@@ -162,10 +188,6 @@ internal static class SharpArchiveExtractor
             state.Write(key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken, sizeIsExact: true);
         }
     }
-
-    /// <summary>7z の項目の CRC。持たない場合は -1 (#168)。</summary>
-    /// <remarks>0 は「無い」の意味で使われる。検査 (#54) と同じ扱い。</remarks>
-    private static long SevenZipCrc(IEntry entry) => entry.Crc == 0 ? -1 : entry.Crc;
 
     /// <summary>書庫そのものを読み進められなくなる類の失敗か。</summary>
     /// <remarks>

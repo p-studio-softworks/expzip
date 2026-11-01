@@ -22,6 +22,7 @@ internal sealed class ExtractState(
     private long _doneBytes;
     private int _extracted;
     private int _skipped;
+    private readonly MarkWatch _marks = new();
 
     public long TotalBytes { get; set; }
 
@@ -97,6 +98,7 @@ internal sealed class ExtractState(
                 if (file.Commit(lastWriteTime))
                 {
                     _extracted++;
+                    _marks.Committed(file, target);
                 }
                 else
                 {
@@ -164,7 +166,7 @@ internal sealed class ExtractState(
     public void Fail(string name, string reason) => _failed.Add((name, reason));
 
     public ExtractResult ToResult()
-        => new(_extracted, _skipped, _rejected, _failed, Cancelled);
+        => new(_extracted, _skipped, _rejected, _failed, Cancelled, _marks.Lost);
 
     private void Advance(long size, string key)
     {

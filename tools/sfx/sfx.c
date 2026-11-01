@@ -842,15 +842,49 @@ static const WCHAR ZONE_STREAM[] = L":Zone.Identifier";
 static char g_zone[ZONE_MAX];
 static DWORD g_zoneLength;
 
+/* 印のストリームを開くパスを作る。上限の無い形は名前を整えないので、先に整える */
+static int ZonePath(const WCHAR *path, WCHAR *stream)
+{
+    WCHAR full[TEMPORARY_SIZE];
+
+    if (GetFullPathNameW(path, TEMPORARY_SIZE - 32, full, NULL) == 0)
+    {
+        return 0;
+    }
+
+    stream[0] = 0;
+
+    if (full[0] == L'\\' && full[1] == L'\\' && full[2] == L'?' && full[3] == L'\\')
+    {
+        /* 既に上限の無い形 */
+        Append(stream, full);
+    }
+    else if (full[0] == L'\\' && full[1] == L'\\')
+    {
+        Append(stream, L"\\\\?\\UNC\\");
+        Append(stream, full + 2);
+    }
+    else
+    {
+        Append(stream, L"\\\\?\\");
+        Append(stream, full);
+    }
+
+    Append(stream, ZONE_STREAM);
+    return 1;
+}
+
 /* 自分に付いている出所の印を読む。取り出したファイルに引き継ぐ (#320) */
 static void ReadZone(const WCHAR *self)
 {
     WCHAR stream[TEMPORARY_SIZE];
     HANDLE h;
 
-    stream[0] = 0;
-    Append(stream, self);
-    Append(stream, ZONE_STREAM);
+    /* 読むときも上限の無い形で開く。長いパスで印が黙って落ちないように */
+    if (!ZonePath(self, stream))
+    {
+        return;
+    }
 
     h = CreateFileW(stream, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 
@@ -869,7 +903,6 @@ static void ReadZone(const WCHAR *self)
 static void ApplyZone(const WCHAR *path)
 {
     WCHAR stream[TEMPORARY_SIZE];
-    WCHAR full[TEMPORARY_SIZE];
     HANDLE h;
     DWORD wrote;
 
@@ -878,31 +911,11 @@ static void ApplyZone(const WCHAR *path)
         return;
     }
 
-    /*
-     * 印のストリームの名前は本体より長い。本体は作れてもパスの上限を超えて、印だけが付かないことがある。
-     * 上限の無い形で開く。この形は名前を整えないので、先に整える。
-     */
-    full[0] = 0;
-
-    if (GetFullPathNameW(path, TEMPORARY_SIZE - 32, full, NULL) == 0)
+    /* 印のストリームの名前は本体より長い。本体は作れてもパスの上限を超えて、印だけが付かないことがある */
+    if (!ZonePath(path, stream))
     {
         return;
     }
-
-    stream[0] = 0;
-
-    if (full[0] == L'\\' && full[1] == L'\\')
-    {
-        Append(stream, L"\\\\?\\UNC\\");
-        Append(stream, full + 2);
-    }
-    else
-    {
-        Append(stream, L"\\\\?\\");
-        Append(stream, full);
-    }
-
-    Append(stream, ZONE_STREAM);
 
     h = CreateFileW(stream, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 

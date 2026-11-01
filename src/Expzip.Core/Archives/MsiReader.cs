@@ -119,7 +119,8 @@ internal static class MsiReader
         foreach (var file in targets.Where(static f => !f.Compressed))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            visit(file, null, () => OpenBeside(folder, file.SourcePath));
+            // 表に書かれた大きさは当てにしない。検査はこの大きさのぶんしか読まない (#321)
+            visit(file with { Length = LengthBeside(folder, file) }, null, () => OpenBeside(folder, file.SourcePath));
         }
 
         // CAB に入っているものは、入れ物ごとにまとめて取り出す
@@ -147,7 +148,8 @@ internal static class MsiReader
                 {
                     if (byKey.TryGetValue(entry.Name, out var file) && done.Add(entry.Name))
                     {
-                        visit(file, entry.LastWriteTime == default ? null : entry.LastWriteTime, open);
+                        // 表に書かれた大きさは当てにしない。検査はこの大きさのぶんしか読まない (#321)
+                        visit(file with { Length = entry.Length }, entry.LastWriteTime == default ? null : entry.LastWriteTime, open);
                     }
                 }, cancellationToken);
             }
@@ -185,6 +187,21 @@ internal static class MsiReader
         }
 
         return null;
+    }
+
+    /// <summary>MSI の隣に置かれたファイルの実際の大きさ。読めなければ表の値のまま。開くときに理由が分かる。</summary>
+    private static long LengthBeside(string folder, MsiFile file)
+    {
+        try
+        {
+            using var stream = OpenBeside(folder, file.SourcePath);
+            return stream.Length;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException
+                                       or ArgumentException or NotSupportedException)
+        {
+            return file.Length;
+        }
     }
 
     /// <summary>MSI の隣に置かれたファイルを開く。MSI のフォルダーの外は読まない。</summary>

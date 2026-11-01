@@ -62,7 +62,8 @@ Stop-Expzip $app
 
 Section '途中で切れた書庫で上書きを失敗させる'
 # 読み手が黙って終わるので、切れた中身が成功として既存のファイルを置き換えていた
-foreach ($name in 'keep_cut.tar', 'keep_cut.tar.gz', 'keep_cut.gz') {
+# 7z は、CRC をフォルダー側にだけ持つ形でも見つける (#321)
+foreach ($name in 'keep_cut.tar', 'keep_cut.tar.gz', 'keep_cut.gz', 'keep_folder_crc_bad.7z') {
     $cut = Join-Path $script:Work $name
     Copy-Item (Join-Path $fixtures $name) $cut
     $out = New-Folder "out_$name"
@@ -241,6 +242,186 @@ $names = Get-ZipNames $inside
 Check '中身が入る' ($names -contains '落とす/ok.txt') ($names -join ', ')
 Check '作っている書庫は入らない' (-not ($names | Where-Object { $_ -match '\.tmp$|中\.zip$' })) ($names -join ', ')
 Stop-Expzip $app
+
+Section '1 つ目の塊が大きい tar.bz2 (#321)'
+# SharpCompress に任せると形式を見分けたあとで巻き戻せず、正しい書庫なのに「壊れています」と出ていた
+$path = Join-Path $script:Work 'ok_big.tar.bz2'
+Copy-Item (Join-Path $fixtures 'ok_big.tar.bz2') $path
+$out = New-Folder 'out_big_bz2'
+$app = Start-Expzip @($path)
+$text = Invoke-Overwrite $app $out
+Check '取り出せる' ($text -match '展開したファイル: 1 個' -and (Get-Item (Join-Path $out 'a.txt')).Length -eq 3000000) $text
+Stop-Expzip $app
+
+Section 'CRC の無い、まとめて Deflate した 7z (#321)'
+# SharpCompress が違う中身を返すことがある。確かめる手段が無いので取り出さない
+$path = Join-Path $script:Work 'keep_deflate_nocrc.7z'
+Copy-Item (Join-Path $fixtures 'keep_deflate_nocrc.7z') $path
+$out = New-Folder 'out_deflate'
+$app = Start-Expzip @($path)
+$text = Invoke-Overwrite $app $out
+Check '取り出さずに理由を出す' ($text -match 'この圧縮方式には対応していません') $text
+Check 'ファイルができない' (@(Get-ChildItem $out -Recurse -File).Count -eq 0) ((Get-ChildItem $out -Recurse -File | ForEach-Object { $_.Name }) -join ', ')
+Stop-Expzip $app
+
+Section 'フォルダー側の CRC を持つ正しい 7z (#321)'
+foreach ($item in @(@('ok_folder_crc.7z', 'a.txt', 'NEW-CONTENT-OF-A'), @('ok_folder_crc_zero.7z', 'b.txt', 'NEW-CONTENT-OF-B-LONGER'))) {
+    $path = Join-Path $script:Work $item[0]
+    Copy-Item (Join-Path $fixtures $item[0]) $path
+    $out = New-Folder "out_$($item[0])"
+    $app = Start-Expzip @($path)
+    $text = Invoke-Overwrite $app $out
+    Check "失敗が出ない: $($item[0])" ($text -notmatch '書き込めなかった') $text
+    Check "中身が正しい: $($item[0])" ((Read-Text (Join-Path $out $item[1])) -eq $item[2])
+    Stop-Expzip $app
+}
+$names = @(Get-ChildItem (Join-Path $script:Work 'out_ok_folder_crc.7z') -Recurse -File | ForEach-Object { $_.Name })
+Check 'フォルダーの中と空のファイルも出る' ($names -contains 'b.txt' -and $names -contains 'empty.txt') ($names -join ', ')
+foreach ($name in 'bad_empty_bits.7z', 'bad_stream_count.7z', 'bad_stream_short.7z') {
+    $path = Join-Path $script:Work $name
+    Copy-Item (Join-Path $fixtures $name) $path
+    $out = New-Folder "out_$name"
+    $app = Start-Expzip
+    Focus-App $app
+    $center = Get-WindowCenter $app
+    Invoke-Drop @($path) $center.X $center.Y | Out-Null
+    $opened = Find-MessageBox $app 2500
+    if ($opened) {
+        Check "見出しが矛盾していれば開かない: $name" ($opened.Text -match '壊れています') $opened.Text
+        Close-MessageBox $opened 'OK'
+    }
+    else {
+        $text = Invoke-Overwrite $app $out
+        Check "見出しが矛盾していれば取り出さない: $name" ($text -match '壊れています') $text
+    }
+    Stop-Expzip $app
+}
+
+Section '分割と結合の出所の印 (#321)'
+$source = Join-Path $script:Work 'marked.bin'
+$bytes = New-Object byte[] (2MB + 7)
+(New-Object System.Random 11).NextBytes($bytes)
+[System.IO.File]::WriteAllBytes($source, $bytes)
+$sourceHash = (Get-FileHash $source -Algorithm SHA256).Hash
+Set-Content -LiteralPath $source -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+$parts = New-Folder 'marked_parts'
+$app = Start-Expzip
+$done = Start-Split $app
+if ($done) { Close-MessageBox $done 'OK' }
+Stop-Expzip $app
+
+function Get-Zone([string]$Path) { Get-Content -LiteralPath $Path -Stream Zone.Identifier -ErrorAction SilentlyContinue }
+function Invoke-Joiner {
+    $process = Start-Process (Join-Path $parts 'marked.bin.exe') -ArgumentList '-q' -WorkingDirectory $parts -PassThru
+    $process.WaitForExit(30000) | Out-Null
+    return $process.ExitCode
+}
+$joined = Join-Path $parts 'marked.bin'
+Check '分割ファイルに印が付く' ((Get-Zone (Join-Path $parts 'marked.bin.001')) -match 'ZoneId=3')
+Check '結合用のプログラムには付かない' ($null -eq (Get-Zone (Join-Path $parts 'marked.bin.exe')))
+Check '結合できる' ((Invoke-Joiner) -eq 0)
+Check '中身が同じ' ((Get-FileHash $joined -Algorithm SHA256).Hash -eq $sourceHash)
+Check '結合したファイルに印が付く' ((Get-Zone $joined) -match 'ZoneId=3')
+Check '結合の一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
+
+# 同じ名前があれば結合せず、元のファイルを残す
+Write-Text $joined 'ORIGINAL-JOINED'
+Check '同じ名前があれば失敗する' ((Invoke-Joiner) -ne 0)
+Check '同じ名前のファイルは元のまま' ((Read-Text $joined) -eq 'ORIGINAL-JOINED')
+[System.IO.File]::Delete($joined)
+
+# 一部の分割ファイルだけに印があっても引き継ぐ
+Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier
+Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.003') -Stream Zone.Identifier
+Check '1 個目に印が無くても結合できる' ((Invoke-Joiner) -eq 0)
+Check '一部にだけ印があっても引き継ぐ' ((Get-Zone $joined) -match 'ZoneId=3')
+[System.IO.File]::Delete($joined)
+
+# 弱い印が混ざっていても、いちばん強い印を使う
+Set-Content -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=2"
+Invoke-Joiner | Out-Null
+Check 'いちばん強い印を使う' ((Get-Zone $joined) -match 'ZoneId=3')
+[System.IO.File]::Delete($joined)
+
+# 壊れていれば本来の名前に何も残らない
+$second = Join-Path $parts 'marked.bin.002'
+$part = [System.IO.File]::ReadAllBytes($second)
+$part[100] = $part[100] -bxor 0xFF
+[System.IO.File]::WriteAllBytes($second, $part)
+Check '壊れていれば失敗する' ((Invoke-Joiner) -ne 0)
+Check '本来の名前に残らない' (-not (Test-Path $joined))
+Check '壊れたときも一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
+
+Section '印を保存できない場所 (#321)'
+# 下のファイルの代替データストリームだけを書けなくしたフォルダー。exFAT などと同じく、印だけが付かない
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+function Deny-Marks([string]$Folder) { icacls $Folder /deny "*${me}:(OI)(IO)(WD)" | Out-Null }
+function Allow-Marks([string]$Folder) { icacls $Folder /remove:d "*$me" | Out-Null }
+
+$zip = New-TestZip (Join-Path $script:Work 'net.zip') ([ordered]@{ 'one.txt' = 'NEW'; 'two.txt' = 'NEW' })
+Set-Content -LiteralPath $zip -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+$out = New-Folder 'nomark_out'
+Deny-Marks $out
+$app = Start-Expzip @($zip)
+$text = Invoke-Overwrite $app $out
+$warning = 'このドライブには、インターネットから来たことを示す印を保存できません。'
+Check '警告を出す' ($text -match $warning) $text
+Check '1 回だけ出す' (([regex]::Matches($text, $warning)).Count -eq 1) $text
+Check '取り出しは止めない' ($text -match '展開したファイル: 2 個' -and (Test-Path (Join-Path $out 'two.txt'))) $text
+Stop-Expzip $app
+Allow-Marks $out
+
+$out = New-Folder 'mark_out'
+$weak = New-TestZip (Join-Path $script:Work 'intranet.zip') ([ordered]@{ 'one.txt' = 'NEW' })
+Set-Content -LiteralPath $weak -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=1"
+$denied = New-Folder 'nomark_weak'
+Deny-Marks $denied
+$app = Start-Expzip @($weak)
+$text = Invoke-Overwrite $app $denied
+Check '社内サイトなどの弱い印では出さない' ($text -notmatch $warning) $text
+Stop-Expzip $app
+Allow-Marks $denied
+
+$app = Start-Expzip @($zip)
+$text = Invoke-Overwrite $app $out
+Check 'ふつうのフォルダーでは出さない' ($text -notmatch $warning) $text
+Stop-Expzip $app
+
+# 一時フォルダーに印を付けられないとき、実行ファイルを開く前に確かめる
+$exeZip = New-TestZip (Join-Path $script:Work 'run.zip') ([ordered]@{ 'run.bat' = 'exit' })
+Set-Content -LiteralPath $exeZip -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+$temp = New-Folder 'nomark_temp'
+Deny-Marks $temp
+$oldTemp = $env:TEMP
+$oldTmp = $env:TMP
+$env:TEMP = $temp
+$env:TMP = $temp
+try {
+    $app = Start-Expzip @($exeZip)
+    Select-Row $app 'run.bat' | Out-Null
+    Send-Keys $app '{ENTER}'
+    $box = Find-MessageBox $app 10000
+    Check '実行ファイルのふだんの確認' ($box -and $box.Text -match 'プログラムとして実行されます') $(if ($box) { $box.Text })
+    if ($box) { Close-MessageBox $box 'OK' }
+    $box = Find-MessageBox $app 15000
+    Check '印が無いことも確かめる' ($box -and $box.Text -match '印を保存できませんでした') $(if ($box) { $box.Text })
+    if ($box) { Close-MessageBox $box 'キャンセル' }
+    Wait-Idle $app
+    Check 'キャンセルしたら取り出したファイルを残さない' (@(Get-ChildItem $temp -Recurse -File -Filter 'run.bat').Count -eq 0)
+    Select-Row $app 'run.bat' | Out-Null
+    Send-Keys $app '{ENTER}'
+    $box = Find-MessageBox $app 10000
+    if ($box) { Close-MessageBox $box 'OK' }
+    $box = Find-MessageBox $app 15000
+    Check 'もう一度開いても確かめる' ($box -and $box.Text -match '印を保存できませんでした') $(if ($box) { $box.Text })
+    if ($box) { Close-MessageBox $box 'キャンセル' }
+    Stop-Expzip $app
+}
+finally {
+    $env:TEMP = $oldTemp
+    $env:TMP = $oldTmp
+    Allow-Marks $temp
+}
 
 Section '固まって閉じる'
 # 取り出しを始めると、書庫を開く処理が止まったまま戻らない。中断も効かない

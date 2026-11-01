@@ -20,12 +20,14 @@ internal readonly record struct ExtractProgress(long DoneBytes, long TotalBytes,
 /// <param name="Rejected">安全でないパスとして拒否したエントリ名。</param>
 /// <param name="Failed">書き出しに失敗したエントリ名とその理由。</param>
 /// <param name="Cancelled">利用者の操作で中断した場合は true。</param>
+/// <param name="MarkLost">インターネットから来た印を保存できなかったファイルがある (#321)。</param>
 internal sealed record ExtractResult(
     int Extracted,
     int Skipped,
     IReadOnlyList<string> Rejected,
     IReadOnlyList<(string Name, string Reason)> Failed,
-    bool Cancelled);
+    bool Cancelled,
+    bool MarkLost = false);
 
 /// <summary>書庫から実ファイルへ展開する。</summary>
 internal static class ArchiveExtractor
@@ -283,6 +285,7 @@ internal static class ArchiveExtractor
             if (file.Commit(entry.LastWriteTime.LocalDateTime))
             {
                 tally.Extract();
+                tally.Marks.Committed(file, target);
             }
             else
             {
@@ -323,6 +326,8 @@ internal static class ArchiveExtractor
         private long _nextReport;
 
         public bool Cancelled => _cancelled;
+
+        public MarkWatch Marks { get; } = new();
 
         public void Extract() => Interlocked.Increment(ref _extracted);
 
@@ -370,7 +375,8 @@ internal static class ArchiveExtractor
                     _skipped,
                     _rejected.OrderBy(static r => r.Order).Select(static r => r.Name).ToList(),
                     _failed.OrderBy(static f => f.Order).Select(static f => (f.Name, f.Reason)).ToList(),
-                    _cancelled);
+                    _cancelled,
+                    Marks.Lost);
             }
         }
     }

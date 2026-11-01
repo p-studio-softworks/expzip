@@ -60,7 +60,8 @@ internal static class NsisExtractor
                 size >= 0 ? size : file.StoredLength,
                 lastWriteTime: null,
                 open,
-                cancellationToken);
+                cancellationToken,
+                sizeIsExact: size >= 0);
         }, cancellationToken);
 
         return state.ToResult();

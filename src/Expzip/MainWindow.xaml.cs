@@ -3200,7 +3200,7 @@ public partial class MainWindow : Window
         try
         {
             // 書庫に付いている出所の印は、新しい書庫にも引き継ぐ (#12)
-            var zone = MarkOfTheWeb.TryRead(Contents.FilePath);
+            var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath);
 
             var sources = await ExtractSelectionAsync(rows, directory, zone);
             if (sources is null or [] || !await BuildArchiveAsync(path, sources, zone))
@@ -5268,7 +5268,7 @@ public partial class MainWindow : Window
         try
         {
             var directory = workspace.DirectoryFor(Contents.FilePath);
-            var zone = MarkOfTheWeb.TryRead(Contents.FilePath);
+            var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath);
 
             Mouse.OverrideCursor = Cursors.Wait;
             StatusMessage.Text = Strings.ExtractingCount(names.Count);
@@ -5682,7 +5682,7 @@ public partial class MainWindow : Window
         // 掴まれていると上書きできないうえ、大きなファイルでは待ち時間も無駄になる。
         var reusable = editing is not null || TryGetLength(target) == entry.Length;
 
-        if (!reusable && !await ExtractForViewingAsync(entry, directory, target))
+        if (!reusable && !await ExtractForViewingAsync(entry, directory, target, mayRun: !nested))
         {
             return;
         }
@@ -5769,7 +5769,7 @@ public partial class MainWindow : Window
 
     /// <summary>1ファイルだけを一時フォルダへ取り出す。</summary>
     /// <returns>取り出せて、開いてよい状態になった場合は true。</returns>
-    private async Task<bool> ExtractForViewingAsync(ArchiveEntry entry, string directory, string target)
+    private async Task<bool> ExtractForViewingAsync(ArchiveEntry entry, string directory, string target, bool mayRun = false)
     {
         var archivePath = Contents!.FilePath;
         var format = Contents.Format;
@@ -5793,7 +5793,7 @@ public partial class MainWindow : Window
         try
         {
             // 書庫に付いている出所の印は、取り出したファイルにも引き継ぐ (#12)
-            var zone = MarkOfTheWeb.TryRead(archivePath);
+            var zone = MarkOfTheWeb.TryReadArchive(archivePath);
 
             var result = await Task.Run(() =>
             {
@@ -5824,6 +5824,21 @@ public partial class MainWindow : Window
                     this,
                     Strings.OpenEntryFailed(entry.Name, reason),
                     AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            // 実行されるものだけ確かめる。文書や画像を開くたびに確認を出さない (#321)
+            if (mayRun && result.MarkLost && RiskyFileTypes.IsExecutable(entry.Name)
+                && MessageBox.Show(
+                    this,
+                    Strings.ConfirmExecutableWithoutMark(entry.Name),
+                    AppName,
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Warning,
+                    MessageBoxResult.Cancel) != MessageBoxResult.OK)
+            {
+                // 残すと、次に開くときは取り出しを省くので、この確認が出ない
+                ArchiveExtractor.TryDelete(target);
                 return false;
             }
 
@@ -6112,7 +6127,7 @@ public partial class MainWindow : Window
         try
         {
             // 書庫に付いている出所の印は、書き出したファイルにも引き継ぐ (#12)
-            var zone = MarkOfTheWeb.TryRead(archivePath);
+            var zone = MarkOfTheWeb.TryReadArchive(archivePath);
 
             var result = await Task.Run(() => ArchiveExtractor.Extract(
                 archivePath, format, selection, destination, overwrite, progress, cancellation.Token,
@@ -6726,6 +6741,14 @@ public partial class MainWindow : Window
         }
 
         var icon = MessageBoxImage.Information;
+
+        // 取り出しは止めない。ファイルごとには出さず、ここで 1 回だけ知らせる (#321)
+        if (result.MarkLost)
+        {
+            icon = MessageBoxImage.Warning;
+            message.AppendLine();
+            message.AppendLine(Strings.MarkNotSaved);
+        }
 
         if (result.Rejected.Count > 0)
         {

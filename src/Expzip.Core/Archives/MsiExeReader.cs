@@ -294,7 +294,7 @@ internal static class MsiExeReader
                 break;
             }
 
-            state.Write(item.Name, item.Length, lastWriteTime: null, () => Slice(source, item), cancellationToken);
+            state.Write(item.Name, item.Length, lastWriteTime: null, () => Slice(source, item), cancellationToken, sizeIsExact: true);
         }
 
         return state.ToResult();

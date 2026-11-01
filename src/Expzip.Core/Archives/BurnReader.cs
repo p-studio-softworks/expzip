@@ -209,7 +209,8 @@ internal static class BurnReader
                     {
                         if (bySource.TryGetValue(entry.Name, out var payload) && done.Add(entry.Name))
                         {
-                            visit(payload, entry.LastWriteTime == default ? null : entry.LastWriteTime, open);
+                            // 目録に書かれた大きさは当てにしない。検査はこの大きさのぶんしか読まない (#321)
+                            visit(payload with { Length = entry.Length }, entry.LastWriteTime == default ? null : entry.LastWriteTime, open);
                         }
                     }, cancellationToken);
             }

@@ -66,6 +66,47 @@ internal static class MarkOfTheWeb
         }
     }
 
+    /// <summary>
+    /// 書庫の印を読む。分割された書庫は、すべての分割ファイルの中でいちばん警戒度の高い印を使う (#321)。
+    /// </summary>
+    /// <remarks>
+    /// USB メモリーを通ると、一部の分割ファイルだけ印が消えることがある。1 個でも付いていれば、付いているものとして扱う。
+    /// </remarks>
+    public static string? TryReadArchive(string path)
+        => SplitVolumes.IsFirstVolume(path)
+            ? Strongest(SplitVolumes.Find(path).Select(TryRead))
+            : TryRead(path);
+
+    /// <summary>いちばん警戒度の高い印。</summary>
+    public static string? Strongest(IEnumerable<string?> zones)
+    {
+        string? best = null;
+
+        foreach (var zone in zones)
+        {
+            if (zone is not null && (best is null || ZoneOf(zone) > ZoneOf(best)))
+            {
+                best = zone;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// インターネットから来たことを示す印か。読めない形の印も、安全側に倒してそう扱う。
+    /// </summary>
+    public static bool IsFromInternet(string zone) => ZoneOf(zone) >= InternetZone;
+
+    /// <summary>印に書かれた区分の番号。読めなければインターネットと同じ扱いにする。</summary>
+    private static int ZoneOf(string zone)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(zone, @"ZoneId\s*=\s*(\d{1,4})");
+        return match.Success ? int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : InternetZone;
+    }
+
+    private const int InternetZone = 3;
+
     /// <summary>読み取った印を別のファイルに引き継ぐ。</summary>
     /// <param name="path">印を付ける先のファイル。</param>
     /// <param name="zone"><see cref="TryRead"/> の戻り値。<see langword="null"/> なら何もしない。</param>
