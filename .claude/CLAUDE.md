@@ -79,7 +79,7 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 
 ## How to work
 
-- **Before implementing a ticket that changes archive reading, writing, extraction, startup, the input passed to third-party libraries, or what is sent to AI, have `security-reviewer` check the design (#294).**
+- **Before implementing a ticket that changes archive reading, writing, extraction, startup, the input passed to third-party libraries, or what is sent to AI, have `security-reviewer` check the design (#294).** That agent is kept in a private shared repository, so that the same one can be used across applications (#324).
   Show it a short design and ask for a 「設計の確認」. Explain the findings and any decisions to the user in plain words, and start building only after they are settled. Put the attack samples into the tests first. It still reviews the result after implementation, because a design check cannot find everything
 
 - **A failure must leave the user's files as they were (#320).** Never write directly onto a path that may already hold the user's data, and never delete such a path as cleanup. Write to a temporary name in the same folder, finish everything (including the mark of the web), then replace in one step, using `AtomicFile`.
