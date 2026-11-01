@@ -717,6 +717,64 @@ ConfirmReplace (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ
       | 
       | Choosing No leaves what is already in the archive.
 
+ConfirmReplaceSplit (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  保存先に同じ名前のファイルが 3 個あります。置き換えますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+  en  The destination already contains 3 files with the same name. Replace?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+ConfirmReplaceSplit (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  保存先に同じ名前のファイルが 1 個あります。置き換えますか?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+  en  The destination already contains 1 file with the same name. Replace?
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+
+ConfirmReplaceWithFailures (name: 報告書.pdf, count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  3 個のファイルを追加できませんでした。
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | 追加できたファイルだけの書庫で ⟦報告書.pdf⟧ を置き換えますか?
+      | 「いいえ」を選ぶと、⟦報告書.pdf⟧ はそのまま残ります。
+  en  3 files could not be added.
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | Replace ⟦報告書.pdf⟧ with an archive of the files that were added?
+      | If you choose No, ⟦報告書.pdf⟧ is left as it is.
+ConfirmReplaceWithFailures (name: 報告書.pdf, count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  1 個のファイルを追加できませんでした。
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | 追加できたファイルだけの書庫で ⟦報告書.pdf⟧ を置き換えますか?
+      | 「いいえ」を選ぶと、⟦報告書.pdf⟧ はそのまま残ります。
+  en  1 file could not be added.
+      | 
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | Replace ⟦報告書.pdf⟧ with an archive of the files that were added?
+      | If you choose No, ⟦報告書.pdf⟧ is left as it is.
+
 ContentsRemoved
   ja  中身が入っていません。インストール後に Windows が控えたものなど、中身を抜いた形のようです。
   en  The contents are not included. This looks like a copy with its contents removed, such as one Windows keeps after installation.

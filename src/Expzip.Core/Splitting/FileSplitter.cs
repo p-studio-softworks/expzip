@@ -2,6 +2,7 @@
 using System.Reflection;
 using System.Text;
 using ICSharpCode.SharpZipLib.Checksum;
+using Expzip.Archives;
 using Expzip.Localization;
 
 namespace Expzip.Splitting;
@@ -68,7 +69,9 @@ internal static class FileSplitter
     {
         var name = Path.GetFileName(sourcePath);
         var target = Path.Combine(destinationDirectory, name);
-        var written = new List<string>();
+
+        // 全部を一時的な名前に書いてから、まとめて置き換える。失敗や中止で、前からあった同じ名前のファイルは消えない (#320)
+        var written = new List<AtomicFile>();
 
         Directory.CreateDirectory(destinationDirectory);
 
@@ -88,12 +91,12 @@ internal static class FileSplitter
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var partPath = PartPath(target, ++parts);
-                written.Add(partPath);
+                var file = AtomicFile.Create(partPath);
+                written.Add(file);
                 progress?.Report(new SplitProgress(done, total, Path.GetFileName(partPath)));
 
-                using (var part = new FileStream(
-                           partPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
+                    var part = file.Stream;
                     var remaining = Math.Min(chunkSize, total - done);
 
                     while (remaining > 0)
@@ -121,23 +124,40 @@ internal static class FileSplitter
             }
 
             var joinerPath = target + ".exe";
-            written.Add(joinerPath);
-            WriteJoiner(joinerPath, name, parts, total, crc.Value);
+            var joiner = AtomicFile.Create(joinerPath);
+            written.Add(joiner);
+            WriteJoiner(joiner.Stream, name, parts, total, crc.Value);
+
+            AtomicFile.CommitAll(written);
 
             return new SplitResult(parts, Path.GetFileName(joinerPath), false);
         }
         catch (OperationCanceledException)
         {
-            // 中断したら書きかけを片付ける。中途半端な断片は結合に使えず、
-            // 残しておくと「揃っている」と勘違いさせる
-            Discard(written);
+            // 中途半端な断片は結合に使えず、残しておくと「揃っている」と勘違いさせる。
+            // 書きかけは下で消える
             return new SplitResult(0, string.Empty, true);
         }
-        catch
+        finally
         {
-            Discard(written);
-            throw;
+            foreach (var file in written)
+            {
+                file.Dispose();
+            }
         }
+    }
+
+    /// <summary>分割すると置き換わる、既にあるファイル。</summary>
+    public static IReadOnlyList<string> ExistingOutputs(string sourcePath, string destinationDirectory, long chunkSize)
+    {
+        var target = Path.Combine(destinationDirectory, Path.GetFileName(sourcePath));
+        var parts = CountParts(new FileInfo(sourcePath).Length, chunkSize);
+
+        return Enumerable.Range(1, parts)
+            .Select(number => PartPath(target, number))
+            .Append(target + ".exe")
+            .Where(File.Exists)
+            .ToList();
     }
 
     /// <summary>
@@ -162,13 +182,12 @@ internal static class FileSplitter
     /// 長さが変わるため。読む側は末尾から固定部を読み、そこに書かれた長さのぶんだけ
     /// 手前へ戻って名前を読む。
     /// </remarks>
-    private static void WriteJoiner(string path, string name, int parts, long size, long crc)
+    private static void WriteJoiner(Stream output, string name, int parts, long size, long crc)
     {
         using var stub = typeof(FileSplitter).Assembly
             .GetManifestResourceStream(JoinerResource)
             ?? throw new InvalidOperationException(Strings.EmbeddedToolMissing(JoinerResource));
 
-        using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
         stub.CopyTo(output);
 
         var encoded = Encoding.Unicode.GetBytes(name);
@@ -182,21 +201,5 @@ internal static class FileSplitter
         BitConverter.TryWriteBytes(footer.AsSpan(24), (uint)crc);
         BitConverter.TryWriteBytes(footer.AsSpan(28), (uint)name.Length);
         output.Write(footer);
-    }
-
-    /// <summary>書きかけのものを消す。消せなかった分は諦める。</summary>
-    private static void Discard(IEnumerable<string> paths)
-    {
-        foreach (var path in paths)
-        {
-            try
-            {
-                File.Delete(path);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // 掴まれていて消せないだけ。片付けの失敗で処理を止めない
-            }
-        }
     }
 }

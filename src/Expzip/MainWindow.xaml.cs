@@ -3007,17 +3007,121 @@ public partial class MainWindow : Window
             return;
         }
 
-        var created = await CreateArchiveAsync(
-            SuggestArchiveName(paths), Path.GetDirectoryName(paths[0]));
-
-        // 開けなかった場合は、開けない理由が既に出ている
-        if (created is null || Contents is null
-            || !string.Equals(Contents.FilePath, created, StringComparison.OrdinalIgnoreCase))
+        if (_cancellation is not null)
         {
             return;
         }
 
-        await AddToArchiveAsync(paths);
+        var initialDirectory = Path.GetDirectoryName(paths[0])
+            ?? (Contents is null ? null : Path.GetDirectoryName(Contents.FilePath));
+
+        var path = AskNewArchivePath(SuggestArchiveName(paths) ?? Strings.NewArchiveFileName, initialDirectory);
+
+        if (path is not null && await BuildArchiveAsync(path, paths, zone: null))
+        {
+            await OpenInTabAsync(path);
+        }
+    }
+
+    /// <summary>
+    /// 中身を入れた新しい書庫を作る。一時的な名前の書庫へ入れてから、できあがったら置き換える (#320)。
+    /// </summary>
+    /// <remarks>
+    /// 先に空の書庫で置き換えると、上書きを選んだ元の書庫が、追加の失敗や中止で失われる。
+    /// </remarks>
+    /// <param name="path">作る書庫。上書きを選ばれた既存のファイルがあることもある。</param>
+    /// <param name="sources">入れるファイルとフォルダー。</param>
+    /// <param name="zone">書庫に付ける出所の印。</param>
+    /// <returns>作れたら <see langword="true"/>。元のファイルが残ったら <see langword="false"/>。</returns>
+    private async Task<bool> BuildArchiveAsync(string path, IReadOnlyList<string> sources, string? zone)
+    {
+        var temporary = AtomicFile.TemporaryPathFor(path);
+
+        // 保存先が追加するフォルダーの中でも、作っている書庫は入れない。
+        // 落としたファイルそのものを保存先に選んだときは、それを入れる
+        string[] exclude = sources.Contains(path, StringComparer.OrdinalIgnoreCase)
+            ? [temporary]
+            : [temporary, path];
+
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+
+        var progress = new Progress<AddProgress>(p =>
+        {
+            ProgressIndicator.Value = p.Percent;
+            StatusMessage.Text = Strings.Adding(p.CurrentName);
+        });
+
+        try
+        {
+            var result = await Task.Run(() =>
+            {
+                ZipArchiveWriter.CreateEmpty(temporary);
+                return ZipArchiveWriter.Add(
+                    temporary, sources, string.Empty, replaceExisting: true, progress, cancellation.Token, exclude);
+            });
+
+            if (result.Cancelled || (result.Added == 0 && result.Failed.Count > 0))
+            {
+                ShowAddResult(result);
+                return false;
+            }
+
+            var asked = false;
+            if (result.Failed.Count > 0 && File.Exists(path))
+            {
+                asked = true;
+                var preview = string.Join(Environment.NewLine, result.Failed.Take(5).Select(static f => "  " + f.Name));
+                var more = result.Failed.Count > 5 ? Strings.More(result.Failed.Count - 5) : string.Empty;
+
+                if (MessageBox.Show(
+                        this,
+                        Strings.ConfirmReplaceWithFailures(Path.GetFileName(path), result.Failed.Count, preview, more),
+                        AppName, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                {
+                    return false;
+                }
+            }
+
+            // 作っている間に、同じ書庫を開いたかもしれない (#207)
+            if (_tabs.Any(t => string.Equals(t.FilePath, path, StringComparison.OrdinalIgnoreCase)))
+            {
+                MessageBox.Show(
+                    this,
+                    Strings.CannotReplaceOpenArchive(Path.GetFileName(path)),
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            await Task.Run(() => AtomicFile.Replace(temporary, path, overwrite: true, zone));
+
+            if (!asked)
+            {
+                ShowAddResult(result);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            MessageBox.Show(
+                this,
+                Strings.AddFailed(Strings.Reason(ex)),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+        finally
+        {
+            ZipArchiveWriter.TryDelete(temporary);
+            _cancellation = null;
+            SetBusy(false);
+
+            if (_closeWhenIdle)
+            {
+                Close();
+            }
+        }
     }
 
     /// <summary>
@@ -3099,21 +3203,12 @@ public partial class MainWindow : Window
             var zone = MarkOfTheWeb.TryRead(Contents.FilePath);
 
             var sources = await ExtractSelectionAsync(rows, directory, zone);
-            if (sources is null or [] || !TryCreateEmptyArchive(path))
+            if (sources is null or [] || !await BuildArchiveAsync(path, sources, zone))
             {
                 return;
             }
 
-            // 印は開く前に付ける。追加で書庫を置き換えても、印は付け直される (#211)
-            MarkOfTheWeb.TryApply(path, zone);
-
             await OpenArchiveAsync(path, inNewTab: true, openedFrom: source);
-
-            // 開けなかった場合は、開けない理由が既に出ている
-            if (Contents is not null && string.Equals(Contents.FilePath, path, StringComparison.OrdinalIgnoreCase))
-            {
-                await AddToArchiveAsync(sources);
-            }
         }
         finally
         {
@@ -3995,8 +4090,8 @@ public partial class MainWindow : Window
 
         try
         {
-            File.Copy(nest.TempPath, dialog.FileName, overwrite: true);
-            TempWorkspace.ClearReadOnly(dialog.FileName);
+            // 失敗しても、上書きを選んだ元のファイルは残る (#320)
+            AtomicFile.Copy(nest.TempPath, dialog.FileName);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException)
@@ -4455,10 +4550,6 @@ public partial class MainWindow : Window
             _cancellation = null;
             SetBusy(false);
         }
-
-        // 書庫に付いていた出所の印は、書き出したものにも引き継ぐ (#12 と同じ考え方)。
-        // 出所の分からないものから作った実行ファイルを、素性の確かなものに見せない
-        MarkOfTheWeb.TryApply(dialog.FileName, MarkOfTheWeb.TryRead(archivePath));
 
         StatusMessage.Text = Strings.SfxDone(dialog.FileName, TryGetLength(dialog.FileName));
     }
@@ -6372,6 +6463,35 @@ public partial class MainWindow : Window
     /// デフォルトの対象はいま開いている書庫だが、書庫でなくても分けられる。
     /// そのため書庫を開いていなくても使える。
     /// </remarks>
+    /// <summary>分割で置き換わる同じ名前のファイルがあれば、置き換えてよいかを尋ねる。</summary>
+    private bool ConfirmSplitReplaces(string source, string destination, long chunk)
+    {
+        IReadOnlyList<string> existing;
+        try
+        {
+            existing = FileSplitter.ExistingOutputs(source, destination, chunk);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                       or NotSupportedException or ArgumentException)
+        {
+            // 読めないなら、分割の処理が同じ理由で失敗して知らせる
+            return true;
+        }
+
+        if (existing.Count == 0)
+        {
+            return true;
+        }
+
+        var preview = string.Join(Environment.NewLine, existing.Take(5).Select(static p => "  " + Path.GetFileName(p)));
+        var more = existing.Count > 5 ? Strings.More(existing.Count - 5) : string.Empty;
+
+        return MessageBox.Show(
+                   this,
+                   Strings.ConfirmReplaceSplit(existing.Count, preview, more),
+                   AppName, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+    }
+
     private async Task SplitFileAsync()
     {
         var dialog = new SplitDialog(this, Contents?.FilePath, _settings.SplitChunkSize);
@@ -6388,6 +6508,12 @@ public partial class MainWindow : Window
         // 選んだ大きさは次回も使う
         _settings.SplitChunkSize = chunk;
         SettingsStore.TrySave(_settings);
+
+        // 隣の無関係なファイルを、確認なしで置き換えない (#320)
+        if (!ConfirmSplitReplaces(source, destination, chunk))
+        {
+            return;
+        }
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -6560,10 +6686,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 取り残されたスレッドは書庫を読んでいるだけなので、そのまま終わらせてよい
+        // 取り残されたスレッドは書庫を読んでいるか、一時的な名前に書いているだけなので、そのまま終わらせてよい。
+        // 同じ名前の既にあるファイルには触れていない (#320)
         _editWatch?.Stop();
         CaptureSettings();
         SettingsStore.TrySave(_settings);
+
+        // 設定を保存したあとで閉じる。先に閉じると保存できない
+        AtomicFile.AbandonAll(TimeSpan.FromSeconds(2));
         _temp?.Dispose();
         _temp = null;
         Environment.Exit(0);

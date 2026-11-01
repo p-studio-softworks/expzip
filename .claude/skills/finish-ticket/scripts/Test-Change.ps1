@@ -109,8 +109,8 @@ foreach ($item in $added) {
     }
     # 失敗すると元に戻せない書き方。AtomicFile の中と、自分だけの一時ファイルなら問題ない
     if ($item.File -match '\.(cs|c)$' -and $item.File -notlike '*/AtomicFile.cs' -and
-        $item.Text -match 'FileMode\.Create(?!New)|File\.Create\(|File\.WriteAll|File\.OpenWrite|overwrite: true|CREATE_ALWAYS|TRUNCATE_EXISTING') {
-        Note "既にあるファイルを直接書き換えていないか確かめてください。失敗しても元のファイルが残る形にします (#294): $where"
+        $item.Text -match 'FileMode\.Create(?!New)|(?<!Atomic)File\.(Create\(|WriteAll|OpenWrite)|File\.(Move|Copy)\(.*overwrite: true|CREATE_ALWAYS|TRUNCATE_EXISTING') {
+        Note "既にあるファイルを直接書き換えていないか確かめてください。失敗しても元のファイルが残る形にします (#320): $where"
     }
     if ($item.Text -cmatch '\bMac\b|macOS') {
         Note "特定の環境の話を公開のリポジトリに書いていないか確かめてください (#204): $where"

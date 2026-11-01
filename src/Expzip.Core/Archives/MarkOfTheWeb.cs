@@ -84,8 +84,10 @@ internal static class MarkOfTheWeb
 
         try
         {
+            // 書いている途中の一時ファイル (AtomicFile) にも付ける。本体を削除の権利付きで開いているので、
+            // ここで削除を許さないと共有違反になり、印が付かない
             using var stream = new FileStream(
-                path + StreamSuffix, FileMode.Create, FileAccess.Write, FileShare.None);
+                path + StreamSuffix, FileMode.Create, FileAccess.Write, FileShare.Delete);
             using var writer = new StreamWriter(stream);
 
             writer.Write(zone);

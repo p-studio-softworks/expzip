@@ -230,20 +230,23 @@ internal static class ZipEncryption
                     Directory.CreateDirectory(directory);
                 }
 
-                using (var source = fallback.Open(entry.Name, () => zip.GetInputStream(entry)))
-                using (var destination = new FileStream(
-                           target, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    CancellableCopy.CopyContent(
-                        source, destination, cancellationToken, ExpectedCrc(entry));
-                }
+                using var source = fallback.Open(entry.Name, () => zip.GetInputStream(entry));
+                using var file = AtomicFile.Create(target, overwrite, zoneIdentifier);
 
-                ArchiveExtractor.ApplyStamp(target, entry.DateTime, zoneIdentifier);
-                extracted++;
+                CancellableCopy.CopyContent(source, file.Stream, cancellationToken, ExpectedCrc(entry));
+
+                if (file.Commit(entry.DateTime))
+                {
+                    extracted++;
+                }
+                else
+                {
+                    skipped++;
+                }
             }
             catch (OperationCanceledException)
             {
-                ArchiveExtractor.TryDelete(target);
+                // 書きかけは AtomicFile が消す。同じ名前の既にあるファイルには触れていない (#320)
                 cancelled = true;
                 break;
             }
@@ -251,9 +254,8 @@ internal static class ZipEncryption
                                        or ArgumentException or NotSupportedException
                                        or PathTooLongException or InvalidDataException)
             {
-                // 読めなかった分の書きかけを残さない。中身が途中までのファイルは、
+                // 読めなかったものは残さない。中身が途中までのファイルは、
                 // 見た目が正常なだけに何も残らないより悪い (#66、#167)
-                ArchiveExtractor.TryDelete(target);
                 failed.Add((entry.Name, Strings.Reason(ex)));
             }
 

@@ -157,7 +157,7 @@ internal static class ZipParallelWriter
                 // 書庫のコメントは、読んだときのバイト列を覚えている (#197)。それで書き戻す。
                 // 印の無い名前もこれで書く。ここへ来るのは UTF-8 として読める名前だけなので
                 // (Carry)、覚えていない文字列を UTF-8 で書けば元と同じバイト列になる
-                using var stream = new FileStream(temp, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                using var stream = new FileStream(temp, ZipArchiveWriter.WorkFileMode, FileAccess.ReadWrite, FileShare.None);
                 using var output = new ZipOutputStream(stream, StringCodec.FromEncoding(comment))
                 {
                     IsStreamOwner = false,
@@ -189,10 +189,8 @@ internal static class ZipParallelWriter
             }
 
             // 書庫を閉じてから差し替える。開いたままでは置き換えられない。
-            // 置き換えると出所の印が消えるので、付け直す (#211)
-            var zone = MarkOfTheWeb.TryRead(archivePath);
-            File.Move(temp, archivePath, overwrite: true);
-            MarkOfTheWeb.Restore(archivePath, zone);
+            // 置き換えると出所の印が消えるので、引き継ぐ (#211)
+            AtomicFile.Replace(temp, archivePath);
             return new AddResult(added, replaced, skipped, failed, Cancelled: false);
         }
         catch (OperationCanceledException)

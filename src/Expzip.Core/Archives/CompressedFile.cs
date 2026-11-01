@@ -221,8 +221,9 @@ internal static class CompressedFile
 
             Stream content = format switch
             {
-                // 標準の gzip は、いくつか繋げたもの (cat a.gz b.gz) も最後まで読む
-                ArchiveFormat.GZip => new GZipStream(source, CompressionMode.Decompress),
+                // いくつか繋げたもの (cat a.gz b.gz) も最後まで読む。標準の GZipStream は途中で切れていても黙って
+                // 終わるので、末尾の CRC と大きさを確かめるほうを使う (#320)
+                ArchiveFormat.GZip => new ICSharpCode.SharpZipLib.GZip.GZipInputStream(source),
                 ArchiveFormat.BZip2 => BZip2Stream.Create(
                     source, SharpCompress.Compressors.CompressionMode.Decompress,
                     decompressConcatenated: true, leaveOpen: true, tolerateTruncatedStream: false),

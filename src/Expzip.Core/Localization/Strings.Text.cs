@@ -491,6 +491,19 @@ internal static partial class Strings
         $"{path} を作成できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"Could not create {path}.{Environment.NewLine}{Environment.NewLine}{reason}");
 
+    /// <summary>新しい書庫に一部のファイルを入れられず、既にある書庫を置き換えるかを尋ねるとき (#320)。</summary>
+    public static string ConfirmReplaceWithFailures(string name, int count, string preview, string more) => Pick(
+        $"{count:N0} 個のファイルを追加できませんでした。"
+        + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + $"追加できたファイルだけの書庫で {name} を置き換えますか?"
+        + $"{Environment.NewLine}「いいえ」を選ぶと、{name} はそのまま残ります。",
+        $"{count:N0} {Plural(count, "file", "files")} could not be added."
+        + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + $"Replace {name} with an archive of the files that were added?"
+        + $"{Environment.NewLine}If you choose No, {name} is left as it is.");
+
     /// <summary>開いている書庫を、新しい書庫で置き換えようとしたとき (#207)。</summary>
     public static string CannotReplaceOpenArchive(string name) => Pick(
         $"{name} は開いているため、置き換えられません。別の名前を入力してください。",
@@ -2655,6 +2668,13 @@ internal static partial class Strings
         "分割を中断しました。書き込み途中の分割ファイルは削除しました。",
         "Splitting was stopped. The half-written pieces were deleted.");
 
+    /// <summary>分割で、保存先の同じ名前のファイルが置き換わるとき (#320)。</summary>
+    public static string ConfirmReplaceSplit(int count, string preview, string more) => Pick(
+        $"保存先に同じ名前のファイルが {count:N0} 個あります。置き換えますか?"
+        + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}",
+        $"The destination already contains {count:N0} {Plural(count, "file", "files")} with the same name. Replace?"
+        + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}");
+
     public static string SplitFailed(string reason) => Pick(
         $"分割できませんでした。{Environment.NewLine}{Environment.NewLine}{reason}",
         $"The file could not be split.{Environment.NewLine}{Environment.NewLine}{reason}");
@@ -2803,6 +2823,7 @@ internal static partial class Strings
             // 開けた後で中身を読めなかった。方式には対応しているので、形式の話はしない (#167)。
             // SharpCompress は壊れたデータに独自の例外を投げ、文は英語のまま出てくる
             Expzip.Archives.DamagedDataException
+                or EndOfStreamException
                 or SharpCompress.Common.SharpCompressException
                     and not SharpCompress.Common.CryptographicException => Pick(
                 "書庫のデータが壊れています。", "The archive data is damaged."),

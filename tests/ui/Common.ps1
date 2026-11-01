@@ -26,6 +26,38 @@ if (-not ('ExpzipUi.Native' -as [type])) {
 '@
 }
 
+# 読み取りを本当に止める。ファイルに Windows の「他の人が開いたら知らせる」印 (バッチ oplock) を付けると、
+# ほかのプロセスがそのファイルを開く処理は、こちらが閉じるまで戻らない。中断も効かない。
+# ライブラリの中で固まったときと同じ状態を、Expzip に手を加えずに作れる
+if (-not ('ExpzipUi.Stall' -as [type])) {
+    Add-Type -Namespace ExpzipUi -Name Stall -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint mode, uint flags, IntPtr template);
+[DllImport("kernel32.dll", SetLastError = true)] static extern bool DeviceIoControl(IntPtr h, uint code, IntPtr input, uint inputSize, IntPtr output, uint outputSize, out uint returned, IntPtr overlapped);
+[DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+public static IntPtr Hold(string path) {
+    IntPtr h = CreateFileW(path, 0x80000000, 7, IntPtr.Zero, 3, 0x40000000, IntPtr.Zero);
+    if (h == new IntPtr(-1)) { throw new System.IO.IOException("open " + Marshal.GetLastWin32Error()); }
+    IntPtr overlapped = Marshal.AllocHGlobal(64);
+    for (int i = 0; i < 64; i++) { Marshal.WriteByte(overlapped, i, 0); }
+    uint returned;
+    bool done = DeviceIoControl(h, 0x00090008, IntPtr.Zero, 0, IntPtr.Zero, 0, out returned, overlapped);
+    int error = Marshal.GetLastWin32Error();
+    if (done || error != 997) { CloseHandle(h); throw new System.IO.IOException("oplock " + error); }
+    return h;
+}
+'@
+}
+
+function Stop-FileReads([string]$Path) {
+    # ウイルス対策などが開いている間は付けられない
+    for ($i = 0; ; $i++) {
+        try { return [ExpzipUi.Stall]::Hold($Path) }
+        catch { if ($i -ge 20) { throw }; Start-Sleep -Milliseconds 500 }
+    }
+}
+
+function Resume-FileReads([IntPtr]$Handle) { [ExpzipUi.Stall]::CloseHandle($Handle) | Out-Null }
+
 $script:Automation = [System.Windows.Automation.AutomationElement]
 $script:Scope = [System.Windows.Automation.TreeScope]
 $script:ControlType = [System.Windows.Automation.ControlType]

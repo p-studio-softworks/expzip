@@ -291,7 +291,7 @@ internal static class ZipEncryptedWriter
             var comment = new VerbatimText();
 
             using (var source = ZipUpdate.Open(archivePath, password, comment))
-            using (var stream = File.Create(temp))
+            using (var stream = new FileStream(temp, ZipArchiveWriter.WorkFileMode, FileAccess.ReadWrite, FileShare.None))
             using (var output = new ZipOutputStream(stream, StringCodec.Default.WithZipArchiveCommentEncoding(comment)))
             {
                 output.Password = outgoing;
@@ -332,10 +332,8 @@ internal static class ZipEncryptedWriter
                 append?.Invoke(writer);
             }
 
-            // 置き換えると出所の印が消えるので、付け直す (#211)
-            var zone = MarkOfTheWeb.TryRead(archivePath);
-            File.Move(temp, archivePath, overwrite: true);
-            MarkOfTheWeb.Restore(archivePath, zone);
+            // 置き換えると出所の印が消えるので、引き継ぐ (#211)
+            AtomicFile.Replace(temp, archivePath);
             return true;
         }
         catch (OperationCanceledException)

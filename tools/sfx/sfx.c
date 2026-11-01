@@ -834,11 +834,184 @@ static int SafeName(const WCHAR *name)
     return 1;
 }
 
+/* path の領域に、~12345678.tmp と :Zone.Identifier を足せる大きさ */
+#define TEMPORARY_SIZE (MAX_PATH * 2 + 48)
+#define ZONE_MAX 4096
+
+static const WCHAR ZONE_STREAM[] = L":Zone.Identifier";
+static char g_zone[ZONE_MAX];
+static DWORD g_zoneLength;
+
+/* 自分に付いている出所の印を読む。取り出したファイルに引き継ぐ (#320) */
+static void ReadZone(const WCHAR *self)
+{
+    WCHAR stream[TEMPORARY_SIZE];
+    HANDLE h;
+
+    stream[0] = 0;
+    Append(stream, self);
+    Append(stream, ZONE_STREAM);
+
+    h = CreateFileW(stream, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+
+    if (h != INVALID_HANDLE_VALUE)
+    {
+        if (!ReadFile(h, g_zone, ZONE_MAX, &g_zoneLength, NULL))
+        {
+            g_zoneLength = 0;
+        }
+
+        CloseHandle(h);
+    }
+}
+
+/* 印を付ける。付けられないドライブでも、取り出しは続ける */
+static void ApplyZone(const WCHAR *path)
+{
+    WCHAR stream[TEMPORARY_SIZE];
+    WCHAR full[TEMPORARY_SIZE];
+    HANDLE h;
+    DWORD wrote;
+
+    if (g_zoneLength == 0)
+    {
+        return;
+    }
+
+    /*
+     * 印のストリームの名前は本体より長い。本体は作れてもパスの上限を超えて、印だけが付かないことがある。
+     * 上限の無い形で開く。この形は名前を整えないので、先に整える。
+     */
+    full[0] = 0;
+
+    if (GetFullPathNameW(path, TEMPORARY_SIZE - 32, full, NULL) == 0)
+    {
+        return;
+    }
+
+    stream[0] = 0;
+
+    if (full[0] == L'\\' && full[1] == L'\\')
+    {
+        Append(stream, L"\\\\?\\UNC\\");
+        Append(stream, full + 2);
+    }
+    else
+    {
+        Append(stream, L"\\\\?\\");
+        Append(stream, full);
+    }
+
+    Append(stream, ZONE_STREAM);
+
+    h = CreateFileW(stream, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (h != INVALID_HANDLE_VALUE)
+    {
+        WriteFile(h, g_zone, g_zoneLength, &wrote, NULL);
+        CloseHandle(h);
+    }
+}
+
+/*
+ * 読み取り専用、隠し、システムのファイルは置き換えない。フォルダーも同じ。
+ * 名前の変更では、これらも置き換えられてしまう。
+ */
+static int IsProtected(const WCHAR *path)
+{
+    DWORD attributes = GetFileAttributesW(path);
+
+    return attributes != INVALID_FILE_ATTRIBUTES
+        && (attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_READONLY
+            | FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)) != 0;
+}
+
+/*
+ * 同じフォルダーに一時ファイルを作る。既にあるファイルには書かない (CREATE_NEW)。
+ * GUID の関数は読み込む DLL が増えるので使わない (#185)。
+ */
+static HANDLE OpenTemporary(const WCHAR *path, WCHAR *temporary)
+{
+    static const WCHAR HEX[] = L"0123456789abcdef";
+    LARGE_INTEGER now;
+    unsigned long seed;
+    int folder = Length(path);
+    int attempt;
+
+    while (folder > 0 && path[folder - 1] != L'\\')
+    {
+        folder--;
+    }
+
+    QueryPerformanceCounter(&now);
+    seed = now.LowPart ^ (GetCurrentProcessId() << 16);
+
+    for (attempt = 0; attempt < 64; attempt++)
+    {
+        HANDLE h;
+        int i;
+        int at = folder;
+        unsigned long value = seed + (unsigned long)attempt;
+
+        for (i = 0; i < folder; i++)
+        {
+            temporary[i] = path[i];
+        }
+
+        temporary[at++] = L'~';
+
+        for (i = 28; i >= 0; i -= 4)
+        {
+            temporary[at++] = HEX[(value >> i) & 15];
+        }
+
+        temporary[at] = 0;
+        Append(temporary, L".tmp");
+
+        h = CreateFileW(temporary, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+
+        if (h != INVALID_HANDLE_VALUE || GetLastError() != ERROR_FILE_EXISTS)
+        {
+            return h;
+        }
+    }
+
+    return INVALID_HANDLE_VALUE;
+}
+
+/* 1 回の名前の変更で置き換える。ウイルス対策が一瞬つかんでいることがあるので、短くやり直す */
+static int ReplaceWith(const WCHAR *temporary, const WCHAR *path)
+{
+    int attempt;
+
+    for (attempt = 1; attempt <= 5; attempt++)
+    {
+        DWORD error;
+
+        if (MoveFileExW(temporary, path, MOVEFILE_REPLACE_EXISTING))
+        {
+            return 1;
+        }
+
+        error = GetLastError();
+
+        if (error != ERROR_SHARING_VIOLATION && error != ERROR_ACCESS_DENIED)
+        {
+            return 0;
+        }
+
+        Sleep(50 * attempt);
+    }
+
+    return 0;
+}
+
 int WINAPI WinMainCRTStartup(void)
 {
     WCHAR self[MAX_PATH];
     WCHAR destination[MAX_PATH];
     WCHAR path[MAX_PATH * 2];
+    WCHAR temporary[TEMPORARY_SIZE];
     WCHAR name[MAX_PATH];
     WCHAR message[512];
     unsigned char *tail;
@@ -872,6 +1045,8 @@ int WINAPI WinMainCRTStartup(void)
     {
         Fail(L"この自己解凍書庫を読み込めませんでした。");
     }
+
+    ReadZone(self);
 
     if (!GetFileSizeEx(g_self, &size))
     {
@@ -1064,14 +1239,25 @@ int WINAPI WinMainCRTStartup(void)
         /* 中身は、局所ヘッダの名前と拡張領域の後ろから始まる */
         Seek(g_self, g_start + localOffset + 30 + ReadU16(local + 26) + ReadU16(local + 28));
 
-        out = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-            FILE_ATTRIBUTE_NORMAL, NULL);
+        /*
+         * 同じ名前のファイルがあっても、書き終えるまで触らない (#320)。
+         * 壊れていたり、途中で止められたりしても、元のファイルは残る。
+         */
+        if (IsProtected(path))
+        {
+            failed++;
+            continue;
+        }
+
+        out = OpenTemporary(path, temporary);
 
         if (out == INVALID_HANDLE_VALUE)
         {
             failed++;
             continue;
         }
+
+        ApplyZone(temporary);
 
         g_work.source = g_self;
         g_work.destination = out;
@@ -1092,12 +1278,20 @@ int WINAPI WinMainCRTStartup(void)
             i = Flush(&g_work);
         }
 
+        /* 電源が切れても新旧どちらかが残るように、置き換える前にだけ書き切る */
+        if (i && GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES)
+        {
+            i = FlushFileBuffers(out);
+        }
+
         CloseHandle(out);
 
         if (!i || (g_work.crc ^ 0xFFFFFFFFUL) != crc
-            || g_work.produced != unpacked)
+            || g_work.produced != unpacked
+            || IsProtected(path)
+            || !ReplaceWith(temporary, path))
         {
-            DeleteFileW(path);
+            DeleteFileW(temporary);
             failed++;
             continue;
         }

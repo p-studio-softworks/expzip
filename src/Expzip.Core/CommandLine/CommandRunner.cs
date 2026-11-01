@@ -307,7 +307,7 @@ internal static class CommandRunner
                 return false;
             }
 
-            File.Move(temporary, job.Target, overwrite);
+            AtomicFile.Replace(temporary, job.Target, overwrite);
             output.WriteLine(AtLine(job.Line, Strings.CommandCreated(job.Target, result.Added)));
             return true;
         }

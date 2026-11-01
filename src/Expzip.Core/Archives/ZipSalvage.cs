@@ -163,19 +163,16 @@ internal static class ZipSalvage
 
         if (files > 0)
         {
-            try
-            {
-                Write(input, entries, destination, cancellationToken);
-            }
-            catch
-            {
-                TryDelete(destination);
-                throw;
-            }
-
             // 出所の印は元の書庫から引き継ぐ (#12、#211)。ネットから落としたものを書き直しただけで
-            // 印が消えると、取り出したファイルに SmartScreen などが働かなくなる
-            MarkOfTheWeb.TryApply(destination, MarkOfTheWeb.TryRead(source));
+            // 印が消えると、取り出したファイルに SmartScreen などが働かなくなる。
+            // 失敗や中断では作りかけだけが消える。同じ名前のファイルができていても消さない (#320)
+            using var output = AtomicFile.Create(destination, overwrite: false, MarkOfTheWeb.TryRead(source));
+            Write(input, entries, output.Stream, cancellationToken);
+
+            if (!output.Commit())
+            {
+                throw new IOException($"The file '{destination}' already exists.");
+            }
         }
 
         progress?.Report(100);
@@ -634,9 +631,8 @@ internal static class ZipSalvage
     }
 
     /// <summary>取り戻したファイルを写し、一覧を新しく作って書庫にする。</summary>
-    private static void Write(Stream input, List<Found> entries, string destination, CancellationToken cancellationToken)
+    private static void Write(Stream input, List<Found> entries, FileStream output, CancellationToken cancellationToken)
     {
-        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         var offsets = new long[entries.Count];
         var buffer = new byte[BufferSize];
 
@@ -776,15 +772,4 @@ internal static class ZipSalvage
         writer.Write((ushort)0); // コメント
     }
 
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // 消せなくても、失敗したことは呼び出し側が知らせる
-        }
-    }
 }

@@ -161,7 +161,7 @@ Wait-Until { (Get-Tabs $app).Count -eq 6 } | Out-Null
 Check '古いバージョンの番号の 7z を開く' ((Get-Tabs $app).Count -eq 6) ((Get-Tabs $app).Count)
 
 Section '中身が途中で切れた 7z'
-# 一覧は開ける。中身を読むと、以前は止まらなくなっていた
+# 一覧は開ける。中身を読むと、以前は止まらなくなっていた。別の部品の出力を読む形も同じ
 $center = Get-WindowCenter $app
 Invoke-Drop @((Use-Fixture 'tail_body.7z')) $center.X $center.Y | Out-Null
 Wait-Until { (Get-Tabs $app).Count -eq 7 } | Out-Null
@@ -177,9 +177,11 @@ if ($box) { Close-MessageBox $box 'OK' }
 Stop-Expzip $app
 
 Section '読み取りが止まったままでも閉じられる'
-# 確認ではたどれない形の 7z。検査を始めると、ライブラリの中で止まったまま戻らない
-$hang = Use-Fixture 'hang_behind_copy.7z'
+# 検査を始めると、書庫を開く処理が止まったまま戻らない。中断も効かない
+$hang = Use-Fixture 'ok.7z'
 $app = Start-Expzip @($hang)
+Wait-Idle $app
+$stall = Stop-FileReads $hang
 Push (ById $app.Window 'InspectButton') 2000
 $cancel = ById $app.Window 'CancelButton'
 Check '検査が止まっている' ($cancel -and -not $cancel.Current.IsOffscreen)
@@ -187,6 +189,7 @@ Check '止まっている間もウィンドウは応答する' $app.Process.Resp
 $app.Process.CloseMainWindow() | Out-Null
 Check '閉じる操作で終了する' ($app.Process.WaitForExit(15000))
 if (-not $app.Process.HasExited) { $app.Process.Kill() }
+Resume-FileReads $stall
 
 Section '未保存の編集があれば先に確かめる'
 $outer = New-TestZip (Join-Path $script:Work '外側.zip') ([ordered]@{ '内側.zip' = 'x' })
@@ -214,6 +217,7 @@ Wait-Idle $app
 
 Select-Element (Get-Tabs $app)[0]
 Start-Sleep -Milliseconds 500
+$stall = Stop-FileReads $hang
 Push (ById $app.Window 'InspectButton') 2000
 $app.Process.CloseMainWindow() | Out-Null
 $box = Find-MessageBox $app 15000
@@ -228,6 +232,7 @@ $box = Find-MessageBox $app 15000
 if ($box) { Close-MessageBox $box 'はい(Y)' }
 Check '「はい」なら終了する' ($app.Process.WaitForExit(10000))
 if (-not $app.Process.HasExited) { $app.Process.Kill() }
+Resume-FileReads $stall
 Check '親の書庫は変わらない' ((Get-FileHash $outer).Hash -eq $before)
 
 Complete-Suite

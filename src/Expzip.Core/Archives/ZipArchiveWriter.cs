@@ -49,38 +49,31 @@ internal sealed record RenameResult(int Renamed, bool Cancelled);
 /// <summary>ZIP書庫を作成・更新する。</summary>
 internal static class ZipArchiveWriter
 {
-    /// <summary>作業用ファイルの拡張子。</summary>
-    internal const string TempSuffix = ".expzip-tmp";
-
     /// <summary>
     /// 作業用ファイルの場所を決める関数。画面の側が差し替えられる。<see langword="null"/> なら既定
-    /// (書庫の隣の「書庫の名前 + <see cref="TempSuffix"/>」と、SharpZipLib が自分で決める名前)。
+    /// (同じフォルダーの、毎回違う名前)。
     /// </summary>
     /// <remarks>
     /// 書き換えは、作業用ファイルに書いてから書庫と差し替える。作業用ファイルを置ける場所や名前に
-    /// 決まりのある環境で動かすときに差し替える。差し替えたときは、SharpZipLib の作業用ファイルも
-    /// 同じ場所を使う (<see cref="WorkFileStorage"/>)。
+    /// 決まりのある環境で動かすときに差し替える。
     /// </remarks>
     internal static Func<string, string>? WorkFilePathOverride { get; set; }
 
     /// <summary>この書庫を書き換えるときの作業用ファイルの場所。</summary>
-    internal static string WorkFilePathFor(string archivePath)
-        => WorkFilePathOverride?.Invoke(archivePath) ?? archivePath + TempSuffix;
+    internal static string WorkFilePathFor(string archivePath) => AtomicFile.TemporaryPathFor(archivePath);
 
     /// <summary>
-    /// 書き換えを始める。作業用ファイルの場所を差し替えていなければ、SharpZipLib の既定のまま。
+    /// 作業用ファイルの開き方。既にあるファイルには書かない。決まった名前に差し替えてあるときだけ、
+    /// 前回の残りがありうるので上書きする。
+    /// </summary>
+    internal static FileMode WorkFileMode => WorkFilePathOverride is null ? FileMode.CreateNew : FileMode.Create;
+
+    /// <summary>
+    /// 書き換えを始める。SharpZipLib の既定は、差し替えるときに書庫を別の名前へ退避するので、
+    /// その間に止まると元の名前に書庫が無くなる。作業用ファイルからの 1 回の名前の変更で差し替える (#320)。
     /// </summary>
     private static void BeginUpdate(SharpZipFile zip)
-    {
-        if (WorkFilePathOverride is null)
-        {
-            zip.BeginUpdate();
-        }
-        else
-        {
-            zip.BeginUpdate(new WorkFileStorage(zip.Name, WorkFilePathFor(zip.Name)));
-        }
-    }
+        => zip.BeginUpdate(new WorkFileStorage(zip.Name, WorkFilePathFor(zip.Name)));
 
     /// <summary>
     /// 空のZIP書庫を作る。既に同じ名前のファイルがあれば置き換える。
@@ -94,9 +87,13 @@ internal static class ZipArchiveWriter
     /// <exception cref="IOException">ファイルを作成できない場合。</exception>
     public static void CreateEmpty(string path)
     {
-        // using で閉じた時点で終端レコードが書かれ、読み取り可能な書庫になる
-        using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var zip = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false);
+        // 閉じた時点で終端レコードが書かれ、読み取り可能な書庫になる。失敗しても元のファイルは残る (#320)
+        using var file = AtomicFile.Create(path);
+        using (new ZipArchive(file.Stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+        }
+
+        file.Commit();
     }
 
     /// <summary>
@@ -115,15 +112,25 @@ internal static class ZipArchiveWriter
     /// ふだんは <see cref="ZipParallelWriter"/> がコアの数だけ並列に圧縮する (#195)。
     /// そちらで扱えない書庫だけ、ここで 1 つずつ圧縮する。
     /// </remarks>
+    /// <param name="exclude">
+    /// 追加するフォルダーの中にあっても入れないファイル。作っている書庫そのものが入らないようにする (#320)。
+    /// </param>
     public static AddResult Add(
         string archivePath,
         IReadOnlyList<string> sourcePaths,
         string destinationFolder,
         bool replaceExisting,
         IProgress<AddProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<string>? exclude = null)
     {
         var plan = BuildPlan(sourcePaths, destinationFolder);
+
+        if (exclude is not null)
+        {
+            plan.RemoveAll(item => exclude.Contains(item.SourcePath, StringComparer.OrdinalIgnoreCase));
+        }
+
         CheckPlanDepth(plan);
 
         if (ZipParallelWriter.TryAdd(archivePath, plan, replaceExisting, progress, cancellationToken) is { } fast)
@@ -255,47 +262,9 @@ internal static class ZipArchiveWriter
     }
 
     /// <summary>
-    /// 書き換えを確定する。差し替えに失敗したときは、本当の理由を投げ直す (#106)。
+    /// 書き換えを確定する。出所の印とアクセス権は、差し替えのときに <see cref="AtomicFile.Replace"/> が引き継ぐ (#211)。
     /// </summary>
-    /// <remarks>
-    /// SharpZipLib は書庫を退避名へ移せなかったとき、戻す処理で退避先が
-    /// 見つからず <see cref="FileNotFoundException"/> を投げ、元の例外を失う。
-    /// そのままだと、書庫がほかのプログラムに使われているだけなのに
-    /// 「edit.zip.cii2e34b.zyx が見つかりません」と伝えてしまう。
-    /// 書庫を占有して開いてみて、開けなければその例外を理由にする。
-    /// 書庫を置き換えると出所の印が消えるので、付け直す (#211)。
-    /// </remarks>
-    private static void Commit(SharpZipFile zip)
-    {
-        var zone = MarkOfTheWeb.TryRead(zip.Name);
-
-        try
-        {
-            zip.CommitUpdate();
-            MarkOfTheWeb.Restore(zip.Name, zone);
-        }
-        catch (FileNotFoundException lost) when (
-            File.Exists(zip.Name)
-            && !string.Equals(lost.FileName, zip.Name, StringComparison.OrdinalIgnoreCase))
-        {
-            Exception? cause = null;
-            try
-            {
-                using var probe = new FileStream(zip.Name, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                cause = ex;
-            }
-
-            if (cause is not null)
-            {
-                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(cause);
-            }
-
-            throw;
-        }
-    }
+    private static void Commit(SharpZipFile zip) => zip.CommitUpdate();
 
     private static void TryAbort(SharpZipFile zip)
     {

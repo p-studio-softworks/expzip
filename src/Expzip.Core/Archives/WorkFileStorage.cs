@@ -4,13 +4,13 @@ using ICSharpCode.SharpZipLib.Zip;
 namespace Expzip.Archives;
 
 /// <summary>
-/// SharpZipLib に、決めた場所の作業用ファイルを使わせる (<see cref="ZipArchiveWriter.WorkFilePathOverride"/>)。
+/// SharpZipLib に、決めた場所の作業用ファイルを使わせる (<see cref="ZipArchiveWriter.WorkFilePathFor"/>)。
 /// </summary>
 /// <remarks>
 /// <para>
 /// SharpZipLib の既定 (<c>DiskArchiveStorage</c>) は、書庫の隣に自分で決めた名前の作業用ファイルを作り、
-/// 差し替えるときに書庫をもう一つ別の名前へ退避する。作業用ファイルを置ける場所や名前に決まりのある
-/// 環境では、その名前を作れない。
+/// 差し替えるときに書庫をもう一つ別の名前へ退避する。その間に止まると、元の名前に書庫が無い (#320)。
+/// 作業用ファイルを置ける場所や名前に決まりのある環境では、その名前も作れない。
 /// </para>
 /// <para>
 /// ここでは決めた場所に書き、できたら書庫の上へ移して (rename) 差し替える。移すのは 1 回で、
@@ -23,7 +23,7 @@ internal sealed class WorkFileStorage(string archivePath, string workPath) : Bas
 
     public override Stream GetTemporaryOutput()
     {
-        _work = new FileStream(workPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        _work = new FileStream(workPath, ZipArchiveWriter.WorkFileMode, FileAccess.ReadWrite, FileShare.None);
         return _work;
     }
 
@@ -37,7 +37,7 @@ internal sealed class WorkFileStorage(string archivePath, string workPath) : Bas
         _work.Dispose();
         _work = null;
 
-        File.Move(workPath, archivePath, overwrite: true);
+        AtomicFile.Replace(workPath, archivePath);
         return new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 

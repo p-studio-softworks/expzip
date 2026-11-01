@@ -92,39 +92,13 @@ internal static class SfxWriter
 
         using var source = File.OpenRead(archivePath);
 
-        // 途中で止められたら書きかけを残さない。中途半端な .exe は、
-        // 動かして初めて壊れていると分かることになる
-        var written = false;
-
-        try
-        {
-            using (var output = new FileStream(
-                       destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                stub.CopyTo(output);
-                CancellableCopy.Copy(source, output, cancellationToken);
-            }
-
-            written = true;
-        }
-        finally
-        {
-            if (!written)
-            {
-                TryDelete(destinationPath);
-            }
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
+        // 途中で止められても、書きかけは残らず、同じ名前の既にあるファイルも消えない (#320)。
+        // 書庫に付いていた出所の印は、書き出したものにも引き継ぐ (#12 と同じ考え方)。
+        // 出所の分からないものから作った実行ファイルを、素性の確かなものに見せない
+        using var output = AtomicFile.Create(destinationPath, overwrite: true, MarkOfTheWeb.TryRead(archivePath));
+        stub.CopyTo(output.Stream);
+        CancellableCopy.Copy(source, output.Stream, cancellationToken);
+        output.Commit();
     }
 }
 

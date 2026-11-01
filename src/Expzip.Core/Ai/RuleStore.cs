@@ -2,6 +2,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Expzip.Archives;
 using Expzip.Configuration;
 
 namespace Expzip.Ai;
@@ -147,7 +148,8 @@ internal static class RuleStore
 
         try
         {
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(document, Options));
+            // 途中で止まっても、前の決まりが残る (#320)
+            AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(document, Options));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException

@@ -219,11 +219,29 @@ internal sealed class UndoHistory
 
         public override void Restore(string archivePath)
         {
-            // 置き換えると出所の印が消えるので、付け直す (#211)。
-            // ハードリンクなら取っておいた側に印も残っているが、コピーでは残らない
-            var zone = MarkOfTheWeb.TryRead(archivePath);
-            File.Move(path, archivePath, overwrite: true);
-            MarkOfTheWeb.Restore(archivePath, zone);
+            // 置き換えると出所の印が消えるので、引き継ぐ (#211)。
+            // ハードリンクなら取っておいた側に印も残っているが、コピーでは残らない。
+            // 別のドライブに取ってあると、名前の変更ではなくコピーになり、途中で止まると書庫が壊れる。
+            // 書庫の隣へ写してから置き換える (#320)
+            if (string.Equals(Path.GetPathRoot(Path.GetFullPath(path)), Path.GetPathRoot(Path.GetFullPath(archivePath)),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                AtomicFile.Replace(path, archivePath);
+                return;
+            }
+
+            var work = AtomicFile.TemporaryPathFor(archivePath);
+            try
+            {
+                File.Copy(path, work);
+                AtomicFile.Replace(work, archivePath);
+            }
+            finally
+            {
+                ZipArchiveWriter.TryDelete(work);
+            }
+
+            Discard();
         }
 
         public override void Discard()
@@ -240,43 +258,27 @@ internal sealed class UndoHistory
     }
 
     /// <summary>
-    /// 書庫の末尾 (終端レコードとコメント) だけを取っておいたもの。コメントの書き換え (#258) 用。
+    /// 書庫のコメントだけを取っておいたもの。コメントの書き換え (#258) 用。
     /// </summary>
     /// <remarks>
-    /// 終端レコードは末尾から 64 KB ほどの中にある。その範囲をそのまま取っておけば、
-    /// コメントの書き換えで変わるところはすべて入る。
+    /// 戻すのは書き換えと同じ順序で行う。途中で電源が切れても書庫を読める (#320)。
     /// <para>
     /// その場で書き戻すと更新日時が戻した時刻になり、1 つ前の書き換えのあとの状態と合わなくなる。
     /// そのままだと、続けて戻すときに「ほかのソフトで書き換えられた」と取り違えるので、
     /// 書き換える前の更新日時も取っておき、書き戻したあとに付け直す (#261)。
     /// </para>
     /// </remarks>
-    private sealed class TailSnapshot(long offset, byte[] tail, DateTime lastWriteUtc) : Snapshot
+    private sealed class TailSnapshot(byte[] comment, DateTime lastWriteUtc) : Snapshot
     {
-        private const int TailLength = 22 + ushort.MaxValue;
-
-        public static TailSnapshot Take(string archivePath)
+        public static TailSnapshot? Take(string archivePath)
         {
             var lastWriteUtc = File.GetLastWriteTimeUtc(archivePath);
-            using var stream = File.OpenRead(archivePath);
-            var length = (int)Math.Min(stream.Length, TailLength);
-            var offset = stream.Length - length;
-
-            var tail = new byte[length];
-            stream.Position = offset;
-            stream.ReadExactly(tail);
-            return new TailSnapshot(offset, tail, lastWriteUtc);
+            return ZipComment.ReadBytes(archivePath) is { } comment ? new TailSnapshot(comment, lastWriteUtc) : null;
         }
 
         public override void Restore(string archivePath)
         {
-            using (var stream = new FileStream(archivePath, FileMode.Open, FileAccess.Write, FileShare.Read))
-            {
-                stream.Position = offset;
-                stream.Write(tail);
-                stream.SetLength(offset + tail.Length);
-                stream.Flush(flushToDisk: true);
-            }
+            ZipComment.WriteBytes(archivePath, comment);
 
             // 閉じたあとに付ける。開いている間に付けても、閉じるときに書き込んだ時刻で上書きされることがある
             File.SetLastWriteTimeUtc(archivePath, lastWriteUtc);
@@ -288,7 +290,7 @@ internal sealed class UndoHistory
     }
 
     /// <summary>ハードリンクを作る。作れないドライブや別のドライブでは失敗する。</summary>
-    private static class HardLink
+    internal static class HardLink
     {
         public static bool TryCreate(string link, string target)
         {

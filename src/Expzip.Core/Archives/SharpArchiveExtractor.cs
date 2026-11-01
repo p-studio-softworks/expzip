@@ -77,7 +77,7 @@ internal static class SharpArchiveExtractor
             var only = targets[0];
             state.Write(
                 only.Key!, only.Size, only.LastModifiedTime, () => only.OpenEntryStream(), cancellationToken,
-                SevenZipCrc(only));
+                SevenZipCrc(only), sizeIsExact: true);
             return;
         }
 
@@ -109,7 +109,7 @@ internal static class SharpArchiveExtractor
 
                 state.Write(
                     key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken,
-                    SevenZipCrc(entry));
+                    SevenZipCrc(entry), sizeIsExact: true);
             }
         }
         catch (Exception ex) when (IsReadFailure(ex))
@@ -159,7 +159,7 @@ internal static class SharpArchiveExtractor
 
             // tar は総量を先に知る手立てが無い。取り出した分を足しながら出す
             state.TotalBytes += entry.Size;
-            state.Write(key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken);
+            state.Write(key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken, sizeIsExact: true);
         }
     }
 

@@ -270,40 +270,36 @@ internal static class ArchiveExtractor
                 Directory.CreateDirectory(directory);
             }
 
-            using (var source = fallback.Open(entry.FullName, entry.Open))
-            using (var destination = new FileStream(
-                target, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                // 暗号化された項目はこの道では読めない。照合する前に開く時点で断られる
-                CancellableCopy.CopyContent(
-                    source, destination, cancellationToken,
-                    entry.IsEncrypted ? -1 : entry.Crc32);
-            }
-
-            TryPreserveTimestamp(entry, target);
-
             // 書庫に出所の印が付いていた場合は、書き出したファイルにも引き継ぐ。
             // 印が消えると SmartScreen や保護ビューが働かなくなる (#12)
-            MarkOfTheWeb.TryApply(target, zoneIdentifier);
+            using var source = fallback.Open(entry.FullName, entry.Open);
+            using var file = AtomicFile.Create(target, overwrite, zoneIdentifier);
 
-            tally.Extract();
+            // 暗号化された項目はこの道では読めない。照合する前に開く時点で断られる
+            CancellableCopy.CopyContent(
+                source, file.Stream, cancellationToken,
+                entry.IsEncrypted ? -1 : entry.Crc32);
+
+            if (file.Commit(entry.LastWriteTime.LocalDateTime))
+            {
+                tally.Extract();
+            }
+            else
+            {
+                tally.Skip();
+            }
         }
         catch (OperationCanceledException)
         {
-            // 書きかけのファイルは中身が途中までしかない。見た目は正常な
-            // ファイルとして残るため、何も残らないより悪い。消してから中断する。
-            // ここに来る時点で using は抜けており、ファイルは閉じられている。
-            TryDelete(target);
+            // 書きかけは AtomicFile が消す。同じ名前の既にあるファイルには触れていない (#320)
             tally.Cancel();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException
                                    or PathTooLongException or InvalidDataException)
         {
-            // 読めなかった分の書きかけを残さない。中身が途中までのファイルは、
-            // 見た目が正常なだけに何も残らないより悪い (#66)
-            TryDelete(target);
-
+            // 読めなかったものは残さない。中身が途中までのファイルは、
+            // 見た目が正常なだけに何も残らないより悪い (#66)。
             // 1件の失敗で全体を止めない。まとめて報告する
             tally.Fail(order, name, Describe(ex));
         }
@@ -434,42 +430,4 @@ internal static class ArchiveExtractor
         return candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// 書き出したファイルに、書庫が持っていた更新日時と出所の印を移す (#12, #19)。
-    /// </summary>
-    internal static void ApplyStamp(string target, DateTime lastWriteTime, string? zoneIdentifier)
-    {
-        try
-        {
-            if (lastWriteTime != default)
-            {
-                File.SetLastWriteTime(target, lastWriteTime);
-            }
-        }
-        catch (Exception ex) when (ex is ArgumentOutOfRangeException or IOException
-                                   or UnauthorizedAccessException)
-        {
-        }
-
-        // 書庫に出所の印が付いていた場合は、書き出したファイルにも引き継ぐ。
-        // 印が消えると SmartScreen や保護ビューが働かなくなる (#12)
-        MarkOfTheWeb.TryApply(target, zoneIdentifier);
-    }
-
-    /// <summary>
-    /// 展開したファイルに書庫内の更新日時を反映する。
-    /// 書庫によっては範囲外の日付が入っており設定できないことがあるが、
-    /// 展開自体は成功しているので失敗しても無視する。
-    /// </summary>
-    private static void TryPreserveTimestamp(ZipArchiveEntry entry, string path)
-    {
-        try
-        {
-            File.SetLastWriteTime(path, entry.LastWriteTime.LocalDateTime);
-        }
-        catch (Exception ex) when (ex is ArgumentOutOfRangeException or IOException
-                                   or UnauthorizedAccessException)
-        {
-        }
-    }
 }

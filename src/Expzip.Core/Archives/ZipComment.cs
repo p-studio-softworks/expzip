@@ -159,6 +159,35 @@ internal static class ZipComment
             throw new InvalidDataException("The comment is too long.");
         }
 
+        WriteBytes(path, bytes);
+    }
+
+    /// <summary>今のコメントのバイト列を読む。終端レコードが無ければ <see langword="null"/>。</summary>
+    internal static byte[]? ReadBytes(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+        if (Locate(stream) is not { } end)
+        {
+            return null;
+        }
+
+        var bytes = new byte[end.CommentLength];
+        stream.Position = end.Offset + EndLength;
+        stream.ReadExactly(bytes);
+        return bytes;
+    }
+
+    /// <summary>
+    /// コメントのバイト列を書く。その場で書き換える。
+    /// </summary>
+    /// <remarks>
+    /// 大きな書庫を丸ごとコピーしないために、書庫の末尾を直接書く (#258)。その代わりに順序を守る。
+    /// どの段階で止まっても、「終端レコード + 長さの欄の値」がファイルの長さを超えないので、書庫は読める (#320)。
+    /// 容量不足などで失敗したときは、古いコメントを書き戻す。
+    /// </remarks>
+    internal static void WriteBytes(string path, byte[] bytes)
+    {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
 
         if (Locate(stream) is not { } end)
@@ -167,7 +196,31 @@ internal static class ZipComment
         }
 
         var start = end.Offset + EndLength;
+        var old = new byte[end.CommentLength];
+        stream.Position = start;
+        stream.ReadExactly(old);
 
+        try
+        {
+            Put(stream, end.Offset, start, bytes);
+        }
+        catch (IOException)
+        {
+            try
+            {
+                Put(stream, end.Offset, start, old);
+            }
+            catch (IOException)
+            {
+                // 古い長さのぶんは読めるように書いてある。これ以上できることはない
+            }
+
+            throw;
+        }
+    }
+
+    private static void Put(FileStream stream, long endOffset, long start, byte[] bytes)
+    {
         // 中身を先に書く。長さの欄はまだ古い値なので、ここで止まっても古い長さの分は読める
         stream.Position = start;
         stream.Write(bytes);
@@ -175,7 +228,7 @@ internal static class ZipComment
 
         Span<byte> length = stackalloc byte[2];
         BinaryPrimitives.WriteUInt16LittleEndian(length, (ushort)bytes.Length);
-        stream.Position = end.Offset + 20;
+        stream.Position = endOffset + 20;
         stream.Write(length);
         stream.Flush(flushToDisk: true);
 

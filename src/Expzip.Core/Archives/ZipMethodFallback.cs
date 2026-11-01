@@ -172,7 +172,9 @@ internal sealed class ZipMethodFallback(string archivePath, string? password = n
         try
         {
             // 分割された書庫でも同じ道を通れるよう、流れにしてから渡す (#61)
-            _archive = ArchiveFactory.OpenArchive(
+            // ZIP として開く。中身で形式を決めさせると、先頭が 7z のファイルを 7z として読み、
+            // 7z の見出しの確認を通らない (#294)
+            _archive = SharpCompress.Archives.Zip.ZipArchive.OpenArchive(
                 ArchiveFile.OpenRead(archivePath), SharpArchiveAccess.Options(password));
 
             // 同じ名前のエントリが複数ある細工された書庫では、先に出てきたものを使う。

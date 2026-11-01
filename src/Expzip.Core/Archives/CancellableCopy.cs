@@ -67,11 +67,17 @@ internal static class CancellableCopy
     /// </param>
     /// <exception cref="DamagedDataException">中身を読めなかった場合、または CRC が合わなかった場合。</exception>
     /// <exception cref="OperationCanceledException">中断が要求された場合。</exception>
+    /// <param name="expectedLength">
+    /// 書庫に書かれた大きさ。分からない場合は -1 で、照合しない。途中で切れた tar は、読み手が黙って終わるので、
+    /// 大きさで見つける (#320)。
+    /// </param>
     public static void CopyContent(
-        Stream source, Stream destination, CancellationToken cancellationToken, long expectedCrc)
+        Stream source, Stream destination, CancellationToken cancellationToken, long expectedCrc,
+        long expectedLength = -1)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
         var crc = new Crc32();
+        long written = 0;
         try
         {
             int read;
@@ -80,11 +86,18 @@ internal static class CancellableCopy
                 cancellationToken.ThrowIfCancellationRequested();
                 crc.Update(new ArraySegment<byte>(buffer, 0, read));
                 destination.Write(buffer, 0, read);
+                written += read;
             }
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+        if (expectedLength >= 0 && written != expectedLength)
+        {
+            throw new DamagedDataException(new InvalidDataException(
+                $"Length mismatch: expected {expectedLength}, got {written}."));
         }
 
         if (expectedCrc >= 0 && crc.Value != expectedCrc)

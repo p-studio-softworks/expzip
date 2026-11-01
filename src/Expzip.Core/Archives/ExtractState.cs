@@ -6,8 +6,9 @@ namespace Expzip.Archives;
 
 /// <summary>展開の途中経過。ZIP 側と同じ結果の形にまとめる。</summary>
 /// <remarks>
-/// 書庫の外へ書き出そうとするエントリを弾き (Zip Slip 対策)、出所の印を引き継ぎ、
-/// 中断したら書きかけを消す。7z / tar (#19) と NSIS (#68) で共通に使う。
+/// 書庫の外へ書き出そうとするエントリを弾き (Zip Slip 対策)、出所の印を引き継ぐ。
+/// 失敗や中断では書きかけだけを消し、同じ名前の既にあるファイルは残す (#320)。
+/// 7z / tar (#19) と NSIS (#68) で共通に使う。
 /// </remarks>
 internal sealed class ExtractState(
     string destinationRoot,
@@ -37,9 +38,10 @@ internal sealed class ExtractState(
     /// <param name="expectedCrc">
     /// 書庫に書かれた CRC。持たない形式 (tar、NSIS) では -1 (#168)。
     /// </param>
+    /// <param name="sizeIsExact"><paramref name="size"/> が中身の大きさと一致するはずの形式か (#320)。</param>
     public void Write(
         string key, long size, DateTime? lastWriteTime,
-        Func<Stream> openEntry, CancellationToken cancellationToken, long expectedCrc = -1)
+        Func<Stream> openEntry, CancellationToken cancellationToken, long expectedCrc = -1, bool sizeIsExact = false)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -85,23 +87,30 @@ internal sealed class ExtractState(
             var source = Open(openEntry);
             try
             {
-                using var destination = new FileStream(
-                    target, FileMode.Create, FileAccess.Write, FileShare.None);
-                CancellableCopy.CopyContent(source, destination, cancellationToken, expectedCrc);
+                using var file = AtomicFile.Create(target, overwrite, zoneIdentifier);
+                CancellableCopy.CopyContent(
+                    source, file.Stream, cancellationToken, expectedCrc, sizeIsExact ? size : -1);
+
+                // 閉じるのに失敗したものは、壊れている。置き換える前に確かめる
+                Close(source);
+
+                if (file.Commit(lastWriteTime))
+                {
+                    _extracted++;
+                }
+                else
+                {
+                    _skipped++;
+                }
             }
             finally
             {
                 Close(source);
             }
-
-            ArchiveExtractor.ApplyStamp(target, lastWriteTime ?? default, zoneIdentifier);
-            _extracted++;
         }
         catch (OperationCanceledException)
         {
-            // 書きかけのファイルは中身が途中までしかない。見た目は正常な
-            // ファイルとして残るため、何も残らないより悪い
-            ArchiveExtractor.TryDelete(target);
+            // 書きかけは AtomicFile が消す。同じ名前の既にあるファイルには触れていない (#320)
             Cancelled = true;
             return;
         }
@@ -109,7 +118,6 @@ internal sealed class ExtractState(
                                    or SharpCompress.Common.CryptographicException)
         {
             // パスワード付きの書庫。一覧は読めるが中身は取り出せない
-            ArchiveExtractor.TryDelete(target);
             _failed.Add((key, Explain(ex)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
@@ -117,10 +125,8 @@ internal sealed class ExtractState(
                                    or PathTooLongException or InvalidDataException
                                    or SharpCompressException)
         {
-            // 読めなかった分の書きかけを残さない。中身が途中までのファイルは、
-            // 見た目が正常なだけに何も残らないより悪い (#66、#167)
-            ArchiveExtractor.TryDelete(target);
-
+            // 読めなかったものは残さない。中身が途中までのファイルは、
+            // 見た目が正常なだけに何も残らないより悪い (#66、#167)。
             // 1件の失敗で全体を止めない。まとめて報告する
             _failed.Add((key, Strings.Reason(ex)));
         }

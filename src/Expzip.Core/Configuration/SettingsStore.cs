@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text.Json;
+using Expzip.Archives;
 
 namespace Expzip.Configuration;
 
@@ -64,7 +65,8 @@ internal static class SettingsStore
     {
         try
         {
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(settings, Options));
+            // 途中で止まっても、前の設定が残る (#320)
+            AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(settings, Options));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
