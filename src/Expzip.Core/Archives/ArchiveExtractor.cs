@@ -275,7 +275,7 @@ internal static class ArchiveExtractor
             // 書庫に出所の印が付いていた場合は、書き出したファイルにも引き継ぐ。
             // 印が消えると SmartScreen や保護ビューが働かなくなる (#12)
             using var source = fallback.Open(entry.FullName, entry.Open);
-            using var file = AtomicFile.Create(target, overwrite, zoneIdentifier);
+            using var file = AtomicFile.CreateForExtraction(target, overwrite, zoneIdentifier);
 
             // 暗号化された項目はこの道では読めない。照合する前に開く時点で断られる
             CancellableCopy.CopyContent(

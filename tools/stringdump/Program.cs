@@ -405,6 +405,11 @@ IEnumerable<object?> Alternates(ParameterInfo parameter)
         yield return Activator.CreateInstance(
             assembly.GetType("Expzip.Archives.DamagedDataException", throwOnError: true)!,
             new InvalidDataException("Block type 3 is invalid."));
+
+        // CON や NUL など、Windows では装置を指す名前 (#328)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.ReservedNameException", throwOnError: true)!,
+            @"C:\Users\user\Desktop\CON.txt");
     }
     else if (type.IsEnum)
     {

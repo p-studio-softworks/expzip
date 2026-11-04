@@ -1859,6 +1859,9 @@ Reason (error: Expzip.Archives.DamagedDataException: The archive data is damaged
    --- End of inner exception stack trace ---)
   ja  書庫のデータが壊れています。
   en  The archive data is damaged.
+Reason (error: Expzip.Archives.ReservedNameException: 'C:\Users\user\Desktop\CON.txt' is a reserved device name.)
+  ja  Windows では使えない名前です。
+  en  This name cannot be used on Windows.
 
 Rebuilding (done: 45)
   ja  書庫を作り直しています… (45 個)

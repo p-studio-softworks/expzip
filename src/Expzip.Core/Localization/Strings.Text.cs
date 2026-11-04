@@ -2819,6 +2819,10 @@ internal static partial class Strings
 
             PathTooLongException => Pick("パスが長すぎます。", "The path is too long."),
 
+            // CON や NUL は、Windows では装置を指す (#328)
+            Expzip.Archives.ReservedNameException => Pick(
+                "Windows では使えない名前です。", "This name cannot be used on Windows."),
+
             IOException { HResult: SharingViolation or LockViolation } => path is null
                 ? Pick("ほかのプログラムが使用中のため、アクセスできません。",
                     "Another program is using the file.")

@@ -444,6 +444,113 @@ Resume-FileReads $stall
 Check '元のファイルは残る' ((Read-Text (Join-Path $out 'a.txt')) -eq 'ORIGINAL-A') (Read-Text (Join-Path $out 'a.txt'))
 Check '一時ファイルが残らない' ((Get-Leftovers $out).Count -eq 0) ((Get-Leftovers $out) -join ', ')
 
+Section '新しく作るファイルは直接書く (#328)'
+# 一時的な名前から置き換えると、名前の変更のたびにウイルス対策の検査を待つ。同じ名前が無ければ本来の名前に書く
+$fresh = New-TestZip (Join-Path $script:Work 'fresh.zip') ([ordered]@{
+    'ok.txt' = 'NEW'; 'sub/deep.txt' = 'DEEP'; 'CON.txt' = 'FILE'; 'COM1' = 'FILE'; 'nul' = 'DEVICE'; 'sub/NUL ' = 'DEVICE'; 'sub/nul.' = 'DEVICE'
+})
+Set-Content -LiteralPath $fresh -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+$out = New-Folder 'fresh_out'
+$app = Start-Expzip @($fresh)
+$text = Invoke-Overwrite $app $out
+Check '中身が書かれる' ((Read-Text (Join-Path $out 'ok.txt')) -eq 'NEW' -and (Read-Text (Join-Path $out 'sub\deep.txt')) -eq 'DEEP')
+Check '出所の印が付く' ((Get-Zone (Join-Path $out 'ok.txt')) -match 'ZoneId=3') ((Get-Zone (Join-Path $out 'ok.txt')) -join ' ')
+Check '一時ファイルが残らない' ((Get-Leftovers $out).Count -eq 0 -and (Get-Leftovers (Join-Path $out 'sub')).Count -eq 0)
+# この Windows で装置を指す名前だけを取り出さない。\\?\ で並べると、装置ではなくファイルとしての名前も見える
+$names = @([System.IO.Directory]::GetFiles("\\?\$out", '*', 'AllDirectories') | ForEach-Object { [System.IO.Path]::GetFileName($_) })
+Check '装置を指す名前のファイルは作らない' (@($names | Where-Object { $_ -match '^nul' }).Count -eq 0) ($names -join ', ')
+# 装置のパス (\\.\nul) に読み替えられるので、展開先の外に書く項目として断られる
+Check '装置を指す名前を知らせる' ($text -match '(?m)^  nul$' -and $text -match 'sub/NUL ' -and $text -match 'sub/nul\.') $text
+# Windows 11 では装置にならない。古い Windows では CON.txt も装置になり、上の知らせに入る
+foreach ($name in 'CON.txt', 'COM1') {
+    Check "装置にならない名前はふつうに取り出す: $name" (($names -contains $name) -or $text -match [regex]::Escape($name)) ($names -join ', ')
+}
+Stop-Expzip $app
+
+Section '新しく作るファイルで失敗させる (#328)'
+# 直接書いたものは「閉じたら消す」で消える。名前では消さない
+$out = New-Folder 'bad_fresh_out'
+$app = Start-Expzip @($bad)
+$text = Invoke-Overwrite $app $out
+Check '失敗を知らせる' ($text -match '書庫のデータが壊れています') $text
+Check '読めなかったファイルは残らない' (-not (Test-Path (Join-Path $out 'a.txt'))) (@([System.IO.Directory]::GetFiles($out)) -join ', ')
+Check '読めたファイルはできる' ((Read-Text (Join-Path $out 'b.txt')) -eq 'NEW-CONTENT-OF-B')
+Check '更新日時は書庫に書かれたもの' ((Get-Item (Join-Path $out 'b.txt')).LastWriteTime.Year -eq 2001) (Get-Item (Join-Path $out 'b.txt')).LastWriteTime
+Check '一時ファイルが残らない' ((Get-Leftovers $out).Count -eq 0) ((Get-Leftovers $out) -join ', ')
+Stop-Expzip $app
+
+Section '展開先の同じ名前にジャンクション (#328)'
+# ジャンクションは権利が無くても作れる。たどらずに置き換えの道に移り、フォルダーなので置き換えない
+$outside = New-Folder 'junction_outside'
+Write-Text (Join-Path $outside 'kept.txt') 'OUTSIDE'
+$out = New-Folder 'junction_out'
+New-Item -ItemType Junction -Path (Join-Path $out 'a.txt') -Target $outside | Out-Null
+$junctionZip = New-TestZip (Join-Path $script:Work 'junction.zip') ([ordered]@{ 'a.txt' = 'NEW'; 'b.txt' = 'NEW' })
+$app = Start-Expzip @($junctionZip)
+$text = Invoke-Overwrite $app $out
+$inside = @(Get-ChildItem $outside -Force | ForEach-Object { $_.Name })
+Check 'ジャンクションの先は変わらない' ($inside.Count -eq 1 -and (Read-Text (Join-Path $outside 'kept.txt')) -eq 'OUTSIDE') ($inside -join ', ')
+Check 'ジャンクションは残る' ((Get-Item (Join-Path $out 'a.txt') -Force).LinkType -eq 'Junction')
+Check 'ほかのファイルはできる' ((Read-Text (Join-Path $out 'b.txt')) -eq 'NEW')
+Check '置き換えなかったことを知らせる' ($text -match 'a\.txt') $text
+Check '一時ファイルが残らない' ((Get-Leftovers $out).Count -eq 0) ((Get-Leftovers $out) -join ', ')
+Stop-Expzip $app
+# 後始末でジャンクションの先を消さないように、リンクだけ外す
+[System.IO.Directory]::Delete((Join-Path $out 'a.txt'))
+
+Section '展開先に置かれたリンク (#328)'
+# 同じ名前にリンクがあれば、たどらずに置き換えの道に移る。リンクの先 (展開先の外) には書かない
+$outside = New-Folder 'link_outside'
+Write-Text (Join-Path $outside 'kept.txt') 'OUTSIDE'
+$out = New-Folder 'link_out'
+$linked = $true
+try {
+    New-Item -ItemType SymbolicLink -Path (Join-Path $out 'a.txt') -Target (Join-Path $outside 'kept.txt') -ErrorAction Stop | Out-Null
+    New-Item -ItemType SymbolicLink -Path (Join-Path $out 'b.txt') -Target (Join-Path $outside 'missing.txt') -ErrorAction Stop | Out-Null
+}
+catch { $linked = $false }
+if ($linked) {
+    $links = New-TestZip (Join-Path $script:Work 'links.zip') ([ordered]@{ 'a.txt' = 'NEW'; 'b.txt' = 'NEW' })
+    $app = Start-Expzip @($links)
+    $text = Invoke-Overwrite $app $out
+    Check 'リンクの先のファイルは変わらない' ((Read-Text (Join-Path $outside 'kept.txt')) -eq 'OUTSIDE') (Read-Text (Join-Path $outside 'kept.txt'))
+    Check '壊れたリンクの先にファイルを作らない' (-not (Test-Path (Join-Path $outside 'missing.txt')))
+    Check '一時ファイルが残らない' ((Get-Leftovers $out).Count -eq 0) ((Get-Leftovers $out) -join ', ')
+    Stop-Expzip $app
+}
+else {
+    Write-Host '  (シンボリックリンクを作る権利が無いので飛ばす)'
+}
+
+Section '強制終了で書きかけが残らない (#328)'
+# 書いている間は「閉じたら消す」を予約してある。終了させると Windows が消す
+$bigPath = Join-Path $script:Work 'big.zip'
+Remove-Item $bigPath -Force -ErrorAction SilentlyContinue
+$stream = [System.IO.File]::Open($bigPath, [System.IO.FileMode]::CreateNew)
+try {
+    $zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        $entry = $zip.CreateEntry('big.bin', [System.IO.Compression.CompressionLevel]::Fastest)
+        $output = $entry.Open()
+        $chunk = New-Object byte[] (1MB)
+        for ($i = 0; $i -lt 3072; $i++) { $output.Write($chunk, 0, $chunk.Length) }
+        $output.Dispose()
+    }
+    finally { $zip.Dispose() }
+}
+finally { $stream.Dispose() }
+$out = New-Folder 'kill_out'
+$app = Start-Expzip @($bigPath)
+Focus-App $app
+Push (ById $app.Window 'ExtractButton')
+Complete-FileDialog $app '書庫全体の展開先を選択' $out | Out-Null
+$appeared = Wait-Until -TimeoutMs 30000 { [System.IO.Directory]::GetFiles($out).Count -gt 0 }
+$app.Process.Kill()
+$app.Process.WaitForExit(10000) | Out-Null
+Check '書き始めてから終了させた' $appeared
+$gone = Wait-Until -TimeoutMs 10000 { [System.IO.Directory]::GetFiles($out).Count -eq 0 }
+Check '書きかけが残らない' $gone ([System.IO.Directory]::GetFiles($out) -join ', ')
+
 Section '設定の保存'
 $settings = Get-ChildItem $script:Work -Force -Filter 'Expzip.settings.json' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($settings) {

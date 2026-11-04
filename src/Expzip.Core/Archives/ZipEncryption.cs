@@ -232,7 +232,7 @@ internal static class ZipEncryption
                 }
 
                 using var source = fallback.Open(entry.Name, () => zip.GetInputStream(entry));
-                using var file = AtomicFile.Create(target, overwrite, zoneIdentifier);
+                using var file = AtomicFile.CreateForExtraction(target, overwrite, zoneIdentifier);
 
                 CancellableCopy.CopyContent(source, file.Stream, cancellationToken, ExpectedCrc(entry));
 

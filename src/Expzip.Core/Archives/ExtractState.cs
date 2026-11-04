@@ -88,7 +88,7 @@ internal sealed class ExtractState(
             var source = Open(openEntry);
             try
             {
-                using var file = AtomicFile.Create(target, overwrite, zoneIdentifier);
+                using var file = AtomicFile.CreateForExtraction(target, overwrite, zoneIdentifier);
                 CancellableCopy.CopyContent(
                     source, file.Stream, cancellationToken, expectedCrc, sizeIsExact ? size : -1);
 

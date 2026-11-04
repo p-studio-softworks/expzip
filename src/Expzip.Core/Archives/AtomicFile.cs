@@ -49,6 +49,10 @@ internal sealed class MarkWatch
 /// 書きかけが本来の名前で残ることもない。
 /// </para>
 /// <para>
+/// 取り出しでは、同じ名前のものが無ければ本来の名前に直接書く (<see cref="CreateForExtraction"/>、#328)。
+/// 壊すおそれのあるファイルが無いので、名前の変更でウイルス対策の検査を待たずに済む。書きかけは Windows が消す。
+/// </para>
+/// <para>
 /// 一時ファイルには作った時点で出所の印を付ける。名前は書庫の中の名前から作らず、実行されない拡張子にする。
 /// 取り残されても、印の無い実行ファイルにはならない。
 /// </para>
@@ -71,6 +75,9 @@ internal sealed class AtomicFile : IDisposable
     private readonly string _target;
     private readonly string _temporary;
     private readonly bool _overwrite;
+
+    /// <summary>本来の名前に直接書いている (<see cref="CreateForExtraction"/>)。一時的な名前は無い。</summary>
+    private readonly bool _direct;
     private bool _replacing;
     private bool _writingClosed;
     private bool _finished;
@@ -111,6 +118,17 @@ internal sealed class AtomicFile : IDisposable
         }
     }
 
+    /// <summary>本来の名前に直接書くとき。印を付け、「閉じたら消す」を予約したあとのファイルを受け取る。</summary>
+    private AtomicFile(string target, FileStream stream, string? zone, bool markLost)
+    {
+        _target = target;
+        _temporary = target;
+        _direct = true;
+        Stream = stream;
+        Zone = zone;
+        MarkLost = markLost;
+    }
+
     /// <summary>書き込む先。</summary>
     public FileStream Stream { get; }
 
@@ -128,6 +146,35 @@ internal sealed class AtomicFile : IDisposable
     public static AtomicFile Create(string target, bool overwrite = true, string? zone = null)
         => new(target, TemporaryPathFor(target), overwrite, zone);
 
+    /// <summary>
+    /// 取り出しで書き始める。同じ名前のものが無ければ、本来の名前に直接書く (#328)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 一時的な名前から置き換えると、名前の変更のたびにウイルス対策の検査を待つ。小さなファイルが多いと 1.6 倍遅い。
+    /// 同じ名前のものが無ければ、壊すおそれのあるファイルも無いので、本来の名前に新しく作る。
+    /// その名前に何かあれば (ファイル、フォルダー、壊れたリンクも)、<see cref="Create"/> と同じ置き換えの道に移る。
+    /// 置き換えの確かめ (書き込みの禁止、アクセス権) はそちらで全部通る。
+    /// </para>
+    /// <para>
+    /// 書いている間は「閉じたら消す」を Windows に予約しておき、書き終えてから外す。エラー、中止、落ちた、
+    /// 固まって終了させた、のどれでも Windows が書きかけを消す。残るのは電源断と、作ってから予約するまでの短い間に
+    /// 終了したとき (0 バイト) だけで、どちらも印は付いている。
+    /// 消すのは自分のハンドルが指すファイルなので、書いている間に名前を入れ替えられても、ほかのファイルは消さない。
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ReservedNameException">NUL など、この Windows で装置を指す名前の場合。</exception>
+    public static AtomicFile CreateForExtraction(string target, bool overwrite, string? zone)
+    {
+        // 直接書くときは装置の名前の判定を通らない形 (\\?\) で開くので、先に尋ねる
+        if (ReservedNameException.IsReserved(Path.GetFullPath(target)))
+        {
+            throw new ReservedNameException(target);
+        }
+
+        return TryCreateDirect(target, zone) ?? Create(target, overwrite, zone);
+    }
+
     /// <summary>できあがるまで使う名前。</summary>
     public static string TemporaryPathFor(string target)
         => ZipArchiveWriter.WorkFilePathOverride?.Invoke(target)
@@ -143,6 +190,12 @@ internal sealed class AtomicFile : IDisposable
         lock (Gate)
         {
             ThrowIfClosed();
+        }
+
+        if (_direct)
+        {
+            CommitDirect(lastWriteTime);
+            return true;
         }
 
         // 書いている間に属性が変わることがある
@@ -352,6 +405,22 @@ internal sealed class AtomicFile : IDisposable
         }
 
         _finished = true;
+
+        if (_direct)
+        {
+            // 「閉じたら消す」を予約してあるので、閉じれば Windows が消す。名前では消さない (入れ替わっていることがある)
+            try
+            {
+                Stream.Dispose();
+            }
+            catch (IOException)
+            {
+                // 容量不足で、閉じるときの書き出しに失敗しても、閉じて消える
+            }
+
+            return;
+        }
+
         try
         {
             // 容量不足で、閉じるときの書き出しに失敗することがある
@@ -417,6 +486,127 @@ internal sealed class AtomicFile : IDisposable
         Stream.Dispose();
         return true;
     }
+
+    /// <summary>
+    /// 本来の名前に新しく作る。印を付け、「閉じたら消す」を予約して返す。その名前に何かあれば <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// リンクをたどらずに開く (<c>FILE_FLAG_OPEN_REPARSE_POINT</c>) ので、壊れたリンクが置かれていても、その先には作らない。
+    /// 削除を共有しない。予約するまでの間に、ほかのプログラムに名前を変えられて、入れ替わったものに印を付けたり消したりしないため。
+    /// 予約の間はほかのプログラムがファイルを開けないので、印 (別のストリーム) は予約より前に付ける。中身はその後で書く。
+    /// 予約できない場所 (ほかの OS、対応していないドライブ) では、作ったものを消して置き換えの道に移る。
+    /// </remarks>
+    private static AtomicFile? TryCreateDirect(string target, string? zone)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        lock (Gate)
+        {
+            ThrowIfClosed();
+        }
+
+        var full = Path.GetFullPath(target);
+        var handle = CreateFileW(
+            LongPath(full), FileGenericWrite | FileReadAttributes | DeleteAccess, FileShareRead,
+            IntPtr.Zero, CreateNew, FileAttributeNormal | FileFlagOpenReparsePoint, IntPtr.Zero);
+
+        if (handle.IsInvalid)
+        {
+            // 既にある、フォルダーがある、作れない、のどれでも置き換えの道に移る。作れない理由はそちらが今どおりに伝える
+            handle.Dispose();
+            return null;
+        }
+
+        try
+        {
+            // 予約された名前は先に断っているが、装置に当たったら書かない
+            if (GetFileType(handle) != FileTypeDisk)
+            {
+                throw new ReservedNameException(target);
+            }
+
+            var markLost = zone is not null && !MarkOfTheWeb.TryApply(full, zone);
+
+            if (!SetDeleteOnClose(handle, true))
+            {
+                // 作ったのは自分なので、名前で消してよい。この間に入れ替わることはまず無い
+                handle.Dispose();
+                ZipArchiveWriter.TryDelete(full);
+                return null;
+            }
+
+            return new AtomicFile(full, new FileStream(handle, FileAccess.Write, 4096), zone, markLost);
+        }
+        catch
+        {
+            SetDeleteOnClose(handle, true);
+            handle.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>直接書いたファイルを確定する。日時を付け、「閉じたら消す」を外して閉じる。名前は変えない。</summary>
+    private void CommitDirect(DateTime? lastWriteTime)
+    {
+        // 書き終えてから日時を付ける。付けたあとは、閉じても書き込んだ時刻で上書きされない
+        Stream.Flush(flushToDisk: false);
+
+        if (lastWriteTime is { } time && time != default)
+        {
+            try
+            {
+                File.SetLastWriteTime(Stream.SafeFileHandle, time);
+            }
+            catch (Exception ex) when (ex is ArgumentOutOfRangeException or IOException or UnauthorizedAccessException)
+            {
+                // 範囲外の日付が入っている書庫がある。中身は取り出せている
+            }
+        }
+
+        if (!SetDeleteOnClose(Stream.SafeFileHandle, false))
+        {
+            // 外せなければ、閉じたときに消える。取り出せなかったものとして知らせる
+            throw new IOException(
+                $"Could not keep '{_target}'.", System.Runtime.InteropServices.Marshal.GetHRForLastWin32Error());
+        }
+
+        _finished = true;
+        Stream.Dispose();
+    }
+
+    /// <summary>「閉じたら消す」を予約する、または外す (<c>FILE_DISPOSITION_INFO</c>)。</summary>
+    private static bool SetDeleteOnClose(Microsoft.Win32.SafeHandles.SafeFileHandle handle, bool delete)
+    {
+        const int FileDispositionInfo = 4;
+        return SetFileInformationByHandle(handle, FileDispositionInfo, [delete ? (byte)1 : (byte)0], 1);
+    }
+
+    /// <summary>Windows の関数に渡すときに、長いパスでも開ける形にする。</summary>
+    private static string LongPath(string full)
+        => full.StartsWith(@"\\?\", StringComparison.Ordinal)
+            ? full
+            : full.StartsWith(@"\\", StringComparison.Ordinal)
+                ? @"\\?\UNC\" + full[2..]
+                : @"\\?\" + full;
+
+    private const uint FileGenericWrite = 0x00120116;
+    private const uint FileReadAttributes = 0x00000080;
+    private const uint DeleteAccess = 0x00010000;
+    private const uint FileShareRead = 0x00000001;
+    private const uint CreateNew = 1;
+    private const uint FileAttributeNormal = 0x00000080;
+    private const uint FileFlagOpenReparsePoint = 0x00200000;
+    private const uint FileTypeDisk = 1;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(
+        string name, uint access, uint share, IntPtr security, uint mode, uint flags, IntPtr template);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetFileType(Microsoft.Win32.SafeHandles.SafeFileHandle handle);
 
     /// <summary>開いているファイルの名前を変える (64 ビットの <c>FILE_RENAME_INFO</c>)。</summary>
     private static bool RenameOpen(Microsoft.Win32.SafeHandles.SafeFileHandle handle, string target, bool overwrite)
