@@ -17,7 +17,11 @@ namespace Expzip.Archives;
 /// 途中で失敗しても元の書庫はそのまま残る。作業用ファイルは、うまくいかなかったときも消す。
 /// </para>
 /// </remarks>
-internal sealed class WorkFileStorage(string archivePath, string workPath) : BaseArchiveStorage(FileUpdateMode.Safe)
+/// <param name="archiveIsNew">
+/// 書庫が、同じ作業の中で作ったばかりの空の書庫か (#327)。そうなら差し替えでディスクを待たない。既定は待つ。
+/// </param>
+internal sealed class WorkFileStorage(string archivePath, string workPath, bool archiveIsNew = false)
+    : BaseArchiveStorage(FileUpdateMode.Safe)
 {
     private FileStream? _work;
 
@@ -37,7 +41,15 @@ internal sealed class WorkFileStorage(string archivePath, string workPath) : Bas
         _work.Dispose();
         _work = null;
 
-        AtomicFile.Replace(workPath, archivePath);
+        if (archiveIsNew)
+        {
+            AtomicFile.ReplaceFresh(workPath, archivePath);
+        }
+        else
+        {
+            AtomicFile.Replace(workPath, archivePath);
+        }
+
         return new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 

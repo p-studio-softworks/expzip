@@ -91,13 +91,18 @@ internal static class ZipParallelWriter
     /// <summary>
     /// ディスク上のファイルやフォルダーを書庫に追加する。引数の意味は <see cref="ZipArchiveWriter.Add"/> と同じ。
     /// </summary>
+    /// <param name="archiveIsNew">
+    /// 書庫が、同じ作業の中で作ったばかりの空の書庫か (<see cref="ZipArchiveWriter.CreateWith"/>、#327)。
+    /// そうなら差し替えでディスクを待たない。省けないようにしてある (誤って待たなくなると、電源断で書庫を失う)。
+    /// </param>
     /// <returns>この方法で扱えない書庫なら <see langword="null"/>。</returns>
     public static AddResult? TryAdd(
         string archivePath,
         IReadOnlyList<PlanItem> plan,
         bool replaceExisting,
         IProgress<AddProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool archiveIsNew)
     {
         if (ZipPrefix.Detect(archivePath) != 0)
         {
@@ -189,8 +194,17 @@ internal static class ZipParallelWriter
             }
 
             // 書庫を閉じてから差し替える。開いたままでは置き換えられない。
-            // 置き換えると出所の印が消えるので、引き継ぐ (#211)
-            AtomicFile.Replace(temp, archivePath);
+            // 既にある書庫なら、置き換えると出所の印が消えるので引き継ぎ (#211)、ディスクに書き切ってから置き換える。
+            // 作ったばかりの空の書庫なら、守る中身も引き継ぐ印も無いので、どちらもしない (#327)
+            if (archiveIsNew)
+            {
+                AtomicFile.ReplaceFresh(temp, archivePath);
+            }
+            else
+            {
+                AtomicFile.Replace(temp, archivePath);
+            }
+
             return new AddResult(added, replaced, skipped, failed, Cancelled: false);
         }
         catch (OperationCanceledException)

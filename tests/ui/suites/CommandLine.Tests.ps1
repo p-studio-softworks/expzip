@@ -79,6 +79,14 @@ Check '理由を出す' ($r.Err -match '書庫が既にあります') $r.Err
 Check '元の書庫のまま' ([Convert]::ToBase64String([IO.File]::ReadAllBytes($target)) -eq [Convert]::ToBase64String($before))
 $r = Invoke-Cli @('--compress', $folder, $target, '--overwrite')
 Check '--overwrite で置き換える' ($r.Code -eq 0 -and (Get-ZipNames $target) -match 'data/x\.txt') "$($r.Code) $($r.Err)"
+# 一時的な書庫の中では待たずに置き換える (#327)。本来の名前を置き換える最後の一歩は、今どおり確かめる
+Set-ItemProperty $target IsReadOnly $true
+$before = [IO.File]::ReadAllBytes($target)
+$r = Invoke-Cli @('--compress', $file, $target, '--overwrite')
+Check '読み取り専用の書庫は --overwrite でも置き換えない' ($r.Code -ne 0) "$($r.Code) $($r.Err)"
+Check '  元の書庫のまま' ([Convert]::ToBase64String([IO.File]::ReadAllBytes($target)) -eq [Convert]::ToBase64String($before))
+Check '  一時ファイルが残らない' (@(Get-ChildItem $out -Filter '*.tmp').Count -eq 0) (@(Get-ChildItem $out -Filter '*.tmp') -join ', ')
+Set-ItemProperty $target IsReadOnly $false
 
 Section '指定の不備は終了コード 2'
 $r = Invoke-Cli @('--compress', (Join-Path $src 'nothing.txt'), (Join-Path $out 'n.zip'))

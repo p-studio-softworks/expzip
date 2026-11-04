@@ -72,8 +72,8 @@ internal static class ZipArchiveWriter
     /// 書き換えを始める。SharpZipLib の既定は、差し替えるときに書庫を別の名前へ退避するので、
     /// その間に止まると元の名前に書庫が無くなる。作業用ファイルからの 1 回の名前の変更で差し替える (#320)。
     /// </summary>
-    private static void BeginUpdate(SharpZipFile zip)
-        => zip.BeginUpdate(new WorkFileStorage(zip.Name, WorkFilePathFor(zip.Name)));
+    private static void BeginUpdate(SharpZipFile zip, bool archiveIsNew = false)
+        => zip.BeginUpdate(new WorkFileStorage(zip.Name, WorkFilePathFor(zip.Name), archiveIsNew));
 
     /// <summary>
     /// 空のZIP書庫を作る。既に同じ名前のファイルがあれば置き換える。
@@ -123,6 +123,50 @@ internal static class ZipArchiveWriter
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken,
         IReadOnlyCollection<string>? exclude = null)
+        => Add(archivePath, sourcePaths, destinationFolder, replaceExisting, progress, cancellationToken, exclude, archiveIsNew: false);
+
+    /// <summary>
+    /// 新しい書庫を作り、ファイルやフォルダーを入れる (#327)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <paramref name="archivePath"/> には、呼び出し側が決めた、まだ何も無い名前を渡す (一時的な名前)。
+    /// 何かあれば作らずに断る。できあがったら、呼び出し側が <see cref="AtomicFile.Replace"/> で本来の名前に置き換える。
+    /// そちらは、本来の名前に書庫があればディスクに書き切ってから置き換えるので、電源断でも元の書庫か新しい書庫が残る。
+    /// </para>
+    /// <para>
+    /// 空の書庫を作ってから <see cref="Add"/> で入れると、最後に空の書庫を置き換えるときにディスクを待っていた。
+    /// ここでは、作ったばかりの空の書庫なので待たない。
+    /// </para>
+    /// </remarks>
+    /// <exception cref="IOException"><paramref name="archivePath"/> に既にファイルがある場合など。</exception>
+    public static AddResult CreateWith(
+        string archivePath,
+        IReadOnlyList<string> sourcePaths,
+        string destinationFolder,
+        bool replaceExisting,
+        IProgress<AddProgress>? progress,
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<string>? exclude = null)
+    {
+        // 閉じた時点で終端レコードが書かれ、読み取り可能な書庫になる
+        using (var stream = new FileStream(archivePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        using (new ZipArchive(stream, ZipArchiveMode.Create))
+        {
+        }
+
+        return Add(archivePath, sourcePaths, destinationFolder, replaceExisting, progress, cancellationToken, exclude, archiveIsNew: true);
+    }
+
+    private static AddResult Add(
+        string archivePath,
+        IReadOnlyList<string> sourcePaths,
+        string destinationFolder,
+        bool replaceExisting,
+        IProgress<AddProgress>? progress,
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<string>? exclude,
+        bool archiveIsNew)
     {
         var plan = BuildPlan(sourcePaths, destinationFolder);
 
@@ -133,7 +177,7 @@ internal static class ZipArchiveWriter
 
         CheckPlanDepth(plan);
 
-        if (ZipParallelWriter.TryAdd(archivePath, plan, replaceExisting, progress, cancellationToken) is { } fast)
+        if (ZipParallelWriter.TryAdd(archivePath, plan, replaceExisting, progress, cancellationToken, archiveIsNew) is { } fast)
         {
             return fast;
         }
@@ -150,8 +194,10 @@ internal static class ZipArchiveWriter
         long readBytes = 0;
         long reportedAt = 0;
 
+        // CreateWith の空の書庫はふつう並列の道で扱えるので、ここを archiveIsNew で通ることはまず無い。
+        // 通っても、待たないのは作ったばかりの空の書庫だけ
         using var zip = ZipUpdate.Open(archivePath);
-        BeginUpdate(zip);
+        BeginUpdate(zip, archiveIsNew);
 
         foreach (var item in plan)
         {

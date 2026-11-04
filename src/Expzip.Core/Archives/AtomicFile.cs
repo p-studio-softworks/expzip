@@ -351,6 +351,25 @@ internal sealed class AtomicFile : IDisposable
         Move(work, target, overwrite);
     }
 
+    /// <summary>
+    /// 同じ作業の中で作ったばかりのファイルを、できあがった作業用ファイルで置き換える (#327)。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ZipArchiveWriter.CreateWith"/> が、自分で作った空の書庫に中身を入れるときだけに使う。
+    /// 守る中身が無いので、ディスクに書き切るのを待たない (写真や動画 256 MB の圧縮が 0.2 秒から 0.37 秒になっていた)。
+    /// アクセス権と出所の印は引き継がない。自分で作った空の書庫には無く、ほかのプログラムに差し替えられていたら、
+    /// そちらのものを持ち込んでしまうため。アプリを使う人のファイルを置き換えるときは <see cref="Replace"/> を使う。
+    /// </remarks>
+    internal static void ReplaceFresh(string work, string target)
+    {
+        lock (Gate)
+        {
+            ThrowIfClosed();
+        }
+
+        Move(work, target, overwrite: true);
+    }
+
     /// <summary>文字列を書く。</summary>
     public static void WriteAllText(string target, string text)
     {

@@ -31,7 +31,7 @@ internal enum SpeedStep
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>ふだんの圧縮・展開と同じ処理</b> (<see cref="ZipArchiveWriter.Add"/> と
+/// <b>ふだんの圧縮・展開と同じ処理</b> (<see cref="ZipArchiveWriter.CreateWith"/> と
 /// <see cref="ArchiveExtractor.Extract"/>) を、作ったデータに実際にかけて測る。
 /// コアの数だけ並べることも、HDD やネットワーク上のフォルダーでは並べないことも (#195)、
 /// ふだんどおりに効く。
@@ -225,8 +225,7 @@ internal static class SpeedTest
     /// <summary>ふだんの「新しい書庫に追加」と同じ道で圧縮する。</summary>
     private static void Compress(string source, string archive, CancellationToken cancellationToken)
     {
-        ZipArchiveWriter.CreateEmpty(archive);
-        var added = ZipArchiveWriter.Add(archive, [source], string.Empty, replaceExisting: false, null, cancellationToken);
+        var added = ZipArchiveWriter.CreateWith(archive, [source], string.Empty, replaceExisting: false, null, cancellationToken);
 
         cancellationToken.ThrowIfCancellationRequested();
         if (added.Cancelled)

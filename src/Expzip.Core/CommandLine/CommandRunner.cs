@@ -296,8 +296,7 @@ internal static class CommandRunner
                 return false;
             }
 
-            ZipArchiveWriter.CreateEmpty(temporary);
-            var result = ZipArchiveWriter.Add(
+            var result = ZipArchiveWriter.CreateWith(
                 temporary, [job.Source], string.Empty, replaceExisting: false, progress: null, CancellationToken.None);
 
             if (result.Failed.Count > 0)

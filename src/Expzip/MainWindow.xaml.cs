@@ -3057,8 +3057,7 @@ public partial class MainWindow : Window
         {
             var result = await Task.Run(() =>
             {
-                ZipArchiveWriter.CreateEmpty(temporary);
-                return ZipArchiveWriter.Add(
+                return ZipArchiveWriter.CreateWith(
                     temporary, sources, string.Empty, replaceExisting: true, progress, cancellation.Token, exclude);
             });
 
