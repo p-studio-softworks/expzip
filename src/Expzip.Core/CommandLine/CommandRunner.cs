@@ -36,6 +36,9 @@ internal static class CommandRunner
     /// <summary>指定に不備があり、何も圧縮していない。</summary>
     public const int NotRun = 2;
 
+    /// <summary>パスを比較・検証する前に形をそろえる処理。プラットフォームごとの正規化などに使う。</summary>
+    public static Func<string, string>? NormalizePathOverride { get; set; }
+
     /// <summary>
     /// ウィンドウを出さずに動く指定かどうか。
     /// </summary>
@@ -196,7 +199,8 @@ internal static class CommandRunner
     {
         try
         {
-            return Path.GetFullPath(path, folder);
+            var full = Path.GetFullPath(path, folder);
+            return NormalizePathOverride != null ? NormalizePathOverride(full) : full;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {

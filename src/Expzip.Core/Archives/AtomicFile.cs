@@ -72,6 +72,12 @@ internal sealed class AtomicFile : IDisposable
     private static readonly Lock Gate = new();
     private static bool _closed;
 
+    /// <summary>一時ファイルの名前を決める処理。省くと既定の規則 (~guid.tmp) で決める。</summary>
+    public static Func<string, string>? TemporaryPathOverride { get; set; }
+
+    /// <summary>上書きを拒む保護属性の判定を差し替える処理。</summary>
+    public static Func<string, FileAttributes, bool>? IsProtectedOverride { get; set; }
+
     private readonly string _target;
     private readonly string _temporary;
     private readonly bool _overwrite;
@@ -177,7 +183,7 @@ internal sealed class AtomicFile : IDisposable
 
     /// <summary>できあがるまで使う名前。</summary>
     public static string TemporaryPathFor(string target)
-        => ZipArchiveWriter.WorkFilePathOverride?.Invoke(target)
+        => TemporaryPathOverride?.Invoke(target)
            ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(target))!, $"~{Guid.NewGuid():N}.tmp");
 
     /// <summary>書き終えた。閉じて置き換える。</summary>
@@ -435,7 +441,7 @@ internal sealed class AtomicFile : IDisposable
     /// <summary>一時ファイルを開く。名前を変えられるように、削除の権利も付けて開く。</summary>
     private static FileStream Open(string temporary)
     {
-        var mode = ZipArchiveWriter.WorkFilePathOverride is null ? FileMode.CreateNew : FileMode.Create;
+        var mode = TemporaryPathOverride is null && ZipArchiveWriter.WorkFilePathOverride is null ? FileMode.CreateNew : FileMode.Create;
         const FileShare Share = FileShare.Read | FileShare.Delete;
 
         return OperatingSystem.IsWindows()
@@ -721,8 +727,12 @@ internal sealed class AtomicFile : IDisposable
             return;
         }
 
-        if ((attributes & (FileAttributes.Directory | FileAttributes.ReadOnly
-                                                    | FileAttributes.Hidden | FileAttributes.System)) != 0)
+        var isProtected = IsProtectedOverride is not null
+            ? IsProtectedOverride(target, attributes)
+            : (attributes & (FileAttributes.Directory | FileAttributes.ReadOnly
+                                                        | FileAttributes.Hidden | FileAttributes.System)) != 0;
+
+        if (isProtected)
         {
             throw new UnauthorizedAccessException($"Access to the path '{target}' is denied.");
         }
@@ -752,6 +762,14 @@ internal sealed class AtomicFile : IDisposable
     {
         if (!OperatingSystem.IsWindows())
         {
+            try
+            {
+                File.SetUnixFileMode(temporary, File.GetUnixFileMode(target));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+
             return;
         }
 
