@@ -1527,6 +1527,18 @@ MarkSuspiciousPath
   ja  パスが通常と異なります
   en  Unusual path
 
+MenuCloseOtherTabs
+  ja  他のタブをすべて閉じる
+  en  Close other tabs
+
+MenuCloseTab
+  ja  閉じる
+  en  Close
+
+MenuCloseTabsToRight
+  ja  右側のタブを閉じる
+  en  Close tabs to the right
+
 MenuComment
   ja  書庫のコメント
   en  Archive comment

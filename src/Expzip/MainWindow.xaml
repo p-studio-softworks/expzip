@@ -429,7 +429,24 @@
                                 PreviewMouseLeftButtonDown="ArchiveTabs_PreviewMouseLeftButtonDown"
                                 PreviewMouseMove="ArchiveTabs_PreviewMouseMove"
                                 PreviewMouseLeftButtonUp="ArchiveTabs_PreviewMouseLeftButtonUp"
-                                LostMouseCapture="ArchiveTabs_LostMouseCapture">
+                                LostMouseCapture="ArchiveTabs_LostMouseCapture"
+                                ContextMenuOpening="ArchiveTabs_ContextMenuOpening">
+                        <!--
+                            タブの右クリック (#337)。対象は右クリックしたタブで、選んでいるタブは切り替えない
+                            (エクスプローラーと同じ)。キーボード (Shift+F10、アプリケーションキー) では選んでいるタブ。
+                            タブの無いところでは出さない
+                        -->
+                        <TabControl.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem x:Name="CloseTabMenuItem"
+                                          InputGestureText="Ctrl+W"
+                                          Click="CloseTabMenuItem_Click" />
+                                <MenuItem x:Name="CloseOtherTabsMenuItem"
+                                          Click="CloseOtherTabsMenuItem_Click" />
+                                <MenuItem x:Name="CloseTabsToRightMenuItem"
+                                          Click="CloseTabsToRightMenuItem_Click" />
+                            </ContextMenu>
+                        </TabControl.ContextMenu>
                         <TabControl.Template>
                             <ControlTemplate TargetType="TabControl">
                                 <ui:EqualTabPanel x:Name="TabStrip" IsItemsHost="True"

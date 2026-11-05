@@ -1,4 +1,4 @@
-﻿# 書庫の中を見て回る: ツリー、場所の区切り (#90)、キー操作 (#12, #46)、タブ (#22)、中の書庫 (#30)、7z (#233)
+﻿# 書庫の中を見て回る: ツリー、場所の区切り (#90)、キー操作 (#12, #46)、タブ (#22、#337)、中の書庫 (#30)、7z (#233)
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'Browse'
 Set-Settings
@@ -381,6 +381,97 @@ Check '押したタブを選ぶ' ((Selected-Tab $app) -eq '奥.zip') (Selected-T
 Select-Tab $app 1
 $save = ById $app.Window 'SaveButton'
 Check '並べ替えても保存の口が出る' ($save -and -not $save.Current.IsOffscreen -and $save.Current.IsEnabled)
+
+Section 'タブの右クリック (#337)'
+function Tab-MenuNames($Menu) { return (@(ByType $Menu $script:ControlType::MenuItem | ForEach-Object { $_.Current.Name }) -join ', ') }
+function Tab-MenuEnabled($Menu, [string]$Name) { $item = ByName $Menu $Name; return $null -ne $item -and $item.Current.IsEnabled }
+# キーボードで出す。対象は選んでいるタブ
+function Open-TabMenu($App, [int]$Index) {
+    Select-Tab $App $Index
+    (Get-Tabs $App)[$Index].SetFocus()
+    Start-Sleep -Milliseconds 300
+    Send-Keys $App '+{F10}'
+    return Find-DropDown $App
+}
+
+# マウスで、選んでいない右の端のタブを右クリックする
+Initialize-Dropper
+$point = Tab-Point $app 4
+Focus-App $app
+[ExpzipUi.Dropper]::RightClick($point[0], $point[1])
+$menu = Find-DropDown $app
+Check 'タブを右クリックするとメニューが出る' ($null -ne $menu)
+Check 'エクスプローラーと同じ並び' ((Tab-MenuNames $menu) -eq '閉じる, 他のタブをすべて閉じる, 右側のタブを閉じる') (Tab-MenuNames $menu)
+Check '右の端では「右側のタブを閉じる」を押せない' ($menu -and -not (Tab-MenuEnabled $menu '右側のタブを閉じる'))
+Check '右クリックしても選んでいるタブは変わらない' ((Selected-Tab $app) -eq '中.zip') (Selected-Tab $app)
+Close-DropDown $app
+
+# 中の書庫に、親へまだ反映していない変更を作る。先に孫のタブを閉じてから、孫の書庫を消す
+Select-Tab $app 2
+Send-Keys $app '^w'
+Wait-Idle $app
+Select-Tab $app 1
+Select-Row $app '奥.zip' | Out-Null
+Send-Keys $app '{DEL}'
+$box = Find-MessageBox $app
+if ($box) { Close-MessageBox $box 'はい(Y)' }
+Wait-Idle $app
+Check '反映していない変更がある' ((Tab-Order $app) -eq '別.zip, 中.zip, 隣.zip, 親.zip') (Tab-Order $app)
+
+$menu = Open-TabMenu $app 0
+Check 'Shift+F10 でもメニューが出る' ($null -ne $menu)
+Check '左の端なら「右側のタブを閉じる」を押せる' (Tab-MenuEnabled $menu '右側のタブを閉じる')
+$item = if ($menu) { ByName $menu '他のタブをすべて閉じる' }
+if ($item) { Push $item }
+# 中の書庫を親より先に閉じるので、親が開いているうちに反映を尋ねる
+$box = Find-MessageBox $app
+Check '反映していない変更を尋ねる' ($null -ne $box)
+if ($box) { Close-MessageBox $box 'キャンセル' }
+Wait-Idle $app
+Check 'キャンセルすると、そこで止まる' ((Tab-Order $app) -eq '別.zip, 中.zip, 隣.zip, 親.zip') (Tab-Order $app)
+
+$menu = Open-TabMenu $app 0
+Check '尋ねたあとに開いても、左の端のタブが対象' (Tab-MenuEnabled $menu '右側のタブを閉じる')
+$item = if ($menu) { ByName $menu '他のタブをすべて閉じる' }
+if ($item) { Push $item }
+$box = Find-MessageBox $app
+if ($box) { Close-MessageBox $box 'はい(Y)' }
+Wait-Idle $app
+Check '他のタブがすべて閉じる' ((Tab-Order $app) -eq '別.zip') (Tab-Order $app)
+Check '選んでいるタブは変わらない' ((Selected-Tab $app) -eq '別.zip') (Selected-Tab $app)
+$inner = Get-InnerZipNames $family '中.zip'
+Check '親を閉じる前に反映した' (-not ($inner -contains '奥.zip')) ($inner -join ', ')
+Stop-Expzip $app
+
+Section 'タブの右クリック: 右側のタブを閉じる (#337)'
+$app = Start-Expzip @($family)
+Push (ById $app.Window 'NewTabButton')
+Check '+ でもう 1 つ書庫を作る' (Complete-FileDialog $app '新しい書庫を作成' (Join-Path $script:Work '別2.zip'))
+Wait-Idle $app
+Select-Tab $app 0
+Check '右クリックから開く (右側)' (Open-InNewTab $app '隣.zip')
+Check '3 個並ぶ' ((Tab-Order $app) -eq '親.zip, 隣.zip, 別2.zip') (Tab-Order $app)
+# 選んでいる右の端のタブを残したまま、選んでいない左の端のタブを右クリックする
+Select-Tab $app 2
+Initialize-Dropper
+$point = Tab-Point $app 0
+Focus-App $app
+[ExpzipUi.Dropper]::RightClick($point[0], $point[1])
+$menu = Find-DropDown $app
+Check '1 個目では押せる' (Tab-MenuEnabled $menu '右側のタブを閉じる')
+$item = if ($menu) { ByName $menu '右側のタブを閉じる' }
+if ($item) { Push $item }
+Wait-Idle $app
+Check '右側のタブが閉じる' ((Tab-Order $app) -eq '親.zip') (Tab-Order $app)
+Check '選んでいたタブが閉じたら、右クリックしたタブを選ぶ' ((Selected-Tab $app) -eq '親.zip') (Selected-Tab $app)
+Check '中身も右クリックしたタブのもの' ((Get-RowNames $app) -contains '隣.zip') ((Get-RowNames $app) -join ', ')
+$menu = Open-TabMenu $app 0
+Check '1 個だけなら「他のタブをすべて閉じる」を押せない' ($menu -and -not (Tab-MenuEnabled $menu '他のタブをすべて閉じる'))
+Check '1 個だけでも「閉じる」は押せる' (Tab-MenuEnabled $menu '閉じる')
+$item = if ($menu) { ByName $menu '閉じる' }
+if ($item) { Push $item }
+Wait-Idle $app
+Check '「閉じる」でタブが無くなる' ((Get-Tabs $app).Count -eq 0) (Tab-Order $app)
 Stop-Expzip $app
 
 Section '開けなかったとき'

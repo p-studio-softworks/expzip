@@ -2347,12 +2347,126 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>タブを閉じる。中の書庫に未反映の変更があれば尋ねる (#30)。</summary>
-    private async Task CloseTabAsync(ArchiveTab tab)
+    // ------------------------------------------------------------------ タブの右クリック (#337)
+
+    /// <summary>右クリックのメニューの対象のタブ。メニューを開いたときに決める。</summary>
+    private ArchiveTab? _menuTab;
+
+    private void ArchiveTabs_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        // マウスでは押したタブ。キーボード (位置が -1) では選んでいるタブ。
+        // キーボードのときの元は、フォーカスのある部品で、選んでいるタブとは限らない
+        var tab = e.CursorLeft < 0
+            ? Tab
+            : e.OriginalSource is DependencyObject source
+                ? FindAncestor<TabItem>(source)?.DataContext as ArchiveTab
+                : null;
+
+        // タブの無いところでは出さない
+        if (tab is null || !_tabs.Contains(tab))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        _menuTab = tab;
+
+        // 処理中はどのタブも閉じられない (× や Ctrl+W と同じ)
+        var idle = _cancellation is null;
+        var index = _tabs.IndexOf(tab);
+        CloseTabMenuItem.IsEnabled = idle;
+        CloseOtherTabsMenuItem.IsEnabled = idle && _tabs.Count > 1;
+        CloseTabsToRightMenuItem.IsEnabled = idle && index < _tabs.Count - 1;
+    }
+
+    private void CloseTabMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_menuTab is { } tab)
+        {
+            _ = CloseTabAsync(tab);
+        }
+    }
+
+    private void CloseOtherTabsMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_menuTab is { } tab)
+        {
+            _ = CloseTabsAsync(_tabs.Where(t => !ReferenceEquals(t, tab)).ToList(), tab);
+        }
+    }
+
+    private void CloseTabsToRightMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_menuTab is { } tab && _tabs.IndexOf(tab) is var index and >= 0)
+        {
+            _ = CloseTabsAsync(_tabs.Skip(index + 1).ToList(), tab);
+        }
+    }
+
+    /// <summary>タブをまとめて閉じる。中の書庫のタブを、親のタブより先に閉じる。</summary>
+    /// <param name="targets">閉じるタブ。</param>
+    /// <param name="keep">右クリックしたタブ。選んでいるタブを閉じるときは、先にこれを選ぶ。</param>
+    /// <remarks>
+    /// 親を先に閉じると、中の書庫は戻す先を失い、未反映の変更を尋ねられないまま捨てることになる。
+    /// 未反映の変更は 1 個ずつ尋ね、「キャンセル」なら残りのタブも閉じずに止める。
+    /// 閉じる途中で選んでいるタブが移ると、反映したばかりの親のタブが選ばれて読み直しが始まり、
+    /// その間は閉じられなくなる。選ぶのは最初の 1 回だけにする
+    /// </remarks>
+    private async Task CloseTabsAsync(IReadOnlyList<ArchiveTab> targets, ArchiveTab keep)
     {
         if (_cancellation is not null)
         {
             return;
+        }
+
+        if (Tab is { } selected && targets.Contains(selected))
+        {
+            ArchiveTabs.SelectedItem = keep;
+        }
+
+        // 深い順。並べ替えたあと (#208) は並びが親子の順とは限らないので、親をたどって数える
+        var ordered = targets
+            .Select((tab, position) => (tab, position, depth: NestDepth(tab)))
+            .OrderByDescending(static x => x.depth)
+            .ThenBy(static x => x.position)
+            .Select(static x => x.tab)
+            .ToList();
+
+        foreach (var tab in ordered)
+        {
+            if (!_tabs.Contains(tab))
+            {
+                continue;
+            }
+
+            if (!await CloseTabAsync(tab))
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>中の書庫を何段たどると、親を持たないタブに着くか。</summary>
+    private int NestDepth(ArchiveTab tab)
+    {
+        var depth = 0;
+        var seen = new HashSet<ArchiveTab>(ReferenceEqualityComparer.Instance);
+
+        for (var current = tab; current is not null && seen.Add(current); current = ParentTabOf(current))
+        {
+            depth++;
+        }
+
+        return depth;
+    }
+
+    /// <summary>タブを閉じる。中の書庫に未反映の変更があれば尋ねる (#30)。</summary>
+    /// <returns>閉じたら true。キャンセルされたとき、閉じられなかったときは false。</returns>
+    private async Task<bool> CloseTabAsync(ArchiveTab tab)
+    {
+        if (_cancellation is not null)
+        {
+            return false;
         }
 
         // 親のタブが閉じられている場合は尋ねない。戻す先が無いのに尋ねても
@@ -2372,18 +2486,19 @@ public partial class MainWindow : Window
 
                 if (answer == MessageBoxResult.Cancel)
                 {
-                    return;
+                    return false;
                 }
 
                 // 反映できなかったときは閉じない。理由が見えないまま変更が消える
                 if (answer == MessageBoxResult.Yes && !await ApplyNestAsync(nest))
                 {
-                    return;
+                    return false;
                 }
             }
         }
 
         CloseTab(tab);
+        return !_tabs.Contains(tab);
     }
 
     /// <summary>タブを閉じる。最後の1つを閉じたら、書庫を開いていない状態に戻す。</summary>
@@ -2415,12 +2530,17 @@ public partial class MainWindow : Window
         _switchingTab = true;
         try
         {
+            var wasSelected = ReferenceEquals(ArchiveTabs.SelectedItem, tab);
             _tabs.RemoveAt(index);
 
-            // 閉じた位置の次を選ぶ。無ければ手前 (ブラウザと同じ)
-            ArchiveTabs.SelectedItem = _tabs.Count == 0
-                ? null
-                : _tabs[Math.Min(index, _tabs.Count - 1)];
+            // 選んでいたタブを閉じたら、閉じた位置の次を選ぶ。無ければ手前 (ブラウザと同じ)。
+            // 選んでいないタブを閉じたときは、選んでいるタブをそのままにする (#337)
+            if (wasSelected || ArchiveTabs.SelectedItem is null)
+            {
+                ArchiveTabs.SelectedItem = _tabs.Count == 0
+                    ? null
+                    : _tabs[Math.Min(index, _tabs.Count - 1)];
+            }
         }
         finally
         {
@@ -8913,6 +9033,9 @@ public partial class MainWindow : Window
         TreeNewFolderMenuItem.Header = Strings.MenuNewFolder;
         TreeNewArchiveMenuItem.Header = Strings.MenuNewArchiveFromSelection;
         TreeHashMenuItem.Header = Strings.MenuHash;
+        CloseTabMenuItem.Header = Strings.MenuCloseTab;
+        CloseOtherTabsMenuItem.Header = Strings.MenuCloseOtherTabs;
+        CloseTabsToRightMenuItem.Header = Strings.MenuCloseTabsToRight;
         TreeCommentMenuItem.Header = Strings.MenuComment;
         TreeRenameMenuItem.Header = Strings.MenuRename;
         TreeDeleteMenuItem.Header = Strings.MenuDelete;

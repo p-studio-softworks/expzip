@@ -169,6 +169,14 @@ internal static partial class Strings
     public static string CloseTabTooltip => Pick(
         "このタブを閉じる (Ctrl+W)", "Close this tab (Ctrl+W)");
 
+    // タブの右クリック (#337)。エクスプローラーのタブと同じ並びと文言にする
+
+    public static string MenuCloseTab => Pick("閉じる", "Close");
+
+    public static string MenuCloseOtherTabs => Pick("他のタブをすべて閉じる", "Close other tabs");
+
+    public static string MenuCloseTabsToRight => Pick("右側のタブを閉じる", "Close tabs to the right");
+
     /// <summary>タブを並べ替えたときの読み上げ (#208)。画面には出さない。</summary>
     /// <remarks>「3 個中」とはしない。ナレーターが「こなか」と読む。</remarks>
     public static string TabMoved(int position, int count) => Pick(
