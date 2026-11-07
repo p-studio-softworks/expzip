@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    テスト用の PC で、頼まれた UI テストを待って走らせる「見張り」。
+    テスト用の PC で、UI テストの実行指示を待機して走らせる「見張り」。
 
 .DESCRIPTION
     テスト用の PC にログオンしている人が、この PC の画面で開いたままにしておく。
@@ -26,7 +26,7 @@ $watching = Join-Path $run 'watching.txt'
 
 # 見張っている印。Invoke-RemoteUiTests.ps1 が、見張りが動いているかを確かめるのに使う
 Set-Content $watching $PID -Encoding UTF8
-Write-Host 'UI テストの頼みを待っています。止めるときは Ctrl+C を押すか、このウィンドウを閉じてください'
+Write-Host 'UI テストの実行指示を待機しています。止めるときは Ctrl+C を押すか、このウィンドウを閉じてください'
 
 try {
     while ($true) {

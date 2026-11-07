@@ -325,9 +325,9 @@ Check '結合用のプログラムには付かない' ($null -eq (Get-Zone (Join
 $blocked = $false
 try { $first = Invoke-Joiner }
 catch {
-    if ("$_" -notmatch 'Application Control policy') { throw }
+    if (-not (Test-AppControlBlock $_)) { throw }
     $blocked = $true
-    Write-Host '  --   結合できる ... 結合用のプログラムを Windows に止められたため、結合の項目は確かめていません'
+    Skip '結合できる' '結合用のプログラムを Windows に止められたため、結合の項目は確かめていません'
 }
 if (-not $blocked) {
     Check '結合できる' ($first -eq 0)

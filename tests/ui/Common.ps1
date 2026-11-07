@@ -107,6 +107,17 @@ function Section([string]$Title) {
     Write-Host ("== {0} == ({1:0} 秒)" -f $Title, $script:Clock.Elapsed.TotalSeconds)
 }
 
+# PC の設定のために確かめられなかった項目を残す。NG には数えないが、Run-UiTests.ps1 が NG と一緒に出す
+function Skip([string]$Label, [string]$Reason) {
+    Write-Host ("  --   " + $Label + " ... " + $Reason)
+}
+
+# スマート アプリ コントロールが有効な PC では、署名の無い exe (Expzip が作る結合用のプログラムと
+# 自己解凍書庫) を Windows が止めることがある (#343)。止めるかどうかは毎回同じとは限らない
+function Test-AppControlBlock($ErrorRecord) {
+    return ("$ErrorRecord" -match 'Application Control policy')
+}
+
 function Check([string]$Label, $Ok, $Detail = '') {
     $suffix = if ("$Detail".Length -gt 0) { " ... $Detail" } else { '' }
     if ($Ok) {

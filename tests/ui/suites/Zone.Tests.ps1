@@ -159,10 +159,15 @@ foreach ($item in $marks) {
 
     # 結合用のプログラム。分割ファイルの印を読む
     Set-Mark (Join-Path $parts 'joinmark.bin.001') $bytes
-    $process = Start-Process $joinerExe -ArgumentList '-q' -WorkingDirectory $parts -PassThru
-    $process.WaitForExit(30000) | Out-Null
-    Check "結合: $name" ($process.ExitCode -eq 0 -and (Test-Same (Get-MarkBytes $joined) $want)) ((Get-MarkBytes $joined).Length)
-    [System.IO.File]::Delete($joined)
+    $process = try { Start-Process $joinerExe -ArgumentList '-q' -WorkingDirectory $parts -PassThru }
+               catch { if (-not (Test-AppControlBlock $_)) { throw }; $null }
+    if ($process) {
+        $process.WaitForExit(30000) | Out-Null
+        Check "結合: $name" ($process.ExitCode -eq 0 -and (Test-Same (Get-MarkBytes $joined) $want)) ((Get-MarkBytes $joined).Length)
+        [System.IO.File]::Delete($joined)
+    } else {
+        Skip "結合: $name" '結合用のプログラムを Windows に止められたため、確かめていません'
+    }
 
     # 自己解凍書庫。自分の印を読む。印を付けた exe はシェルから起動すると警告で止まるので、直接起動する
     $sfxName = "marksfx$index-" + [guid]::NewGuid().ToString('N').Substring(0, 6)
@@ -175,10 +180,15 @@ foreach ($item in $marks) {
     $info = New-Object System.Diagnostics.ProcessStartInfo $sfxExe, '-q'
     $info.UseShellExecute = $false
     $info.WorkingDirectory = $script:Work
-    $process = [System.Diagnostics.Process]::Start($info)
-    $process.WaitForExit(30000) | Out-Null
-    $got = Join-Path $script:Work "$sfxName\one.txt"
-    Check "自己解凍: $name" ($process.ExitCode -eq 0 -and (Test-Same (Get-MarkBytes $got) $want)) ((Get-MarkBytes $got).Length)
+    $process = try { [System.Diagnostics.Process]::Start($info) }
+               catch { if (-not (Test-AppControlBlock $_)) { throw }; $null }
+    if ($process) {
+        $process.WaitForExit(30000) | Out-Null
+        $got = Join-Path $script:Work "$sfxName\one.txt"
+        Check "自己解凍: $name" ($process.ExitCode -eq 0 -and (Test-Same (Get-MarkBytes $got) $want)) ((Get-MarkBytes $got).Length)
+    } else {
+        Skip "自己解凍: $name" '自己解凍書庫を Windows に止められたため、確かめていません'
+    }
 }
 Stop-Expzip $app
 
