@@ -12,26 +12,11 @@ $random = New-Object byte[] 100000
 (New-Object System.Random 1).NextBytes($random)
 [System.IO.File]::WriteAllBytes((Join-Path $source 'data.bin'), $random)
 
-# IExpress (Windows に付いている) で、取り出すだけの exe を作る
+# IExpress (Windows に付いている) で作った、取り出すだけの exe。中身は上の readme.txt と data.bin。
+# 管理者でない PC では IExpress で作れなかったため、作っておいたものを使う (tests\ui\fixtures)。
+# 作り直すときは、IExpress の「Extract files only」で、この 2 個を入れる
 $iexpress = Join-Path $script:Work 'packed.exe'
-$sed = Join-Path $script:Work 'packed.sed'
-$lines = @(
-    '[Version]', 'Class=IEXPRESS', 'SEDVersion=3',
-    '[Options]', 'PackagePurpose=ExtractOnly', 'ShowInstallProgramWindow=0', 'HideExtractAnimation=1',
-    'UseLongFileName=1', 'InsideCompressed=0', 'CAB_FixedSize=0', 'CAB_ResvCodeSigning=0', 'RebootMode=N',
-    'InstallPrompt=%InstallPrompt%', 'DisplayLicense=%DisplayLicense%', 'FinishMessage=%FinishMessage%',
-    'TargetName=%TargetName%', 'FriendlyName=%FriendlyName%', 'AppLaunched=%AppLaunched%',
-    'PostInstallCmd=%PostInstallCmd%', 'AdminQuietInstCmd=%AdminQuietInstCmd%', 'UserQuietInstCmd=%UserQuietInstCmd%',
-    'SourceFiles=SourceFiles',
-    '[Strings]', 'InstallPrompt=', 'DisplayLicense=', 'FinishMessage=', "TargetName=$iexpress", 'FriendlyName=test',
-    'AppLaunched=', 'PostInstallCmd=<None>', 'AdminQuietInstCmd=', 'UserQuietInstCmd=',
-    'FILE0="readme.txt"', 'FILE1="data.bin"',
-    '[SourceFiles]', "SourceFiles0=$source\",
-    '[SourceFiles0]', '%FILE0%=', '%FILE1%='
-)
-[System.IO.File]::WriteAllLines($sed, $lines, [System.Text.Encoding]::Default)
-# IExpress は、引用符で囲んだパスを受け付けない
-Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\iexpress.exe') -ArgumentList '/N', '/Q', $sed -Wait
+Copy-Item (Join-Path $PSScriptRoot '..\fixtures\iexpress_packed.exe') $iexpress -Force
 
 # makecab で CAB を作り、Windows に付いている小さな exe の写しの後ろに付け足す (動かすためではなく、読むためのもの)
 function New-Cab([string]$Name) {

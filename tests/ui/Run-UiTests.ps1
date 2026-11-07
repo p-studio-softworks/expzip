@@ -90,8 +90,15 @@ foreach ($file in $chosen) {
     $seconds = [int]((Get-Date) - $started).TotalSeconds
 
     $lines = @(Get-Content $log -Encoding UTF8 -ErrorAction SilentlyContinue)
-    # 止まったときの英語や日本語のエラーは、コンソールの文字コードで出てくる
-    $errors = @(Get-Content "$log.err" -Encoding Default -ErrorAction SilentlyContinue | Where-Object { $_ })
+    # 止まったときのエラーは、Common.ps1 が UTF-8 に切り替えたあとなら UTF-8 で、その前ならコンソールの文字コードで出てくる。
+    # UTF-8 として読めなければ、コンソールの文字コードで読む
+    $errors = @()
+    if (Test-Path "$log.err") {
+        $bytes = [System.IO.File]::ReadAllBytes("$log.err")
+        $text = try { (New-Object System.Text.UTF8Encoding $false, $true).GetString($bytes) }
+                catch { [System.Text.Encoding]::Default.GetString($bytes) }
+        $errors = @($text -split '\r?\n' | Where-Object { $_ })
+    }
     $ok = @($lines | Where-Object { $_ -match '^\s+OK\s' }).Count
     $ng = @($lines | Where-Object { $_ -match '^\s+NG\s' }).Count
     $crashed = ($process.ExitCode -ne $ng) -or ($errors.Count -gt 0)
@@ -100,7 +107,8 @@ foreach ($file in $chosen) {
 
     $mark = if ($ng -eq 0) { '通過' } else { '失敗' }
     Write-Host ("{0}  OK {1,3} / NG {2,3}  {3,3} 秒" -f $mark, $ok, $ng, $seconds)
-    $lines | Where-Object { $_ -match '^\s+NG\s' } | ForEach-Object { Write-Host "      $_" }
+    # NG と、確かめられなかった項目 (-- で始まる行) を出す
+    $lines | Where-Object { $_ -match '^\s+(NG|--)\s' } | ForEach-Object { Write-Host "      $_" }
     if ($crashed) {
         Write-Host "      途中で止まりました (戻り値 $($process.ExitCode))"
         $errors | Select-Object -First 8 | ForEach-Object { Write-Host "      $_" }

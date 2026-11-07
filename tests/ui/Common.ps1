@@ -18,6 +18,10 @@ if (-not ('ExpzipUi.Native' -as [type])) {
 [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
 [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint msg, IntPtr w, string l);
+[DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "SendMessageW")] public static extern IntPtr SendMessageText(IntPtr h, uint msg, IntPtr w, System.Text.StringBuilder l);
+[DllImport("user32.dll", EntryPoint = "SendMessageW")] public static extern IntPtr SendMessageHandle(IntPtr h, uint msg, IntPtr w, IntPtr l);
+[DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
+[DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr h);
 [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint processId);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, System.Text.StringBuilder text, int max);
@@ -1049,8 +1053,26 @@ function Complete-FileDialog($App, [string]$Title, [string]$Path) {
     $ok = $parts | Where-Object { $_.Current.ClassName -eq 'Button' -and $_.Current.AutomationId -eq '1' } |
         Select-Object -First 1
     if ($null -eq $edit -or $null -eq $ok) { return $false }
-    [ExpzipUi.Native]::SendMessage([IntPtr]$edit.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $Path) | Out-Null
-    Start-Sleep -Milliseconds 300
+    # 欄の文字を書き換えたら、変わったことを親に知らせる (EN_CHANGE)。PC によっては、
+    # 知らせないとダイアログが欄の変化に気付かず、既定の名前のまま保存した。
+    # 中身は Windows に直接尋ねる。PC によっては、UI オートメーションから欄の中身を読めない
+    $handle = [IntPtr]$edit.Current.NativeWindowHandle
+    $parent = [ExpzipUi.Native]::GetParent($handle)
+    $changed = [IntPtr]((0x0300 -shl 16) -bor ([ExpzipUi.Native]::GetDlgCtrlID($handle) -band 0xFFFF))
+    $read = {
+        $text = New-Object System.Text.StringBuilder 1024
+        [ExpzipUi.Native]::SendMessageText($handle, 0x000D, [IntPtr]1024, $text) | Out-Null
+        $text.ToString()
+    }
+    $kept = Wait-Until -TimeoutMs 8000 {
+        if ((& $read) -ne $Path) {
+            [ExpzipUi.Native]::SendMessage($handle, 0x000C, [IntPtr]::Zero, $Path) | Out-Null
+            [ExpzipUi.Native]::SendMessageHandle($parent, 0x0111, $changed, $handle) | Out-Null
+        }
+        Start-Sleep -Milliseconds 500
+        if ((& $read) -eq $Path) { $true }
+    }
+    if (-not $kept) { return $false }
     [ExpzipUi.Native]::PostMessage([IntPtr]$ok.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     Start-Sleep -Milliseconds 1200
     return $true

@@ -11,6 +11,8 @@ publish/
 artifacts/
 *.dll
 *.exe
+# UI テストの見本 (Windows に付いている IExpress で作ったもの)
+!tests/ui/fixtures/*.exe
 *.pdb
 *.cache
 

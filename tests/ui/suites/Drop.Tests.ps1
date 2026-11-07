@@ -226,7 +226,15 @@ if ($explorer) {
     $appRect = $app.Window.Current.BoundingRectangle
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
     $width = [int]$appRect.Width
-    $left = if ($appRect.Right + 20 + $width -le $screen.Right) { $appRect.Right + 20 } else { [Math]::Max($screen.Left, $appRect.Left - $width - 20) }
+    if ($appRect.Right + 20 + $width -le $screen.Right) { $left = $appRect.Right + 20 }
+    elseif ($appRect.Left - $width - 20 -ge $screen.Left) { $left = $appRect.Left - $width - 20 }
+    else {
+        # 画面が狭く、どちらの横にも並ばないときは、Expzip を左の端へ寄せて画面を半分ずつ使う。
+        # 重なったままだと、落とす所が Expzip の下に隠れ、Expzip の上に落としてしまう
+        $width = [int](($screen.Width - 20) / 2)
+        [ExpzipUi.Native]::MoveWindow([IntPtr]$app.Window.Current.NativeWindowHandle, [int]$screen.Left, [int]$appRect.Top, $width, [int]$appRect.Height, $true) | Out-Null
+        $left = $screen.Left + $width + 20
+    }
     [ExpzipUi.Native]::MoveWindow([IntPtr]$explorer.Current.NativeWindowHandle, [int]$left, [int]$appRect.Top, $width, [int]$appRect.Height, $true) | Out-Null
     Start-Sleep -Milliseconds 800
 

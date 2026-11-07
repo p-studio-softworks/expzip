@@ -320,38 +320,49 @@ function Invoke-Joiner {
 $joined = Join-Path $parts 'marked.bin'
 Check '分割ファイルに印が付く' ((Get-Zone (Join-Path $parts 'marked.bin.001')) -match 'ZoneId=3')
 Check '結合用のプログラムには付かない' ($null -eq (Get-Zone (Join-Path $parts 'marked.bin.exe')))
-Check '結合できる' ((Invoke-Joiner) -eq 0)
-Check '中身が同じ' ((Get-FileHash $joined -Algorithm SHA256).Hash -eq $sourceHash)
-Check '結合したファイルに印が付く' ((Get-Zone $joined) -match 'ZoneId=3')
-Check '結合の一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
+# スマート アプリ コントロールが有効な PC では、署名の無い結合用のプログラムを Windows が止める。
+# そのときは結合の項目を確かめずに先へ進み、止められたことを記録に残す
+$blocked = $false
+try { $first = Invoke-Joiner }
+catch {
+    if ("$_" -notmatch 'Application Control policy') { throw }
+    $blocked = $true
+    Write-Host '  --   結合できる ... 結合用のプログラムを Windows に止められたため、結合の項目は確かめていません'
+}
+if (-not $blocked) {
+    Check '結合できる' ($first -eq 0)
+    Check '中身が同じ' ((Get-FileHash $joined -Algorithm SHA256).Hash -eq $sourceHash)
+    Check '結合したファイルに印が付く' ((Get-Zone $joined) -match 'ZoneId=3')
+    Check '結合の一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
 
-# 同じ名前があれば結合せず、元のファイルを残す
-Write-Text $joined 'ORIGINAL-JOINED'
-Check '同じ名前があれば失敗する' ((Invoke-Joiner) -ne 0)
-Check '同じ名前のファイルは元のまま' ((Read-Text $joined) -eq 'ORIGINAL-JOINED')
-[System.IO.File]::Delete($joined)
+    # 同じ名前があれば結合せず、元のファイルを残す
+    Write-Text $joined 'ORIGINAL-JOINED'
+    Check '同じ名前があれば失敗する' ((Invoke-Joiner) -ne 0)
+    Check '同じ名前のファイルは元のまま' ((Read-Text $joined) -eq 'ORIGINAL-JOINED')
+    [System.IO.File]::Delete($joined)
 
-# 一部の分割ファイルだけに印があっても引き継ぐ
-Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier
-Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.003') -Stream Zone.Identifier
-Check '1 個目に印が無くても結合できる' ((Invoke-Joiner) -eq 0)
-Check '一部にだけ印があっても引き継ぐ' ((Get-Zone $joined) -match 'ZoneId=3')
-[System.IO.File]::Delete($joined)
+    # 一部の分割ファイルだけに印があっても引き継ぐ
+    Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier
+    Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.003') -Stream Zone.Identifier
+    Check '1 個目に印が無くても結合できる' ((Invoke-Joiner) -eq 0)
+    Check '一部にだけ印があっても引き継ぐ' ((Get-Zone $joined) -match 'ZoneId=3')
+    [System.IO.File]::Delete($joined)
 
-# 弱い印が混ざっていても、いちばん強い印を使う
-Set-Content -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=2"
-Invoke-Joiner | Out-Null
-Check 'いちばん強い印を使う' ((Get-Zone $joined) -match 'ZoneId=3')
-[System.IO.File]::Delete($joined)
+    # 弱い印が混ざっていても、いちばん強い印を使う
+    Set-Content -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=2"
+    Invoke-Joiner | Out-Null
+    Check 'いちばん強い印を使う' ((Get-Zone $joined) -match 'ZoneId=3')
+    [System.IO.File]::Delete($joined)
 
-# 壊れていれば本来の名前に何も残らない
-$second = Join-Path $parts 'marked.bin.002'
-$part = [System.IO.File]::ReadAllBytes($second)
-$part[100] = $part[100] -bxor 0xFF
-[System.IO.File]::WriteAllBytes($second, $part)
-Check '壊れていれば失敗する' ((Invoke-Joiner) -ne 0)
-Check '本来の名前に残らない' (-not (Test-Path $joined))
-Check '壊れたときも一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
+    # 壊れていれば本来の名前に何も残らない
+    $second = Join-Path $parts 'marked.bin.002'
+    $part = [System.IO.File]::ReadAllBytes($second)
+    $part[100] = $part[100] -bxor 0xFF
+    [System.IO.File]::WriteAllBytes($second, $part)
+    Check '壊れていれば失敗する' ((Invoke-Joiner) -ne 0)
+    Check '本来の名前に残らない' (-not (Test-Path $joined))
+    Check '壊れたときも一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
+}
 
 Section '印を保存できない場所 (#321)'
 # 下のファイルの代替データストリームだけを書けなくしたフォルダー。exFAT などと同じく、印だけが付かない
