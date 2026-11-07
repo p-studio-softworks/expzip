@@ -10,8 +10,9 @@
     ほかに用意するものは無い。圧縮の処理も含め、必要なものはすべて exe の中に入る。
 
 .PARAMETER Test
-    ビルドしたあとに tests\ui のテストも走らせる。
-    テストの間は Expzip の窓が前に出るので、マウスとキーボードに触らないこと。
+    ビルドの前に tests\core のテスト (画面を使わない) を、ビルドしたあとに tests\ui のテストを走らせる。
+    tests\core が落ちたら、ビルドにも tests\ui にも進まない。
+    tests\ui の間は Expzip の窓が前に出るので、マウスとキーボードに触らないこと。
 
 .PARAMETER Debug
     配布用ではなく、開発用にビルドするだけにする (発行しない)。
@@ -80,6 +81,17 @@ if ($Msix) {
     }
 }
 
+# 画面を使わないテストを、exe を作る前に走らせる。数十秒で終わるので、落ちたら exe も画面のテスト (30 分ほど) も作らない (#332)
+if ($Test) {
+    Write-Host 'Core のテストを走らせます…'
+    & (Join-Path $repo 'tests\core\Run-CoreTests.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'Core のテストが落ちました。ビルドと画面のテストには進みません。'
+        exit $LASTEXITCODE
+    }
+    Write-Host ''
+}
+
 if ($Debug) {
     Write-Host '開発用にビルドしています…'
     # ExpzipBuildScript: 直接ビルドしたときに出す案内 (Expzip.csproj) を止める
@@ -90,6 +102,14 @@ else {
     Write-Host '配布用の Expzip.exe を作っています。数分かかることがあります…'
     & dotnet publish (Join-Path $repo 'src\Expzip') -p:PublishProfile=win-x64 -nologo
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    # テストの部品 (tests\core) が配るものに混ざっていないか (#332)
+    $mixed = @(Get-ChildItem $publish -File | Where-Object { $_.Name -match '^(xunit|Expzip\.Core\.Tests|Microsoft\.Testing\.|Microsoft\.ApplicationInsights)' })
+    if ($mixed.Count -gt 0) {
+        Write-Host 'テストの部品が配るものに混ざっています。このビルドは配らないでください:'
+        $mixed | ForEach-Object { Write-Host "  $($_.Name)" }
+        exit 1
+    }
 
     $built = Get-Item $exe
     Write-Host ''
@@ -151,7 +171,7 @@ if ($Msix -and -not $Debug) {
 
 if ($Test) {
     Write-Host ''
-    Write-Host 'テストを走らせます。終わるまでマウスとキーボードに触らないでください…'
+    Write-Host '画面のテストを走らせます。終わるまでマウスとキーボードに触らないでください…'
     & (Join-Path $repo 'tests\ui\Run-UiTests.ps1')
     exit $LASTEXITCODE
 }

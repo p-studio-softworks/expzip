@@ -78,6 +78,18 @@ internal sealed class AtomicFile : IDisposable
     /// <summary>上書きを拒む保護属性の判定を差し替える処理。</summary>
     public static Func<string, FileAttributes, bool>? IsProtectedOverride { get; set; }
 
+    /// <summary>
+    /// 書く手順の節目を知らせる先 (#332)。テストが、書き切ってから置き換えているかなどの順番を確かめるのに使う。
+    /// ふだんは null で、何もしない。
+    /// </summary>
+    /// <remarks>
+    /// 知らせるのは出来事の名前とパス。<c>"flush"</c> はディスクへ書き切った直後、<c>"move"</c> は本来の名前に置き換える直前、
+    /// <c>"direct"</c> は本来の名前に直接作る直前、<c>"fallback"</c> は直接作れずに置き換えの道へ移る直前、
+    /// <c>"marked"</c> は出所の印を付けた直後 (中身を書く前)。
+    /// テストは <c>"direct"</c> を受けたときに同じ名前のものを置いて、確かめてから作るまでの間の割り込みを試す。
+    /// </remarks>
+    internal static Action<string, string>? Trace { get; set; }
+
     private readonly string _target;
     private readonly string _temporary;
     private readonly bool _overwrite;
@@ -110,6 +122,10 @@ internal sealed class AtomicFile : IDisposable
             // 印を先に付ける。アクセス権を写すと、印を書けなくなることがある
             Zone = zone;
             MarkLost = zone is not null && !MarkOfTheWeb.TryApply(temporary, zone);
+            if (zone is not null)
+            {
+                Trace?.Invoke("marked", temporary);
+            }
 
             if (_replacing)
             {
@@ -178,7 +194,13 @@ internal sealed class AtomicFile : IDisposable
             throw new ReservedNameException(target);
         }
 
-        return TryCreateDirect(target, zone) ?? Create(target, overwrite, zone);
+        if (TryCreateDirect(target, zone) is { } direct)
+        {
+            return direct;
+        }
+
+        Trace?.Invoke("fallback", Path.GetFullPath(target));
+        return Create(target, overwrite, zone);
     }
 
     /// <summary>できあがるまで使う名前。</summary>
@@ -329,6 +351,7 @@ internal sealed class AtomicFile : IDisposable
 
             using var stream = new FileStream(work, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             stream.Flush(flushToDisk: true);
+            Trace?.Invoke("flush", work);
         }
 
         // 印を付けると更新日時が変わるので、同じ印が付いていれば付けず、付けたら更新日時を戻す。
@@ -337,6 +360,7 @@ internal sealed class AtomicFile : IDisposable
         {
             var written = File.GetLastWriteTimeUtc(work);
             MarkOfTheWeb.TryApply(work, zone);
+            Trace?.Invoke("marked", work);
 
             try
             {
@@ -488,6 +512,10 @@ internal sealed class AtomicFile : IDisposable
 
         var replacing = File.Exists(_target);
         Stream.Flush(flushToDisk: replacing);
+        if (replacing)
+        {
+            Trace?.Invoke("flush", _temporary);
+        }
 
         // 書き終えてから付ける。付けたあとは、閉じても書き込んだ時刻で上書きされない
         if (lastWriteTime is { } time && time != default)
@@ -534,6 +562,7 @@ internal sealed class AtomicFile : IDisposable
         }
 
         var full = Path.GetFullPath(target);
+        Trace?.Invoke("direct", full);
         var handle = CreateFileW(
             LongPath(full), FileGenericWrite | FileReadAttributes | DeleteAccess, FileShareRead,
             IntPtr.Zero, CreateNew, FileAttributeNormal | FileFlagOpenReparsePoint, IntPtr.Zero);
@@ -554,6 +583,11 @@ internal sealed class AtomicFile : IDisposable
             }
 
             var markLost = zone is not null && !MarkOfTheWeb.TryApply(full, zone);
+            if (zone is not null)
+            {
+                // 「閉じたら消す」を予約すると、ほかから開けなくなる。テストが印を読めるのはここまで
+                Trace?.Invoke("marked", full);
+            }
 
             if (!SetDeleteOnClose(handle, true))
             {
@@ -652,6 +686,7 @@ internal sealed class AtomicFile : IDisposable
         BitConverter.TryWriteBytes(info.AsSpan(16), bytes.Length);
         bytes.CopyTo(info, NameOffset);
 
+        Trace?.Invoke("move", target);
         return SetFileInformationByHandle(handle, FileRenameInfo, info, info.Length);
     }
 
@@ -673,6 +708,7 @@ internal sealed class AtomicFile : IDisposable
         if (_replacing)
         {
             Stream.Flush(flushToDisk: true);
+            Trace?.Invoke("flush", _temporary);
         }
 
         Stream.Dispose();
@@ -826,6 +862,7 @@ internal sealed class AtomicFile : IDisposable
     /// <summary>名前を変える。ウイルス対策などが一瞬つかんでいることがあるので、短くやり直す。</summary>
     private static void Move(string source, string target, bool overwrite)
     {
+        Trace?.Invoke("move", target);
         for (var attempt = 1; ; attempt++)
         {
             try

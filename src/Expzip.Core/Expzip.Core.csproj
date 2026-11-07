@@ -19,6 +19,8 @@
   <ItemGroup>
     <!-- 中の型は公開していない (internal)。画面の側からは見えるようにする -->
     <InternalsVisibleTo Include="Expzip" />
+    <!-- Core を直接呼ぶテスト (#332)。配る exe には入らない -->
+    <InternalsVisibleTo Include="Expzip.Core.Tests" />
   </ItemGroup>
 
   <ItemGroup>
