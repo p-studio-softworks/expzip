@@ -94,6 +94,9 @@ Section '余白をクリックする'
 [ExpzipUi.Keys]::ControlDown()
 try {
     [ExpzipUi.Keys]::Click($sizeX, $blankY)
+    # ボタンを放したのを Expzip が受け取ってから Ctrl を放す。すぐ放すと、遅い PC では
+    # 受け取ったときに Ctrl が放されていて、押していなかったことになる (#344)
+    Start-Sleep -Milliseconds 400
 } finally {
     [ExpzipUi.Keys]::ControlUp()
 }
