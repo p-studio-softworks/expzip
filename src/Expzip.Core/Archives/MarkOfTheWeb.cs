@@ -27,7 +27,7 @@ internal interface IOriginMark
 /// </remarks>
 internal static class MarkOfTheWeb
 {
-    private const string StreamSuffix = ":Zone.Identifier";
+    internal const string StreamSuffix = ":Zone.Identifier";
 
     /// <summary>
     /// 印の読み書きの方法。画面の側が差し替えられる。<see langword="null"/> なら Zone.Identifier ストリーム。

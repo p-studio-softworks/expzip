@@ -85,7 +85,7 @@ internal sealed class AtomicFile : IDisposable
     /// <remarks>
     /// 知らせるのは出来事の名前とパス。<c>"flush"</c> はディスクへ書き切った直後、<c>"move"</c> は本来の名前に置き換える直前、
     /// <c>"direct"</c> は本来の名前に直接作る直前、<c>"fallback"</c> は直接作れずに置き換えの道へ移る直前、
-    /// <c>"marked"</c> は出所の印を付けた直後 (中身を書く前)。
+    /// <c>"marked"</c> は出所の印を付けた直後 (中身を書く前)、<c>"markflush"</c> は印をディスクへ書き切った直後。
     /// テストは <c>"direct"</c> を受けたときに同じ名前のものを置いて、確かめてから作るまでの間の割り込みを試す。
     /// </remarks>
     internal static Action<string, string>? Trace { get; set; }
@@ -343,19 +343,16 @@ internal sealed class AtomicFile : IDisposable
             ThrowIfClosed();
         }
 
-        if (File.Exists(target))
+        var replacing = File.Exists(target);
+        if (replacing)
         {
             RefuseUnwritable(target);
             zone ??= MarkOfTheWeb.TryRead(target);
-            CopyAccessRules(target, work);
-
-            using var stream = new FileStream(work, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            stream.Flush(flushToDisk: true);
-            Trace?.Invoke("flush", work);
         }
 
         // 印を付けると更新日時が変わるので、同じ印が付いていれば付けず、付けたら更新日時を戻す。
-        // 元に戻すときの作業用ファイルには、前の読めない印が残っていることがあるので、原文で比べる (#325)
+        // 元に戻すときの作業用ファイルには、前の読めない印が残っていることがあるので、原文で比べる (#325)。
+        // 印はアクセス権より先に付ける。アクセス権を写すと、印を書けなくなることがある
         if (zone is not null && !MarkOfTheWeb.HasExactly(work, zone))
         {
             var written = File.GetLastWriteTimeUtc(work);
@@ -370,6 +367,18 @@ internal sealed class AtomicFile : IDisposable
             {
                 // 更新日時が今の時刻になるだけで、書庫の中身と印は正しい
             }
+        }
+
+        // 既にあるファイルを置き換えるときは、印と中身をディスクに書き切ってから置き換える (#347)。
+        // 書き切ったあとに印を付けると、その直後の電源断で、置き換わった書庫に印が残らないことがある
+        if (replacing)
+        {
+            FlushMark(work, zone);
+            CopyAccessRules(target, work);
+
+            using var stream = new FileStream(work, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            stream.Flush(flushToDisk: true);
+            Trace?.Invoke("flush", work);
         }
 
         Move(work, target, overwrite);
@@ -511,6 +520,11 @@ internal sealed class AtomicFile : IDisposable
         }
 
         var replacing = File.Exists(_target);
+        if (replacing && !MarkLost)
+        {
+            FlushMark(_temporary, Zone);
+        }
+
         Stream.Flush(flushToDisk: replacing);
         if (replacing)
         {
@@ -707,6 +721,11 @@ internal sealed class AtomicFile : IDisposable
 
         if (_replacing)
         {
+            if (!MarkLost)
+            {
+                FlushMark(_temporary, Zone);
+            }
+
             Stream.Flush(flushToDisk: true);
             Trace?.Invoke("flush", _temporary);
         }
@@ -754,6 +773,35 @@ internal sealed class AtomicFile : IDisposable
         if (_closed)
         {
             throw new OperationCanceledException();
+        }
+    }
+
+    /// <summary>
+    /// 付けた出所の印 (別のストリーム) をディスクに書き切る (#347)。既にあるファイルを置き換える前に呼ぶ。
+    /// </summary>
+    /// <remarks>
+    /// 中身を書き切っても、印のストリームは書き切られない。書き切れなくても置き換えは止めない。
+    /// 困るのは置き換えの直後に電源が切れたときだけで、止めると印を保存できないドライブで保存できなくなる。
+    /// </remarks>
+    private static void FlushMark(string path, string? zone)
+    {
+        // 印を別のストリームに書かない差し替え (MarkOfTheWeb.Override) では、書き切るものが無い
+        if (zone is null || MarkOfTheWeb.Override is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            // 書き切れるのは、書き込みの権利のあるハンドルだけ。開くだけで、中身も更新日時も変えない
+            using var mark = new FileStream(
+                path + MarkOfTheWeb.StreamSuffix, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+            mark.Flush(flushToDisk: true);
+            Trace?.Invoke("markflush", path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            // 印を保存できないドライブ (exFAT など) や、印を付けられなかったとき
         }
     }
 

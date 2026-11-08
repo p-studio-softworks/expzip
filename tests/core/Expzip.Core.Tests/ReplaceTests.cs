@@ -25,6 +25,42 @@ public sealed class ReplaceTests
     }
 
     [Fact]
+    public void Replace_印を付けて書き切ってから置き換える()
+    {
+        // 書き切ったあとに印を付けると、その直後の電源断で、置き換わった書庫に印が残らない (#347)
+        using var log = new TraceLog();
+        var target = log.PathOf("a.zip");
+        var work = log.PathOf("work.tmp");
+        File.WriteAllText(target, "OLD");
+        File.WriteAllText(target + MarkOfTheWeb.StreamSuffix, MarkOfTheWeb.Internet);
+        File.WriteAllText(work, "NEW");
+        var written = new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(work, written);
+
+        AtomicFile.Replace(work, target);
+
+        Assert.Equal("marked markflush flush move", log.Names);
+        // 印を付けても、印を書き切っても、更新日時は書いたときのまま
+        Assert.Equal(written, File.GetLastWriteTimeUtc(target));
+        Assert.Equal(MarkOfTheWeb.Internet, MarkOfTheWeb.TryRead(target));
+        Assert.Equal("NEW", File.ReadAllText(target));
+    }
+
+    [Fact]
+    public void Replace_新しく作るときは印を付けても待たない()
+    {
+        using var log = new TraceLog();
+        var target = log.PathOf("a.zip");
+        var work = log.PathOf("work.tmp");
+        File.WriteAllText(work, "NEW");
+
+        AtomicFile.Replace(work, target, zone: MarkOfTheWeb.Internet);
+
+        Assert.Equal("marked move", log.Names);
+        Assert.Equal(MarkOfTheWeb.Internet, MarkOfTheWeb.TryRead(target));
+    }
+
+    [Fact]
     public void Replace_置き換える先が無ければ待たない()
     {
         using var log = new TraceLog();

@@ -82,6 +82,24 @@ internal sealed class TraceLog : IDisposable
     }
 }
 
+/// <summary>ジャンクションを作る。特別な権利は要らない。</summary>
+internal static class Junction
+{
+    public static bool TryCreate(string link, string target)
+    {
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            Path.Combine(Environment.SystemDirectory, "cmd.exe"), $"/c mklink /J \"{link}\" \"{target}\"")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        })!;
+        process.WaitForExit();
+        return process.ExitCode == 0 && Directory.Exists(link);
+    }
+}
+
 /// <summary><see cref="AtomicFile.Trace"/> を使うテストのまとまり。ほかと並べて走らせない。</summary>
 [CollectionDefinition(nameof(TraceCollection), DisableParallelization = true)]
 public sealed class TraceCollection

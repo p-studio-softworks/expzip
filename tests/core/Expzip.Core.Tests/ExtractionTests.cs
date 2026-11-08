@@ -9,7 +9,7 @@ namespace Expzip.Tests;
 
 /// <summary>
 /// 取り出しで、本来の名前に直接作る道 (#328)。確かめてから作るまでの間に同じ名前のものが置かれたら、
-/// 置き換えの道に移り、書き込み禁止やアクセス権の確かめが働く。
+/// 置き換えの道に移り、書き込み禁止やアクセス権の確認が働く。
 /// </summary>
 [Collection(nameof(TraceCollection))]
 public sealed class ExtractionTests
@@ -240,7 +240,7 @@ public sealed class ExtractionTests
         var destination = Directory.CreateDirectory(log.PathOf("dest")).FullName;
         var target = Path.Combine(destination, "a.txt");
         var created = false;
-        PlaceAtDirect(log, target, () => created = TryCreateJunction(target, outside));
+        PlaceAtDirect(log, target, () => created = Junction.TryCreate(target, outside));
 
         var error = Record.Exception(() => Write(target, overwrite: true));
 
@@ -330,7 +330,8 @@ public sealed class ExtractionTests
             Assert.True(file.Commit());
         }
 
-        Assert.StartsWith("direct fallback marked", log.Names);
+        // 置き換える前に、印と中身を書き切る (#347)
+        Assert.StartsWith("direct fallback marked markflush flush move", log.Names);
         // 印を付けたのは一時ファイル。前からあるファイルには、置き換えるまで触らない
         Assert.NotEqual(target, markedPath);
         Assert.Equal(MarkOfTheWeb.Internet, markAtThatTime);
@@ -477,20 +478,6 @@ public sealed class ExtractionTests
         {
             return false;
         }
-    }
-
-    private static bool TryCreateJunction(string link, string target)
-    {
-        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-            Path.Combine(Environment.SystemDirectory, "cmd.exe"), $"/c mklink /J \"{link}\" \"{target}\"")
-        {
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        })!;
-        process.WaitForExit();
-        return process.ExitCode == 0 && Directory.Exists(link);
     }
 
     private static string? ShortNameOf(string path)
