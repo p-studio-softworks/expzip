@@ -225,8 +225,18 @@ internal static class ArchiveExtractor
     /// 違う名前など)。並べると同じファイルを同時に書こうとして、どちらかが失敗する。
     /// 1 本なら、これまでどおり後のものが上書きするか、飛ばされる。
     /// </para>
+    /// <para>
+    /// 名前に <c>~</c> と数字が続く部分があるときも 1 本にする (#349)。8.3 形式の短い名前
+    /// (<c>LONGFI~1.TXT</c>) は、長い名前と同じファイルを指すが、名前の比べ方では別のものに見える。
+    /// 並べると、1 つ目を書いている最中に 2 つ目が来て「アクセスが拒否されました」と失敗する。
+    /// Windows が付ける短い名前には必ず <c>~</c> と数字が入る。展開先そのもののパスは見ない (一時フォルダーなどに入っていることがある)。
+    /// </para>
+    /// <para>
+    /// 展開先に前からあるジャンクションなどを通る項目があるときも 1 本にする (#349)。ジャンクションを通る名前と、
+    /// その先のフォルダーを通る名前は、同じファイルを指すのに別のものに見える。
+    /// </para>
     /// </remarks>
-    private static int CountLanes(string archivePath, string destinationRoot, IReadOnlyList<string> targets)
+    internal static int CountLanes(string archivePath, string destinationRoot, IReadOnlyList<string> targets)
     {
         if (targets.Count < 2 || Environment.ProcessorCount < 2)
         {
@@ -238,12 +248,70 @@ internal static class ArchiveExtractor
             return 1;
         }
 
+        if (targets.Any(t => MayBeShortName(Path.GetRelativePath(destinationRoot, t))))
+        {
+            return 1;
+        }
+
+        if (PassesThroughLink(destinationRoot, targets))
+        {
+            return 1;
+        }
+
         if (SeekPenalty.Of(destinationRoot) != false || SeekPenalty.Of(archivePath) != false)
         {
             return 1;
         }
 
         return Math.Min(Environment.ProcessorCount, targets.Count);
+    }
+
+    /// <summary>8.3 形式の短い名前かもしれない部分 (<c>~</c> と数字) を含むか (#349)。フォルダーの名前も見る。</summary>
+    internal static bool MayBeShortName(string relativePath)
+    {
+        for (var i = 0; i + 1 < relativePath.Length; i++)
+        {
+            if (relativePath[i] == '~' && char.IsAsciiDigit(relativePath[i + 1]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 書き出す先のフォルダーのうち、展開先に前からあるものに、ジャンクションやリンクがあるか (#349)。
+    /// 展開先そのものは見ない。同じフォルダーは 1 回だけ調べる。
+    /// </summary>
+    internal static bool PassesThroughLink(string destinationRoot, IReadOnlyList<string> targets)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationRoot));
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var target in targets)
+        {
+            var folder = Path.GetDirectoryName(target);
+            while (folder is not null && folder.Length > root.Length && seen.Add(folder))
+            {
+                // まだ無いフォルダーは展開で作るので、リンクではない。無いものに例外を出させないよう、先に確かめる
+                try
+                {
+                    if (Directory.Exists(folder) && (File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // 確かめている間に消えた
+                }
+
+                folder = Path.GetDirectoryName(folder);
+            }
+        }
+
+        return false;
     }
 
     /// <summary>1 件を書き出す。結果は <paramref name="tally"/> に記録する。</summary>

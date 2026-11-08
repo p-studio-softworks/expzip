@@ -391,39 +391,143 @@ public sealed class ExtractionTests
         AssertNoLeftovers(log);
     }
 
-    [Fact]
-    public void 長い名前と短い名前の2項目を並列で展開しても書きかけが残らない()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void 長い名前と短い名前の2項目は1つずつ展開する(bool overwrite)
     {
+        // 並べると、1 つ目を書いている最中に 2 つ目が来て、まれに「アクセスが拒否されました」になっていた (#349)。
+        // 1 つずつなら、上書きしない指定では 2 つ目を飛ばし、上書きする指定では 2 つ目が上書きする
         using var log = new TraceLog();
-        var probe = log.PathOf("longfilename.txt");
-        File.WriteAllText(probe, "probe");
-        var shortName = ShortNameOf(probe);
-        File.Delete(probe);
-        Assert.SkipWhen(shortName is null || string.Equals(shortName, probe, StringComparison.OrdinalIgnoreCase),
-            "この場所では 8.3 形式の短い名前が作られない");
-
-        var archive = log.PathOf("names.zip");
+        var shortName = ShortNameFor(log);
         var big = new string('L', 4 * 1024 * 1024);
+        var archive = MakeNamesZip(log, shortName, big, breakLong: false);
+
+        for (var i = 0; i < 20; i++)
+        {
+            var destination = Directory.CreateDirectory(log.PathOf($"out{i}")).FullName;
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination, overwrite, null, CancellationToken.None);
+
+            Assert.Empty(result.Failed);
+            Assert.Equal(overwrite ? 2 : 1, result.Extracted);
+            Assert.Equal(overwrite ? 0 : 1, result.Skipped);
+            var file = Assert.Single(Directory.EnumerateFiles(destination));
+            Assert.Equal(overwrite ? "SHORT" : big, File.ReadAllText(file));
+            Assert.Empty(Directory.EnumerateFiles(destination, "~*.tmp"));
+        }
+    }
+
+    [Fact]
+    public void 長い名前の項目が壊れていても短い名前の項目は取り出す()
+    {
+        // 1 つ目を書いている間に 2 つ目を飛ばすと、1 つ目が消えたときにどちらも残らない。1 つずつなら残る
+        using var log = new TraceLog();
+        var shortName = ShortNameFor(log);
+        var archive = MakeNamesZip(log, shortName, new string('L', 4096), breakLong: true);
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination, false, null, CancellationToken.None);
+
+        Assert.Single(result.Failed);
+        Assert.Equal(1, result.Extracted);
+        var file = Assert.Single(Directory.EnumerateFiles(destination));
+        Assert.Equal("SHORT", File.ReadAllText(file));
+        Assert.Empty(Directory.EnumerateFiles(destination, "~*.tmp"));
+    }
+
+    [Theory]
+    [InlineData("LONGFI~1.TXT", true)]
+    [InlineData(@"DOCUME~2\a.txt", true)]
+    [InlineData("a~b.txt", false)]
+    [InlineData("~$report.docx", false)]
+    [InlineData("plain.txt", false)]
+    [InlineData("end~", false)]
+    [InlineData("~1start.txt", true)]
+    // 全角の「～１」は短い名前として既に正しい形なので、Windows は短い名前を付けない
+    [InlineData("～１.txt", false)]
+    public void 短い名前かもしれない名前を見分ける(string name, bool expected)
+        => Assert.Equal(expected, ArchiveExtractor.MayBeShortName(name));
+
+    [Fact]
+    public void 前からあるジャンクションを通る名前と先の名前は1つずつ展開する()
+    {
+        // link\a.txt と real\a.txt は同じファイル。並べると片方が「アクセスが拒否されました」になっていた (#349)
+        using var log = new TraceLog();
+        var archive = log.PathOf("alias.zip");
         using (var zip = ZipFile.Open(archive, ZipArchiveMode.Create))
         {
-            foreach (var (name, text) in new[] { ("longfilename.txt", big), (Path.GetFileName(shortName!), "SHORT") })
+            foreach (var (name, text) in new[] { ("real/a.txt", new string('L', 4 * 1024 * 1024)), ("link/a.txt", "LINK") })
             {
                 using var writer = new StreamWriter(zip.CreateEntry(name, CompressionLevel.NoCompression).Open());
                 writer.Write(text);
             }
         }
 
-        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination, false, null, CancellationToken.None);
+        for (var i = 0; i < 20; i++)
+        {
+            var destination = Directory.CreateDirectory(log.PathOf($"out{i}")).FullName;
+            var real = Directory.CreateDirectory(Path.Combine(destination, "real")).FullName;
+            Assert.SkipUnless(Junction.TryCreate(Path.Combine(destination, "link"), real), "ジャンクションを作れない");
 
-        // 2 つは同じファイルなので、1 つだけが取り出され、もう 1 つは飛ばすか失敗になる。並列の順番で、どちらが残るかは変わる
-        Assert.Equal(1, result.Extracted);
-        Assert.Equal(1, result.Skipped + result.Failed.Count);
-        var file = Assert.Single(Directory.EnumerateFiles(destination));
-        var written = File.ReadAllText(file);
-        Assert.True(written == big || written == "SHORT", $"{Path.GetFileName(file)} が書きかけ ({written.Length} 文字)");
+            Assert.True(ArchiveExtractor.PassesThroughLink(destination, [Path.Combine(destination, "real", "a.txt"), Path.Combine(destination, "link", "a.txt")]), "リンクを通ると見なす");
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination, false, null, CancellationToken.None);
 
-        Assert.Empty(Directory.EnumerateFiles(destination, "~*.tmp"));
+            Assert.True(result.Failed.Count == 0, string.Join(", ", result.Failed.Select(f => f.Name + ": " + f.Reason)));
+            Assert.Equal(1, result.Extracted);
+            Assert.Equal(1, result.Skipped);
+            Assert.Single(Directory.EnumerateFiles(real));
+            Assert.Empty(Directory.EnumerateFiles(real, "~*.tmp"));
+        }
+    }
+
+    /// <summary>この場所で 8.3 形式の短い名前が作られなければ、テストを飛ばす。</summary>
+    private static string ShortNameFor(TraceLog log)
+    {
+        var probe = log.PathOf("longfilename.txt");
+        File.WriteAllText(probe, "probe");
+        var shortName = ShortNameOf(probe);
+        File.Delete(probe);
+        Assert.SkipWhen(shortName is null || string.Equals(shortName, probe, StringComparison.OrdinalIgnoreCase),
+            "この場所では 8.3 形式の短い名前が作られない");
+        return Path.GetFileName(shortName!);
+    }
+
+    /// <summary>長い名前の項目、短い名前の項目の順に入れる。<paramref name="breakLong"/> なら長い名前の項目の CRC を壊す。</summary>
+    private static string MakeNamesZip(TraceLog log, string shortName, string longText, bool breakLong)
+    {
+        var archive = log.PathOf(breakLong ? "broken.zip" : "names.zip");
+        using (var zip = ZipFile.Open(archive, ZipArchiveMode.Create))
+        {
+            foreach (var (name, text) in new[] { ("longfilename.txt", longText), (shortName, "SHORT") })
+            {
+                using var writer = new StreamWriter(zip.CreateEntry(name, CompressionLevel.NoCompression).Open());
+                writer.Write(text);
+            }
+        }
+
+        if (breakLong)
+        {
+            // ローカルヘッダー (14 バイト目から) と中央ディレクトリ (16 バイト目から) の CRC を、どちらも同じ違う値にする
+            var bytes = File.ReadAllBytes(archive);
+            var name = Encoding.ASCII.GetBytes("longfilename.txt");
+            for (var i = 0; i + 46 < bytes.Length; i++)
+            {
+                var (crcAt, nameAt) = BitConverter.ToUInt32(bytes, i) switch
+                {
+                    0x04034b50 => (14, 30),
+                    0x02014b50 => (16, 46),
+                    _ => (-1, 0),
+                };
+                if (crcAt >= 0 && bytes.AsSpan(i + nameAt, name.Length).SequenceEqual(name))
+                {
+                    bytes[i + crcAt] ^= 0xFF;
+                }
+            }
+
+            File.WriteAllBytes(archive, bytes);
+        }
+
+        return archive;
     }
 
     /// <summary>取り出しと同じ手順で書く。置き換えなかったら false。</summary>
