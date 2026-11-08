@@ -344,20 +344,36 @@ internal sealed class AtomicFile : IDisposable
         }
 
         var replacing = File.Exists(target);
+
+        // 上書きしないなら置き換えずに断るので、印は扱わない。断る理由が「既にある」になるように
+        var marking = overwrite || !replacing;
+        var inherited = false;
         if (replacing)
         {
             RefuseUnwritable(target);
-            zone ??= MarkOfTheWeb.TryRead(target);
+            if (marking && zone is null)
+            {
+                zone = MarkOfTheWeb.TryRead(target);
+                inherited = zone is not null;
+            }
         }
 
         // 印を付けると更新日時が変わるので、同じ印が付いていれば付けず、付けたら更新日時を戻す。
         // 元に戻すときの作業用ファイルには、前の読めない印が残っていることがあるので、原文で比べる (#325)。
         // 印はアクセス権より先に付ける。アクセス権を写すと、印を書けなくなることがある
-        if (zone is not null && !MarkOfTheWeb.HasExactly(work, zone))
+        if (marking && zone is not null && !MarkOfTheWeb.HasExactly(work, zone))
         {
             var written = File.GetLastWriteTimeUtc(work);
-            MarkOfTheWeb.TryApply(work, zone);
+            var kept = MarkOfTheWeb.TryApply(work, zone) && MarkOfTheWeb.HasExactly(work, zone);
             Trace?.Invoke("marked", work);
+
+            // 印を保存できる場所で付けられなければ、置き換えない (#350)。区分は問わない。
+            // 書けたと返っても残らない場所があるので、読み直して確かめる。
+            // 保存できない場所 (exFAT など) では、もともと印が残らないので止めない
+            if (!kept && (MarkOfTheWeb.Override is null ? MarkOfTheWeb.CanStore(work) : inherited))
+            {
+                throw new MarkNotKeptException(target);
+            }
 
             try
             {

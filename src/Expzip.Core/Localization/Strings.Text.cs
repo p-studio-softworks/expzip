@@ -2827,6 +2827,11 @@ internal static partial class Strings
 
             PathTooLongException => Pick("パスが長すぎます。", "The path is too long."),
 
+            // IOException の HResult で選ぶ行より前に置く。空き不足などの理由に化けないように (#350)
+            Expzip.Archives.MarkNotKeptException => Pick(
+                "インターネットから入手したことを示す情報 (Mark of the Web) を書庫に付けられませんでした。",
+                "The Mark of the Web, which shows that a file came from the internet, could not be added to the archive."),
+
             // CON や NUL は、Windows では装置を指す (#328)
             Expzip.Archives.ReservedNameException => Pick(
                 "Windows では使えない名前です。", "This name cannot be used on Windows."),

@@ -314,6 +314,44 @@ internal static class MarkOfTheWeb
     private const int InvalidParameter = unchecked((int)0x80070057);
     private const int NotSupportedError = unchecked((int)0x80070032);
 
+    /// <summary>
+    /// そのファイルのあるドライブが、印を保存できるか (#350)。NTFS などは保存でき、exFAT や FAT32 は保存できない。
+    /// </summary>
+    /// <remarks>
+    /// ファイルを開いて、そのドライブに尋ねる。パスから決めると、ジャンクションやマウントした先を取り違える。
+    /// 尋ねられなかったときは、保存できないものとして扱う (印を付けられなくても止めない、今までの動き)。
+    /// 差し替えた側の読み書きでは尋ねない。
+    /// </remarks>
+    internal static bool CanStore(string path)
+    {
+        if (Override is not null || !OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return GetVolumeInformationByHandle(handle, IntPtr.Zero, 0, IntPtr.Zero, IntPtr.Zero, out var flags, IntPtr.Zero, 0)
+                   && (flags & FileNamedStreams) != 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or NotSupportedException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private const uint FileNamedStreams = 0x00040000;
+
+    [System.Runtime.InteropServices.DllImport(
+        "kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode,
+        EntryPoint = "GetVolumeInformationByHandleW")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetVolumeInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle file, IntPtr volumeName, uint volumeNameSize, IntPtr serialNumber,
+        IntPtr maximumComponentLength, out uint fileSystemFlags, IntPtr fileSystemName, uint fileSystemNameSize);
+
     /// <summary>読み取った印を別のファイルに引き継ぐ。</summary>
     /// <param name="path">印を付ける先のファイル。</param>
     /// <param name="zone"><see cref="TryRead"/> の戻り値。<see langword="null"/> なら何もしない。</param>
