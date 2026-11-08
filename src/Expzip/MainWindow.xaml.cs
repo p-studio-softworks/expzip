@@ -3151,7 +3151,7 @@ public partial class MainWindow : Window
     /// </remarks>
     /// <param name="path">作る書庫。上書きを選ばれた既存のファイルがあることもある。</param>
     /// <param name="sources">入れるファイルとフォルダー。</param>
-    /// <param name="zone">書庫に付ける出所の印。</param>
+    /// <param name="zone">書庫に付ける MotW。</param>
     /// <returns>作れたら <see langword="true"/>。元のファイルが残ったら <see langword="false"/>。</returns>
     private async Task<bool> BuildArchiveAsync(string path, IReadOnlyList<string> sources, string? zone)
     {
@@ -3318,7 +3318,7 @@ public partial class MainWindow : Window
 
         try
         {
-            // 書庫に付いている出所の印は、新しい書庫にも引き継ぐ (#12)
+            // 書庫に付いている MotW は、新しい書庫にも引き継ぐ (#12)
             var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath);
 
             var sources = await ExtractSelectionAsync(rows, directory, zone);
@@ -4680,8 +4680,8 @@ public partial class MainWindow : Window
     /// ドラッグの開始は同期処理のため、展開にかかる時間がそのまま無応答時間になる。
     /// </summary>
     /// <remarks>
-    /// ファイル 1 個ごとに、作って書き込む時間と、出所の印 (#12) を書く時間がかかる。
-    /// 展開を並列にしても (#195) ほとんど縮まない。出所の印のある書庫では、この件数で 1.2〜1.4 秒 (#200)。
+    /// ファイル 1 個ごとに、作って書き込む時間と、MotW (#12) を書く時間がかかる。
+    /// 展開を並列にしても (#195) ほとんど縮まない。MotW のある書庫では、この件数で 1.2〜1.4 秒 (#200)。
     /// 縮める手立てが無いので、上げも下げもしない。
     /// </remarks>
     private const int DragOutFileLimit = 3000;
@@ -5911,7 +5911,7 @@ public partial class MainWindow : Window
 
         try
         {
-            // 書庫に付いている出所の印は、取り出したファイルにも引き継ぐ (#12)
+            // 書庫に付いている MotW は、取り出したファイルにも引き継ぐ (#12)
             var zone = MarkOfTheWeb.TryReadArchive(archivePath);
 
             var result = await Task.Run(() =>
@@ -6245,7 +6245,7 @@ public partial class MainWindow : Window
 
         try
         {
-            // 書庫に付いている出所の印は、書き出したファイルにも引き継ぐ (#12)
+            // 書庫に付いている MotW は、書き出したファイルにも引き継ぐ (#12)
             var zone = MarkOfTheWeb.TryReadArchive(archivePath);
 
             var result = await Task.Run(() => ArchiveExtractor.Extract(

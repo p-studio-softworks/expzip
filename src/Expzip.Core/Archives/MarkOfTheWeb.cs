@@ -3,16 +3,16 @@ using System.Text;
 
 namespace Expzip.Archives;
 
-/// <summary>出所の印を読み書きする方法 (<see cref="MarkOfTheWeb.Override"/>)。</summary>
+/// <summary>MotW を読み書きする方法 (<see cref="MarkOfTheWeb.Override"/>)。</summary>
 internal interface IOriginMark
 {
-    /// <summary>ファイルに付いている印を読む。付いていない場合や読めない場合は <see langword="null"/>。</summary>
+    /// <summary>ファイルに付いている MotW を読む。付いていない場合や読めない場合は <see langword="null"/>。</summary>
     string? TryRead(string path);
 
-    /// <summary>印を付ける。付けられた場合は true。</summary>
+    /// <summary>MotW を付ける。付けられた場合は true。</summary>
     bool TryApply(string path, string zone);
 
-    /// <summary>インターネットから入手したことを表す印の見本。<see cref="TryApply"/> にそのまま渡せる形。</summary>
+    /// <summary>インターネットから入手したことを表す MotW の見本。<see cref="TryApply"/> にそのまま渡せる形。</summary>
     string Internet { get; }
 }
 
@@ -20,46 +20,46 @@ internal interface IOriginMark
 /// Windows がファイルの出所を記録する Zone.Identifier ストリーム (通称 Mark of the Web) の読み書き。
 /// </summary>
 /// <remarks>
-/// ネットから落とした書庫には、ブラウザーがこの印を付ける。書庫を開いて中身を
-/// 取り出しただけでこの印が消えると、SmartScreen や Office の保護ビューが働かなくなる。
-/// そこで、書庫に印が付いていた場合に限り、取り出したファイルにも引き継ぐ (#12)。
-/// 自分で作った書庫には印が無いので、その場合は何も付けない。
+/// ネットから落とした書庫には、ブラウザーがこの MotW を付ける。書庫を開いて中身を
+/// 取り出しただけでこの MotW が消えると、SmartScreen や Office の保護ビューが働かなくなる。
+/// そこで、書庫に MotW が付いていた場合に限り、取り出したファイルにも引き継ぐ (#12)。
+/// 自分で作った書庫には MotW が無いので、その場合は何も付けない。
 /// </remarks>
 internal static class MarkOfTheWeb
 {
     internal const string StreamSuffix = ":Zone.Identifier";
 
     /// <summary>
-    /// 印の読み書きの方法。画面の側が差し替えられる。<see langword="null"/> なら Zone.Identifier ストリーム。
+    /// MotW の読み書きの方法。画面の側が差し替えられる。<see langword="null"/> なら Zone.Identifier ストリーム。
     /// </summary>
     internal static IOriginMark? Override { get; set; }
 
     /// <summary>
-    /// インターネットから入手したことを表す印の見本。インターネットから入手した書庫を展開するときと
-    /// 同じ印を付けたいときに使う。
+    /// インターネットから入手したことを表す MotW の見本。インターネットから入手した書庫を展開するときと
+    /// 同じ MotW を付けたいときに使う。
     /// </summary>
     public static string Internet => Override?.Internet ?? "[ZoneTransfer]\r\nZoneId=3\r\n";
 
-    /// <summary>ファイルに付いている印を読む。</summary>
+    /// <summary>ファイルに付いている MotW を読む。</summary>
     /// <remarks>
     /// <para>
-    /// 判定と置き換えはここ 1 か所で行う (#325)。呼び出し側は、読めない印の原文を受け取らない。
-    /// 読めない印をそのまま写すと、Windows が印として扱わないことがあり、警告が消える。
+    /// 判定と置き換えはここ 1 か所で行う (#325)。呼び出し側は、読めない MotW の原文を受け取らない。
+    /// 読めない MotW をそのまま写すと、Windows が MotW として扱わないことがあり、警告が消える。
     /// </para>
     /// <para>
-    /// 印が無い、その場所が印に対応していないとき以外の失敗は、インターネットから来たものとして扱う。
-    /// 別のプログラムが開いたままにして、印を読ませないようにできるため。
+    /// MotW が無い、その場所が MotW に対応していないとき以外の失敗は、インターネットから来たものとして扱う。
+    /// 別のプログラムが開いたままにして、MotW を読ませないようにできるため。
     /// </para>
     /// <para>
-    /// バイトのまま扱う (<see cref="Encoding.Latin1"/>)。正しい印を、1 バイトも変えずに写すため。
+    /// バイトのまま扱う (<see cref="Encoding.Latin1"/>)。正しい MotW を、1 バイトも変えずに写すため。
     /// </para>
     /// </remarks>
     /// <returns>
-    /// 付いていなければ <see langword="null"/>。読める印なら原文。読めない印なら <see cref="Internet"/>。
+    /// 付いていなければ <see langword="null"/>。読める MotW なら原文。読めない MotW なら <see cref="Internet"/>。
     /// </returns>
     public static string? TryRead(string path)
     {
-        // 差し替えた側の印は、Windows の規則で判定しない。情報が消えるため
+        // 差し替えた側の MotW は、Windows の規則で判定しない。情報が消えるため
         if (Override is { } mark)
         {
             return mark.TryRead(path);
@@ -67,12 +67,12 @@ internal static class MarkOfTheWeb
 
         try
         {
-            // NTFS 以外や印の無いファイルでは開けない。存在確認を別に行わないのは、
+            // NTFS 以外や MotW の無いファイルでは開けない。存在確認を別に行わないのは、
             // 副ストリームに対する存在確認が環境によって当てにならないため。
             using var stream = new FileStream(
                 path + StreamSuffix, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
-            // 上限より 1 バイト多く読む。ちょうどの印と超えた印を見分けるため
+            // 上限より 1 バイト多く読む。ちょうどの MotW と超えた MotW を見分けるため
             var buffer = new byte[MaxMarkLength + 1];
             var length = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
 
@@ -94,23 +94,23 @@ internal static class MarkOfTheWeb
         }
     }
 
-    /// <summary>印が無いか、その場所が印に対応していないことを示す失敗か (exFAT など)。</summary>
+    /// <summary>MotW が無いか、その場所が MotW に対応していないことを示す失敗か (exFAT など)。</summary>
     private static bool IsNoMark(Exception ex)
         => ex is FileNotFoundException or DirectoryNotFoundException or NotSupportedException or ArgumentException
            || ex is IOException { HResult: InvalidName or InvalidParameter or NotSupportedError };
 
     /// <summary>
-    /// 書庫の印を読む。分割された書庫は、すべての分割ファイルの中でいちばん警戒度の高い印を使う (#321)。
+    /// 書庫の MotW を読む。分割された書庫は、すべての分割ファイルの中でいちばん警戒度の高い MotW を使う (#321)。
     /// </summary>
     /// <remarks>
-    /// USB メモリーを通ると、一部の分割ファイルだけ印が消えることがある。1 個でも付いていれば、付いているものとして扱う。
+    /// USB メモリーを通ると、一部の分割ファイルだけ MotW が消えることがある。1 個でも付いていれば、付いているものとして扱う。
     /// </remarks>
     public static string? TryReadArchive(string path)
         => SplitVolumes.IsFirstVolume(path)
             ? Strongest(SplitVolumes.Find(path).Select(TryRead))
             : TryRead(path);
 
-    /// <summary>いちばん警戒度の高い印。同じ強さなら、見本より本物の印を残す。</summary>
+    /// <summary>いちばん警戒度の高い MotW。同じ強さなら、見本より本物の MotW を残す。</summary>
     public static string? Strongest(IEnumerable<string?> zones)
     {
         string? best = null;
@@ -132,34 +132,34 @@ internal static class MarkOfTheWeb
     }
 
     /// <summary>
-    /// インターネットから来たことを示す印か。読めない形の印も、安全側に倒してそう扱う。
+    /// 区分 3 以上の MotW か。読めない形の MotW も、安全側に倒してそう扱う。
     /// </summary>
     public static bool IsFromInternet(string zone) => ZoneOf(zone) >= InternetZone;
 
-    /// <summary>印に書かれた区分の番号。読めなければインターネットと同じ扱いにする。</summary>
+    /// <summary>MotW に書かれた区分の番号。読めなければインターネットと同じ扱いにする。</summary>
     private static int ZoneOf(string zone) => ParseZone(zone) is >= 0 and var number ? number : InternetZone;
 
     /// <summary>
-    /// 印の区分の番号を読む。読めなければ -1。
+    /// MotW の区分の番号を読む。読めなければ -1。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>確かな書き方だけを読める印とする</b> (#325)。Windows の中で印を読むものは 1 つとは限らないので、広く読まない。
-    /// こちらが読めると判定したのに Windows で効かないと、分割された書庫で有効な印を捨ててしまう。
-    /// 読めないと判定したものはインターネットの印に置き換わるので、安全側になる。
+    /// <b>確かな書き方だけを読める MotW とする</b> (#325)。Windows の中で MotW を読むものは 1 つとは限らないので、広く読まない。
+    /// こちらが読めると判定したのに Windows で効かないと、分割された書庫で有効な MotW を捨ててしまう。
+    /// 読めないと判定したものは区分 3 (インターネット) の MotW に置き換わるので、安全側になる。
     /// </para>
     /// <para>
-    /// Windows の <c>IZoneIdentifier</c> は、節の中に <c>名前=値</c> でない行があると印全体を読めなくなり、
+    /// Windows の <c>IZoneIdentifier</c> は、節の中に <c>名前=値</c> でない行があると MotW 全体を読めなくなり、
     /// 名前が空の行では読んだプロセスごと落ちることがある。行頭に空白がある節も節として読む。
     /// <c>ZoneId</c> より前の行の日本語などは、文字によって次の行を読めなくする。そこで、すべての行の書き方を調べる。
     /// </para>
     /// <para>
-    /// エクスプローラーが ZIP から取り出したファイルに書く印は、<c>ZoneId</c> の後の <c>ReferrerUrl</c> に書庫のパスを
-    /// ANSI コードページのまま書き、最後に NUL を 1 個付ける。これは読める印として残す。<c>ZoneId</c> より後の行の文字は、
+    /// エクスプローラーが ZIP から取り出したファイルに書く MotW は、<c>ZoneId</c> の後の <c>ReferrerUrl</c> に書庫のパスを
+    /// ANSI コードページのまま書き、最後に NUL を 1 個付ける。これは読める MotW として残す。<c>ZoneId</c> より後の行の文字は、
     /// 番号の読み方に影響しなかった。
     /// </para>
     /// <para>
-    /// 規則は <c>tools/sfx/zone.h</c> と同じ。読める印は次のすべてを満たす。
+    /// 規則は <c>tools/sfx/zone.h</c> と同じ。読める MotW は次のすべてを満たす。
     /// </para>
     /// <list type="bullet">
     /// <item>NUL は最後の 1 バイトだけ。CR は LF の前だけ</item>
@@ -269,10 +269,10 @@ internal static class MarkOfTheWeb
     }
 
     /// <summary>
-    /// 付いている印の原文が <paramref name="zone"/> と同じか。
+    /// 付いている MotW の原文が <paramref name="zone"/> と同じか。
     /// </summary>
     /// <remarks>
-    /// <see cref="TryRead"/> は読めない印を見本に置き換えて返すので、書き直しが要るかどうかの比較には使えない (#325)。
+    /// <see cref="TryRead"/> は読めない MotW を見本に置き換えて返すので、書き直しが要るかどうかの比較には使えない (#325)。
     /// </remarks>
     internal static bool HasExactly(string path, string zone)
     {
@@ -302,10 +302,10 @@ internal static class MarkOfTheWeb
     private const int InternetZone = 3;
 
     /// <summary>
-    /// 読む印の大きさの上限。超えた印はインターネットの印に置き換える。
+    /// 読む MotW の大きさの上限。超えた MotW は区分 3 (インターネット) の MotW に置き換える。
     /// </summary>
     /// <remarks>
-    /// 印はファイルごとに書くので、大きな印を許すとファイルの数だけ増える。展開後の大きさには現れない。
+    /// MotW はファイルごとに書くので、大きな MotW を許すとファイルの数だけ増える。展開後の大きさには現れない。
     /// 自己解凍の取り出し部と結合用のプログラム (<c>tools/sfx/zone.h</c>) と同じ値にする。
     /// </remarks>
     internal const int MaxMarkLength = 4096;
@@ -315,11 +315,11 @@ internal static class MarkOfTheWeb
     private const int NotSupportedError = unchecked((int)0x80070032);
 
     /// <summary>
-    /// そのファイルのあるドライブが、印を保存できるか (#350)。NTFS などは保存でき、exFAT や FAT32 は保存できない。
+    /// そのファイルのあるドライブが、MotW を保存できるか (#350)。NTFS などは保存でき、exFAT や FAT32 は保存できない。
     /// </summary>
     /// <remarks>
     /// ファイルを開いて、そのドライブに尋ねる。パスから決めると、ジャンクションやマウントした先を取り違える。
-    /// 尋ねられなかったときは、保存できないものとして扱う (印を付けられなくても止めない、今までの動き)。
+    /// 尋ねられなかったときは、保存できないものとして扱う (MotW を付けられなくても止めない、今までの動き)。
     /// 差し替えた側の読み書きでは尋ねない。
     /// </remarks>
     internal static bool CanStore(string path)
@@ -352,8 +352,8 @@ internal static class MarkOfTheWeb
         Microsoft.Win32.SafeHandles.SafeFileHandle file, IntPtr volumeName, uint volumeNameSize, IntPtr serialNumber,
         IntPtr maximumComponentLength, out uint fileSystemFlags, IntPtr fileSystemName, uint fileSystemNameSize);
 
-    /// <summary>読み取った印を別のファイルに引き継ぐ。</summary>
-    /// <param name="path">印を付ける先のファイル。</param>
+    /// <summary>読み取った MotW を別のファイルに引き継ぐ。</summary>
+    /// <param name="path">MotW を付ける先のファイル。</param>
     /// <param name="zone"><see cref="TryRead"/> の戻り値。<see langword="null"/> なら何もしない。</param>
     /// <returns>付けられた場合は true。</returns>
     public static bool TryApply(string path, string? zone)
@@ -371,7 +371,7 @@ internal static class MarkOfTheWeb
         try
         {
             // 書いている途中の一時ファイル (AtomicFile) にも付ける。本体を削除の権利付きで開いているので、
-            // ここで削除を許さないと共有違反になり、印が付かない
+            // ここで削除を許さないと共有違反になり、MotW が付かない
             using var stream = new FileStream(
                 path + StreamSuffix, FileMode.Create, FileAccess.Write, FileShare.Delete);
             stream.Write(Encoding.Latin1.GetBytes(zone));
@@ -380,7 +380,7 @@ internal static class MarkOfTheWeb
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or NotSupportedException or ArgumentException)
         {
-            // 印を付けられなくても取り出し自体は済んでいる。
+            // MotW を付けられなくても取り出し自体は済んでいる。
             // 一時フォルダが NTFS でない場合などにここへ来る。
             return false;
         }

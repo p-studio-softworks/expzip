@@ -20,7 +20,7 @@ internal readonly record struct ExtractProgress(long DoneBytes, long TotalBytes,
 /// <param name="Rejected">安全でないパスとして拒否したエントリ名。</param>
 /// <param name="Failed">書き出しに失敗したエントリ名とその理由。</param>
 /// <param name="Cancelled">利用者の操作で中断した場合は true。</param>
-/// <param name="MarkLost">インターネットから来た印を保存できなかったファイルがある (#321)。</param>
+/// <param name="MarkLost">区分 3 以上の MotW を保存できなかったファイルがある (#321)。</param>
 internal sealed record ExtractResult(
     int Extracted,
     int Skipped,
@@ -45,7 +45,7 @@ internal static class ArchiveExtractor
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <param name="zoneIdentifier">
-    /// 書き出したファイルに引き継ぐ出所の印 (#12)。<see langword="null"/> なら何もしない。
+    /// 書き出したファイルに引き継ぐ MotW (#12)。<see langword="null"/> なら何もしない。
     /// </param>
     /// <param name="basePath">
     /// 書き出し先を決める際に、書庫内パスの先頭から取り除くフォルダ (#48)。
@@ -272,8 +272,8 @@ internal static class ArchiveExtractor
                 Directory.CreateDirectory(directory);
             }
 
-            // 書庫に出所の印が付いていた場合は、書き出したファイルにも引き継ぐ。
-            // 印が消えると SmartScreen や保護ビューが働かなくなる (#12)
+            // 書庫に MotW が付いていた場合は、書き出したファイルにも引き継ぐ。
+            // MotW が消えると SmartScreen や保護ビューが働かなくなる (#12)
             using var source = fallback.Open(entry.FullName, entry.Open);
             using var file = AtomicFile.CreateForExtraction(target, overwrite, zoneIdentifier);
 

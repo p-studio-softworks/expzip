@@ -115,7 +115,7 @@ Set-ItemProperty (Join-Path $out 'readonly.txt') IsReadOnly $true
 $app = Start-Expzip @($zip)
 $text = Invoke-Overwrite $app $out
 Check 'ふつうのファイルは置き換わる' ((Read-Text (Join-Path $out 'plain.txt')) -eq 'NEW')
-Check '置き換えたファイルに出所の印が付く'((Get-Content -LiteralPath (Join-Path $out 'plain.txt') -Stream Zone.Identifier -ErrorAction SilentlyContinue) -match 'ZoneId=3')
+Check '置き換えたファイルに MotW が付く'((Get-Content -LiteralPath (Join-Path $out 'plain.txt') -Stream Zone.Identifier -ErrorAction SilentlyContinue) -match 'ZoneId=3')
 Check 'ハードリンクの相手は変わらない' ((Read-Text $other) -eq 'ORIGINAL') (Read-Text $other)
 Check 'リンクの名前のほうは置き換わる' ((Read-Text (Join-Path $out 'linked.txt')) -eq 'NEW')
 Check '閉じたアクセス権が残る' ((Get-Acl $locked).AreAccessRulesProtected) (Get-Acl $locked).Sddl
@@ -140,7 +140,7 @@ Invoke-Drop @($extra) $center.X $center.Y | Out-Null
 Wait-Idle $app
 Check '書庫に入る' ((Get-ZipNames $zip) -contains 'extra.txt') ((Get-ZipNames $zip) -join ', ')
 Check '同じ名前のファイルは変わらない' ((Test-Path $neighbor) -and (Read-Text $neighbor) -eq 'NEIGHBOR')
-Check '書庫の印は残る' ((Get-Content -LiteralPath $zip -Stream Zone.Identifier -ErrorAction SilentlyContinue) -match 'ZoneId=3')
+Check '書庫の MotW は残る' ((Get-Content -LiteralPath $zip -Stream Zone.Identifier -ErrorAction SilentlyContinue) -match 'ZoneId=3')
 Stop-Expzip $app
 
 Section '分割'
@@ -298,7 +298,7 @@ foreach ($name in 'bad_empty_bits.7z', 'bad_stream_count.7z', 'bad_stream_short.
     Stop-Expzip $app
 }
 
-Section '分割と結合の出所の印 (#321)'
+Section '分割と結合の MotW (#321)'
 $source = Join-Path $script:Work 'marked.bin'
 $bytes = New-Object byte[] (2MB + 7)
 (New-Object System.Random 11).NextBytes($bytes)
@@ -318,7 +318,7 @@ function Invoke-Joiner {
     return $process.ExitCode
 }
 $joined = Join-Path $parts 'marked.bin'
-Check '分割ファイルに印が付く' ((Get-Zone (Join-Path $parts 'marked.bin.001')) -match 'ZoneId=3')
+Check '分割ファイルに MotW が付く' ((Get-Zone (Join-Path $parts 'marked.bin.001')) -match 'ZoneId=3')
 Check '結合用のプログラムには付かない' ($null -eq (Get-Zone (Join-Path $parts 'marked.bin.exe')))
 # スマート アプリ コントロールが有効な PC では、署名の無い結合用のプログラムを Windows が止める。
 # そのときは結合の項目を確かめずに先へ進み、止められたことを記録に残す
@@ -332,7 +332,7 @@ catch {
 if (-not $blocked) {
     Check '結合できる' ($first -eq 0)
     Check '中身が同じ' ((Get-FileHash $joined -Algorithm SHA256).Hash -eq $sourceHash)
-    Check '結合したファイルに印が付く' ((Get-Zone $joined) -match 'ZoneId=3')
+    Check '結合したファイルに MotW が付く' ((Get-Zone $joined) -match 'ZoneId=3')
     Check '結合の一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
 
     # 同じ名前があれば結合せず、元のファイルを残す
@@ -341,17 +341,17 @@ if (-not $blocked) {
     Check '同じ名前のファイルは元のまま' ((Read-Text $joined) -eq 'ORIGINAL-JOINED')
     [System.IO.File]::Delete($joined)
 
-    # 一部の分割ファイルだけに印があっても引き継ぐ
+    # 一部の分割ファイルだけに MotW があっても引き継ぐ
     Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier
     Remove-Item -LiteralPath (Join-Path $parts 'marked.bin.003') -Stream Zone.Identifier
-    Check '1 個目に印が無くても結合できる' ((Invoke-Joiner) -eq 0)
-    Check '一部にだけ印があっても引き継ぐ' ((Get-Zone $joined) -match 'ZoneId=3')
+    Check '1 個目に MotW が無くても結合できる' ((Invoke-Joiner) -eq 0)
+    Check '一部にだけ MotW があっても引き継ぐ' ((Get-Zone $joined) -match 'ZoneId=3')
     [System.IO.File]::Delete($joined)
 
-    # 弱い印が混ざっていても、いちばん強い印を使う
+    # 弱い MotW が混ざっていても、いちばん強い MotW を使う
     Set-Content -LiteralPath (Join-Path $parts 'marked.bin.001') -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=2"
     Invoke-Joiner | Out-Null
-    Check 'いちばん強い印を使う' ((Get-Zone $joined) -match 'ZoneId=3')
+    Check 'いちばん強い MotW を使う' ((Get-Zone $joined) -match 'ZoneId=3')
     [System.IO.File]::Delete($joined)
 
     # 壊れていれば本来の名前に何も残らない
@@ -364,8 +364,8 @@ if (-not $blocked) {
     Check '壊れたときも一時ファイルが残らない' ((Get-Leftovers $parts).Count -eq 0) ((Get-Leftovers $parts) -join ', ')
 }
 
-Section '印を保存できない場所 (#321)'
-# 下のファイルの代替データストリームだけを書けなくしたフォルダー。exFAT などと同じく、印だけが付かない
+Section 'MotW を保存できない場所 (#321)'
+# 下のファイルの代替データストリームだけを書けなくしたフォルダー。exFAT などと同じく、MotW だけが付かない
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 function Deny-Marks([string]$Folder) { icacls $Folder /deny "*${me}:(OI)(IO)(WD)" | Out-Null }
 function Allow-Marks([string]$Folder) { icacls $Folder /remove:d "*$me" | Out-Null }
@@ -376,7 +376,7 @@ $out = New-Folder 'nomark_out'
 Deny-Marks $out
 $app = Start-Expzip @($zip)
 $text = Invoke-Overwrite $app $out
-$warning = 'このドライブには、インターネットから来たことを示す印を保存できません。'
+$warning = 'このドライブには、インターネットから入手したことを示す情報 \(Mark of the Web\) を保存できません。'
 Check '警告を出す' ($text -match $warning) $text
 Check '1 回だけ出す' (([regex]::Matches($text, $warning)).Count -eq 1) $text
 Check '取り出しは止めない' ($text -match '展開したファイル: 2 個' -and (Test-Path (Join-Path $out 'two.txt'))) $text
@@ -390,7 +390,7 @@ $denied = New-Folder 'nomark_weak'
 Deny-Marks $denied
 $app = Start-Expzip @($weak)
 $text = Invoke-Overwrite $app $denied
-Check '社内サイトなどの弱い印では出さない' ($text -notmatch $warning) $text
+Check '社内サイトなどの弱い MotW では出さない' ($text -notmatch $warning) $text
 Stop-Expzip $app
 Allow-Marks $denied
 
@@ -399,7 +399,7 @@ $text = Invoke-Overwrite $app $out
 Check 'ふつうのフォルダーでは出さない' ($text -notmatch $warning) $text
 Stop-Expzip $app
 
-# 一時フォルダーに印を付けられないとき、実行ファイルを開く前に確かめる
+# 一時フォルダーに MotW を付けられないとき、実行ファイルを開く前に確かめる
 $exeZip = New-TestZip (Join-Path $script:Work 'run.zip') ([ordered]@{ 'run.bat' = 'exit' })
 Set-Content -LiteralPath $exeZip -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
 $temp = New-Folder 'nomark_temp'
@@ -416,7 +416,7 @@ try {
     Check '実行ファイルのふだんの確認' ($box -and $box.Text -match 'プログラムとして実行されます') $(if ($box) { $box.Text })
     if ($box) { Close-MessageBox $box 'OK' }
     $box = Find-MessageBox $app 15000
-    Check '印が無いことも確かめる' ($box -and $box.Text -match '印を保存できませんでした') $(if ($box) { $box.Text })
+    Check 'MotW が無いことも確かめる' ($box -and $box.Text -match 'Mark of the Web\) を保存できませんでした') $(if ($box) { $box.Text })
     if ($box) { Close-MessageBox $box 'キャンセル' }
     Wait-Idle $app
     Check 'キャンセルしたら取り出したファイルを残さない' (@(Get-ChildItem $temp -Recurse -File -Filter 'run.bat').Count -eq 0)
@@ -425,7 +425,7 @@ try {
     $box = Find-MessageBox $app 10000
     if ($box) { Close-MessageBox $box 'OK' }
     $box = Find-MessageBox $app 15000
-    Check 'もう一度開いても確かめる' ($box -and $box.Text -match '印を保存できませんでした') $(if ($box) { $box.Text })
+    Check 'もう一度開いても確かめる' ($box -and $box.Text -match 'Mark of the Web\) を保存できませんでした') $(if ($box) { $box.Text })
     if ($box) { Close-MessageBox $box 'キャンセル' }
     Stop-Expzip $app
 }
@@ -465,7 +465,7 @@ $out = New-Folder 'fresh_out'
 $app = Start-Expzip @($fresh)
 $text = Invoke-Overwrite $app $out
 Check '中身が書かれる' ((Read-Text (Join-Path $out 'ok.txt')) -eq 'NEW' -and (Read-Text (Join-Path $out 'sub\deep.txt')) -eq 'DEEP')
-Check '出所の印が付く' ((Get-Zone (Join-Path $out 'ok.txt')) -match 'ZoneId=3') ((Get-Zone (Join-Path $out 'ok.txt')) -join ' ')
+Check 'MotW が付く' ((Get-Zone (Join-Path $out 'ok.txt')) -match 'ZoneId=3') ((Get-Zone (Join-Path $out 'ok.txt')) -join ' ')
 Check '一時ファイルが残らない' ((Get-Leftovers $out).Count -eq 0 -and (Get-Leftovers (Join-Path $out 'sub')).Count -eq 0)
 # この Windows で装置を指す名前だけを取り出さない。\\?\ で並べると、装置ではなくファイルとしての名前も見える
 $names = @([System.IO.Directory]::GetFiles("\\?\$out", '*', 'AllDirectories') | ForEach-Object { [System.IO.Path]::GetFileName($_) })

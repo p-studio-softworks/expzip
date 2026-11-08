@@ -84,7 +84,7 @@ if (Test-Path -LiteralPath $repaired) {
     Check '中身もそのまま' ($text -eq (New-Body 'b'))
 
     $zone = (Get-Content -Path $repaired -Stream Zone.Identifier -ErrorAction SilentlyContinue) -join "`n"
-    Check '出所の印を引き継ぐ' ($zone -eq $expectedMark) $zone
+    Check 'MotW を引き継ぐ' ($zone -eq $expectedMark) $zone
 }
 
 $tabs = @(Get-Tabs $app | ForEach-Object { $_.Current.Name })

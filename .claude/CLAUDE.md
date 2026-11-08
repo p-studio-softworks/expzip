@@ -49,6 +49,8 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
   「製」 means where something was manufactured (日本製). Also in tickets, the wiki and replies to the user
 - For one file inside another, write 「MSI が入った exe」, not 「MSI を包んだ exe」 (#182). Also in tickets, the wiki and replies to the user
 - **In comments, documents, tickets and the wiki too, write 「ツール」, not 「道具」 (#154); 「スクリプト」, not 「台本」 (#153); and 「モデル」, not 「模型」 (#155).** Loanwords that people use every day are clearer than a literal Japanese translation
+- **For the Zone.Identifier mark, in on-screen text and in `README.md` / `README.ja.md` write 「インターネットから入手したことを示す情報 (Mark of the Web)」 the first time in each message, and 「Mark of the Web」 after that (#351).** In English: "the Mark of the Web, which shows that … came from the internet", then "the Mark of the Web".
+  Everywhere users do not see (comments, the specification, other documents such as `tools/*/README.md`, tests, commit messages, tickets and the wiki), write 「MotW」. Do not call it 「印」 or 「出所の印」: users do not know that name, and 「印」 also means the marks on list rows and in the tree
 - Put a half-width space between a number and its unit (`3 件`). Files and items are counted with 「個」; rules, violations and detections with 「件」
 - Write the long vowel: `フォルダー` `ヘッダー`. Write `既に` in kanji
 - Tooltips and the status bar do not end with 「。」. Sentences in dialogs do

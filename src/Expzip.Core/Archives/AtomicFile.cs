@@ -6,7 +6,7 @@ using System.Text;
 namespace Expzip.Archives;
 
 /// <summary>
-/// 取り出したファイルに、インターネットから来た印を付けられなかったことを見張る (#321)。
+/// 取り出したファイルに、区分 3 以上の MotW を付けられなかったことを見張る (#321)。
 /// </summary>
 /// <remarks>
 /// 書けたように見えても残らないドライブがあるので、最初の 1 個だけ、置き換えたあとで読み直す。
@@ -17,7 +17,7 @@ internal sealed class MarkWatch
     private int _verified;
     private volatile bool _lost;
 
-    /// <summary>印が保存されなかったファイルがあった。</summary>
+    /// <summary>MotW が保存されなかったファイルがあった。</summary>
     public bool Lost => _lost;
 
     /// <summary>取り出せたファイルを 1 個知らせる。</summary>
@@ -53,8 +53,8 @@ internal sealed class MarkWatch
 /// 壊すおそれのあるファイルが無いので、名前の変更でウイルス対策の検査を待たずに済む。書きかけは Windows が消す。
 /// </para>
 /// <para>
-/// 一時ファイルには作った時点で出所の印を付ける。名前は書庫の中の名前から作らず、実行されない拡張子にする。
-/// 取り残されても、印の無い実行ファイルにはならない。
+/// 一時ファイルには作った時点で MotW を付ける。名前は書庫の中の名前から作らず、実行されない拡張子にする。
+/// 取り残されても、MotW の無い実行ファイルにはならない。
 /// </para>
 /// <para>
 /// 電源が切れたときのために、既にあるファイルを置き換える前にだけディスクへ書き切る。
@@ -85,7 +85,7 @@ internal sealed class AtomicFile : IDisposable
     /// <remarks>
     /// 知らせるのは出来事の名前とパス。<c>"flush"</c> はディスクへ書き切った直後、<c>"move"</c> は本来の名前に置き換える直前、
     /// <c>"direct"</c> は本来の名前に直接作る直前、<c>"fallback"</c> は直接作れずに置き換えの道へ移る直前、
-    /// <c>"marked"</c> は出所の印を付けた直後 (中身を書く前)、<c>"markflush"</c> は印をディスクへ書き切った直後。
+    /// <c>"marked"</c> は MotW を付けた直後 (中身を書く前)、<c>"markflush"</c> は MotW をディスクへ書き切った直後。
     /// テストは <c>"direct"</c> を受けたときに同じ名前のものを置いて、確かめてから作るまでの間の割り込みを試す。
     /// </remarks>
     internal static Action<string, string>? Trace { get; set; }
@@ -119,7 +119,7 @@ internal sealed class AtomicFile : IDisposable
         {
             Stream = Open(temporary);
 
-            // 印を先に付ける。アクセス権を写すと、印を書けなくなることがある
+            // MotW を先に付ける。アクセス権を写すと、MotW を書けなくなることがある
             Zone = zone;
             MarkLost = zone is not null && !MarkOfTheWeb.TryApply(temporary, zone);
             if (zone is not null)
@@ -140,7 +140,7 @@ internal sealed class AtomicFile : IDisposable
         }
     }
 
-    /// <summary>本来の名前に直接書くとき。印を付け、「閉じたら消す」を予約したあとのファイルを受け取る。</summary>
+    /// <summary>本来の名前に直接書くとき。MotW を付け、「閉じたら消す」を予約したあとのファイルを受け取る。</summary>
     private AtomicFile(string target, FileStream stream, string? zone, bool markLost)
     {
         _target = target;
@@ -154,16 +154,16 @@ internal sealed class AtomicFile : IDisposable
     /// <summary>書き込む先。</summary>
     public FileStream Stream { get; }
 
-    /// <summary>付けるように渡された印。</summary>
+    /// <summary>付けるように渡された MotW。</summary>
     public string? Zone { get; }
 
-    /// <summary>印を渡されたのに、付けられなかった (exFAT など、印を保存できないドライブ)。</summary>
+    /// <summary>MotW を渡されたのに、付けられなかった (exFAT など、MotW を保存できないドライブ)。</summary>
     public bool MarkLost { get; }
 
     /// <summary>書き始める。</summary>
     /// <param name="target">できあがったときの名前。</param>
     /// <param name="overwrite">既にあるファイルを置き換えるか。</param>
-    /// <param name="zone">付ける出所の印。</param>
+    /// <param name="zone">付ける MotW。</param>
     /// <exception cref="UnauthorizedAccessException">読み取り専用、隠し、システムのファイルや、フォルダーがその名前である場合。</exception>
     public static AtomicFile Create(string target, bool overwrite = true, string? zone = null)
         => new(target, TemporaryPathFor(target), overwrite, zone);
@@ -181,7 +181,7 @@ internal sealed class AtomicFile : IDisposable
     /// <para>
     /// 書いている間は「閉じたら消す」を Windows に予約しておき、書き終えてから外す。エラー、中止、落ちた、
     /// 固まって終了させた、のどれでも Windows が書きかけを消す。残るのは電源断と、作ってから予約するまでの短い間に
-    /// 終了したとき (0 バイト) だけで、どちらも印は付いている。
+    /// 終了したとき (0 バイト) だけで、どちらも MotW は付いている。
     /// 消すのは自分のハンドルが指すファイルなので、書いている間に名前を入れ替えられても、ほかのファイルは消さない。
     /// </para>
     /// </remarks>
@@ -331,11 +331,11 @@ internal sealed class AtomicFile : IDisposable
         }
     }
 
-    /// <summary>できあがっている作業用ファイルで置き換える。出所の印とアクセス権は置き換える先から引き継ぐ。</summary>
+    /// <summary>できあがっている作業用ファイルで置き換える。MotW とアクセス権は置き換える先から引き継ぐ。</summary>
     /// <param name="work">作業用ファイル。同じドライブに置く。</param>
     /// <param name="target">置き換える先。</param>
     /// <param name="overwrite">既にあるファイルを置き換えるか。</param>
-    /// <param name="zone">付ける出所の印。省くと、置き換える先に付いている印。</param>
+    /// <param name="zone">付ける MotW。省くと、置き換える先に付いている MotW。</param>
     public static void Replace(string work, string target, bool overwrite = true, string? zone = null)
     {
         lock (Gate)
@@ -345,7 +345,7 @@ internal sealed class AtomicFile : IDisposable
 
         var replacing = File.Exists(target);
 
-        // 上書きしないなら置き換えずに断るので、印は扱わない。断る理由が「既にある」になるように
+        // 上書きしないなら置き換えずに断るので、MotW は扱わない。断る理由が「既にある」になるように
         var marking = overwrite || !replacing;
         var inherited = false;
         if (replacing)
@@ -358,18 +358,18 @@ internal sealed class AtomicFile : IDisposable
             }
         }
 
-        // 印を付けると更新日時が変わるので、同じ印が付いていれば付けず、付けたら更新日時を戻す。
-        // 元に戻すときの作業用ファイルには、前の読めない印が残っていることがあるので、原文で比べる (#325)。
-        // 印はアクセス権より先に付ける。アクセス権を写すと、印を書けなくなることがある
+        // MotW を付けると更新日時が変わるので、同じ MotW が付いていれば付けず、付けたら更新日時を戻す。
+        // 元に戻すときの作業用ファイルには、前の読めない MotW が残っていることがあるので、原文で比べる (#325)。
+        // MotW はアクセス権より先に付ける。アクセス権を写すと、MotW を書けなくなることがある
         if (marking && zone is not null && !MarkOfTheWeb.HasExactly(work, zone))
         {
             var written = File.GetLastWriteTimeUtc(work);
             var kept = MarkOfTheWeb.TryApply(work, zone) && MarkOfTheWeb.HasExactly(work, zone);
             Trace?.Invoke("marked", work);
 
-            // 印を保存できる場所で付けられなければ、置き換えない (#350)。区分は問わない。
+            // MotW を保存できる場所で付けられなければ、置き換えない (#350)。区分は問わない。
             // 書けたと返っても残らない場所があるので、読み直して確かめる。
-            // 保存できない場所 (exFAT など) では、もともと印が残らないので止めない
+            // 保存できない場所 (exFAT など) では、もともと MotW が残らないので止めない
             if (!kept && (MarkOfTheWeb.Override is null ? MarkOfTheWeb.CanStore(work) : inherited))
             {
                 throw new MarkNotKeptException(target);
@@ -381,12 +381,12 @@ internal sealed class AtomicFile : IDisposable
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // 更新日時が今の時刻になるだけで、書庫の中身と印は正しい
+                // 更新日時が今の時刻になるだけで、書庫の中身と MotW は正しい
             }
         }
 
-        // 既にあるファイルを置き換えるときは、印と中身をディスクに書き切ってから置き換える (#347)。
-        // 書き切ったあとに印を付けると、その直後の電源断で、置き換わった書庫に印が残らないことがある
+        // 既にあるファイルを置き換えるときは、MotW と中身をディスクに書き切ってから置き換える (#347)。
+        // 書き切ったあとに MotW を付けると、その直後の電源断で、置き換わった書庫に MotW が残らないことがある
         if (replacing)
         {
             FlushMark(work, zone);
@@ -406,7 +406,7 @@ internal sealed class AtomicFile : IDisposable
     /// <remarks>
     /// <see cref="ZipArchiveWriter.CreateWith"/> が、自分で作った空の書庫に中身を入れるときだけに使う。
     /// 守る中身が無いので、ディスクに書き切るのを待たない (写真や動画 256 MB の圧縮が 0.2 秒から 0.37 秒になっていた)。
-    /// アクセス権と出所の印は引き継がない。自分で作った空の書庫には無く、ほかのプログラムに差し替えられていたら、
+    /// アクセス権と MotW は引き継がない。自分で作った空の書庫には無く、ほかのプログラムに差し替えられていたら、
     /// そちらのものを持ち込んでしまうため。アプリを使う人のファイルを置き換えるときは <see cref="Replace"/> を使う。
     /// </remarks>
     internal static void ReplaceFresh(string work, string target)
@@ -427,7 +427,7 @@ internal sealed class AtomicFile : IDisposable
         file.Commit();
     }
 
-    /// <summary>ファイルをコピーする。出所の印も写す。</summary>
+    /// <summary>ファイルをコピーする。MotW も写す。</summary>
     public static void Copy(string source, string target)
     {
         using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -571,12 +571,12 @@ internal sealed class AtomicFile : IDisposable
     }
 
     /// <summary>
-    /// 本来の名前に新しく作る。印を付け、「閉じたら消す」を予約して返す。その名前に何かあれば <see langword="null"/>。
+    /// 本来の名前に新しく作る。MotW を付け、「閉じたら消す」を予約して返す。その名前に何かあれば <see langword="null"/>。
     /// </summary>
     /// <remarks>
     /// リンクをたどらずに開く (<c>FILE_FLAG_OPEN_REPARSE_POINT</c>) ので、壊れたリンクが置かれていても、その先には作らない。
-    /// 削除を共有しない。予約するまでの間に、ほかのプログラムに名前を変えられて、入れ替わったものに印を付けたり消したりしないため。
-    /// 予約の間はほかのプログラムがファイルを開けないので、印 (別のストリーム) は予約より前に付ける。中身はその後で書く。
+    /// 削除を共有しない。予約するまでの間に、ほかのプログラムに名前を変えられて、入れ替わったものに MotW を付けたり消したりしないため。
+    /// 予約の間はほかのプログラムがファイルを開けないので、MotW (別のストリーム) は予約より前に付ける。中身はその後で書く。
     /// 予約できない場所 (ほかの OS、対応していないドライブ) では、作ったものを消して置き換えの道に移る。
     /// </remarks>
     private static AtomicFile? TryCreateDirect(string target, string? zone)
@@ -615,7 +615,7 @@ internal sealed class AtomicFile : IDisposable
             var markLost = zone is not null && !MarkOfTheWeb.TryApply(full, zone);
             if (zone is not null)
             {
-                // 「閉じたら消す」を予約すると、ほかから開けなくなる。テストが印を読めるのはここまで
+                // 「閉じたら消す」を予約すると、ほかから開けなくなる。テストが MotW を読めるのはここまで
                 Trace?.Invoke("marked", full);
             }
 
@@ -793,15 +793,15 @@ internal sealed class AtomicFile : IDisposable
     }
 
     /// <summary>
-    /// 付けた出所の印 (別のストリーム) をディスクに書き切る (#347)。既にあるファイルを置き換える前に呼ぶ。
+    /// 付けた MotW (別のストリーム) をディスクに書き切る (#347)。既にあるファイルを置き換える前に呼ぶ。
     /// </summary>
     /// <remarks>
-    /// 中身を書き切っても、印のストリームは書き切られない。書き切れなくても置き換えは止めない。
-    /// 困るのは置き換えの直後に電源が切れたときだけで、止めると印を保存できないドライブで保存できなくなる。
+    /// 中身を書き切っても、MotW のストリームは書き切られない。書き切れなくても置き換えは止めない。
+    /// 困るのは置き換えの直後に電源が切れたときだけで、止めると MotW を保存できないドライブで保存できなくなる。
     /// </remarks>
     private static void FlushMark(string path, string? zone)
     {
-        // 印を別のストリームに書かない差し替え (MarkOfTheWeb.Override) では、書き切るものが無い
+        // MotW を別のストリームに書かない差し替え (MarkOfTheWeb.Override) では、書き切るものが無い
         if (zone is null || MarkOfTheWeb.Override is not null)
         {
             return;
@@ -817,7 +817,7 @@ internal sealed class AtomicFile : IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
-            // 印を保存できないドライブ (exFAT など) や、印を付けられなかったとき
+            // MotW を保存できないドライブ (exFAT など) や、MotW を付けられなかったとき
         }
     }
 

@@ -1,4 +1,4 @@
-﻿# 出所の印の読み方 (#325) の続き。開いたままの印、分割された書庫、編集と元に戻す。1 つのスイートの制限時間に収めるため Zone から分けた
+﻿# MotW の読み方 (#325) の続き。開いたままの MotW、分割された書庫、編集と元に戻す。1 つのスイートの制限時間に収めるため Zone から分けた
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'ZoneEdit'
 Set-Settings
@@ -30,7 +30,7 @@ function Invoke-Overwrite($App, [string]$Destination) {
     return $text
 }
 
-# 印のストリームを共有なしで開く。読み取りを失敗させる
+# MotW のストリームを共有なしで開く。読み取りを失敗させる
 if (-not ('ExpzipUi.ZoneLock' -as [type])) {
     Add-Type -Namespace ExpzipUi -Name ZoneLock -MemberDefinition @'
 [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint mode, uint flags, IntPtr template);
@@ -43,7 +43,7 @@ public static IntPtr Open(string path) {
 }
 
 
-# 印は決まったバイト列で書く
+# MotW は決まったバイト列で書く
 $sample = "[ZoneTransfer]`r`nZoneId=3`r`n"
 $browser = "[ZoneTransfer]`r`nZoneId=3`r`nReferrerUrl=https://example.com/`r`nHostUrl=https://example.com/a.zip`r`nHostIpAddress=192.0.2.1`r`n"
 $exact = "[ZoneTransfer]`r`nZoneId=1`r`nHostUrl=`r`n"
@@ -52,7 +52,7 @@ $latin = [System.Text.Encoding]::GetEncoding(28591)
 function Ascii([string]$Text) { return [byte[]]$latin.GetBytes($Text) }
 
 function Set-Mark([string]$Path, [byte[]]$Bytes) {
-    # 空の印も作れるように、Set-Content ではなくストリームを直接書く
+    # 空の MotW も作れるように、Set-Content ではなくストリームを直接書く
     if ($Bytes.Length -eq 0) { Set-Content -LiteralPath $Path -Stream Zone.Identifier -Value ([byte[]]@()) -Encoding Byte } else { Set-Content -LiteralPath $Path -Stream Zone.Identifier -Value $Bytes -Encoding Byte }
 }
 function Get-MarkBytes([string]$Path) {
@@ -69,7 +69,7 @@ function Test-Same([byte[]]$A, [byte[]]$B) {
 
 $plainZip = New-TestZip (Join-Path $script:Work 'plain_for_mark.zip') ([ordered]@{ 'one.txt' = 'NEW' })
 
-Section '印を別のプログラムが開いている間 (#325)'
+Section 'MotW を別のプログラムが開いている間 (#325)'
 $held = New-TestZip (Join-Path $script:Work 'held.zip') ([ordered]@{ 'one.txt' = 'NEW' })
 $out = New-Folder 'held_out'
 Set-Mark $held (Ascii "[ZoneTransfer]`r`nZoneId=3`r`n")
@@ -78,18 +78,18 @@ Wait-Idle $app
 $lock = New-Object System.IO.FileStream -ArgumentList (New-Object Microsoft.Win32.SafeHandles.SafeFileHandle ([ExpzipUi.ZoneLock]::Open($held), $true)), 'Read'
 try {
     $text = Invoke-Overwrite $app $out
-    Check '読めなくてもインターネットの印が付く' (Test-Same (Get-MarkBytes (Join-Path $out 'one.txt')) $sampleBytes) ((Get-MarkBytes (Join-Path $out 'one.txt')).Length)
+    Check '読めなくても区分 3 (インターネット) の MotW が付く' (Test-Same (Get-MarkBytes (Join-Path $out 'one.txt')) $sampleBytes) ((Get-MarkBytes (Join-Path $out 'one.txt')).Length)
 }
 finally { $lock.Dispose() }
 Stop-Expzip $app
 
-Section '分割された書庫の印の組み合わせ (#325)'
+Section '分割された書庫の MotW の組み合わせ (#325)'
 $bin = New-Object byte[] 4000
 $pairs = @(
-    [pscustomobject]@{ N = '読めない印と読める 3'; A = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); B = [byte[]]((Ascii $browser)); W = [byte[]]((Ascii $browser)) }
-    [pscustomobject]@{ N = '読める 3 と読めない印'; A = [byte[]]((Ascii $browser)); B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); W = [byte[]]((Ascii $browser)) }
-    [pscustomobject]@{ N = '読めない印と 1'; A = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=1`r`n")); W = [byte[]]($sampleBytes) }
-    [pscustomobject]@{ N = '1 と読めない印'; A = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=1`r`n")); B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); W = [byte[]]($sampleBytes) }
+    [pscustomobject]@{ N = '読めない MotW と読める 3'; A = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); B = [byte[]]((Ascii $browser)); W = [byte[]]((Ascii $browser)) }
+    [pscustomobject]@{ N = '読める 3 と読めない MotW'; A = [byte[]]((Ascii $browser)); B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); W = [byte[]]((Ascii $browser)) }
+    [pscustomobject]@{ N = '読めない MotW と 1'; A = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=1`r`n")); W = [byte[]]($sampleBytes) }
+    [pscustomobject]@{ N = '1 と読めない MotW'; A = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=1`r`n")); B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=9`r`n")); W = [byte[]]($sampleBytes) }
     [pscustomobject]@{ N = '細工した 4 と本物の 3'; A = [byte[]]((Ascii "[ZoneTransfer]`r`nnoequal`r`nZoneId=4`r`n")); B = [byte[]]((Ascii $browser)); W = [byte[]]((Ascii $browser)) }
     [pscustomobject]@{ N = '本物の 3 と 0 が隠れた 4'; A = [byte[]]((Ascii $browser)); B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=0`r`n [ZoneTransfer]`r`nZoneId=4`r`n")); W = [byte[]]((Ascii $browser)) }
     [pscustomobject]@{ N = '節の内側の空白で 0 が隠れた 4 と本物の 3'; A = [byte[]]((Ascii "[ ZoneTransfer]`r`nZoneId=0`r`n[ZoneTransfer]`r`nZoneId=4`r`n")); B = [byte[]]((Ascii $browser)); W = [byte[]]((Ascii $browser)) }
@@ -128,7 +128,7 @@ if ($box) { Close-MessageBox $box 'OK' }
 Check '保存先を尋ねない' ($null -eq (Find-Window $app '自己解凍書庫として保存' 1500))
 Stop-Expzip $app
 
-Section '編集で書庫の読めない印を書き換える (#325)'
+Section '編集で書庫の読めない MotW を書き換える (#325)'
 $edit = New-TestZip (Join-Path $script:Work 'editmark.zip') ([ordered]@{ 'one.txt' = 'NEW' })
 Set-Mark $edit (Ascii "[ZoneTransfer]`r`nzoneid=1`r`n")
 $oldTime = [datetime]::new(2020, 1, 2, 3, 4, 6, [DateTimeKind]::Utc)
@@ -140,19 +140,19 @@ Wait-Idle $app
 $center = Get-WindowCenter $app
 Invoke-Drop @($extra) $center.X $center.Y | Out-Null
 Wait-Idle $app
-Check '読めない印がインターネットの印になる' (Test-Same (Get-MarkBytes $edit) $sampleBytes) ((Get-MarkBytes $edit).Length)
+Check '読めない MotW が区分 3 (インターネット) の MotW になる' (Test-Same (Get-MarkBytes $edit) $sampleBytes) ((Get-MarkBytes $edit).Length)
 
-# 元に戻しても読めない印は戻らず、書庫の更新日時は元のまま
+# 元に戻しても読めない MotW は戻らず、書庫の更新日時は元のまま
 Focus-App $app
 (ById $app.Window 'EntryList').SetFocus()
 Send-Keys $app '^z'
 Wait-Idle $app
 Wait-Until { [System.IO.File]::GetLastWriteTimeUtc($edit) -eq $oldTime } 5000 | Out-Null
-Check '元に戻しても読めない印は戻らない' (Test-Same (Get-MarkBytes $edit) $sampleBytes) ((Get-MarkBytes $edit).Length)
+Check '元に戻しても読めない MotW は戻らない' (Test-Same (Get-MarkBytes $edit) $sampleBytes) ((Get-MarkBytes $edit).Length)
 Check '元に戻すと更新日時も元のまま' ([System.IO.File]::GetLastWriteTimeUtc($edit) -eq $oldTime) ([System.IO.File]::GetLastWriteTimeUtc($edit).ToString('o'))
 Stop-Expzip $app
 
-# エクスプローラーの印は読める印なので、編集しても 1 バイトも変わらない
+# エクスプローラーの MotW は読める MotW なので、編集しても 1 バイトも変わらない
 $edit2 = New-TestZip (Join-Path $script:Work 'editmark2.zip') ([ordered]@{ 'one.txt' = 'NEW' })
 [byte[]]$explorerMark = [byte[]](Ascii "[ZoneTransfer]`r`nZoneId=4`r`nReferrerUrl=C:\") + [byte[]](0x93, 0xFA) + [byte[]](Ascii "\a.zip") + [byte[]](0)
 Set-Mark $edit2 $explorerMark
@@ -161,7 +161,7 @@ Wait-Idle $app
 $center = Get-WindowCenter $app
 Invoke-Drop @($extra) $center.X $center.Y | Out-Null
 Wait-Idle $app
-Check 'エクスプローラーの印を編集で残す' (Test-Same (Get-MarkBytes $edit2) $explorerMark) ((Get-MarkBytes $edit2).Length)
+Check 'エクスプローラーの MotW を編集で残す' (Test-Same (Get-MarkBytes $edit2) $explorerMark) ((Get-MarkBytes $edit2).Length)
 Stop-Expzip $app
 
 Complete-Suite

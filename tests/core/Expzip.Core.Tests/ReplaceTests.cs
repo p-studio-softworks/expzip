@@ -25,9 +25,9 @@ public sealed class ReplaceTests
     }
 
     [Fact]
-    public void Replace_印を付けて書き切ってから置き換える()
+    public void Replace_MotWを付けて書き切ってから置き換える()
     {
-        // 書き切ったあとに印を付けると、その直後の電源断で、置き換わった書庫に印が残らない (#347)
+        // 書き切ったあとに MotW を付けると、その直後の電源断で、置き換わった書庫に MotW が残らない (#347)
         using var log = new TraceLog();
         var target = log.PathOf("a.zip");
         var work = log.PathOf("work.tmp");
@@ -40,14 +40,14 @@ public sealed class ReplaceTests
         AtomicFile.Replace(work, target);
 
         Assert.Equal("marked markflush flush move", log.Names);
-        // 印を付けても、印を書き切っても、更新日時は書いたときのまま
+        // MotW を付けても、MotW を書き切っても、更新日時は書いたときのまま
         Assert.Equal(written, File.GetLastWriteTimeUtc(target));
         Assert.Equal(MarkOfTheWeb.Internet, MarkOfTheWeb.TryRead(target));
         Assert.Equal("NEW", File.ReadAllText(target));
     }
 
     [Fact]
-    public void Replace_新しく作るときは印を付けても待たない()
+    public void Replace_新しく作るときはMotWを付けても待たない()
     {
         using var log = new TraceLog();
         var target = log.PathOf("a.zip");

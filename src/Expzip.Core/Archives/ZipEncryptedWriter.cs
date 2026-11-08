@@ -332,7 +332,7 @@ internal static class ZipEncryptedWriter
                 append?.Invoke(writer);
             }
 
-            // 置き換えると出所の印が消えるので、引き継ぐ (#211)
+            // 置き換えると MotW が消えるので、引き継ぐ (#211)
             AtomicFile.Replace(temp, archivePath);
             return true;
         }

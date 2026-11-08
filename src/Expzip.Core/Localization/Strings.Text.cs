@@ -1752,21 +1752,21 @@ internal static partial class Strings
         + $"Do not open it if you are unsure where the archive came from."
         + $"{Environment.NewLine}{Environment.NewLine}Continue?");
 
-    /// <summary>取り出したファイルに、インターネットから来た印を保存できなかったとき (#321)。</summary>
+    /// <summary>取り出したファイルに、区分 3 以上の MotW を保存できなかったとき (#321)。</summary>
     public static string MarkNotSaved => Pick(
-        "このドライブには、インターネットから来たことを示す印を保存できません。取り出したファイルを開くときに Windows の警告が出ないことがあります。",
-        "This drive cannot store the mark showing that files came from the internet. "
+        "このドライブには、インターネットから入手したことを示す情報 (Mark of the Web) を保存できません。取り出したファイルを開くときに Windows の警告が出ないことがあります。",
+        "This drive cannot store the Mark of the Web, which shows that files came from the internet. "
         + "Windows may not warn you when you open the extracted files.");
 
-    /// <summary>一時フォルダーに印を付けられないまま、実行ファイルを開こうとしたとき (#321)。</summary>
+    /// <summary>一時フォルダーに MotW を付けられないまま、実行ファイルを開こうとしたとき (#321)。</summary>
     public static string ConfirmExecutableWithoutMark(string fileName) => Pick(
         $"{fileName}{Environment.NewLine}{Environment.NewLine}"
-        + "一時フォルダーのドライブに、インターネットから来たことを示す印を保存できませんでした。"
+        + "一時フォルダーのドライブに、インターネットから入手したことを示す情報 (Mark of the Web) を保存できませんでした。"
         + "開くと、Windows の警告が出ないままプログラムとして実行されることがあります。"
         + $"{Environment.NewLine}{Environment.NewLine}"
         + "続行しますか?",
         $"{fileName}{Environment.NewLine}{Environment.NewLine}"
-        + "The drive of the temporary folder could not store the mark showing that this file came from the internet. "
+        + "The drive of the temporary folder could not store the Mark of the Web, which shows that this file came from the internet. "
         + "If you open it, it may run without a warning from Windows."
         + $"{Environment.NewLine}{Environment.NewLine}Continue?");
 

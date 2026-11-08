@@ -308,7 +308,7 @@ internal static class ZipArchiveWriter
     }
 
     /// <summary>
-    /// 書き換えを確定する。出所の印とアクセス権は、差し替えのときに <see cref="AtomicFile.Replace"/> が引き継ぐ (#211)。
+    /// 書き換えを確定する。MotW とアクセス権は、差し替えのときに <see cref="AtomicFile.Replace"/> が引き継ぐ (#211)。
     /// </summary>
     private static void Commit(SharpZipFile zip) => zip.CommitUpdate();
 

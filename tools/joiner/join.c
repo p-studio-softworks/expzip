@@ -293,7 +293,7 @@ int WINAPI WinMainCRTStartup(void)
         ExitProcess(1);
     }
 
-    /* 分割ファイルの全部と、自分に付いている印を見る。書き始める前に一時ファイルへ付ける */
+    /* 分割ファイルの全部と、自分に付いている MotW を見る。書き始める前に一時ファイルへ付ける */
     ZoneTake(self);
 
     for (i = 1; (unsigned long)i <= count; i++)

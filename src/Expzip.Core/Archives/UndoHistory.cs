@@ -219,8 +219,8 @@ internal sealed class UndoHistory
 
         public override void Restore(string archivePath)
         {
-            // 置き換えると出所の印が消えるので、引き継ぐ (#211)。
-            // ハードリンクなら取っておいた側に印も残っているが、コピーでは残らない。
+            // 置き換えると MotW が消えるので、引き継ぐ (#211)。
+            // ハードリンクなら取っておいた側に MotW も残っているが、コピーでは残らない。
             // 別のドライブに取ってあると、名前の変更ではなくコピーになり、途中で止まると書庫が壊れる。
             // 書庫の隣へ写してから置き換える (#320)
             if (string.Equals(Path.GetPathRoot(Path.GetFullPath(path)), Path.GetPathRoot(Path.GetFullPath(archivePath)),

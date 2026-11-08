@@ -9,7 +9,7 @@ namespace Expzip.Archives;
 /// <remarks>
 /// <para>
 /// 判定や後始末は ZIP の展開 (<see cref="ArchiveExtractor"/>) と揃えてある。
-/// 書庫の外を指すパスは弾き、書き出したファイルには更新日時と出所の印を移し、
+/// 書庫の外を指すパスは弾き、書き出したファイルには更新日時と MotW を移し、
 /// 中断したら書きかけのファイルを消す。
 /// </para>
 /// <para>

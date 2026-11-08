@@ -163,8 +163,8 @@ internal static class ZipSalvage
 
         if (files > 0)
         {
-            // 出所の印は元の書庫から引き継ぐ (#12、#211)。ネットから落としたものを書き直しただけで
-            // 印が消えると、取り出したファイルに SmartScreen などが働かなくなる。
+            // MotW は元の書庫から引き継ぐ (#12、#211)。ネットから落としたものを書き直しただけで
+            // MotW が消えると、取り出したファイルに SmartScreen などが働かなくなる。
             // 失敗や中断では作りかけだけが消える。同じ名前のファイルができていても消さない (#320)
             using var output = AtomicFile.Create(destination, overwrite: false, MarkOfTheWeb.TryReadArchive(source));
             Write(input, entries, output.Stream, cancellationToken);

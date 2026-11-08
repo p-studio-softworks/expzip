@@ -5,23 +5,23 @@ using Expzip.Localization;
 namespace Expzip.Tests;
 
 /// <summary>
-/// 書庫を置き換えるときに、出所の印 (Mark of the Web) を付けられなければ、置き換えずに止める (#350)。
-/// 印を保存できる場所で印が消えると、そのあと取り出したファイルを開いても警告が出ない。
-/// 印を保存できない場所 (exFAT など) では、今までどおり止めない。
+/// 書庫を置き換えるときに、MotW を付けられなければ、置き換えずに止める (#350)。
+/// MotW を保存できる場所で MotW が消えると、そのあと取り出したファイルを開いても警告が出ない。
+/// MotW を保存できない場所 (exFAT など) では、今までどおり止めない。
 /// </summary>
 [Collection(nameof(TraceCollection))]
 public sealed class MarkKeptTests
 {
     private const string Intranet = "[ZoneTransfer]\r\nZoneId=1\r\n";
 
-    // 小文字の zoneid は読めない印。インターネットから来たものとして扱う (#325)
+    // 小文字の zoneid は読めない MotW。インターネットから来たものとして扱う (#325)
     private const string Unreadable = "[ZoneTransfer]\r\nzoneid=3\r\n";
 
     public static TheoryData<string> Marks => [MarkOfTheWeb.Internet, Intranet, Unreadable];
 
     [Theory]
     [MemberData(nameof(Marks))]
-    public void 元の書庫の印を付けられなければ置き換えない(string mark)
+    public void 元の書庫のMotWを付けられなければ置き換えない(string mark)
     {
         using var log = new TraceLog();
         var (target, work) = Prepare(log, mark);
@@ -36,9 +36,9 @@ public sealed class MarkKeptTests
     }
 
     [Fact]
-    public void 印を保存できるドライブなら渡された印を付けられなくても止める()
+    public void MotWを保存できるドライブなら渡されたMotWを付けられなくても止める()
     {
-        // 選んだ項目から新しい書庫を作るとき。元の書庫の印を渡す
+        // 選んだ項目から新しい書庫を作るとき。元の書庫の MotW を渡す
         using var log = new TraceLog();
         var target = log.PathOf("new.zip");
         var work = log.PathOf("work.tmp");
@@ -65,10 +65,10 @@ public sealed class MarkKeptTests
     }
 
     [Fact]
-    public void 印をほかのプログラムが開いたままなら置き換えず_元の書庫と印を残す()
+    public void MotWをほかのプログラムが開いたままなら置き換えず_元の書庫とMotWを残す()
     {
-        // 読ませないようにしても、印が無いことにはならない (インターネットの印として扱う)。
-        // 置き換えは、開いたままの印があるので Windows が断る
+        // 読ませないようにしても、MotW が無いことにはならない (区分 3 の MotW として扱う)。
+        // 置き換えは、開いたままの MotW があるので Windows が断る
         using var log = new TraceLog();
         var (target, work) = Prepare(log, Intranet);
 
@@ -96,7 +96,7 @@ public sealed class MarkKeptTests
     }
 
     [Fact]
-    public void 作業用ファイルに同じ印が既に付いていれば止めない()
+    public void 作業用ファイルに同じMotWが既に付いていれば止めない()
     {
         // 元に戻すときの、取っておいた書庫など
         using var log = new TraceLog();
@@ -111,7 +111,7 @@ public sealed class MarkKeptTests
     }
 
     [Fact]
-    public void 置き換える先に印が無ければ止めない()
+    public void 置き換える先にMotWが無ければ止めない()
     {
         using var log = new TraceLog();
         var (target, work) = Prepare(log, mark: null);
@@ -123,7 +123,7 @@ public sealed class MarkKeptTests
     }
 
     [Fact]
-    public void 差し替えた印の読み書きでは_渡された印を付けられなくても止めない()
+    public void 差し替えたMotWの読み書きでは_渡されたMotWを付けられなくても止めない()
     {
         // 差し替えた側 (Mac 版など) は、ドライブに尋ねず、保存できない場所として扱う。
         // Windows で exFAT のドライブに保存するとき (CanStore が false) の道は、テストに無い (exFAT のドライブが要る)
@@ -142,7 +142,7 @@ public sealed class MarkKeptTests
 
     [Theory]
     [MemberData(nameof(Edits))]
-    public void 編集は印を付けられなければ書庫を変えない(string edit)
+    public void 編集はMotWを付けられなければ書庫を変えない(string edit)
     {
         using var log = new TraceLog();
         var archive = TestArchives.Make(log, sharpZipLib: edit == "add-slow");
@@ -173,7 +173,7 @@ public sealed class MarkKeptTests
     }
 
     [Fact]
-    public void 元に戻すは印を付けられなければ書庫を変えず_履歴を残す()
+    public void 元に戻すはMotWを付けられなければ書庫を変えず_履歴を残す()
     {
         using var log = new TraceLog();
         var archive = TestArchives.Make(log, sharpZipLib: false);
@@ -198,7 +198,7 @@ public sealed class MarkKeptTests
     }
 
     [Fact]
-    public void 理由はディスクの空きでなく印のことを言う()
+    public void 理由はディスクの空きでなくMotWのことを言う()
     {
         var reason = Strings.Reason(new MarkNotKeptException("C:\\a.zip"));
 
@@ -219,7 +219,7 @@ public sealed class MarkKeptTests
         return (target, work);
     }
 
-    /// <summary>読み取り専用にして、印を書けなくする。</summary>
+    /// <summary>読み取り専用にして、MotW を書けなくする。</summary>
     private static void MakeUnmarkable(string path) => File.SetAttributes(path, FileAttributes.ReadOnly);
 
     private static string? ReadMark(string path)
@@ -238,7 +238,7 @@ public sealed class MarkKeptTests
     }
 
     /// <summary>
-    /// 印の読み書きを差し替える。どのファイルにも印を付けられない。<see cref="Lies"/> なら、付けたと返すが残さない。
+    /// MotW の読み書きを差し替える。どのファイルにも MotW を付けられない。<see cref="Lies"/> なら、付けたと返すが残さない。
     /// </summary>
     private sealed class FakeMarks : IOriginMark, IDisposable
     {

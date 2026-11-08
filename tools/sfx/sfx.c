@@ -971,7 +971,7 @@ int WINAPI WinMainCRTStartup(void)
         Fail(L"この自己解凍書庫を読み込めませんでした。");
     }
 
-    /* 自分に付いている印を読む。取り出したファイルに引き継ぐ (#320、#325) */
+    /* 自分に付いている MotW を読む。取り出したファイルに引き継ぐ (#320、#325) */
     ZoneTake(self);
 
     if (!GetFileSizeEx(g_self, &size))

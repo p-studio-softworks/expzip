@@ -276,7 +276,7 @@ public sealed class ExtractionTests
     }
 
     [Fact]
-    public void インターネットから来た書庫では中身より先に印が付いている()
+    public void インターネットから来た書庫では中身より先にMotWが付いている()
     {
         using var log = new TraceLog();
         var target = log.PathOf("a.txt");
@@ -305,7 +305,7 @@ public sealed class ExtractionTests
     }
 
     [Fact]
-    public void 置き換えの道でも中身より先に印が付いている()
+    public void 置き換えの道でも中身より先にMotWが付いている()
     {
         using var log = new TraceLog();
         var target = log.PathOf("a.txt");
@@ -330,9 +330,9 @@ public sealed class ExtractionTests
             Assert.True(file.Commit());
         }
 
-        // 置き換える前に、印と中身を書き切る (#347)
+        // 置き換える前に、MotW と中身を書き切る (#347)
         Assert.StartsWith("direct fallback marked markflush flush move", log.Names);
-        // 印を付けたのは一時ファイル。前からあるファイルには、置き換えるまで触らない
+        // MotW を付けたのは一時ファイル。前からあるファイルには、置き換えるまで触らない
         Assert.NotEqual(target, markedPath);
         Assert.Equal(MarkOfTheWeb.Internet, markAtThatTime);
         Assert.Equal(0, lengthAtThatTime);

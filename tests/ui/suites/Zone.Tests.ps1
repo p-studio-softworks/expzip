@@ -1,4 +1,4 @@
-﻿# 出所の印の読み方 (#325)。取り出し、結合用のプログラム、自己解凍書庫で同じ結果になること
+﻿# MotW の読み方 (#325)。取り出し、結合用のプログラム、自己解凍書庫で同じ結果になること
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'Zone'
 Set-Settings
@@ -43,7 +43,7 @@ function Start-Split($App) {
     return Find-MessageBox $App 30000
 }
 
-# 印のストリームを共有なしで開く。読み取りを失敗させる
+# MotW のストリームを共有なしで開く。読み取りを失敗させる
 if (-not ('ExpzipUi.ZoneLock' -as [type])) {
     Add-Type -Namespace ExpzipUi -Name ZoneLock -MemberDefinition @'
 [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern IntPtr CreateFileW(string name, uint access, uint share, IntPtr security, uint mode, uint flags, IntPtr template);
@@ -56,8 +56,8 @@ public static IntPtr Open(string path) {
 }
 
 
-Section '読めない印と正しい印 (#325)'
-# 取り出し、結合用のプログラム、自己解凍書庫のそれぞれで、同じ結果になること。印は決まったバイト列で書く
+Section '読めない MotW と正しい MotW (#325)'
+# 取り出し、結合用のプログラム、自己解凍書庫のそれぞれで、同じ結果になること。MotW は決まったバイト列で書く
 $sample = "[ZoneTransfer]`r`nZoneId=3`r`n"
 $browser = "[ZoneTransfer]`r`nZoneId=3`r`nReferrerUrl=https://example.com/`r`nHostUrl=https://example.com/a.zip`r`nHostIpAddress=192.0.2.1`r`n"
 $exact = "[ZoneTransfer]`r`nZoneId=1`r`nHostUrl=`r`n"
@@ -65,9 +65,9 @@ $exact = $exact.Replace("HostUrl=", "HostUrl=" + ('a' * (4096 - $exact.Length)))
 $latin = [System.Text.Encoding]::GetEncoding(28591)
 function Ascii([string]$Text) { return [byte[]]$latin.GetBytes($Text) }
 
-# 名前、印のバイト列、読めるか (読めなければ見本になる)
+# 名前、MotW のバイト列、読めるか (読めなければ見本になる)
 $marks = @(
-    [pscustomobject]@{ N = 'ブラウザーの印'; B = [byte[]]((Ascii $browser)); R = $true }
+    [pscustomobject]@{ N = 'ブラウザーの MotW'; B = [byte[]]((Ascii $browser)); R = $true }
     [pscustomobject]@{ N = '区分 0'; B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=0`r`n")); R = $true }
     [pscustomobject]@{ N = '区分 1'; B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=1`r`n")); R = $true }
     [pscustomobject]@{ N = '区分 2'; B = [byte[]]((Ascii "[ZoneTransfer]`r`nZoneId=2`r`n")); R = $true }
@@ -77,9 +77,9 @@ $marks = @(
     [pscustomobject]@{ N = '前に別の節'; B = [byte[]]((Ascii "[Other]`r`nZoneId=0`r`n[ZoneTransfer]`r`nZoneId=3`r`n")); R = $true }
     [pscustomobject]@{ N = 'AppZoneId の行'; B = [byte[]]((Ascii "[ZoneTransfer]`r`nAppZoneId=0`r`nZoneId=3`r`n")); R = $true }
     [pscustomobject]@{ N = 'ASCII でない URL'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nZoneId=3`r`nHostUrl=") + [byte[]](0xE3, 0x81, 0x82, 0xFF) + [byte[]](Ascii "`r`n"))); R = $true }
-    # エクスプローラーが ZIP から取り出したファイルに付ける印。パスは ANSI コードページのままで、最後に NUL が付く
-    [pscustomobject]@{ N = 'エクスプローラーの印 区分 3'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nZoneId=3`r`nReferrerUrl=C:\") + [byte[]](0x93, 0xFA, 0x96, 0x7B) + [byte[]](Ascii "\a.zip") + [byte[]](0))); R = $true }
-    [pscustomobject]@{ N = 'エクスプローラーの印 区分 4'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nZoneId=4`r`nReferrerUrl=C:\a.zip") + [byte[]](0))); R = $true }
+    # エクスプローラーが ZIP から取り出したファイルに付ける MotW。パスは ANSI コードページのままで、最後に NUL が付く
+    [pscustomobject]@{ N = 'エクスプローラーの MotW 区分 3'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nZoneId=3`r`nReferrerUrl=C:\") + [byte[]](0x93, 0xFA, 0x96, 0x7B) + [byte[]](Ascii "\a.zip") + [byte[]](0))); R = $true }
+    [pscustomobject]@{ N = 'エクスプローラーの MotW 区分 4'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nZoneId=4`r`nReferrerUrl=C:\a.zip") + [byte[]](0))); R = $true }
     [pscustomobject]@{ N = '番号の後の値が 2 バイト文字の途中で終わる'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nZoneId=3`r`nHostUrl=") + [byte[]](0x81) + [byte[]](Ascii "`r`nA=1`r`n"))); R = $true }
     [pscustomobject]@{ N = '番号の前の日本語'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nHostUrl=") + [byte[]](0x82, 0xA0, 0x81) + [byte[]](Ascii "`r`nZoneId=4`r`n"))); R = $false }
     [pscustomobject]@{ N = '名前の日本語'; B = [byte[]](([byte[]](Ascii "[ZoneTransfer]`r`nZoneId=3`r`n") + [byte[]](0x82, 0xA0) + [byte[]](Ascii "=1`r`n"))); R = $false }
@@ -113,7 +113,7 @@ $marks = @(
 )
 
 function Set-Mark([string]$Path, [byte[]]$Bytes) {
-    # 空の印も作れるように、Set-Content ではなくストリームを直接書く
+    # 空の MotW も作れるように、Set-Content ではなくストリームを直接書く
     if ($Bytes.Length -eq 0) { Set-Content -LiteralPath $Path -Stream Zone.Identifier -Value ([byte[]]@()) -Encoding Byte } else { Set-Content -LiteralPath $Path -Stream Zone.Identifier -Value $Bytes -Encoding Byte }
 }
 function Get-MarkBytes([string]$Path) {
@@ -157,7 +157,7 @@ foreach ($item in $marks) {
     $text = Invoke-Overwrite $app $out
     Check "取り出し: $name" (Test-Same (Get-MarkBytes (Join-Path $out 'one.txt')) $want) ((Get-MarkBytes (Join-Path $out 'one.txt')).Length)
 
-    # 結合用のプログラム。分割ファイルの印を読む
+    # 結合用のプログラム。分割ファイルの MotW を読む
     Set-Mark (Join-Path $parts 'joinmark.bin.001') $bytes
     $process = try { Start-Process $joinerExe -ArgumentList '-q' -WorkingDirectory $parts -PassThru }
                catch { if (-not (Test-AppControlBlock $_)) { throw }; $null }
@@ -169,7 +169,7 @@ foreach ($item in $marks) {
         Skip "結合: $name" '結合用のプログラムを Windows に止められたため、確かめていません'
     }
 
-    # 自己解凍書庫。自分の印を読む。印を付けた exe はシェルから起動すると警告で止まるので、直接起動する
+    # 自己解凍書庫。自分の MotW を読む。MotW を付けた exe はシェルから起動すると警告で止まるので、直接起動する
     $sfxName = "marksfx$index-" + [guid]::NewGuid().ToString('N').Substring(0, 6)
     $sfxExe = Join-Path $script:Work "$sfxName.exe"
     $combined = New-Object byte[] ($stub.Length + $plainBytes.Length)

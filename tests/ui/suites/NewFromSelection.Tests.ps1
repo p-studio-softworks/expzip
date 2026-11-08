@@ -20,7 +20,7 @@ $source = New-TestZip (Join-Path $script:Work '元.zip') ([ordered]@{
     'readme.txt'      = 'readme'
     '中.zip'          = [System.IO.File]::ReadAllBytes($inner)
 })
-# インターネットから来た印を付けておく。新しい書庫にも引き継ぐ
+# 区分 3 (インターネット) の MotW を付けておく。新しい書庫にも引き継ぐ
 Set-Content -Path $source -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
 
 function Tab-Order($App) { return (@(Get-Tabs $App | ForEach-Object { $_.Current.Name }) -join ', ') }
@@ -111,7 +111,7 @@ if (Test-Path $made) {
     $expected = @('画像/a.png', '画像/空/', 'メモ.txt', '写真.jpg') | Sort-Object
     Check '中身はいまのフォルダーから下' (($entries -join ', ') -eq ($expected -join ', ')) ($entries -join ', ')
     $zone = (Get-Content -Path $made -Stream Zone.Identifier -ErrorAction SilentlyContinue) -join "`n"
-    Check '出所の印を引き継ぐ' ($zone -match 'ZoneId=3') $zone
+    Check 'MotW を引き継ぐ' ($zone -match 'ZoneId=3') $zone
 }
 Check '元のタブのすぐ右に開く' ((Tab-Order $app) -eq '元.zip, 資料.zip') (Tab-Order $app)
 Check '開いたタブを選ぶ' ((Get-Selected (ById $app.Window 'ArchiveTabs')) -eq '資料.zip') (Get-Selected (ById $app.Window 'ArchiveTabs'))

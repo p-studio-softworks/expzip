@@ -1,4 +1,4 @@
-﻿# 書庫を書き換えても、書庫に付いていた出所の印 (#12) が残る (#211)
+﻿# 書庫を書き換えても、書庫に付いていた MotW (#12) が残る (#211)
 . "$PSScriptRoot\..\Common.ps1"
 Start-Suite 'Mark'
 Set-Settings
@@ -18,7 +18,7 @@ $archive = New-TestZip (Join-Path $script:Work '落とした.zip') ([ordered]@{
 $extra = Join-Path $script:Work '足す.txt'
 Set-Content -Path $extra -Value 'extra' -Encoding UTF8
 
-# ブラウザーが付けるのと同じ形の印 (URL は ASCII に直してある)。書き換えたあとも、中身ごとそのまま残っているかを見る
+# ブラウザーが付けるのと同じ形の MotW (URL は ASCII に直してある)。書き換えたあとも、中身ごとそのまま残っているかを見る
 $mark = "[ZoneTransfer]`r`nZoneId=3`r`nReferrerUrl=https://example.com/`r`nHostUrl=https://example.com/files/archive.zip"
 Set-Content -Path $archive -Stream Zone.Identifier -Value $mark -Encoding Ascii
 $expected = (Get-Content -Path $archive -Stream Zone.Identifier) -join "`n"
@@ -27,11 +27,11 @@ function Get-Zone {
     return (Get-Content -Path $archive -Stream Zone.Identifier -ErrorAction SilentlyContinue) -join "`n"
 }
 
-# 書き換えのあとに確かめること。印の付け直しで更新日時が変わっても、外での書き換え (#64) と取り違えない
+# 書き換えのあとに確かめること。MotW の付け直しで更新日時が変わっても、外での書き換え (#64) と取り違えない
 function Check-Mark($App, [string]$Label, $Done) {
     Check $Label $Done
     $zone = Get-Zone
-    Check '印が残る' ($zone -eq $expected) $zone
+    Check 'MotW が残る' ($zone -eq $expected) $zone
     Start-Sleep -Milliseconds 2500
     Check '外で変更されたと取り違えない' ((Get-Status $App) -notmatch 'ほかのプログラムで変更された') (Get-Status $App)
 }
@@ -49,7 +49,7 @@ function Enter-Password($App, [string]$Text) {
     return $true
 }
 
-Check '試す書庫に印が付いている' ($expected -match 'ZoneId=3') $expected
+Check '試す書庫に MotW が付いている' ($expected -match 'ZoneId=3') $expected
 
 $app = Start-Expzip @($archive)
 
@@ -136,15 +136,15 @@ Check-Mark $app '削除される' ((Get-Status $app) -eq 'パスワードを削�
 
 Stop-Expzip $app
 
-Section '印の無い書庫'
-# 自分で作った書庫には印が無い。書き換えても付けない
+Section 'MotW の無い書庫'
+# 自分で作った書庫には MotW が無い。書き換えても付けない
 $plain = New-TestZip (Join-Path $script:Work '作った.zip') ([ordered]@{ 'a.txt' = 'a'; 'b.txt' = 'b' })
 $app = Start-Expzip @($plain)
 Rename-Row $app 'a.txt' 'c.txt' | Out-Null
 Wait-Idle $app
 Check '名前が変わる' ((Get-ZipNames $plain) -contains 'c.txt')
 $zone = (Get-Content -Path $plain -Stream Zone.Identifier -ErrorAction SilentlyContinue) -join "`n"
-Check '印は付かない' ([string]::IsNullOrEmpty($zone)) $zone
+Check 'MotW は付かない' ([string]::IsNullOrEmpty($zone)) $zone
 Stop-Expzip $app
 
 Complete-Suite

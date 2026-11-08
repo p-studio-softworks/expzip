@@ -73,8 +73,8 @@ internal static class FileSplitter
         // 全部を一時的な名前に書いてから、まとめて置き換える。失敗や中止で、前からあった同じ名前のファイルは消えない (#320)
         var written = new List<AtomicFile>();
 
-        // 出所の印は分割ファイルに引き継ぐ。結合用のプログラムには付けない。手元で作っただけのものを実行するたびに
-        // Windows の警告が出てしまう。結合用のプログラムは、結合するときに分割ファイルの印を読む (#321)
+        // MotW は分割ファイルに引き継ぐ。結合用のプログラムには付けない。手元で作っただけのものを実行するたびに
+        // Windows の警告が出てしまう。結合用のプログラムは、結合するときに分割ファイルの MotW を読む (#321)
         var zone = MarkOfTheWeb.TryRead(sourcePath);
 
         Directory.CreateDirectory(destinationDirectory);

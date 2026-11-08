@@ -16,7 +16,7 @@ namespace Expzip.Archives;
 /// </para>
 /// <para>
 /// 判定や後始末は他の形式と揃えてある (<see cref="ExtractState"/>)。書庫の外を指す
-/// パスは弾き、出所の印を引き継ぎ、中断したら書きかけのファイルを消す。
+/// パスは弾き、MotW を引き継ぎ、中断したら書きかけのファイルを消す。
 /// </para>
 /// </remarks>
 internal static class NsisExtractor

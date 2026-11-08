@@ -1,8 +1,8 @@
 /*
- * 出所の印 (Zone.Identifier) を読み書きする。自己解凍の取り出し部と結合用のプログラムで共通 (#325)。
+ * MotW (Zone.Identifier) を読み書きする。自己解凍の取り出し部と結合用のプログラムで共通 (#325)。
  *
- * 読み方は Expzip 本体の MarkOfTheWeb と同じ。確かな書き方だけを「読める印」とし、それ以外は
- * インターネットの印に置き換える。Windows の中で印を読むものは 1 つとは限らないので、広く読まない。
+ * 読み方は Expzip 本体の MarkOfTheWeb と同じ。確かな書き方だけを「読める MotW」とし、それ以外は
+ * 区分 3 (インターネット) の MotW に置き換える。Windows の中で MotW を読むものは 1 つとは限らないので、広く読まない。
  *
  * 使う前に Append を定義しておく。C ランタイムは使わない。読み込む DLL も増やさない (#185)。
  */
@@ -19,7 +19,7 @@ static DWORD g_zoneLength;
 static int g_zoneRank = -1;
 static int g_zoneReadable;
 
-/* 印のストリームを開くパスを作る。上限の無い形は名前を整えないので、先に整える */
+/* MotW のストリームを開くパスを作る。上限の無い形は名前を整えないので、先に整える */
 static int ZonePath(const WCHAR *path, WCHAR *stream)
 {
     WCHAR full[ZONE_PATH_SIZE];
@@ -93,7 +93,7 @@ static int ZonePrintable(const char *text, DWORD length)
 }
 
 /*
- * 印の区分の番号を読む。読めなければ -1。Expzip 本体の MarkOfTheWeb.ParseZone と同じ規則:
+ * MotW の区分の番号を読む。読めなければ -1。Expzip 本体の MarkOfTheWeb.ParseZone と同じ規則:
  * - NUL は最後の 1 バイトだけ (エクスプローラーが付ける)。CR は LF の前だけ
  * - どの行も、空行、[節の名前]、名前=値 のどれか。節の行と名前は印字できる ASCII だけ。節の行は空白を含まない。名前は空白で始まらず、空でもない
  * - 値は制御文字を含まない。ASCII 以外のバイトを書けるのは、ZoneId の行より後の値だけ
@@ -222,7 +222,7 @@ static int ZoneParse(const char *zone, DWORD length)
     return sections == 1 ? found : -1;
 }
 
-/* 控えた印より強ければ控える。同じ強さなら読める印を優先する */
+/* 控えた MotW より強ければ控える。同じ強さなら読める MotW を優先する */
 static void ZoneKeep(const char *zone, DWORD length, int rank, int readable)
 {
     DWORD i;
@@ -244,9 +244,9 @@ static void ZoneKeep(const char *zone, DWORD length, int rank, int readable)
 }
 
 /*
- * ファイルの印を読んで控える (#321、#325)。USB メモリーを通ると、一部の分割ファイルだけ印が消えることがある。
- * 1 個でも付いていれば、付いているものとして扱う。印が無い、その場所が印に対応していないとき以外の失敗は、
- * インターネットから来たものとして扱う。別のプログラムが開いたままにして、印を読ませないようにできるため。
+ * ファイルの MotW を読んで控える (#321、#325)。USB メモリーを通ると、一部の分割ファイルだけ MotW が消えることがある。
+ * 1 個でも付いていれば、付いているものとして扱う。MotW が無い、その場所が MotW に対応していないとき以外の失敗は、
+ * インターネットから来たものとして扱う。別のプログラムが開いたままにして、MotW を読ませないようにできるため。
  */
 static void ZoneTake(const WCHAR *path)
 {
@@ -301,7 +301,7 @@ static void ZoneTake(const WCHAR *path)
     }
 }
 
-/* 印を付ける。付けられないドライブでも、処理は続ける */
+/* MotW を付ける。付けられないドライブでも、処理は続ける */
 static void ZoneApply(const WCHAR *path)
 {
     WCHAR stream[ZONE_PATH_SIZE];
