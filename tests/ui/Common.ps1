@@ -30,6 +30,33 @@ if (-not ('ExpzipUi.Native' -as [type])) {
 '@
 }
 
+# メッセージボックスを Windows に直接尋ねて探す (#346)。UI Automation でデスクトップ全体を探すと、
+# 遅い PC では 1 回 400 ms ほどかかり、出てから気付くまでの時間が測りたい時間に混ざる
+if (-not ('ExpzipUi.Dialogs' -as [type])) {
+    Add-Type -Namespace ExpzipUi -Name Dialogs -MemberDefinition @'
+delegate bool EnumProc(IntPtr h, IntPtr l);
+[DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr l);
+[DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint processId);
+[DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+[DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder name, int max);
+public static IntPtr Find(int processId) {
+    IntPtr found = IntPtr.Zero;
+    var name = new System.Text.StringBuilder(16);
+    EnumWindows((h, l) => {
+        uint owner;
+        GetWindowThreadProcessId(h, out owner);
+        if (owner != processId || !IsWindowVisible(h)) { return true; }
+        name.Clear();
+        GetClassName(h, name, name.Capacity);
+        if (name.ToString() != "#32770") { return true; }
+        found = h;
+        return false;
+    }, IntPtr.Zero);
+    return found;
+}
+'@
+}
+
 # 読み取りを本当に止める。ファイルに Windows の「他の人が開いたら知らせる」印 (バッチ oplock) を付けると、
 # ほかのプロセスがそのファイルを開く処理は、こちらが閉じるまで戻らない。中断も効かない。
 # ライブラリの中で固まったときと同じ状態を、Expzip に手を加えずに作れる
@@ -532,6 +559,17 @@ function Test-WindowGone($App, [string]$Name) {
 }
 
 # MessageBox。本文と押せる口を返す
+# メッセージボックスが出るまで待つ。出たかどうかだけを、短い間隔で確かめる (#346)。
+# かかった時間を測るときに使う。中身は、そのあとで Find-MessageBox で読む
+function Wait-MessageBoxShown($App, [int]$TimeoutMs = 10000) {
+    $deadline = [DateTime]::Now.AddMilliseconds($TimeoutMs)
+    do {
+        if ([ExpzipUi.Dialogs]::Find($App.Process.Id) -ne [IntPtr]::Zero) { return $true }
+        Start-Sleep -Milliseconds 20
+    } while ([DateTime]::Now -lt $deadline)
+    return $false
+}
+
 function Find-MessageBox($App, [int]$TimeoutMs = 10000) {
     $box = Wait-Until -TimeoutMs $TimeoutMs {
         Get-AppWindows $App | Where-Object { $_.Current.ClassName -eq '#32770' } | Select-Object -First 1

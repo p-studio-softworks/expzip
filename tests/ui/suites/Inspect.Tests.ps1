@@ -175,11 +175,15 @@ try {
 finally { $zip.Dispose() }
 $app = Start-Expzip @($heavy)
 Push (ById $app.Window 'InspectButton') 800
+$cancel = ById $app.Window 'CancelButton'
 $clock = [System.Diagnostics.Stopwatch]::StartNew()
-Push (ById $app.Window 'CancelButton') 0
-$box = Find-MessageBox $app
+Push $cancel 0
+# 出たことだけを Windows に直接尋ねて測る。UI Automation で探すと、遅い PC では
+# 気付くまでに 1 秒近くかかり、テストの遅れを測ってしまう (#346)
+$shown = Wait-MessageBoxShown $app
 $clock.Stop()
-Check '中断を知らせる' ($box -and $box.Text -eq '検査を中断しました。') $(if ($box) { $box.Text })
+$box = Find-MessageBox $app
+Check '中断を知らせる' ($shown -and $box -and $box.Text -eq '検査を中断しました。') $(if ($box) { $box.Text })
 Check 'すぐ止まる' ($clock.ElapsedMilliseconds -lt 1500) "$($clock.ElapsedMilliseconds) ms"
 if ($box) { Close-MessageBox $box 'OK' }
 # 中断したかったのだから、途中までの結果は出さない
