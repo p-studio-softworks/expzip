@@ -6152,12 +6152,14 @@ public partial class MainWindow : Window
                 .Select(c => "  " + Path.GetRelativePath(destinationRoot, c.Target)));
             var more = conflicts.Count > 5 ? Strings.More(conflicts.Count - 5) : string.Empty;
 
+            // 初めに選ばれているのは「いいえ」。見ないで Enter キーを押しても置き換えない (#358、自己解凍書庫と揃える)
             var answer = MessageBox.Show(
                 this,
                 Strings.ConfirmOverwrite(conflicts.Count, preview, more),
                 AppName,
                 MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
+                MessageBoxImage.Question,
+                MessageBoxResult.No);
 
             if (answer == MessageBoxResult.Cancel)
             {

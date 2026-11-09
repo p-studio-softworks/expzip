@@ -774,7 +774,7 @@ public sealed class ExtractionTests
         }
     }
 
-    private static string? ShortNameOf(string path)
+    internal static string? ShortNameOf(string path)
     {
         var buffer = new StringBuilder(1024);
         var length = GetShortPathNameW(path, buffer, buffer.Capacity);

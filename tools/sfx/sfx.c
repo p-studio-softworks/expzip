@@ -43,6 +43,19 @@ void *memset(void *dst, int value, size_t count)
     return dst;
 }
 
+/* 新しいコンパイラーは、写すループを memcpy の呼び出しに置き換える。同じく自前で置く */
+#pragma function(memcpy)
+void *memcpy(void *dst, const void *src, size_t count)
+{
+    unsigned char *d = (unsigned char *)dst;
+    const unsigned char *s = (const unsigned char *)src;
+    while (count--)
+    {
+        *d++ = *s++;
+    }
+    return dst;
+}
+
 static int Length(const WCHAR *s)
 {
     int n = 0;
@@ -778,6 +791,7 @@ static int Store(Work *w)
 
 static HANDLE g_self;
 static unsigned __int64 g_start;    /* 書庫が始まる位置 */
+static unsigned long g_cdOffset;    /* 中央ディレクトリの位置 (書庫の始まりから) */
 static Work g_work;
 
 static void Seek(HANDLE h, unsigned __int64 position)
@@ -904,8 +918,16 @@ static HANDLE OpenTemporary(const WCHAR *path, WCHAR *temporary)
     return INVALID_HANDLE_VALUE;
 }
 
-/* 1 回の名前の変更で置き換える。ウイルス対策が一瞬つかんでいることがあるので、短くやり直す */
-static int ReplaceWith(const WCHAR *temporary, const WCHAR *path)
+/* ReplaceWith の結果 */
+#define REPLACE_FAILED 0
+#define REPLACE_DONE 1
+#define REPLACE_KEPT 2      /* 置き換えない指定で、既にあった */
+
+/*
+ * 1 回の名前の変更で置き換える。ウイルス対策が一瞬つかんでいることがあるので、短くやり直す。
+ * 置き換えない指定なら、既にあるファイルは置き換えない (#358)。数え漏れたものも、ここで守られる。
+ */
+static int ReplaceWith(const WCHAR *temporary, const WCHAR *path, int replace)
 {
     int attempt;
 
@@ -913,22 +935,216 @@ static int ReplaceWith(const WCHAR *temporary, const WCHAR *path)
     {
         DWORD error;
 
-        if (MoveFileExW(temporary, path, MOVEFILE_REPLACE_EXISTING))
+        if (MoveFileExW(temporary, path, replace ? MOVEFILE_REPLACE_EXISTING : 0))
         {
-            return 1;
+            return REPLACE_DONE;
         }
 
         error = GetLastError();
 
+        if (!replace && (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS))
+        {
+            return REPLACE_KEPT;
+        }
+
         if (error != ERROR_SHARING_VIOLATION && error != ERROR_ACCESS_DENIED)
         {
-            return 0;
+            return REPLACE_FAILED;
         }
 
         Sleep(50 * attempt);
     }
 
-    return 0;
+    return REPLACE_FAILED;
+}
+
+/* ReadEntry の結果 */
+#define ENTRY_END 0         /* 中央ディレクトリをもう読めない。そこで止める */
+#define ENTRY_BAD 1         /* 扱えない項目。失敗として数える */
+#define ENTRY_FOLDER 2
+#define ENTRY_FILE 3
+
+typedef struct
+{
+    unsigned long method;
+    unsigned long crc;
+    unsigned long packed;
+    unsigned long unpacked;
+    unsigned long localOffset;
+} Entry;
+
+/*
+ * 中央ディレクトリの 1 件を読み、書き出す先のパスを決める。*at は次の件へ進める。
+ * 置き換わるファイルを数えるときも、書くときも、これで決める (#358)。別々に書くと、
+ * あとで片方だけ変わって、数えたものと書くものが食い違う。
+ */
+static int ReadEntry(unsigned __int64 *at, const WCHAR *destination, WCHAR *path, Entry *entry)
+{
+    unsigned char record[46];
+    unsigned char raw[MAX_PATH * 3];
+    WCHAR name[MAX_PATH];
+    unsigned long flags;
+    unsigned long nameLength;
+    unsigned long extraLength;
+    unsigned long commentLength;
+    DWORD got;
+    int i;
+
+    Seek(g_self, *at);
+
+    if (!ReadFile(g_self, record, 46, &got, NULL) || got != 46
+        || ReadU32(record) != 0x02014B50UL)
+    {
+        return ENTRY_END;
+    }
+
+    flags = ReadU16(record + 8);
+    entry->method = ReadU16(record + 10);
+    entry->crc = ReadU32(record + 16);
+    entry->packed = ReadU32(record + 20);
+    entry->unpacked = ReadU32(record + 24);
+    nameLength = ReadU16(record + 28);
+    extraLength = ReadU16(record + 30);
+    commentLength = ReadU16(record + 32);
+    entry->localOffset = ReadU32(record + 42);
+
+    /* パスワード付きは扱わない。復号を持たせると大きくなりすぎる */
+    if (nameLength == 0 || nameLength >= sizeof(raw) || (flags & 0x0001))
+    {
+        *at += 46 + nameLength + extraLength + commentLength;
+        return ENTRY_BAD;
+    }
+
+    if (!ReadFile(g_self, raw, nameLength, &got, NULL) || got != nameLength)
+    {
+        return ENTRY_END;
+    }
+
+    *at += 46 + nameLength + extraLength + commentLength;
+
+    /*
+     * 名前の文字コード。11 番目の印が立っていれば UTF-8、そうでなければ
+     * その環境の従来のコードページ (日本語環境なら CP932)。
+     */
+    name[0] = 0;
+    i = MultiByteToWideChar((flags & 0x0800) ? CP_UTF8 : CP_ACP, 0,
+        (const char *)raw, (int)nameLength, name, MAX_PATH - 1);
+
+    if (i <= 0)
+    {
+        return ENTRY_BAD;
+    }
+
+    name[i] = 0;
+
+    for (i = 0; name[i]; i++)
+    {
+        if (name[i] == L'/')
+        {
+            name[i] = L'\\';
+        }
+    }
+
+    if (!SafeName(name))
+    {
+        return ENTRY_BAD;
+    }
+
+    path[0] = 0;
+    Append(path, destination);
+    Append(path, L"\\");
+    Append(path, name);
+
+    /* 名前が \ で終わっていればフォルダー */
+    if (name[Length(name) - 1] == L'\\')
+    {
+        path[Length(path) - 1] = 0;
+        return ENTRY_FOLDER;
+    }
+
+    return ENTRY_FILE;
+}
+
+/* 尋ねる文に名前を出す数 */
+#define SHOWN_NAMES 5
+
+/*
+ * 置き換わるファイルを数え、最初のいくつかの名前を shown に入れる (#358)。
+ * 名前は書庫の中の名前ではなく、ディスクにある既にあるファイルの長い名前を、展開先からの相対で出す。
+ * 短い名前 (LONGFI~1.TXT) の項目が、どのファイルを置き換えるのかが分かるように。
+ */
+static unsigned long CountExisting(unsigned long entries, const WCHAR *destination,
+    WCHAR shown[SHOWN_NAMES][MAX_PATH * 2], unsigned long *shownCount)
+{
+    static WCHAR path[MAX_PATH * 2];
+    static WCHAR longPath[MAX_PATH * 2];
+    static WCHAR longDestination[MAX_PATH * 2];
+    unsigned __int64 at = g_start + g_cdOffset;
+    unsigned long existing = 0;
+    unsigned long index;
+    int prefix;
+    Entry entry;
+
+    *shownCount = 0;
+
+    prefix = (int)GetLongPathNameW(destination, longDestination, MAX_PATH * 2);
+
+    if (prefix == 0 || prefix >= MAX_PATH * 2)
+    {
+        longDestination[0] = 0;
+        Append(longDestination, destination);
+    }
+
+    prefix = Length(longDestination);
+
+    for (index = 0; index < entries; index++)
+    {
+        int kind = ReadEntry(&at, destination, path, &entry);
+        DWORD attributes;
+
+        if (kind == ENTRY_END)
+        {
+            break;
+        }
+
+        if (kind != ENTRY_FILE)
+        {
+            continue;
+        }
+
+        /* 置き換えないもの (読み取り専用、隠し、システム、フォルダー) は数えない。失敗として数える */
+        attributes = GetFileAttributesW(path);
+
+        if (attributes == INVALID_FILE_ATTRIBUTES || IsProtected(path))
+        {
+            continue;
+        }
+
+        existing++;
+
+        if (*shownCount < SHOWN_NAMES)
+        {
+            const WCHAR *show = path;
+            DWORD got = GetLongPathNameW(path, longPath, MAX_PATH * 2);
+
+            if (got > 0 && got < MAX_PATH * 2)
+            {
+                show = longPath;
+
+                if (prefix > 0 && got > (DWORD)prefix && longPath[prefix] == L'\\'
+                    && CompareStringOrdinal(longPath, prefix, longDestination, prefix, TRUE) == CSTR_EQUAL)
+                {
+                    show = longPath + prefix + 1;
+                }
+            }
+
+            shown[*shownCount][0] = 0;
+            Append(shown[*shownCount], show);
+            (*shownCount)++;
+        }
+    }
+
+    return existing;
 }
 
 int WINAPI WinMainCRTStartup(void)
@@ -937,11 +1153,16 @@ int WINAPI WinMainCRTStartup(void)
     WCHAR destination[MAX_PATH];
     WCHAR path[MAX_PATH * 2];
     WCHAR temporary[TEMPORARY_SIZE];
-    WCHAR name[MAX_PATH];
-    WCHAR message[512];
+    static WCHAR shown[SHOWN_NAMES][MAX_PATH * 2];
+    static WCHAR question[(SHOWN_NAMES + 4) * MAX_PATH * 2];
+    WCHAR message[1024];
     unsigned char *tail;
-    unsigned char record[46];
     unsigned char local[30];
+    Entry entry;
+    unsigned long existing;
+    unsigned long shownCount;
+    unsigned long kept = 0;
+    int replace = 0;
     LARGE_INTEGER size;
     unsigned __int64 eocd;
     unsigned __int64 at;
@@ -1028,6 +1249,7 @@ int WINAPI WinMainCRTStartup(void)
      * 終わっているので、そこから逆算する (読み取り側 #32 と同じ計算)。
      */
     g_start = eocd - cdSize - cdOffset;
+    g_cdOffset = cdOffset;
 
     /* 取り出し先は、自分と同じ場所に自分の名前でフォルダを作る */
     for (i = 0; i < MAX_PATH; i++)
@@ -1058,94 +1280,68 @@ int WINAPI WinMainCRTStartup(void)
         Fail(L"展開先のフォルダーを作成できませんでした。");
     }
 
+    /*
+     * 書き始める前に、置き換わるファイルを数えて尋ねる (#358)。置き換えるのは「はい」と答えたときだけ。
+     * 0 個のとき、「いいえ」、-q のときは置き換えない指定で書く。数え漏れたものも置き換わらない。
+     * 初めに選ばれているのは「いいえ」。見ないで Enter キーを押しても置き換えない
+     */
+    existing = CountExisting(entries, destination, shown, &shownCount);
+
+    if (existing > 0 && !g_quiet)
+    {
+        int answer;
+
+        question[0] = 0;
+        Append(question, L"展開先に同じ名前のファイルが ");
+        AppendNumber(question, existing);
+        Append(question, L" 個あります。上書きしますか?\n\n");
+
+        for (index = 0; index < shownCount; index++)
+        {
+            Append(question, L"  ");
+            Append(question, shown[index]);
+            Append(question, L"\n");
+        }
+
+        if (existing > shownCount)
+        {
+            Append(question, L"  ほか ");
+            AppendNumber(question, existing - shownCount);
+            Append(question, L" 個\n");
+        }
+
+        Append(question, L"\n「いいえ」を選ぶと、それらは展開しません。");
+
+        answer = MessageBoxW(NULL, question, TITLE, MB_YESNOCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2);
+
+        if (answer == IDCANCEL || answer == 0)
+        {
+            ExitProcess(2);
+        }
+
+        replace = (answer == IDYES);
+    }
+
     at = g_start + cdOffset;
 
     for (index = 0; index < entries; index++)
     {
-        unsigned long method;
-        unsigned long flags;
-        unsigned long crc;
-        unsigned long packed;
-        unsigned long unpacked;
-        unsigned long nameLength;
-        unsigned long extraLength;
-        unsigned long commentLength;
-        unsigned long localOffset;
-        unsigned char raw[MAX_PATH * 3];
         HANDLE out;
+        int kind = ReadEntry(&at, destination, path, &entry);
 
-        Seek(g_self, at);
-
-        if (!ReadFile(g_self, record, 46, &got, NULL) || got != 46
-            || ReadU32(record) != 0x02014B50UL)
+        if (kind == ENTRY_END)
         {
             break;
         }
 
-        flags = ReadU16(record + 8);
-        method = ReadU16(record + 10);
-        crc = ReadU32(record + 16);
-        packed = ReadU32(record + 20);
-        unpacked = ReadU32(record + 24);
-        nameLength = ReadU16(record + 28);
-        extraLength = ReadU16(record + 30);
-        commentLength = ReadU16(record + 32);
-        localOffset = ReadU32(record + 42);
-
-        /* パスワード付きは扱わない。復号を持たせると大きくなりすぎる */
-        if (nameLength == 0 || nameLength >= sizeof(raw) || (flags & 0x0001))
-        {
-            failed++;
-            at += 46 + nameLength + extraLength + commentLength;
-            continue;
-        }
-
-        if (!ReadFile(g_self, raw, nameLength, &got, NULL) || got != nameLength)
-        {
-            break;
-        }
-
-        at += 46 + nameLength + extraLength + commentLength;
-
-        /*
-         * 名前の文字コード。11 番目の印が立っていれば UTF-8、そうでなければ
-         * その環境の従来のコードページ (日本語環境なら CP932)。
-         */
-        name[0] = 0;
-        i = MultiByteToWideChar((flags & 0x0800) ? CP_UTF8 : CP_ACP, 0,
-            (const char *)raw, (int)nameLength, name, MAX_PATH - 1);
-
-        if (i <= 0)
+        if (kind == ENTRY_BAD)
         {
             failed++;
             continue;
         }
 
-        name[i] = 0;
-
-        for (i = 0; name[i]; i++)
+        if (kind == ENTRY_FOLDER)
         {
-            if (name[i] == L'/')
-            {
-                name[i] = L'\\';
-            }
-        }
-
-        if (!SafeName(name))
-        {
-            failed++;
-            continue;
-        }
-
-        path[0] = 0;
-        Append(path, destination);
-        Append(path, L"\\");
-        Append(path, name);
-
-        /* 名前が \ で終わっていればフォルダ */
-        if (name[Length(name) - 1] == L'\\')
-        {
-            path[Length(path) - 1] = 0;
             MakeFolders(path);
             CreateDirectoryW(path, NULL);
             continue;
@@ -1153,7 +1349,7 @@ int WINAPI WinMainCRTStartup(void)
 
         MakeFolders(path);
 
-        Seek(g_self, g_start + localOffset);
+        Seek(g_self, g_start + entry.localOffset);
 
         if (!ReadFile(g_self, local, 30, &got, NULL) || got != 30
             || ReadU32(local) != 0x04034B50UL)
@@ -1163,7 +1359,7 @@ int WINAPI WinMainCRTStartup(void)
         }
 
         /* 中身は、局所ヘッダの名前と拡張領域の後ろから始まる */
-        Seek(g_self, g_start + localOffset + 30 + ReadU16(local + 26) + ReadU16(local + 28));
+        Seek(g_self, g_start + entry.localOffset + 30 + ReadU16(local + 26) + ReadU16(local + 28));
 
         /*
          * 同じ名前のファイルがあっても、書き終えるまで触らない (#320)。
@@ -1172,6 +1368,13 @@ int WINAPI WinMainCRTStartup(void)
         if (IsProtected(path))
         {
             failed++;
+            continue;
+        }
+
+        /* 置き換えない指定で既にあれば、書く手間を省く。守るのは名前の変更の側 */
+        if (!replace && GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES)
+        {
+            kept++;
             continue;
         }
 
@@ -1187,7 +1390,7 @@ int WINAPI WinMainCRTStartup(void)
 
         g_work.source = g_self;
         g_work.destination = out;
-        g_work.left = packed;
+        g_work.left = entry.packed;
         g_work.have = 0;
         g_work.at = 0;
         g_work.hold = 0;
@@ -1197,7 +1400,7 @@ int WINAPI WinMainCRTStartup(void)
         g_work.produced = 0;
         g_work.broken = 0;
 
-        i = (method == 0) ? Store(&g_work) : (method == 8 ? Inflate(&g_work) : 0);
+        i = (entry.method == 0) ? Store(&g_work) : (entry.method == 8 ? Inflate(&g_work) : 0);
 
         if (i)
         {
@@ -1212,13 +1415,30 @@ int WINAPI WinMainCRTStartup(void)
 
         CloseHandle(out);
 
-        if (!i || (g_work.crc ^ 0xFFFFFFFFUL) != crc
-            || g_work.produced != unpacked
-            || IsProtected(path)
-            || !ReplaceWith(temporary, path))
+        if (!i || (g_work.crc ^ 0xFFFFFFFFUL) != entry.crc
+            || g_work.produced != entry.unpacked
+            || IsProtected(path))
         {
             DeleteFileW(temporary);
             failed++;
+            continue;
+        }
+
+        i = ReplaceWith(temporary, path, replace);
+
+        if (i != REPLACE_DONE)
+        {
+            DeleteFileW(temporary);
+
+            if (i == REPLACE_KEPT)
+            {
+                kept++;
+            }
+            else
+            {
+                failed++;
+            }
+
             continue;
         }
 
@@ -1234,6 +1454,13 @@ int WINAPI WinMainCRTStartup(void)
     Append(message, L" 個のファイル\n");
     Append(message, destination);
 
+    if (kept > 0)
+    {
+        Append(message, L"\n\n既にあったので展開しなかったファイル: ");
+        AppendNumber(message, kept);
+        Append(message, L" 個");
+    }
+
     if (failed > 0)
     {
         Append(message, L"\n\n展開できなかったファイル: ");
@@ -1243,7 +1470,8 @@ int WINAPI WinMainCRTStartup(void)
         ExitProcess(1);
     }
 
+    /* 既にあるファイルを残したことが、-q で動かしたスクリプトからも分かるように、別の終了コードにする */
     Say(message, MB_ICONINFORMATION);
-    ExitProcess(0);
+    ExitProcess(kept > 0 ? 3 : 0);
     return 0;
 }

@@ -5,16 +5,18 @@ rem Building Expzip itself does NOT need this: the result is checked in as
 rem src\Expzip.Core\Resources\sfx-x86.exe, so "dotnet build" is enough.
 rem Run this only after editing sfx.c.
 rem
-rem Needs: Visual Studio 2022 with the C++ workload (cl.exe and link.exe).
+rem Needs: Visual Studio 2022 or later with the C++ workload (cl.exe and link.exe).
 rem
 rem This file stays ASCII on purpose. cmd.exe reads .cmd as the ANSI code page,
 rem and some Japanese characters end in byte 0x5C, which it treats as an escape.
 
 setlocal
-set "VSROOT=%ProgramFiles%\Microsoft Visual Studio\2022"
 set "VCVARS="
-for %%e in (Community Professional Enterprise) do (
-  if exist "%VSROOT%\%%e\VC\Auxiliary\Build\vcvars32.bat" set "VCVARS=%VSROOT%\%%e\VC\Auxiliary\Build\vcvars32.bat"
+rem The version after 2022 installs into a folder named "18".
+for %%v in (2022 18) do (
+  for %%e in (Community Professional Enterprise) do (
+    if exist "%ProgramFiles%\Microsoft Visual Studio\%%v\%%e\VC\Auxiliary\Build\vcvars32.bat" set "VCVARS=%ProgramFiles%\Microsoft Visual Studio\%%v\%%e\VC\Auxiliary\Build\vcvars32.bat"
+  )
 )
 if not defined VCVARS (
   if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars32.bat" (
