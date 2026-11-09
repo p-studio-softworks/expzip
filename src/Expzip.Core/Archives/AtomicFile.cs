@@ -1033,7 +1033,7 @@ internal sealed class AtomicFile : IDisposable
     }
 
     /// <summary>長いパスだけを、Windows の関数で開ける形にする。</summary>
-    private static string LongPathIfNeeded(string full)
+    internal static string LongPathIfNeeded(string full)
         => full.Length < 260 ? full : LongPath(full);
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]

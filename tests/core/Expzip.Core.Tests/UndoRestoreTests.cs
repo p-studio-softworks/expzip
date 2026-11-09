@@ -111,6 +111,138 @@ public sealed class UndoRestoreTests
         Assert.Contains("b.txt", TestArchives.Names(archive));
     }
 
+    [Fact]
+    public void 置き場を片付けても書庫の読み取り専用は外れない()
+    {
+        // 取っておいた書庫は、書き換えるまでは書庫と同じ実体のハードリンク。
+        // 属性は実体ごとに付くので、片付けで読み取り専用を外すと、書庫のものも外れる (#356)
+        using var log = new TraceLog();
+        var archive = TestArchives.Make(log, sharpZipLib: false);
+        File.SetAttributes(archive, File.GetAttributes(archive) | FileAttributes.ReadOnly);
+        var workspace = Directory.CreateDirectory(log.PathOf("workspace")).FullName;
+        var history = new UndoHistory();
+
+        var pending = history.Begin(archive, UndoKind.Delete, Path.Combine(workspace, "undo"));
+        Assert.NotNull(pending);
+        Assert.ThrowsAny<Exception>(() =>
+            ZipArchiveWriter.Delete(archive, new HashSet<string> { "b.txt" }, [], CancellationToken.None));
+        history.Complete(pending);
+
+        Assert.True(TempWorkspace.TryDeleteTree(workspace));
+
+        Assert.True(File.GetAttributes(archive).HasFlag(FileAttributes.ReadOnly));
+        Assert.Contains("b.txt", TestArchives.Names(archive));
+        File.SetAttributes(archive, FileAttributes.Normal);
+    }
+
+    [Fact]
+    public void 読み取り専用のファイルが入った置き場も片付ける()
+    {
+        // 書庫の中身に読み取り専用のファイルがあると、取り出したものも読み取り専用になる
+        using var log = new TraceLog();
+        var workspace = Directory.CreateDirectory(log.PathOf("workspace")).FullName;
+        var file = Path.Combine(Directory.CreateDirectory(Path.Combine(workspace, "a")).FullName, "x.txt");
+        File.WriteAllText(file, "x");
+        File.SetAttributes(file, FileAttributes.ReadOnly);
+
+        Assert.True(TempWorkspace.TryDeleteTree(workspace));
+        Assert.False(Directory.Exists(workspace));
+    }
+
+    [Fact]
+    public void 片付けは置き場の中のジャンクションの先に入らない()
+    {
+        // ほかのプログラムが置き場にジャンクションを作っても、その先の外のファイルは消さず、属性も変えない
+        using var log = new TraceLog();
+        var outside = Directory.CreateDirectory(log.PathOf("outside")).FullName;
+        var kept = Path.Combine(outside, "keep.txt");
+        File.WriteAllText(kept, "keep");
+        File.SetAttributes(kept, FileAttributes.ReadOnly);
+        var workspace = Directory.CreateDirectory(log.PathOf("workspace")).FullName;
+        var link = Path.Combine(workspace, "link");
+        Assert.SkipUnless(Junction.TryCreate(link, outside), "ジャンクションを作れない");
+
+        Assert.True(TempWorkspace.TryDeleteTree(workspace));
+
+        Assert.False(Directory.Exists(workspace));
+        Assert.True(File.Exists(kept));
+        Assert.True(File.GetAttributes(kept).HasFlag(FileAttributes.ReadOnly));
+        File.SetAttributes(kept, FileAttributes.Normal);
+    }
+
+    [Fact]
+    public void 消せなかった取っておいた書庫は属性を変えずに残す()
+    {
+        // ほかから削除を許さずに開かれていると消せない。読み取り専用を外さずに残し、次の起動に回す
+        using var log = new TraceLog();
+        var archive = TestArchives.Make(log, sharpZipLib: false);
+        var workspace = Directory.CreateDirectory(log.PathOf("workspace")).FullName;
+        var store = Path.Combine(workspace, "store.zip");
+        Assert.True(UndoHistory.HardLink.TryCreate(store, archive));
+        File.SetAttributes(archive, File.GetAttributes(archive) | FileAttributes.ReadOnly);
+
+        using (new FileStream(store, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Assert.False(TempWorkspace.TryDeleteTree(workspace));
+            Assert.True(File.GetAttributes(archive).HasFlag(FileAttributes.ReadOnly));
+            Assert.True(File.Exists(store));
+        }
+
+        Assert.True(TempWorkspace.TryDeleteTree(workspace));
+        Assert.True(File.GetAttributes(archive).HasFlag(FileAttributes.ReadOnly));
+        Assert.Contains("b.txt", TestArchives.Names(archive));
+        File.SetAttributes(archive, FileAttributes.Normal);
+    }
+
+    // 読み取り専用を気にせずに消す指定が使えない古い Windows の道。この PC では差し替えないと通らない
+    [Fact]
+    public void 古いWindowsの道でも書庫と同じ実体のものは属性を変えずに残す()
+    {
+        using var log = new TraceLog();
+        var archive = TestArchives.Make(log, sharpZipLib: false);
+        var store = log.PathOf("store.zip");
+        Assert.True(UndoHistory.HardLink.TryCreate(store, archive));
+        File.SetAttributes(archive, File.GetAttributes(archive) | FileAttributes.ReadOnly);
+
+        TempWorkspace.ExtendedDeleteDisabled = true;
+        try
+        {
+            Assert.False(TempWorkspace.TryDeleteFile(store));
+        }
+        finally
+        {
+            TempWorkspace.ExtendedDeleteDisabled = false;
+        }
+
+        Assert.True(File.Exists(store));
+        Assert.True(File.GetAttributes(archive).HasFlag(FileAttributes.ReadOnly));
+        File.SetAttributes(archive, FileAttributes.Normal);
+    }
+
+    [Theory]
+    [InlineData(FileAttributes.ReadOnly)]
+    [InlineData(FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System)]
+    [InlineData(FileAttributes.Normal)]
+    public void 古いWindowsの道でもほかに名前の無いファイルは消す(FileAttributes attributes)
+    {
+        using var log = new TraceLog();
+        var file = log.PathOf("x.txt");
+        File.WriteAllText(file, "x");
+        File.SetAttributes(file, attributes);
+
+        TempWorkspace.ExtendedDeleteDisabled = true;
+        try
+        {
+            Assert.True(TempWorkspace.TryDeleteFile(file));
+        }
+        finally
+        {
+            TempWorkspace.ExtendedDeleteDisabled = false;
+        }
+
+        Assert.False(File.Exists(file));
+    }
+
     /// <summary>取っておいてから b.txt を消す。</summary>
     private static (UndoHistory History, string Store) DeleteOne(TraceLog log, string archive)
     {

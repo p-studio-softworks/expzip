@@ -280,6 +280,18 @@ internal sealed class TempWorkspace : IDisposable
 
     /// <summary>フォルダを配下ごと消す。</summary>
     /// <returns>すべて消せた場合は true。</returns>
+    /// <remarks>
+    /// <para>
+    /// リンクになっているフォルダーやファイル (ジャンクション、シンボリックリンク) の先には入らず、リンクだけを消す。
+    /// ほかのプログラムが置き場にリンクを作っていても、その先の置き場の外のファイルを消したり、属性を変えたりしない。
+    /// .NET の <see cref="System.IO.Directory.Delete(string, bool)"/> は、ジャンクションをマウントしたドライブとして外そうとして
+    /// 「アクセスが拒否されました」で止まるので、1 段ずつたどって自分で消す。
+    /// </para>
+    /// <para>
+    /// ファイルは読み取り専用の属性を外さずに消す (#356)。元に戻すために取っておいた書庫は、
+    /// アプリを使う人の書庫と同じ実体のハードリンクのことがあり、属性は実体ごとに付くので、外すと書庫のものも外れる。
+    /// </para>
+    /// </remarks>
     public static bool TryDeleteTree(string directory)
     {
         if (!System.IO.Directory.Exists(directory))
@@ -289,13 +301,8 @@ internal sealed class TempWorkspace : IDisposable
 
         try
         {
-            foreach (var file in System.IO.Directory.EnumerateFiles(
-                         directory, "*", SearchOption.AllDirectories))
-            {
-                ClearReadOnly(file);
-            }
-
-            System.IO.Directory.Delete(directory, recursive: true);
+            DeleteInside(directory);
+            System.IO.Directory.Delete(directory, recursive: false);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -304,6 +311,173 @@ internal sealed class TempWorkspace : IDisposable
             // 消せた分はそのまま消えており、残りは次回起動時に片付ける。
             return false;
         }
+    }
+
+    /// <summary>フォルダーの中身を消す。リンクの先には入らない。消せないものがあっても続け、最後に例外を投げる。</summary>
+    private static void DeleteInside(string directory)
+    {
+        var options = new EnumerationOptions { AttributesToSkip = 0, IgnoreInaccessible = false };
+        var failed = false;
+        foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", options))
+        {
+            try
+            {
+                if (entry is not DirectoryInfo folder)
+                {
+                    // ファイルへのリンクは、リンクそのものを消す
+                    failed |= !TryDeleteFile(entry.FullName);
+                    continue;
+                }
+
+                if (!folder.Attributes.HasFlag(FileAttributes.ReparsePoint) && folder.LinkTarget is null)
+                {
+                    DeleteInside(folder.FullName);
+                }
+
+                // リンクのフォルダーは、先をたどらずにリンクだけが消える
+                folder.Delete(recursive: false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // 開いたままのアプリに掴まれているものは消せない。ほかは消しておく
+                failed = true;
+            }
+        }
+
+        if (failed)
+        {
+            throw new IOException($"Could not delete everything in '{directory}'.");
+        }
+    }
+
+    /// <summary>
+    /// ファイルを、読み取り専用の属性を変えずに消す (#356)。消せたら <see langword="true"/>。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Windows では、リンクをたどらずに 1 回開き、そのハンドルですべて済ませる。名前で開き直すと、
+    /// その間に別のものに差し替わったときに、差し替わったものの属性を変えてしまう。
+    /// 読み取り専用を気にせずに消す指定 (<c>FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE</c>) が使えない
+    /// 古い Windows やドライブでは、同じ実体の名前がほかに無い普通のファイルだけ、読み取り専用を外してから消す。
+    /// リンクやハードリンクは、属性に触れずに残す。
+    /// </para>
+    /// <para>
+    /// Windows 以外では、フォルダーに書ければファイルの権限に関わらず消せるので、権限を変えない。
+    /// </para>
+    /// </remarks>
+    internal static bool TryDeleteFile(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            try
+            {
+                File.Delete(path);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
+        // 属性を書く権利は、読み取り専用を外すときだけ取る。削除の権利だけで消せるファイルを残さないため
+        using var handle = CreateFileW(
+            AtomicFile.LongPathIfNeeded(Path.GetFullPath(path)),
+            DeleteAccess | FileReadAttributes, FileShareAll, IntPtr.Zero, OpenExisting,
+            FileFlagOpenReparsePoint, IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            return false;
+        }
+
+        if (!ExtendedDeleteDisabled
+            && (SetDisposition(handle, DispositionDelete | DispositionPosixSemantics | DispositionIgnoreReadOnly)
+                || SetDisposition(handle, DispositionDelete | DispositionIgnoreReadOnly)))
+        {
+            return true;
+        }
+
+        if (!GetFileInformationByHandle(handle, out var info)
+            || (info.Attributes & (uint)FileAttributes.ReparsePoint) != 0
+            || info.Links != 1)
+        {
+            return false;
+        }
+
+        if ((info.Attributes & (uint)FileAttributes.ReadOnly) == 0)
+        {
+            return SetFileInformationByHandle(handle, FileDispositionInfo, [1], 1);
+        }
+
+        // 同じファイルを、属性を書く権利も付けて開き直す。名前で開き直すと、別のものに差し替わっていることがある
+        using var writable = ReOpenFile(handle, DeleteAccess | FileReadAttributes | FileWriteAttributes, FileShareAll, 0);
+        if (writable.IsInvalid)
+        {
+            return false;
+        }
+
+        // FILE_BASIC_INFO。日時を 0 にすると変えない。この方法で書ける属性だけを残す (圧縮や暗号化は書けない)
+        const uint Settable = (uint)(FileAttributes.Hidden | FileAttributes.System | FileAttributes.Archive
+                                     | FileAttributes.NotContentIndexed | FileAttributes.Offline | FileAttributes.Temporary);
+        var basic = new byte[40];
+        var attributes = info.Attributes & Settable;
+        BitConverter.TryWriteBytes(basic.AsSpan(32), attributes == 0 ? (uint)FileAttributes.Normal : attributes);
+        return SetFileInformationByHandle(writable, FileBasicInfo, basic, basic.Length)
+               && SetFileInformationByHandle(writable, FileDispositionInfo, [1], 1);
+    }
+
+    /// <summary>
+    /// 読み取り専用を気にせずに消す指定を使わない。それが使えない古い Windows の道を確かめるテスト用。
+    /// </summary>
+    internal static bool ExtendedDeleteDisabled { get; set; }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+    private static extern Microsoft.Win32.SafeHandles.SafeFileHandle ReOpenFile(
+        Microsoft.Win32.SafeHandles.SafeFileHandle original, uint access, uint share, uint flags);
+
+    private static bool SetDisposition(Microsoft.Win32.SafeHandles.SafeFileHandle handle, uint flags)
+        => SetFileInformationByHandle(handle, FileDispositionInfoEx, BitConverter.GetBytes(flags), sizeof(uint));
+
+    private const uint DeleteAccess = 0x00010000;
+    private const uint FileReadAttributes = 0x00000080;
+    private const uint FileWriteAttributes = 0x00000100;
+    private const uint FileShareAll = 0x00000007;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagOpenReparsePoint = 0x00200000;
+    private const int FileBasicInfo = 0;
+    private const int FileDispositionInfo = 4;
+    private const int FileDispositionInfoEx = 21;
+    private const uint DispositionDelete = 0x1;
+    private const uint DispositionPosixSemantics = 0x2;
+    private const uint DispositionIgnoreReadOnly = 0x10;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+    private static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(
+        string name, uint access, uint share, IntPtr security, uint mode, uint flags, IntPtr template);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool SetFileInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, int infoClass, byte[] info, int size);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, out ByHandleFileInformation info);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public uint Attributes;
+        public uint CreatedLow, CreatedHigh, AccessedLow, AccessedHigh, WrittenLow, WrittenHigh;
+        public uint VolumeSerialNumber;
+        public uint SizeHigh, SizeLow;
+        public uint Links;
+        public uint IndexHigh, IndexLow;
     }
 
     /// <summary>フォルダ名に使えない文字を落とす。</summary>

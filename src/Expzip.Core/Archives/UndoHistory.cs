@@ -248,14 +248,9 @@ internal sealed class UndoHistory
 
         public override void Discard()
         {
-            try
-            {
-                File.Delete(path);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // 消せなくても、一時フォルダーの置き場ごと閉じるときに消える
-            }
+            // 書庫と同じ実体のハードリンクのことがあるので、読み取り専用の属性を変えずに消す (#356)。
+            // 消せなくても、一時フォルダーの置き場ごと閉じるときに消える
+            TempWorkspace.TryDeleteFile(path);
         }
     }
 

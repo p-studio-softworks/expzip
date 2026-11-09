@@ -24,6 +24,7 @@ internal sealed class TraceLog : IDisposable
         Assert.Null(AtomicFile.IsProtectedOverride);
         Assert.Null(ZipArchiveWriter.WorkFilePathOverride);
         Assert.Null(MarkOfTheWeb.Override);
+        Assert.False(TempWorkspace.ExtendedDeleteDisabled);
 
         Root = Path.Combine(Path.GetTempPath(), "ExpzipCoreTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Root);
