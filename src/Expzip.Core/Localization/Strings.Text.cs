@@ -333,6 +333,53 @@ internal static partial class Strings
     public static string LimitInside(string parentName) => Pick(
         $"{parentName} の中", $"inside {parentName}");
 
+    /// <summary>名前の読み方を選び直したタブ (#335)。このタブは読み取りのみになる。</summary>
+    public static string LimitNamesReadAs(string encodingName) => Pick(
+        $"名前を {encodingName} で読んでいます", $"names read as {encodingName}");
+
+    // ------------------------------------------------------------------ 名前の文字コード (#335)
+
+    /// <summary>右クリックの「表示」の中に置く。</summary>
+    public static string NameEncodingMenu => Pick("名前の文字コード", "Name encoding");
+
+    public static string NameEncodingAuto => Pick("自動 (UTF-8 か Shift_JIS)", "Automatic (UTF-8 or Shift_JIS)");
+
+    public static string NameEncodingOther => Pick("その他", "Other");
+
+    /// <summary>名前の読み方を選び直した書庫から、名前を UTF-8 で書いた新しい書庫を作る。</summary>
+    public static string NameEncodingSaveAs => Pick("この名前で新しい書庫を作成...", "Create a new archive with these names...");
+
+    /// <summary>文字コードの呼び名。よく使うものは言語の名前、ほかは番号と Windows の呼び名。</summary>
+    public static string NameEncodingName(int codePage, string windowsName) => codePage switch
+    {
+        932 => Pick("日本語 (Shift_JIS)", "Japanese (Shift_JIS)"),
+        65001 => "UTF-8",
+        936 => Pick("中国語 (簡体字)", "Chinese (Simplified)"),
+        950 => Pick("中国語 (繁体字)", "Chinese (Traditional)"),
+        949 => Pick("韓国語", "Korean"),
+        437 => Pick("西ヨーロッパ (DOS)", "Western European (DOS)"),
+        1252 => Pick("西ヨーロッパ (Windows)", "Western European (Windows)"),
+        866 => Pick("ロシア語 (DOS)", "Russian (DOS)"),
+        51932 => Pick("日本語 (EUC-JP)", "Japanese (EUC-JP)"),
+        _ => Pick($"コードページ {codePage} ({windowsName})", $"Code page {codePage} ({windowsName})"),
+    };
+
+    /// <summary>選んだものから新しい書庫を作るときに、書き出すと同じファイルになる項目があった (#335)。</summary>
+    public static string SameTargetNotCopied(int count, string preview, string more) => Pick(
+        $"ほかの項目と同じ名前になる項目が {count:N0} 個あり、すべてを入れられません。"
+        + $"{Environment.NewLine}{preview}{more}",
+        $"{count:N0} {Plural(count, "item has", "items have")} the same name as another item, so not everything can be included."
+        + $"{Environment.NewLine}{preview}{more}");
+
+    /// <summary>名前の読み方を選び直したタブで、書き換えようとした (#335)。</summary>
+    public static string NamesChosenReadOnly => Pick(
+        "名前の文字コードを選び直した書庫は書き換えられません。元の書庫の名前を、選び直した読み方で書き直してしまうためです。"
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + "書き換えるときは、一覧の余白を右クリックして「表示」の「名前の文字コード」から「この名前で新しい書庫を作成」を選んでください。",
+        "An archive whose name encoding was changed cannot be modified, because the original names would be rewritten in the chosen encoding."
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + "To modify it, right-click an empty area of the list and choose View > Name encoding > Create a new archive with these names.");
+
     public static string EncryptedTooltip => Pick(
         "この項目はパスワードで保護されています。展開するときにパスワードを入力してください。",
         "This item is protected with a password. You will be asked for it when extracting.");

@@ -28,6 +28,12 @@ internal sealed class NestSession(
     /// </remarks>
     public bool Orphaned { get; private set; }
 
+    /// <summary>
+    /// 名前の読み方を選び直した親から取り出したか (#335)。そうなら親へは書き戻さない。
+    /// 書き戻しは親の中の項目を名前で引き当てるので、読み方が違うと別の名前の項目を足してしまう。
+    /// </summary>
+    public bool FromChosenNames { get; init; }
+
     /// <summary>親書庫のタブが閉じられたことを記録する。</summary>
     public void Orphan() => Orphaned = true;
 }

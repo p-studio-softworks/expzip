@@ -379,7 +379,8 @@ internal static class CompressedFile
                 return (null, stamp);
             }
 
-            var raw = ZipArchiveReader.EntryNameEncoding.GetString(head.Slice(at, end));
+            // 単体の圧縮ファイルの元の名前は、読み方を選び直す対象にしない (#335)
+            var raw = NameReading.Default.Encoding.GetString(head.Slice(at, end));
 
             // 元の名前にフォルダーが付いていることがある。名前だけを使う
             var name = raw[(raw.LastIndexOfAny(['/', '\\']) + 1)..].Trim();

@@ -1487,6 +1487,10 @@ LimitInstallerUnopened (name: 報告書.pdf)
   ja  ⟦報告書.pdf⟧ の中身は開けません
   en  ⟦報告書.pdf⟧ contents cannot be opened
 
+LimitNamesReadAs (encodingName: 見本)
+  ja  名前を ⟦見本⟧ で読んでいます
+  en  names read as ⟦見本⟧
+
 LimitReadOnly
   ja  読み取りのみ
   en  read-only
@@ -1650,6 +1654,34 @@ MoveFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否
 Moving (done: 45)
   ja  移動しています… (45 個)
   en  Moving… (45)
+
+NameEncodingAuto
+  ja  自動 (UTF-8 か Shift_JIS)
+  en  Automatic (UTF-8 or Shift_JIS)
+
+NameEncodingMenu
+  ja  名前の文字コード
+  en  Name encoding
+
+NameEncodingName (codePage: 3, windowsName: 見本)
+  ja  コードページ 3 (⟦見本⟧)
+  en  Code page 3 (⟦見本⟧)
+
+NameEncodingOther
+  ja  その他
+  en  Other
+
+NameEncodingSaveAs
+  ja  この名前で新しい書庫を作成...
+  en  Create a new archive with these names...
+
+NamesChosenReadOnly
+  ja  名前の文字コードを選び直した書庫は書き換えられません。元の書庫の名前を、選び直した読み方で書き直してしまうためです。
+      | 
+      | 書き換えるときは、一覧の余白を右クリックして「表示」の「名前の文字コード」から「この名前で新しい書庫を作成」を選んでください。
+  en  An archive whose name encoding was changed cannot be modified, because the original names would be rewritten in the chosen encoding.
+      | 
+      | To modify it, right-click an empty area of the list and choose View > Name encoding > Create a new archive with these names.
 
 NestApplied (entryPath: 画像/2024/写真.jpg, parentName: 外側.zip)
   ja  ⟦画像/2024/写真.jpg⟧ を ⟦外側.zip⟧ に反映しました
@@ -2635,6 +2667,25 @@ SalvageRestUnknown
 Salvaging (fileName: 資料.zip)
   ja  ⟦資料.zip⟧ から無事なファイルを集めています…
   en  Collecting the intact files from ⟦資料.zip⟧…
+
+SameTargetNotCopied (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  ほかの項目と同じ名前になる項目が 3 個あり、すべてを入れられません。
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+  en  3 items have the same name as another item, so not everything can be included.
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+SameTargetNotCopied (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  ほかの項目と同じ名前になる項目が 1 個あり、すべてを入れられません。
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+  en  1 item has the same name as another item, so not everything can be included.
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
 
 Save
   ja  保存

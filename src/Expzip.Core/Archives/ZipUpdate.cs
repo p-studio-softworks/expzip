@@ -51,7 +51,8 @@ internal static class ZipUpdate
         => new(archivePath)
         {
             Password = password,
-            StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding)
+            // 書き換えは、いつもの読み方の書庫だけ。選び直した書庫は書き換えない (#335)
+            StringCodec = StringCodec.FromEncoding(NameReading.Default.Encoding)
                 .WithZipArchiveCommentEncoding(comment),
         };
 

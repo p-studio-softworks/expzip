@@ -33,7 +33,8 @@ internal static class ZipComment
     private static readonly Encoding? LegacyJapanese = TryGetLegacyJapanese();
 
     /// <summary>コメントを読む。無ければ空の文字。読めなければ <see langword="null"/>。</summary>
-    public static string? Read(string path)
+    /// <param name="names">名前と同じ読み方で読む (#335)。</param>
+    public static string? Read(string path, NameReading names)
     {
         try
         {
@@ -48,7 +49,7 @@ internal static class ZipComment
             stream.Position = end.Offset + EndLength;
             stream.ReadExactly(bytes);
 
-            return ZipArchiveReader.EntryNameEncoding.GetString(bytes);
+            return names.Encoding.GetString(bytes);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException or EndOfStreamException)
@@ -127,7 +128,7 @@ internal static class ZipComment
 
                 // CP932 として正しく戻り、かつ UTF-8 と取り違えられないものだけ
                 if (LegacyJapanese.GetString(bytes) == clean
-                    && ZipArchiveReader.EntryNameEncoding.GetString(bytes) == clean)
+                    && NameReading.Default.Encoding.GetString(bytes) == clean)
                 {
                     return bytes;
                 }

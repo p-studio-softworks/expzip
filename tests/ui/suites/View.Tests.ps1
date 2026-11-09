@@ -26,7 +26,7 @@ namespace ExpzipUi
 }
 '@
 
-$viewNames = '特大アイコン / 大アイコン / 中アイコン / 小アイコン / 一覧 / 詳細'
+$viewNames = '特大アイコン / 大アイコン / 中アイコン / 小アイコン / 一覧 / 詳細 / 名前の文字コード'
 
 function Set-View($App, [int]$Digit) {
     Focus-App $App
@@ -108,6 +108,9 @@ $items = if ($view) { Get-ViewItems $view } else { @() }
 $names = @($items | ForEach-Object { $_.Current.Name }) -join ' / '
 Check '並び' ($names -eq $viewNames) $names
 Check '詳細に印' (((Checked-Names $items) -join ',') -eq '詳細') ((Checked-Names $items) -join ',')
+# 名前がどれも ASCII で、読み方で変わる名前が無い書庫では選べない (#335)
+$encodingItem = $items | Where-Object { $_.Current.Name -eq '名前の文字コード' } | Select-Object -First 1
+Check '選び直す名前が無ければ名前の文字コードは選べない' ($encodingItem -and -not $encodingItem.Current.IsEnabled)
 Close-ViewMenu $app
 $all = @(Get-ItemNames $app)
 Check '項目が並ぶ' ($all.Count -eq 9) ($all -join ', ')
@@ -240,6 +243,45 @@ $a = Find-Item $app 'b.png'
 Check '元のタブに戻ると中アイコン' ($a -and $a.Current.ControlType -eq $script:ControlType::ListItem) $(if ($a) { $a.Current.ControlType.ProgrammaticName })
 Stop-Expzip $app
 
+Section '名前の文字コードを選び直す'
+# 中国語 (簡体字) の名前 (资料/报告.txt) を、UTF-8 の印を立てずに GBK で書いた書庫 (#335)
+$folderName = [string][char]0x8D44 + [char]0x6599
+$fileName = [string][char]0x62A5 + [char]0x544A + '.txt'
+$gbk = Join-Path $script:Work 'gbk.zip'
+Add-Type -AssemblyName System.IO.Compression
+$stream = [System.IO.File]::Create($gbk)
+$zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Create, $false, [System.Text.Encoding]::GetEncoding(936))
+$writer = New-Object System.IO.StreamWriter($zip.CreateEntry("$folderName/$fileName").Open())
+$writer.Write('A')
+$writer.Dispose()
+$zip.Dispose()
+
+$app = Start-Expzip @($gbk)
+Check 'いつもの読み方では名前が化ける' ($null -eq (Find-Item $app $folderName)) ((Get-ItemNames $app) -join ', ')
+$view = Open-ViewMenu $app
+$items = if ($view) { Get-ViewItems $view } else { @() }
+$encodingItem = $items | Where-Object { $_.Current.Name -eq '名前の文字コード' } | Select-Object -First 1
+Check '名前の文字コードを選べる' ($encodingItem -and $encodingItem.Current.IsEnabled)
+$chinese = $null
+if ($encodingItem) {
+    Expand-Element $encodingItem
+    Start-Sleep -Milliseconds 800
+    $chinese = Wait-Until {
+        $script:Automation::RootElement.FindAll($script:Scope::Descendants,
+            (Condition $script:Automation::ProcessIdProperty $app.Process.Id)) |
+            Where-Object { $_.Current.ControlType -eq $script:ControlType::MenuItem -and $_.Current.Name -eq '中国語 (簡体字)' } |
+            Select-Object -First 1
+    }
+}
+Check '候補に中国語 (簡体字) がある' ($null -ne $chinese)
+if ($chinese) { Push $chinese }
+Close-DropDown $app
+Wait-Idle $app
+Check '選ぶと一覧の名前が読める' ($null -ne (Wait-Until { Find-Item $app $folderName })) ((Get-ItemNames $app) -join ', ')
+$status = Get-Status $app
+Check 'ステータスバーに読み方と読み取りのみが出る' ($status -match '名前を 中国語 \(簡体字\) で読んでいます' -and $status -match '読み取りのみ') $status
+Stop-Expzip $app
+
 Section '次の起動では詳細に戻る'
 $app = Start-Expzip @($sample)
 $a = Find-Item $app 'b.png'
@@ -252,7 +294,7 @@ $view = Open-ViewMenu $app 'View'
 Check '英語の名前' ($null -ne $view)
 $items = if ($view) { Get-ViewItems $view } else { @() }
 $names = @($items | ForEach-Object { $_.Current.Name }) -join ' / '
-Check '英語の並び' ($names -eq 'Extra large icons / Large icons / Medium icons / Small icons / List / Details') $names
+Check '英語の並び' ($names -eq 'Extra large icons / Large icons / Medium icons / Small icons / List / Details / Name encoding') $names
 Close-ViewMenu $app
 
 Stop-Expzip $app

@@ -7,6 +7,10 @@ internal static class ArchiveReader
 {
     /// <summary>書庫を開いて内容を読み取る。形式は拡張子から判断する。</summary>
     /// <param name="path">書庫ファイルのパス。</param>
+    /// <param name="names">
+    /// 名前の読み方 (#335)。ZIP と tar だけが使う。ほかの形式は名前を Unicode で持つか、別の決まりがあるので、
+    /// いつもの読み方で開く。
+    /// </param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <exception cref="InvalidDataException">書庫として解釈できない場合。</exception>
@@ -16,6 +20,7 @@ internal static class ArchiveReader
     /// <exception cref="OperationCanceledException">中断された場合。</exception>
     public static ArchiveContents Open(
         string path,
+        NameReading names,
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -38,15 +43,17 @@ internal static class ArchiveReader
                 ArchiveFormat.Burn => BurnReader.Open(path, progress, cancellationToken),
                 ArchiveFormat.MsiExe => MsiExeReader.Open(path, progress, cancellationToken),
                 ArchiveFormat.CabExe => CabReader.Open(path, progress, cancellationToken, format),
-                ArchiveFormat.SevenZip or ArchiveFormat.Tar
-                    => SharpArchiveReader.Open(path, format, progress, cancellationToken),
+                ArchiveFormat.SevenZip => SharpArchiveReader.Open(path, format, NameReading.Default, progress, cancellationToken),
+                ArchiveFormat.Tar => SharpArchiveReader.Open(path, format, names, progress, cancellationToken),
                 ArchiveFormat.GZip or ArchiveFormat.BZip2 or ArchiveFormat.Xz or ArchiveFormat.Zstandard
                     => CompressedFile.Open(path, format, progress, cancellationToken),
-                ArchiveFormat.Msix => ZipArchiveReader.Open(path, progress, cancellationToken, format),
+
+                // MSIX は名前を UTF-8 で持つ決まり
+                ArchiveFormat.Msix => ZipArchiveReader.Open(path, NameReading.Default, progress, cancellationToken, format),
 
                 // 拡張子で判別できなかったものは ZIP として試す。
                 // 拡張子を変えただけの ZIP は珍しくなく、開けるなら開く
-                _ => ZipArchiveReader.Open(path, progress, cancellationToken),
+                _ => ZipArchiveReader.Open(path, names, progress, cancellationToken),
             };
         }
         catch (OutOfMemoryException)

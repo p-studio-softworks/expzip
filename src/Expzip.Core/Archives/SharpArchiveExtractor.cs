@@ -25,6 +25,7 @@ internal static class SharpArchiveExtractor
     public static ExtractResult Extract(
         string archivePath,
         ArchiveFormat format,
+        NameReading names,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
         ExtractOverwrite overwrite,
@@ -44,7 +45,7 @@ internal static class SharpArchiveExtractor
             }
             else
             {
-                ExtractTar(archivePath, sourceNames, state, cancellationToken);
+                ExtractTar(archivePath, names, sourceNames, state, cancellationToken);
             }
         }
         catch (Exception ex) when (CancellableCopy.IsLibraryFailure(ex))
@@ -145,11 +146,11 @@ internal static class SharpArchiveExtractor
     }
 
     private static void ExtractTar(
-        string archivePath, IReadOnlySet<string>? sourceNames, ExtractState state,
+        string archivePath, NameReading names, IReadOnlySet<string>? sourceNames, ExtractState state,
         CancellationToken cancellationToken)
     {
         using var stream = ArchiveFile.OpenRead(archivePath);
-        using var reader = SharpArchiveAccess.OpenTarReader(stream);
+        using var reader = SharpArchiveAccess.OpenTarReader(stream, names);
 
         try
         {

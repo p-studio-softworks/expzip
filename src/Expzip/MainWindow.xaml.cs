@@ -396,9 +396,13 @@ public partial class MainWindow : Window
     /// 読み込み中は今開いている書庫の表示をそのまま残し、成功した時点で差し替える。
     /// 中断や失敗のたびに画面が空になるのは、開き直しの操作で不便なため。
     /// </remarks>
+    /// <param name="names">
+    /// 名前の読み方 (#335)。省くと、同じ書庫をいまのタブで読み直すときはそのタブの読み方を引き継ぎ、
+    /// ほかはいつもの読み方。中の書庫は親とは別に選び直すので、引き継がない。
+    /// </param>
     private async Task<bool> OpenArchiveAsync(
         string path, string? restorePath = null, bool inNewTab = false, bool quiet = false,
-        NestSession? nest = null, ArchiveTab? openedFrom = null)
+        NestSession? nest = null, ArchiveTab? openedFrom = null, NameReading? names = null)
     {
         // 他の処理の最中は受け付けない。ツールバーは SetBusy で止めているが、
         // 最近使った書庫のメニューやコマンドライン起動など別の入口もある。
@@ -416,6 +420,12 @@ public partial class MainWindow : Window
             : null;
 
         ArchiveContents contents;
+
+        var reading = names
+                      ?? (!inNewTab && Contents is { } current
+                          && string.Equals(current.FilePath, path, StringComparison.OrdinalIgnoreCase)
+                          ? current.Names
+                          : NameReading.Default);
 
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
@@ -438,7 +448,7 @@ public partial class MainWindow : Window
         try
         {
             contents = await Task.Run(
-                () => ArchiveReader.Open(path, progress, cancellation.Token), cancellation.Token);
+                () => ArchiveReader.Open(path, reading, progress, cancellation.Token), cancellation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -728,7 +738,7 @@ public partial class MainWindow : Window
         // 元に戻すも選択と関係ない (#260)。何を戻すかを名前に添える
         var undoable = Contents is { } current ? _undoHistory.Peek(current.FilePath) : null;
         UndoMenuItem.Header = Strings.MenuUndo(undoable);
-        UndoMenuItem.IsEnabled = undoable is not null && _cancellation is null;
+        UndoMenuItem.IsEnabled = undoable is not null && _cancellation is null && Contents is { Names.IsDefault: true };
 
         // 表示の形と並べ替え (#216)。中身は開くたびに作り、いまの選び方に印を付ける
         FillViewItems(ViewMenuItem.Items);
@@ -2614,6 +2624,12 @@ public partial class MainWindow : Window
             parts.Add(Strings.LimitInside(Path.GetFileName(nest.ArchivePath)));
         }
 
+        // 名前の読み方を選び直したタブ (#335)。読み取りのみになる理由を添える
+        if (!contents.Names.IsDefault && contents.Names.CodePage is { } codePage)
+        {
+            parts.Add(Strings.LimitNamesReadAs(NameEncodingName(codePage)));
+        }
+
         if (!contents.IsEditable)
         {
             parts.Add(Strings.LimitReadOnly);
@@ -3096,9 +3112,12 @@ public partial class MainWindow : Window
         // 7z と tar は読み取りのみ。落とされたものを黙って捨てない (#19)
         if (!Contents.IsEditable)
         {
+            // 名前の読み方を選び直したタブは、形式ではなくそのために読み取りのみ (#335)
             MessageBox.Show(
                 this,
-                Strings.FormatIsReadOnly(ArchiveFormats.DisplayName(Contents.Format)),
+                Contents.Names.IsDefault
+                    ? Strings.FormatIsReadOnly(ArchiveFormats.DisplayName(Contents.Format))
+                    : Strings.NamesChosenReadOnly,
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -3459,6 +3478,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 元に戻すのも書庫の書き換え。名前の読み方を選び直したタブでは行わない (#335)
+        if (!contents.Names.IsDefault)
+        {
+            MessageBox.Show(this, Strings.NamesChosenReadOnly, AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         using var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         SetBusy(true);
@@ -3604,6 +3630,9 @@ public partial class MainWindow : Window
     {
         failed ??= Strings.CreateArchiveFailed;
         var archivePath = Contents!.FilePath;
+
+        // 名前は一覧と同じ読み方で読む (#335)
+        var reading = Contents.Names;
         var format = Contents.Format;
         var names = CollectSourceNames(rows);
 
@@ -3622,8 +3651,10 @@ public partial class MainWindow : Window
 
         try
         {
+            // 取り出し先は毎回新しく作るフォルダーなので、上書きしない指定で取り出す。書き出すと同じファイルになる
+            // 2 項目 (末尾のピリオドや、選び直した読み方で同じ名前になるもの) を、黙って 1 つにしないため (#335)
             var result = await Task.Run(() => ArchiveExtractor.Extract(
-                archivePath, format, names, directory, overwrite: true, progress: progress,
+                archivePath, format, reading, names, directory, overwrite: false, progress: progress,
                 cancellationToken: cancellation.Token, zoneIdentifier: zone, password: password));
 
             if (result.Cancelled)
@@ -3638,6 +3669,19 @@ public partial class MainWindow : Window
                 MessageBox.Show(
                     this,
                     failed(Path.GetFileName(archivePath), DescribeNotExtracted(result)),
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return null;
+            }
+
+            // 欠けた書庫を黙って作らない。新しい書庫を写しだと思って元を消すと、入らなかった項目が失われる
+            if (result.SkippedNames.Count > 0)
+            {
+                ShowIdleStatus();
+                var preview = string.Join(Environment.NewLine, result.SkippedNames.Take(5).Select(static n => "  " + n));
+                var more = result.SkippedNames.Count > 5 ? Strings.More(result.SkippedNames.Count - 5) : string.Empty;
+                MessageBox.Show(
+                    this,
+                    failed(Path.GetFileName(archivePath), Strings.SameTargetNotCopied(result.SkippedNames.Count, preview, more)),
                     AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
@@ -4096,7 +4140,10 @@ public partial class MainWindow : Window
     /// </remarks>
     private async Task OpenNestedAsync(ArchiveEntry entry, string target, string parentPath)
     {
-        var nest = new NestSession(parentPath, entry, target, ParentFolderOf(entry.FullPath));
+        var nest = new NestSession(parentPath, entry, target, ParentFolderOf(entry.FullPath))
+        {
+            FromChosenNames = Contents is { Names.IsDefault: false },
+        };
         await OpenArchiveAsync(target, inNewTab: true, nest: nest);
     }
 
@@ -4243,6 +4290,14 @@ public partial class MainWindow : Window
                 this,
                 Strings.NestParentClosed(Path.GetFileName(nest.ArchivePath)),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        // 名前の読み方を選び直した親へは書き戻さない (#335)。親の書き換えになり、
+        // 読み方が違うと、中の書庫を名前で引き当てられずに別の項目を足してしまう
+        if (nest.FromChosenNames || !parent.Contents.Names.IsDefault)
+        {
+            MessageBox.Show(this, Strings.NamesChosenReadOnly, AppName, MessageBoxButton.OK, MessageBoxImage.Information);
             return false;
         }
 
@@ -5401,7 +5456,7 @@ public partial class MainWindow : Window
             // 既に取り出してあるものは触らない。開いたままのアプリに掴まれていて
             // 上書きできない場合でも、ドラッグ自体は成り立つようにする
             ArchiveExtractor.Extract(
-                Contents.FilePath, Contents.Format, names, directory,
+                Contents.FilePath, Contents.Format, Contents.Names, names, directory,
                 overwrite: false, progress: null, cancellationToken: CancellationToken.None,
                 zoneIdentifier: zone, password: dragPassword);
 
@@ -5892,6 +5947,7 @@ public partial class MainWindow : Window
     {
         var archivePath = Contents!.FilePath;
         var format = Contents.Format;
+        var reading = Contents.Names;
 
         if (!TryGetPassword(out var password))
         {
@@ -5920,7 +5976,7 @@ public partial class MainWindow : Window
                 TempWorkspace.ClearReadOnly(target);
 
                 return ArchiveExtractor.Extract(
-                    archivePath, format,
+                    archivePath, format, reading,
                     new HashSet<string>(StringComparer.Ordinal) { entry.SourceName },
                     directory, overwrite: true, progress: progress,
                     cancellationToken: cancellation.Token, zoneIdentifier: zone, password: password);
@@ -6177,7 +6233,7 @@ public partial class MainWindow : Window
         }
 
         await RunExtractionAsync(
-            Contents.FilePath, Contents.Format, selection, destination, overwrite, declined, basePath);
+            Contents.FilePath, Contents.Format, Contents.Names, selection, destination, overwrite, declined, basePath);
     }
 
     /// <summary>展開するファイルの、書庫の中の名前。<paramref name="selection"/> が無ければすべて。</summary>
@@ -6206,7 +6262,7 @@ public partial class MainWindow : Window
     }
 
     private async Task RunExtractionAsync(
-        string archivePath, ArchiveFormat format, IReadOnlySet<string>? selection, string destination,
+        string archivePath, ArchiveFormat format, NameReading reading, IReadOnlySet<string>? selection, string destination,
         ExtractOverwrite overwrite, IReadOnlySet<string> declined, string? basePath = null)
     {
         // パスワード付きの書庫では、始める前に合言葉を用意する (#20)
@@ -6233,7 +6289,7 @@ public partial class MainWindow : Window
             var zone = MarkOfTheWeb.TryReadArchive(archivePath);
 
             var result = await Task.Run(() => ArchiveExtractor.Extract(
-                archivePath, format, selection, destination, overwrite, progress, cancellation.Token,
+                archivePath, format, reading, selection, destination, overwrite, progress, cancellation.Token,
                 zone, basePath, password));
 
             ShowExtractResult(result, destination, declined);
@@ -8026,6 +8082,133 @@ public partial class MainWindow : Window
             item.Click += ViewItem_Click;
             items.Add(item);
         }
+
+        // 名前の文字コードを選び直す (#335)。読み方で読みが変わる名前があるときだけ選べる
+        // (ZIP で UTF-8 の印の無い名前と、tar の名前)。中身は開くときに作る。候補を試すのに少し時間がかかるため
+        var encoding = new MenuItem
+        {
+            Header = Strings.NameEncodingMenu,
+            IsEnabled = Contents is { LegacyNameBytes.Count: > 0 } && _cancellation is null,
+        };
+        encoding.Items.Add(new MenuItem());
+        encoding.SubmenuOpened += NameEncodingMenu_SubmenuOpened;
+        items.Add(new Separator());
+        items.Add(encoding);
+    }
+
+    /// <summary>名前の文字コードの候補を並べる (#335)。</summary>
+    /// <remarks>
+    /// 開いたときに覚えた名前を、候補の文字コードそれぞれで読んでみて、読めるものだけを並べる
+    /// (<see cref="NameCandidates"/>)。よく使うものを上に、残りは「その他」にまとめる。
+    /// 選ぶとすぐ一覧が変わる。選び直せば戻せるので、決める前に見せる段は設けない。
+    /// </remarks>
+    private void NameEncodingMenu_SubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu || e.OriginalSource != menu || Contents is not { } contents)
+        {
+            return;
+        }
+
+        menu.Items.Clear();
+        var current = contents.Names;
+
+        var auto = new MenuItem { Header = Strings.NameEncodingAuto, IsCheckable = true, IsChecked = current.IsDefault };
+        auto.Click += (_, _) => _ = ChooseNameReadingAsync(NameReading.Default);
+        menu.Items.Add(auto);
+        menu.Items.Add(new Separator());
+
+        List<NameCandidate> candidates;
+        try
+        {
+            Mouse.OverrideCursor = Cursors.Wait;
+            candidates = NameCandidates.Find(contents.LegacyNameBytes);
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+        }
+
+        var other = new MenuItem { Header = Strings.NameEncodingOther };
+        foreach (var candidate in candidates)
+        {
+            var codePage = candidate.CodePage;
+            var item = new MenuItem
+            {
+                Header = NameEncodingName(codePage),
+                IsCheckable = true,
+                IsChecked = current.CodePage == codePage,
+            };
+            item.Click += (_, _) => _ = ChooseNameReadingAsync(NameReading.Chosen(codePage));
+            (candidate.Common ? menu.Items : other.Items).Add(item);
+        }
+
+        if (other.Items.Count > 0)
+        {
+            menu.Items.Add(other);
+        }
+
+        // 書き換えたいときは、選び直した名前を UTF-8 で書いた新しい書庫を作る
+        menu.Items.Add(new Separator());
+        var saveAs = new MenuItem { Header = Strings.NameEncodingSaveAs, IsEnabled = !current.IsDefault };
+        saveAs.Click += (_, _) => _ = CreateArchiveWithChosenNamesAsync();
+        menu.Items.Add(saveAs);
+    }
+
+    /// <summary>文字コードの呼び名。</summary>
+    private static string NameEncodingName(int codePage)
+    {
+        string windowsName;
+        try
+        {
+            windowsName = System.Text.Encoding.GetEncoding(codePage).EncodingName;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            windowsName = codePage.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return Strings.NameEncodingName(codePage, windowsName);
+    }
+
+    /// <summary>
+    /// いまのタブの書庫を、選んだ読み方で読み直す (#335)。選び直したタブは読み取りのみになる。
+    /// </summary>
+    /// <remarks>
+    /// 一覧を作り直すので、名前の警告、危ないファイルの種類、決まりの印も、選び直した名前で決まり直す。
+    /// 見ていたフォルダーは、同じ名前のものがあればそこを出す。
+    /// </remarks>
+    private async Task ChooseNameReadingAsync(NameReading reading)
+    {
+        if (Contents is not { } contents || _cancellation is not null)
+        {
+            return;
+        }
+
+        if (contents.Names.CodePage == reading.CodePage)
+        {
+            return;
+        }
+
+        await OpenArchiveAsync(contents.FilePath, CurrentFolder?.FullPath, names: reading);
+    }
+
+    /// <summary>
+    /// 選び直した名前の書庫から、名前を UTF-8 で書いた新しい書庫を作る (#335)。
+    /// 書庫全体を選んで「選んだものから新しい書庫を作る」(#207) と同じ。
+    /// </summary>
+    private async Task CreateArchiveWithChosenNamesAsync()
+    {
+        if (Contents is not { } contents)
+        {
+            return;
+        }
+
+        var root = contents.Root;
+        var rows = root.Folders.Select(static f => FolderRow(f, location: null))
+            .Concat(root.Files.Select(f => FileRow(f, root, location: null)))
+            .ToList();
+
+        await CreateArchiveFromSelectionAsync(rows);
     }
 
     private void ViewItem_Click(object sender, RoutedEventArgs e)

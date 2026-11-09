@@ -38,11 +38,11 @@ public sealed class CommentTests : IDisposable
     {
         var archive = MakeStopped(name, old, comment, stage, partial);
 
-        var contents = ArchiveReader.Open(archive);
+        var contents = ArchiveReader.Open(archive, NameReading.Default);
         Assert.Equal(ArchiveFormat.Zip, contents.Format);
 
         var output = Directory.CreateDirectory(Path.Combine(_root, name + "-out")).FullName;
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, output, false, null, CancellationToken.None);
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, output, false, null, CancellationToken.None);
 
         Assert.Equal(2, result.Extracted);
         Assert.Empty(result.Failed);

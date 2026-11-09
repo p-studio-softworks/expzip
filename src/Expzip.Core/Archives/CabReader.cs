@@ -576,7 +576,8 @@ internal static class CabReader
             const int nameIsUtf8 = 0x80;
             return (attributes & nameIsUtf8) != 0
                 ? Encoding.UTF8.GetString(bytes)
-                : ZipArchiveReader.EntryNameEncoding.GetString(bytes);
+                // CAB は名前の読み方を選び直す対象にしない (#335)
+                : NameReading.Default.Encoding.GetString(bytes);
         }
 
         /// <summary>MS-DOS の形の日付と時刻を読む。</summary>

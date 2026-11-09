@@ -33,7 +33,8 @@ internal static class ZipEncryption
     {
         try
         {
-            using var zip = OpenSharp(path);
+            // 暗号化されているかを数えるだけで、名前は使わない
+            using var zip = OpenSharp(path, NameReading.Default);
 
             var files = 0;
             var encrypted = 0;
@@ -76,13 +77,14 @@ internal static class ZipEncryption
     /// 一部だけが暗号化された書庫 (<see cref="ZipEncryptionInfo.IsPartial"/>) のときだけ
     /// 呼ぶこと。書庫まるごと暗号化されている場合は、名前を引き当てるまでもない。
     /// </remarks>
-    public static HashSet<string> CollectEncryptedNames(string path)
+    /// <param name="reading">名前の読み方 (#335)。一覧と同じ名前で引き当てるため、一覧と同じものを渡す。</param>
+    public static HashSet<string> CollectEncryptedNames(string path, NameReading reading)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
 
         try
         {
-            using var zip = OpenSharp(path);
+            using var zip = OpenSharp(path, reading);
 
             foreach (ZipEntry entry in zip)
             {
@@ -134,7 +136,8 @@ internal static class ZipEncryption
     {
         try
         {
-            using var zip = OpenSharp(path, password);
+            // 先頭の 1 件を読んで確かめるだけで、名前は使わない
+            using var zip = OpenSharp(path, NameReading.Default, password);
 
             var entry = zip.Cast<ZipEntry>().FirstOrDefault(e => !ZipEntryKind.IsFolder(e) && e.Size > 0);
             if (entry is null)
@@ -159,6 +162,7 @@ internal static class ZipEncryption
     /// </summary>
     public static ExtractResult Extract(
         string archivePath,
+        NameReading names,
         string password,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
@@ -177,10 +181,10 @@ internal static class ZipEncryption
         var failed = new List<(string, string)>();
         var cancelled = false;
 
-        using var zip = OpenSharp(archivePath, password);
+        using var zip = OpenSharp(archivePath, names, password);
 
         // SharpZipLib が扱えない鍵長 (AES-192) のエントリ用 (#67)。要るまで開かない
-        using var fallback = new ZipMethodFallback(archivePath, password);
+        using var fallback = new ZipMethodFallback(archivePath, names, password);
 
         var targets = zip.Cast<ZipEntry>()
             .Where(e => !ZipEntryKind.IsFolder(e))
@@ -272,11 +276,11 @@ internal static class ZipEncryption
     /// 自己解凍書庫は先頭にプログラムが付いている。その分を隠した流れを渡す (#32)。
     /// 流れで開いた場合、閉じるときに元のファイルも一緒に閉じさせる。
     /// </remarks>
-    private static SharpZipFile OpenSharp(string path, string? password = null)
+    private static SharpZipFile OpenSharp(string path, NameReading names, string? password = null)
         => new(ZipPrefix.Open(path), leaveOpen: false)
         {
             Password = password,
-            StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
+            StringCodec = StringCodec.FromEncoding(names.Encoding),
         };
 
     /// <summary>

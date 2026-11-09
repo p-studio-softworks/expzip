@@ -22,15 +22,20 @@ namespace Expzip.Archives;
 internal static class SharpArchiveAccess
 {
     /// <summary>読み取りの設定。名前の解釈を ZIP と揃える。</summary>
-    public static ReaderOptions Options(string? password = null) => new()
+    /// <param name="names">
+    /// 名前の読み方 (#335)。いつもの読み方は、ZIP で使っているのと同じ判定器 (UTF-8として厳密に妥当なら
+    /// UTF-8、そうでなければ従来の日本語コードページ、#13)。
+    /// </param>
+    /// <param name="password">パスワード。</param>
+    public static ReaderOptions Options(NameReading names, string? password = null)
+        => Options(names.Encoding, password);
+
+    private static ReaderOptions Options(System.Text.Encoding decoder, string? password) => new()
     {
         Password = password,
         ArchiveEncoding = new ArchiveEncoding
         {
-            // ZIP で使っているのと同じ判定器に通す。UTF-8として厳密に妥当なら
-            // UTF-8、そうでなければ従来の日本語コードページとみなす (#13)
-            CustomDecoder = (bytes, index, count, _) =>
-                ZipArchiveReader.EntryNameEncoding.GetString(bytes, index, count),
+            CustomDecoder = (bytes, index, count, _) => decoder.GetString(bytes, index, count),
         },
     };
 
@@ -38,8 +43,9 @@ internal static class SharpArchiveAccess
     /// 7z 書庫を開く。tar と違って中身に random access が要るため、
     /// <see cref="IArchive"/> として開く。
     /// </summary>
+    /// <remarks>7z は名前を Unicode で持つので、名前の読み方は選び直さない (#335)。</remarks>
     public static IArchive OpenSevenZip(string path, string? password = null)
-        => ArchiveFactory.OpenArchive(OpenSevenZipStream(path), Options(password));
+        => ArchiveFactory.OpenArchive(OpenSevenZipStream(path), Options(NameReading.Default, password));
 
     /// <summary>7z のしるし。自己解凍書庫の中で本体が始まる位置を探すのに使う (#32)。</summary>
     private static ReadOnlySpan<byte> SevenZipSignature => [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C];
@@ -102,10 +108,13 @@ internal static class SharpArchiveAccess
     /// 圧縮の層を剥がしてから中の tar を読むので、こちらを使う。
     /// 先頭から順にしか読めないが、一覧も取り出しも一度なめれば済む。
     /// </remarks>
-    public static IReader OpenTarReader(Stream stream)
+    /// <param name="stream">書庫の流れ。</param>
+    /// <param name="names">名前の読み方 (#335)。</param>
+    /// <param name="recorder">名前のバイト列を覚えるもの (開くとき)。<paramref name="names"/> で読んで覚える。</param>
+    public static IReader OpenTarReader(Stream stream, NameReading names, NameBytesRecorder? recorder = null)
         => ReaderFactory.OpenReader(
             IsXz(stream) ? OpenXz(stream) : IsBZip2(stream) ? OpenBZip2(stream) : stream,
-            Options());
+            Options((System.Text.Encoding?)recorder ?? names.Encoding, null));
 
     /// <summary>
     /// bzip2 を読む流れを開く。<see cref="ReaderFactory"/> に任せると、形式を見分けるのに 1 つ目の塊を伸長したあとで

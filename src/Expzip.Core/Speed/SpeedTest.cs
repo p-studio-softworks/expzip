@@ -244,7 +244,8 @@ internal static class SpeedTest
     {
         Directory.CreateDirectory(output);
         var extracted = ArchiveExtractor.Extract(
-            archive, ArchiveFormat.Zip, null, output, overwrite: true, null, cancellationToken, MarkOfTheWeb.Internet);
+            archive, ArchiveFormat.Zip, NameReading.Default, null, output, overwrite: true, null, cancellationToken,
+            MarkOfTheWeb.Internet);
 
         cancellationToken.ThrowIfCancellationRequested();
         if (extracted.Cancelled)

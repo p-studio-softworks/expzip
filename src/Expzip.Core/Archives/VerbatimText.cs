@@ -19,7 +19,8 @@ namespace Expzip.Archives;
 /// </remarks>
 internal sealed class VerbatimText : Encoding
 {
-    private readonly Encoding _reader = ZipArchiveReader.EntryNameEncoding;
+    // 書き換えに使うので、いつもの読み方だけ。選び直した書庫は書き換えない (#335)
+    private readonly Encoding _reader = NameReading.Default.Encoding;
     private readonly Dictionary<string, byte[]> _known = new(StringComparer.Ordinal);
 
     public override string GetString(byte[] bytes, int index, int count)

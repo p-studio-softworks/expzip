@@ -82,15 +82,30 @@ internal sealed class ArchiveContents
 
     private bool? _split;
 
+    /// <summary>名前をどの読み方で読んだか (#335)。この書庫を読む処理には、これを渡す。</summary>
+    public NameReading Names { get; set; } = NameReading.Default;
+
+    /// <summary>
+    /// 読み方で読みが変わる名前のバイト列 (#335)。ZIP の UTF-8 の印の無い名前と、tar の名前。
+    /// 名前の読み方を選び直すときの候補を作るのに使う。読むついでに、決まった量まで覚えたもの。
+    /// </summary>
+    public IReadOnlyList<byte[]> LegacyNameBytes { get; set; } = [];
+
     /// <summary>
     /// 中身を書き換えられるかどうか。
     /// パスワード付きの書庫も書き換えられるが、作り直しになる (#20)。
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 自己解凍書庫は読み取りのみ (#32)。書き換えは書庫の部分だけを作り直すことに
     /// なるが、前に付いたプログラムは書庫の位置を自分の中に覚えていることがあり、
     /// 書き換えると自己解凍できなくなる。壊す危険を冒す利点がない。
+    /// </para>
+    /// <para>
+    /// 名前の読み方を選び直した書庫も読み取りのみ (#335)。選び直した読み方で書き換えると、
+    /// 名前が元のバイト列に戻せなくなる。
+    /// </para>
     /// </remarks>
     public bool IsEditable
-        => ArchiveFormats.IsEditable(Format) && !IsSelfExtracting && !IsSplit;
+        => ArchiveFormats.IsEditable(Format) && !IsSelfExtracting && !IsSplit && Names.IsDefault;
 }

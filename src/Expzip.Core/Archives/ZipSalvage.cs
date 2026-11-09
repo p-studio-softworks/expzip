@@ -259,7 +259,8 @@ internal static class ZipSalvage
             var extra = new byte[extraLength];
             input.ReadExactly(extra);
 
-            var shown = ZipArchiveReader.EntryNameEncoding.GetString(name);
+            // 修復は、いつもの読み方で読む (選び直すのは開けた書庫のタブだけ。#335)
+            var shown = NameReading.Default.Encoding.GetString(name);
             var isDirectory = shown.EndsWith('/') || shown.EndsWith('\\');
 
             var zip64 = ReadZip64Sizes(extra, ref size, ref compressedSize);

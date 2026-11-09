@@ -51,7 +51,8 @@ internal static class ArchiveContentReader
 
         if (ArchiveFormats.IsZipBased(format))
         {
-            VisitZip(archivePath, format, password, visit, cancellationToken);
+            // 名前は、一覧を読んだのと同じ読み方で読む (#335)
+            VisitZip(archivePath, format, contents.Names, password, visit, cancellationToken);
         }
         else if (format == ArchiveFormat.Pe)
         {
@@ -120,7 +121,7 @@ internal static class ArchiveContentReader
         }
         else
         {
-            VisitSharp(archivePath, format, password, visit, cancellationToken);
+            VisitSharp(archivePath, format, contents.Names, password, visit, cancellationToken);
         }
     }
 
@@ -135,13 +136,13 @@ internal static class ArchiveContentReader
 
     /// <summary>ZIP を 1 本で読む。</summary>
     private static void VisitZip(
-        string archivePath, ArchiveFormat format, string? password, Action<ContentItem> visit,
+        string archivePath, ArchiveFormat format, NameReading names, string? password, Action<ContentItem> visit,
         CancellationToken cancellationToken)
     {
-        using var zip = OpenZip(archivePath, password);
+        using var zip = OpenZip(archivePath, names, password);
 
         // 標準の実装が扱えないエントリ用 (#66、#67)。要るまで開かない
-        using var fallback = new ZipMethodFallback(archivePath, password);
+        using var fallback = new ZipMethodFallback(archivePath, names, password);
 
         foreach (ZipEntry entry in zip)
         {
@@ -165,17 +166,20 @@ internal static class ArchiveContentReader
     }
 
     /// <summary>ZIP を開く。</summary>
-    public static SharpZipFile OpenZip(string archivePath, string? password)
+    /// <param name="archivePath">書庫ファイル。</param>
+    /// <param name="names">名前の読み方 (#335)。</param>
+    /// <param name="password">パスワード。</param>
+    public static SharpZipFile OpenZip(string archivePath, NameReading names, string? password)
         // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
         => new(ZipPrefix.Open(archivePath), leaveOpen: false)
         {
             Password = password,
-            StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
+            StringCodec = StringCodec.FromEncoding(names.Encoding),
         };
 
     /// <summary>7z と tar を、先頭から順に読む。</summary>
     private static void VisitSharp(
-        string archivePath, ArchiveFormat format, string? password, Action<ContentItem> visit,
+        string archivePath, ArchiveFormat format, NameReading names, string? password, Action<ContentItem> visit,
         CancellationToken cancellationToken)
     {
         IArchive? archive = null;
@@ -195,7 +199,7 @@ internal static class ArchiveContentReader
             else
             {
                 file = ArchiveFile.OpenRead(archivePath);
-                reader = SharpArchiveAccess.OpenTarReader(file);
+                reader = SharpArchiveAccess.OpenTarReader(file, names);
             }
 
             while (reader.MoveToNextEntry())

@@ -25,7 +25,10 @@ namespace Expzip.Archives;
 /// SharpCompress を触らない。
 /// </para>
 /// </remarks>
-internal sealed class ZipMethodFallback(string archivePath, string? password = null)
+/// <param name="archivePath">書庫のパス。</param>
+/// <param name="names">名前の読み方 (#335)。標準の道と同じ名前で項目を引き当てるため、同じものを渡す。</param>
+/// <param name="password">パスワード。</param>
+internal sealed class ZipMethodFallback(string archivePath, NameReading names, string? password = null)
     : IDisposable
 {
     private IArchive? _archive;
@@ -175,7 +178,7 @@ internal sealed class ZipMethodFallback(string archivePath, string? password = n
             // ZIP として開く。中身で形式を決めさせると、先頭が 7z のファイルを 7z として読み、
             // 7z の見出しの確認を通らない (#294)
             _archive = SharpCompress.Archives.Zip.ZipArchive.OpenArchive(
-                ArchiveFile.OpenRead(archivePath), SharpArchiveAccess.Options(password));
+                ArchiveFile.OpenRead(archivePath), SharpArchiveAccess.Options(names, password));
 
             // 同じ名前のエントリが複数ある細工された書庫では、先に出てきたものを使う。
             // 標準の実装が一覧に出すのも先頭のエントリのため、見えているものと揃う

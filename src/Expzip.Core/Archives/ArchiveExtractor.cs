@@ -42,6 +42,10 @@ internal static class ArchiveExtractor
     /// 指定したエントリを展開する。
     /// </summary>
     /// <param name="archivePath">書庫ファイルのパス。</param>
+    /// <param name="names">
+    /// 名前の読み方 (#335)。一覧と同じ名前で項目を選び、同じ名前で書き出すため、一覧を読んだもの
+    /// (<see cref="ArchiveContents.Names"/>) を渡す。名前の読み方を選び直す対象でない形式では使わない。
+    /// </param>
     /// <param name="sourceNames">
     /// 展開するエントリの <see cref="ArchiveEntry.SourceName"/>。
     /// <see langword="null"/> を渡すと書庫全体を展開する。
@@ -64,6 +68,7 @@ internal static class ArchiveExtractor
     public static ExtractResult Extract(
         string archivePath,
         ArchiveFormat format,
+        NameReading names,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
         ExtractOverwrite overwrite,
@@ -94,17 +99,18 @@ internal static class ArchiveExtractor
             ? CompressedFile.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : !ArchiveFormats.IsZipBased(format)
-            ? SharpArchiveExtractor.Extract(archivePath, format, sourceNames, destinationDirectory,
+            ? SharpArchiveExtractor.Extract(archivePath, format, names, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : password is null
-                ? ExtractZip(archivePath, format, sourceNames, destinationDirectory, overwrite,
+                ? ExtractZip(archivePath, format, names, sourceNames, destinationDirectory, overwrite,
                     progress, cancellationToken, zoneIdentifier, basePath)
-                : ZipEncryption.Extract(archivePath, password, sourceNames, destinationDirectory,
+                : ZipEncryption.Extract(archivePath, names, password, sourceNames, destinationDirectory,
                     overwrite, progress, cancellationToken, zoneIdentifier, basePath);
 
     private static ExtractResult ExtractZip(
         string archivePath,
         ArchiveFormat format,
+        NameReading names,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
         ExtractOverwrite overwrite,
@@ -119,7 +125,7 @@ internal static class ArchiveExtractor
         // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
         using var stream = ZipPrefix.Open(archivePath);
         using var zip = new ZipArchive(
-            stream, ZipArchiveMode.Read, leaveOpen: false, ZipArchiveReader.EntryNameEncoding);
+            stream, ZipArchiveMode.Read, leaveOpen: false, names.Encoding);
 
         // 名前は一覧に出したものと同じ形で扱う。MSIX では元の名前に戻す (#182)。
         // 並列で取り出すときは書庫を開き直すので、エントリは番号で指す
@@ -153,7 +159,7 @@ internal static class ArchiveExtractor
         void Run(ZipArchive own, CancellationToken token)
         {
             // 標準の実装が復号できない方式のエントリ用 (#66)。要るまで開かない
-            using var fallback = new ZipMethodFallback(archivePath);
+            using var fallback = new ZipMethodFallback(archivePath, names);
 
             int i;
             while ((i = Interlocked.Increment(ref cursor)) < work.Count)
@@ -198,7 +204,7 @@ internal static class ArchiveExtractor
                 // 書庫は作業ごとに開く。ひとつの書庫を複数から同時に読むことはできない
                 using var ownStream = ZipPrefix.Open(archivePath);
                 using var own = new ZipArchive(
-                    ownStream, ZipArchiveMode.Read, leaveOpen: false, ZipArchiveReader.EntryNameEncoding);
+                    ownStream, ZipArchiveMode.Read, leaveOpen: false, names.Encoding);
                 Run(own, halt.Token);
             }
             catch

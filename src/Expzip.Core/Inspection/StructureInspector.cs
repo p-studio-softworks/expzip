@@ -102,7 +102,8 @@ internal static class StructureInspector
             // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
             using var zip = new SharpZipFile(ZipPrefix.Open(context.ArchivePath), leaveOpen: false)
             {
-                StringCodec = StringCodec.FromEncoding(ZipArchiveReader.EntryNameEncoding),
+                // 名前は一覧と同じ読み方で読む (#335)
+                StringCodec = StringCodec.FromEncoding(context.Contents.Names.Encoding),
             };
 
             var total = Math.Max(1, zip.Count);
@@ -215,7 +216,7 @@ internal static class StructureInspector
     /// </remarks>
     private static void CheckCompressionMethods(InspectionContext context, SharpZipFile zip)
     {
-        using var fallback = new ZipMethodFallback(context.ArchivePath, context.Password);
+        using var fallback = new ZipMethodFallback(context.ArchivePath, context.Contents.Names, context.Password);
 
         foreach (ZipEntry entry in zip)
         {

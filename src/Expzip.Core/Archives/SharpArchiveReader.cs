@@ -8,6 +8,7 @@ internal static class SharpArchiveReader
     /// <summary>7z / tar 書庫を開いて内容を読み取る。</summary>
     /// <param name="path">書庫ファイルのパス。</param>
     /// <param name="format">書庫の形式。</param>
+    /// <param name="names">名前の読み方 (#335)。tar だけが使う。7z は名前を Unicode で持つ。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <exception cref="InvalidDataException">書庫として解釈できない場合。</exception>
@@ -17,6 +18,7 @@ internal static class SharpArchiveReader
     public static ArchiveContents Open(
         string path,
         ArchiveFormat format,
+        NameReading names,
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -24,7 +26,7 @@ internal static class SharpArchiveReader
         {
             return format == ArchiveFormat.SevenZip
                 ? OpenSevenZip(path, progress, cancellationToken)
-                : OpenTar(path, progress, cancellationToken);
+                : OpenTar(path, names, progress, cancellationToken);
         }
         catch (EndOfStreamException ex)
         {
@@ -130,13 +132,15 @@ internal static class SharpArchiveReader
     }
 
     private static ArchiveContents OpenTar(
-        string path, IProgress<OpenProgress>? progress, CancellationToken cancellationToken)
+        string path, NameReading names, IProgress<OpenProgress>? progress, CancellationToken cancellationToken)
     {
         var builder = new ArchiveTreeBuilder(path);
 
         // 大きな中身を読み飛ばす間も中断できるように、読むたびに確かめる (#294)
         using var stream = new CancellableReadStream(ArchiveFile.OpenRead(path), cancellationToken);
-        using var reader = SharpArchiveAccess.OpenTarReader(stream);
+        // 選び直すときの候補のために、名前のバイト列を読むついでに覚えておく (#335)
+        var recorder = new NameBytesRecorder(names.Encoding);
+        using var reader = SharpArchiveAccess.OpenTarReader(stream, names, recorder);
 
         // tar は中央の索引を持たないため、総数は最後まで読むまで分からない。
         // 進捗は「読んだ件数」だけを出し、割合は出せる範囲で近似する。
@@ -171,7 +175,10 @@ internal static class SharpArchiveReader
 
         progress?.Report(new OpenProgress(done, done));
 
-        return builder.Build(path, ArchiveFormat.Tar, FileLength(path));
+        var contents = builder.Build(path, ArchiveFormat.Tar, FileLength(path));
+        contents.Names = names;
+        contents.LegacyNameBytes = recorder.Recorded;
+        return contents;
     }
 
     /// <summary>更新日時を読む。持たない書庫もある。</summary>

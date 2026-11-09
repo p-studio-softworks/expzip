@@ -224,7 +224,7 @@ internal static class ContentInspector
             void Run(SharpZipFile own)
             {
                 // 標準の実装が扱えないエントリ用 (#66、#67)。要るまで開かない
-                using var fallback = new ZipMethodFallback(context.ArchivePath, context.Password);
+                using var fallback = new ZipMethodFallback(context.ArchivePath, context.Contents.Names, context.Password);
 
                 int index;
                 while ((index = Interlocked.Increment(ref cursor)) < count)
@@ -264,7 +264,7 @@ internal static class ContentInspector
 
     /// <summary>検査のために ZIP を開く。</summary>
     private static SharpZipFile OpenZip(InspectionContext context)
-        => ArchiveContentReader.OpenZip(context.ArchivePath, context.Password);
+        => ArchiveContentReader.OpenZip(context.ArchivePath, context.Contents.Names, context.Password);
 
     private static void InspectZipEntry(
         InspectionContext context, Pass pass, SharpZipFile zip, ZipEntry entry, int order,

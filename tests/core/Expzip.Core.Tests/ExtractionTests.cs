@@ -406,7 +406,7 @@ public sealed class ExtractionTests
         for (var i = 0; i < 20; i++)
         {
             var destination = Directory.CreateDirectory(log.PathOf($"out{i}")).FullName;
-            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination, overwrite, null, CancellationToken.None);
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination, overwrite, null, CancellationToken.None);
 
             Assert.Empty(result.Failed);
             Assert.Equal(overwrite ? 2 : 1, result.Extracted);
@@ -426,7 +426,7 @@ public sealed class ExtractionTests
         var archive = MakeNamesZip(log, shortName, new string('L', 4096), breakLong: true);
         var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
 
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination, false, null, CancellationToken.None);
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination, false, null, CancellationToken.None);
 
         Assert.Single(result.Failed);
         Assert.Equal(1, result.Extracted);
@@ -470,7 +470,7 @@ public sealed class ExtractionTests
             Assert.SkipUnless(Junction.TryCreate(Path.Combine(destination, "link"), real), "ジャンクションを作れない");
 
             Assert.True(ArchiveExtractor.PassesThroughLink(destination, [Path.Combine(destination, "real", "a.txt"), Path.Combine(destination, "link", "a.txt")]), "リンクを通ると見なす");
-            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination, false, null, CancellationToken.None);
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination, false, null, CancellationToken.None);
 
             Assert.True(result.Failed.Count == 0, string.Join(", ", result.Failed.Select(f => f.Name + ": " + f.Reason)));
             Assert.Equal(1, result.Extracted);
@@ -511,7 +511,7 @@ public sealed class ExtractionTests
         Assert.Equal(["listed.txt"], conflicts.Select(static c => c.Name));
         File.WriteAllText(Path.Combine(destination, "later.txt"), "PLACED AFTER");
 
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
             ExtractOverwrite.Only(conflicts.Select(static c => c.Target)), null, CancellationToken.None);
 
         Assert.Equal("NEW", File.ReadAllText(Path.Combine(destination, "listed.txt")));
@@ -541,13 +541,13 @@ public sealed class ExtractionTests
         Assert.Equal(names, conflicts.Select(static c => c.Name));
 
         // 「いいえ」: どれも置き換えない
-        var kept = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+        var kept = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
             ExtractOverwrite.Only([]), null, CancellationToken.None);
         Assert.Equal(names, kept.SkippedNames);
         Assert.All(existing, f => Assert.Equal("OLD", File.ReadAllText(Path.Combine(destination, f))));
 
         // 「はい」: 挙げたものを置き換える
-        var replaced = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+        var replaced = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
             ExtractOverwrite.Only(conflicts.Select(static c => c.Target)), null, CancellationToken.None);
         Assert.Empty(replaced.SkippedNames);
         Assert.All(existing, f => Assert.Equal("NEW", File.ReadAllText(Path.Combine(destination, f))));
@@ -594,7 +594,7 @@ public sealed class ExtractionTests
         var archive = MakeZip(log, "twice.zip", ("a.txt", "OLD VERSION"), ("a.txt", "NEW VERSION"));
         var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
 
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
             ExtractOverwrite.Only([]), null, CancellationToken.None);
 
         Assert.Equal(2, result.Extracted);
@@ -611,7 +611,7 @@ public sealed class ExtractionTests
         var archive = MakeNamesZip(log, shortName, "LONG", breakLong: false);
         var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
 
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
             ExtractOverwrite.Only([]), null, CancellationToken.None);
 
         Assert.Equal(2, result.Extracted);
@@ -634,7 +634,7 @@ public sealed class ExtractionTests
         File.WriteAllText(users, "USER DATA");
         Assert.False(File.Exists(Path.Combine(destination, composed)), "この場所では別のファイルになる");
 
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
             ExtractOverwrite.Only([]), null, CancellationToken.None);
 
         Assert.Equal("USER DATA", File.ReadAllText(users));
@@ -650,7 +650,7 @@ public sealed class ExtractionTests
         var archive = MakeZip(log, "case.zip", ("A.txt", "FIRST"), ("a.txt", "SECOND"));
         var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
 
-        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
             ExtractOverwrite.Only([]), null, CancellationToken.None);
 
         Assert.Empty(result.SkippedNames);

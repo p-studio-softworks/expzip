@@ -22,43 +22,9 @@ internal readonly record struct OpenProgress(int DoneEntries, int TotalEntries, 
 /// <summary>ZIP書庫を読み込み、フォルダ階層に組み立てる。</summary>
 internal static class ZipArchiveReader
 {
-    /// <summary>従来の日本語書庫で使われてきたコードページ。</summary>
-    private const int LegacyJapaneseCodePage = 932;
-
-    private static Encoding? _entryNameEncoding;
-
-    /// <summary>
-    /// エントリ名の解釈に使う <see cref="Encoding"/>。
-    /// CP932は.NET Core以降 デフォルトでは登録されていないため、初回に取得を試みる。
-    /// 展開時も同じ解釈でなければエントリを引き当てられないため、共有している。
-    /// </summary>
-    internal static Encoding EntryNameEncoding
-    {
-        get
-        {
-            if (_entryNameEncoding is not null)
-            {
-                return _entryNameEncoding;
-            }
-
-            Encoding legacy;
-            try
-            {
-                legacy = Encoding.GetEncoding(LegacyJapaneseCodePage);
-            }
-            catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
-            {
-                // プロバイダーが登録されていない環境ではUTF-8のみで動作させる。
-                // 古い書庫のファイル名は化けるが、書庫自体は開ける。
-                legacy = Encoding.UTF8;
-            }
-
-            return _entryNameEncoding = new ArchiveEntryNameEncoding(legacy);
-        }
-    }
-
     /// <summary>ZIP書庫を開いて内容を読み取る。</summary>
     /// <param name="path">書庫ファイルのパス。</param>
+    /// <param name="names">名前の読み方 (#335)。</param>
     /// <param name="progress">進捗の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <param name="format">中身が ZIP の形式のどれとして開くか (#182)。</param>
@@ -72,6 +38,7 @@ internal static class ZipArchiveReader
     /// <exception cref="OperationCanceledException">中断された場合。</exception>
     public static ArchiveContents Open(
         string path,
+        NameReading names,
         IProgress<OpenProgress>? progress = null,
         CancellationToken cancellationToken = default,
         ArchiveFormat format = ArchiveFormat.Zip)
@@ -87,12 +54,16 @@ internal static class ZipArchiveReader
         // どのエントリが保護されているかを名前で引き当てるのは、
         // 一部だけが暗号化された書庫のときだけ (#20)
         var encryptedNames = encryption.IsPartial
-            ? ZipEncryption.CollectEncryptedNames(path)
+            ? ZipEncryption.CollectEncryptedNames(path, names)
             : null;
+
+        // 選び直すときの候補のために、UTF-8 の印の無い名前のバイト列を、読むついでに覚えておく (#335)。
+        // もう 1 回読み直すと、#294 の守り (項目の数の上限など) の外で読むことになる
+        var recorder = new NameBytesRecorder(names.Encoding);
 
         // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
         using var stream = ZipPrefix.Open(path);
-        using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false, EntryNameEncoding);
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false, recorder);
 
         var entries = zip.Entries;
 
@@ -132,13 +103,16 @@ internal static class ZipArchiveReader
         cancellationToken.ThrowIfCancellationRequested();
         progress?.Report(new OpenProgress(entries.Count, entries.Count));
 
-        return builder.Build(
+        var contents = builder.Build(
             path, format,
             hasEncryptedEntries: encryption.IsEncrypted,
             requiresPassword: encryption.IsEncrypted,
             usesAes: encryption.UsesAes,
             isSelfExtracting: ZipPrefix.HasPrefix(path),
-            comment: ZipComment.Read(path));
+            comment: ZipComment.Read(path, names));
+        contents.Names = names;
+        contents.LegacyNameBytes = recorder.Recorded;
+        return contents;
     }
 
     /// <summary>
