@@ -704,11 +704,7 @@ internal sealed class AtomicFile : IDisposable
         const int NameOffset = 20;
 
         // 長いパスは、ファイルを開くときと同じ形にする
-        var name = target.Length < 260 || target.StartsWith(@"\\?\", StringComparison.Ordinal)
-            ? target
-            : target.StartsWith(@"\\", StringComparison.Ordinal)
-                ? @"\\?\UNC\" + target[2..]
-                : @"\\?\" + target;
+        var name = LongPathIfNeeded(target);
 
         var bytes = Encoding.Unicode.GetBytes(name);
         var info = new byte[NameOffset + bytes.Length + 2];
@@ -931,7 +927,7 @@ internal sealed class AtomicFile : IDisposable
         {
             try
             {
-                File.Move(source, target, overwrite);
+                RenameOnly(source, target, overwrite);
                 return;
             }
             catch (Exception ex) when (attempt < MoveAttempts
@@ -951,4 +947,106 @@ internal sealed class AtomicFile : IDisposable
 
     private static bool IsSharing(Exception ex)
         => ex is IOException { HResult: SharingViolation or LockViolation };
+
+    /// <summary>
+    /// 名前だけを変える。別のドライブなら失敗する (#352)。
+    /// </summary>
+    /// <remarks>
+    /// .NET の <see cref="File.Move(string, string, bool)"/> は、別のドライブへはコピーして元を消す。
+    /// 途中で止まると、置き換える先が書きかけになる。パスの先頭が同じでも、ジャンクションやマウントしたフォルダーの先は
+    /// 別のドライブのことがあるので、ドライブの判断は OS に任せ、コピーを許さずに呼ぶ。
+    /// </remarks>
+    private static void RenameOnly(string source, string target, bool overwrite)
+    {
+        var from = Path.GetFullPath(source);
+        var to = Path.GetFullPath(target);
+
+        if (OperatingSystem.IsWindows())
+        {
+            const uint ReplaceExisting = 0x1;
+            if (!MoveFileExW(LongPathIfNeeded(from), LongPathIfNeeded(to), overwrite ? ReplaceExisting : 0))
+            {
+                throw MoveError(System.Runtime.InteropServices.Marshal.GetLastPInvokeError(), from, to);
+            }
+
+            return;
+        }
+
+        if (!overwrite)
+        {
+            // rename は置き換える先があれば必ず置き換えるので、上書きしない指定では新しい名前のリンクを作ってから元の名前を消す。
+            // 既にあれば (別のドライブでも) リンクを作れずに失敗する。.NET の File.Move と同じやり方
+            if (LinkUnix(from, to) == 0)
+            {
+                // 元の名前を消せなくても、置き換える先はできあがっている。作業用の名前が残るだけ
+                UnlinkUnix(from);
+                return;
+            }
+
+            var linkError = System.Runtime.InteropServices.Marshal.GetLastPInvokeError();
+            const int EPERM = 1, EOPNOTSUPP = 95, ENOTSUP_MAC = 45, EOPNOTSUPP_MAC = 102;
+            if (linkError is not (EPERM or EOPNOTSUPP or ENOTSUP_MAC or EOPNOTSUPP_MAC))
+            {
+                throw UnixMoveError(linkError, from);
+            }
+
+            // ハードリンクの無いドライブでは、確かめてから名前を変える。その一瞬の間にできたものは置き換わる
+            if (Path.Exists(to))
+            {
+                throw new IOException("The file already exists.", unchecked((int)0x800700B7));
+            }
+        }
+
+        if (RenameUnix(from, to) != 0)
+        {
+            throw UnixMoveError(System.Runtime.InteropServices.Marshal.GetLastPInvokeError(), from);
+        }
+    }
+
+    /// <summary>Windows のエラーを、.NET のファイルの関数と同じ種類の例外にする。</summary>
+    /// <remarks>
+    /// 文にはパスを入れない。.NET の文にも無く、入れると <c>Strings.Reason</c> が作業用の名前を理由として画面に出してしまう。
+    /// </remarks>
+    private static Exception MoveError(int error, string source, string target)
+    {
+        var message = new System.ComponentModel.Win32Exception(error).Message;
+        return error switch
+        {
+            2 => new FileNotFoundException(message, source),
+            3 => new DirectoryNotFoundException(message),
+            5 => new UnauthorizedAccessException(message),
+            206 => new PathTooLongException(message),
+            _ => new IOException(message, unchecked((int)0x80070000) | error),
+        };
+    }
+
+    private static Exception UnixMoveError(int errno, string source)
+    {
+        var message = System.Runtime.InteropServices.Marshal.GetPInvokeErrorMessage(errno);
+        return errno switch
+        {
+            1 or 13 => new UnauthorizedAccessException(message),
+            2 => new FileNotFoundException(message, source),
+            17 => new IOException(message, unchecked((int)0x800700B7)),
+            _ => new IOException(message),
+        };
+    }
+
+    /// <summary>長いパスだけを、Windows の関数で開ける形にする。</summary>
+    private static string LongPathIfNeeded(string full)
+        => full.Length < 260 ? full : LongPath(full);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    [System.Runtime.InteropServices.DefaultDllImportSearchPaths(System.Runtime.InteropServices.DllImportSearchPath.System32)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool MoveFileExW(string existing, string newName, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "rename", SetLastError = true)]
+    private static extern int RenameUnix(string existing, string newName);
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "link", SetLastError = true)]
+    private static extern int LinkUnix(string existing, string newName);
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "unlink", SetLastError = true)]
+    private static extern int UnlinkUnix(string path);
 }
