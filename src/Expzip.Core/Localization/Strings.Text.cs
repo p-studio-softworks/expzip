@@ -1938,6 +1938,15 @@ internal static partial class Strings
         $"上書きせずそのまま残したファイル: {count:N0} 個",
         $"Files skipped instead of overwritten: {count:N0}");
 
+    /// <summary>上書きの確認に挙げなかった既にあるファイルに当たって、飛ばしたもの (#353)。</summary>
+    public static string UnconfirmedSkippedLine(int count) => Pick(
+        $"確認に挙げなかった既にあるファイルと重なるため、上書きせずに残したファイル: {count:N0} 個",
+        $"Files left as they were because they matched existing files that were not in the confirmation: {count:N0}");
+
+    public static string UnconfirmedSkippedDetail => Pick(
+        "名前の書き方が違っても同じファイルを指す項目か、確認のあとに置かれたファイルです。",
+        "These entries point to an existing file under a differently written name, or the file appeared after the confirmation.");
+
     public static string RejectedFilesLine(int count) => Pick(
         $"安全でないパスのため展開しなかったファイル: {count:N0} 個",
         $"Files not extracted because of an unsafe path: {count:N0}");

@@ -12,7 +12,7 @@ namespace Expzip.Archives;
 /// </remarks>
 internal sealed class ExtractState(
     string destinationRoot,
-    bool overwrite,
+    ExtractOverwrite overwrite,
     string? zoneIdentifier,
     string? basePath,
     IProgress<ExtractProgress>? progress)
@@ -20,8 +20,8 @@ internal sealed class ExtractState(
     private readonly List<string> _rejected = [];
     private readonly List<(string Name, string Reason)> _failed = [];
     private long _doneBytes;
+    private readonly List<string> _skippedNames = [];
     private int _extracted;
-    private int _skipped;
     private readonly MarkWatch _marks = new();
 
     public long TotalBytes { get; set; }
@@ -51,20 +51,9 @@ internal sealed class ExtractState(
         }
 
         // 名前の形は形式ごとに違う (tar は先頭に `./` が付く)。
-        // 一覧の組み立てと同じ整え方をしてから、展開先を決める
-        var relative = ArchivePath.ToSafeRelativePath(
-            ArchiveExtractor.StripBase(ArchiveTreeBuilder.Trim(key), basePath));
-
-        if (relative is null)
-        {
-            _rejected.Add(key);
-            return;
-        }
-
-        var target = Path.GetFullPath(Path.Combine(destinationRoot, relative));
-
-        // 書庫の外へ書き出そうとするエントリを弾く (Zip Slip 対策)
-        if (!ArchiveExtractor.IsInside(destinationRoot, target))
+        // 上書きの確認と同じ決め方で展開先を決め、書庫の外へ書き出そうとするエントリを弾く (Zip Slip 対策)
+        var target = ArchiveExtractor.TargetFor(destinationRoot, key, basePath);
+        if (target is null)
         {
             _rejected.Add(key);
             return;
@@ -72,9 +61,10 @@ internal sealed class ExtractState(
 
         try
         {
-            if (File.Exists(target) && !overwrite)
+            var replace = overwrite.Allows(target);
+            if (!replace && File.Exists(target))
             {
-                _skipped++;
+                _skippedNames.Add(key);
                 Advance(size, key);
                 return;
             }
@@ -88,7 +78,7 @@ internal sealed class ExtractState(
             var source = Open(openEntry);
             try
             {
-                using var file = AtomicFile.CreateForExtraction(target, overwrite, zoneIdentifier);
+                using var file = AtomicFile.CreateForExtraction(target, replace, zoneIdentifier);
                 CancellableCopy.CopyContent(
                     source, file.Stream, cancellationToken, expectedCrc, sizeIsExact ? size : -1);
 
@@ -99,10 +89,11 @@ internal sealed class ExtractState(
                 {
                     _extracted++;
                     _marks.Committed(file, target);
+                    overwrite.Created(target);
                 }
                 else
                 {
-                    _skipped++;
+                    _skippedNames.Add(key);
                 }
             }
             finally
@@ -166,7 +157,7 @@ internal sealed class ExtractState(
     public void Fail(string name, string reason) => _failed.Add((name, reason));
 
     public ExtractResult ToResult()
-        => new(_extracted, _skipped, _rejected, _failed, Cancelled, _marks.Lost);
+        => new(_extracted, _skippedNames.Count, _rejected, _failed, Cancelled, _marks.Lost, _skippedNames);
 
     private void Advance(long size, string key)
     {

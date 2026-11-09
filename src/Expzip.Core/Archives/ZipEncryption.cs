@@ -162,7 +162,7 @@ internal static class ZipEncryption
         string password,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
-        bool overwrite,
+        ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
@@ -171,7 +171,7 @@ internal static class ZipEncryption
         var destinationRoot = Path.GetFullPath(destinationDirectory);
 
         var extracted = 0;
-        var skipped = 0;
+        var skipped = new List<string>();
         var marks = new MarkWatch();
         var rejected = new List<string>();
         var failed = new List<(string, string)>();
@@ -198,19 +198,9 @@ internal static class ZipEncryption
                 break;
             }
 
-            var relative = ArchivePath.ToSafeRelativePath(
-                ArchiveExtractor.StripBase(ArchiveTreeBuilder.Trim(entry.Name), basePath));
-
-            if (relative is null)
-            {
-                rejected.Add(entry.Name);
-                continue;
-            }
-
-            var target = Path.GetFullPath(Path.Combine(destinationRoot, relative));
-
-            // 書庫の外へ書き出そうとするエントリを弾く (Zip Slip 対策)
-            if (!ArchiveExtractor.IsInside(destinationRoot, target))
+            // 上書きの確認と同じ決め方で展開先を決め、書庫の外へ書き出そうとするエントリを弾く (Zip Slip 対策)
+            var target = ArchiveExtractor.TargetFor(destinationRoot, entry.Name, basePath);
+            if (target is null)
             {
                 rejected.Add(entry.Name);
                 continue;
@@ -218,9 +208,10 @@ internal static class ZipEncryption
 
             try
             {
-                if (File.Exists(target) && !overwrite)
+                var replace = overwrite.Allows(target);
+                if (!replace && File.Exists(target))
                 {
-                    skipped++;
+                    skipped.Add(entry.Name);
                     doneBytes += Math.Max(0, entry.Size);
                     continue;
                 }
@@ -232,7 +223,7 @@ internal static class ZipEncryption
                 }
 
                 using var source = fallback.Open(entry.Name, () => zip.GetInputStream(entry));
-                using var file = AtomicFile.CreateForExtraction(target, overwrite, zoneIdentifier);
+                using var file = AtomicFile.CreateForExtraction(target, replace, zoneIdentifier);
 
                 CancellableCopy.CopyContent(source, file.Stream, cancellationToken, ExpectedCrc(entry));
 
@@ -240,10 +231,11 @@ internal static class ZipEncryption
                 {
                     extracted++;
                     marks.Committed(file, target);
+                    overwrite.Created(target);
                 }
                 else
                 {
-                    skipped++;
+                    skipped.Add(entry.Name);
                 }
             }
             catch (OperationCanceledException)
@@ -265,7 +257,7 @@ internal static class ZipEncryption
             progress?.Report(new ExtractProgress(doneBytes, totalBytes, entry.Name));
         }
 
-        return new ExtractResult(extracted, skipped, rejected, failed, cancelled, marks.Lost);
+        return new ExtractResult(extracted, skipped.Count, rejected, failed, cancelled, marks.Lost, skipped);
     }
 
     /// <summary>

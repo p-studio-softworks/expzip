@@ -21,13 +21,19 @@ internal readonly record struct ExtractProgress(long DoneBytes, long TotalBytes,
 /// <param name="Failed">書き出しに失敗したエントリ名とその理由。</param>
 /// <param name="Cancelled">利用者の操作で中断した場合は true。</param>
 /// <param name="MarkLost">区分 3 以上の MotW を保存できなかったファイルがある (#321)。</param>
+/// <param name="SkippedNames">既にあるものを置き換えずに飛ばした項目の名前 (#353)。書庫の順。</param>
 internal sealed record ExtractResult(
     int Extracted,
     int Skipped,
     IReadOnlyList<string> Rejected,
     IReadOnlyList<(string Name, string Reason)> Failed,
     bool Cancelled,
-    bool MarkLost = false);
+    bool MarkLost = false,
+    IReadOnlyList<string>? SkippedNames = null)
+{
+    /// <summary>既にあるものを置き換えずに飛ばした項目の名前。</summary>
+    public IReadOnlyList<string> SkippedNames { get; init; } = SkippedNames ?? [];
+}
 
 /// <summary>書庫から実ファイルへ展開する。</summary>
 internal static class ArchiveExtractor
@@ -60,7 +66,7 @@ internal static class ArchiveExtractor
         ArchiveFormat format,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
-        bool overwrite,
+        ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
@@ -101,7 +107,7 @@ internal static class ArchiveExtractor
         ArchiveFormat format,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
-        bool overwrite,
+        ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier,
@@ -130,12 +136,8 @@ internal static class ArchiveExtractor
 
         foreach (var (index, entry, name) in targets)
         {
-            var relative = ArchivePath.ToSafeRelativePath(StripBase(name, basePath));
-            var target = relative is null ? null : Path.GetFullPath(Path.Combine(destinationRoot, relative));
-
-            // Zip Slip 対策。`../` を含むエントリで展開先の外に書き出されるのを防ぐ。
-            // Path.GetFullPath で解決したうえで、展開先の配下にあることを確認する。
-            if (target is null || !IsInside(destinationRoot, target))
+            var target = TargetFor(destinationRoot, name, basePath);
+            if (target is null)
             {
                 tally.Reject(work.Count, name);
                 continue;
@@ -314,6 +316,104 @@ internal static class ArchiveExtractor
         return false;
     }
 
+    /// <summary>
+    /// 項目を書き出す先のフルパス。展開先の外を指すものは <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 上書きの確認 (画面) と、どの形式の書き出しも、これで決める (#353)。別々に決めると、
+    /// tar の先頭の <c>./</c> や <c>a/./b.txt</c> のように、確認では別の名前に見えるのに同じファイルに書く項目ができる。
+    /// <see cref="Path.GetFullPath(string)"/> は <c>.</c> と <c>..</c>、末尾のピリオドや空白を Windows と同じに落とす。
+    /// 展開先の外かは、その結果で確かめる (Zip Slip 対策)。
+    /// </remarks>
+    /// <param name="destinationRoot">展開先のフルパス。</param>
+    /// <param name="entryName">書庫の中の名前。</param>
+    /// <param name="basePath">先頭から取り除くフォルダー (<see cref="StripBase"/>)。</param>
+    public static string? TargetFor(string destinationRoot, string entryName, string? basePath)
+    {
+        var relative = ArchivePath.ToSafeRelativePath(StripBase(ArchiveTreeBuilder.Trim(entryName), basePath));
+        if (relative is null)
+        {
+            return null;
+        }
+
+        var target = Path.GetFullPath(Path.Combine(destinationRoot, relative));
+        return IsInside(destinationRoot, target) ? target : null;
+    }
+
+    /// <summary>
+    /// 展開すると置き換わる、展開先に既にあるファイル (#353)。上書きの確認に挙げる。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 書き出す先は <see cref="TargetFor"/> で決める (書き出しと同じ)。展開先を丸ごと数えず、項目が書き込むフォルダーだけを
+    /// 1 回ずつ数える。関係の無い大きなフォルダーを待たずに済み、読めないフォルダー (「ドキュメント」の中の隠しの
+    /// ジャンクションなど) があっても止まらない。数えられなかったフォルダーは、1 件ずつあるかを確かめる。
+    /// </para>
+    /// <para>
+    /// ここで見つからなかった既にあるファイル (8.3 形式の短い名前で指すものなど) は、確認に挙がらないが、
+    /// 書き出しでも置き換えない (<see cref="ExtractOverwrite.Only"/>)。
+    /// </para>
+    /// </remarks>
+    /// <returns>項目の名前と、置き換わるファイルのフルパス。書庫の順。</returns>
+    public static List<(string Name, string Target)> FindConflicts(
+        IEnumerable<string> entryNames, string destinationDirectory, string? basePath)
+    {
+        var conflicts = new List<(string Name, string Target)>();
+        var root = Path.GetFullPath(destinationDirectory);
+        if (!Directory.Exists(root))
+        {
+            return conflicts;
+        }
+
+        var listings = new Dictionary<string, HashSet<string>?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in entryNames)
+        {
+            var target = TargetFor(root, name, basePath);
+            if (target is null)
+            {
+                continue;
+            }
+
+            var folder = Path.GetDirectoryName(target)!;
+            if (!listings.TryGetValue(folder, out var names))
+            {
+                names = ListFileNames(folder);
+                listings[folder] = names;
+            }
+
+            var exists = names is null
+                ? File.Exists(target)
+                : names.Contains(Path.GetFileName(target).Normalize(System.Text.NormalizationForm.FormC));
+            if (exists)
+            {
+                conflicts.Add((name, target));
+            }
+        }
+
+        return conflicts;
+    }
+
+    /// <summary>フォルダーの中のファイルの名前。フォルダーが無ければ空、数えられなければ <see langword="null"/>。</summary>
+    private static HashSet<string>? ListFileNames(string folder)
+    {
+        try
+        {
+            if (!Directory.Exists(folder))
+            {
+                return [];
+            }
+
+            // NAS などは濁点を分けた形で名前を返すことがある。書庫の名前と同じ形に揃えて比べる
+            return new HashSet<string>(
+                Directory.EnumerateFiles(folder).Select(static f => Path.GetFileName(f).Normalize(System.Text.NormalizationForm.FormC)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>1 件を書き出す。結果は <paramref name="tally"/> に記録する。</summary>
     private static void ExtractOne(
         ZipArchiveEntry entry,
@@ -321,16 +421,17 @@ internal static class ArchiveExtractor
         string name,
         string target,
         ZipMethodFallback fallback,
-        bool overwrite,
+        ExtractOverwrite overwrite,
         string? zoneIdentifier,
         ExtractTally tally,
         CancellationToken cancellationToken)
     {
         try
         {
-            if (File.Exists(target) && !overwrite)
+            var replace = overwrite.Allows(target);
+            if (!replace && File.Exists(target))
             {
-                tally.Skip();
+                tally.Skip(order, name);
                 return;
             }
 
@@ -343,7 +444,7 @@ internal static class ArchiveExtractor
             // 書庫に MotW が付いていた場合は、書き出したファイルにも引き継ぐ。
             // MotW が消えると SmartScreen や保護ビューが働かなくなる (#12)
             using var source = fallback.Open(entry.FullName, entry.Open);
-            using var file = AtomicFile.CreateForExtraction(target, overwrite, zoneIdentifier);
+            using var file = AtomicFile.CreateForExtraction(target, replace, zoneIdentifier);
 
             // 暗号化された項目はこの道では読めない。照合する前に開く時点で断られる
             CancellableCopy.CopyContent(
@@ -354,10 +455,11 @@ internal static class ArchiveExtractor
             {
                 tally.Extract();
                 tally.Marks.Committed(file, target);
+                overwrite.Created(target);
             }
             else
             {
-                tally.Skip();
+                tally.Skip(order, name);
             }
         }
         catch (OperationCanceledException)
@@ -384,8 +486,8 @@ internal static class ArchiveExtractor
         private readonly Lock _lock = new();
         private readonly List<(int Order, string Name)> _rejected = [];
         private readonly List<(int Order, string Name, string Reason)> _failed = [];
+        private readonly List<(int Order, string Name)> _skippedNames = [];
         private int _extracted;
-        private int _skipped;
         private long _doneBytes;
         private volatile bool _cancelled;
 
@@ -399,7 +501,13 @@ internal static class ArchiveExtractor
 
         public void Extract() => Interlocked.Increment(ref _extracted);
 
-        public void Skip() => Interlocked.Increment(ref _skipped);
+        public void Skip(int order, string name)
+        {
+            lock (_lock)
+            {
+                _skippedNames.Add((order, name));
+            }
+        }
 
         public void Cancel() => _cancelled = true;
 
@@ -440,11 +548,12 @@ internal static class ArchiveExtractor
                 // 並列で展開すると、終わる順はまちまちになる。書庫の順に並べ直して報告する
                 return new ExtractResult(
                     _extracted,
-                    _skipped,
+                    _skippedNames.Count,
                     _rejected.OrderBy(static r => r.Order).Select(static r => r.Name).ToList(),
                     _failed.OrderBy(static f => f.Order).Select(static f => (f.Name, f.Reason)).ToList(),
                     _cancelled,
-                    Marks.Lost);
+                    Marks.Lost,
+                    _skippedNames.OrderBy(static s => s.Order).Select(static s => s.Name).ToList());
             }
         }
     }

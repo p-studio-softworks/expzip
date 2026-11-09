@@ -69,7 +69,7 @@ internal static class MsiReader
         string archivePath,
         IReadOnlySet<string>? sourceNames,
         string destinationDirectory,
-        bool overwrite,
+        ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,

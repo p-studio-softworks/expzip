@@ -6123,16 +6123,18 @@ public partial class MainWindow : Window
 
         // 本当に同じ名前があるときだけ確認する。展開先に何か入っているだけで
         // 尋ねるのは、関係のないファイルを見て驚かせるだけになる (#48)
-        List<string> conflicts;
+        List<(string Name, string Target)> conflicts;
         try
         {
             Mouse.OverrideCursor = Cursors.Wait;
             // 中身の木はここで取っておく。Contents はタブの選択から引くため、裏の糸からは読めない (#107)
             var root = Contents.Root;
-            conflicts = await Task.Run(() => FindExtractConflicts(root, selection, basePath, destination));
+            conflicts = await Task.Run(() => ArchiveExtractor.FindConflicts(
+                SourceNamesIn(root, selection), destination, basePath));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            // 調べられなくても、確認に挙げていないファイルは展開で置き換えない
             conflicts = [];
         }
         finally
@@ -6140,10 +6142,14 @@ public partial class MainWindow : Window
             Mouse.OverrideCursor = null;
         }
 
-        var overwrite = true;
+        // 置き換えるのは、確認に挙げて「はい」と答えたファイルだけ (#353)。何も挙がらなければ何も置き換えない
+        var overwrite = ExtractOverwrite.Only([]);
+        IReadOnlySet<string> declined = new HashSet<string>(StringComparer.Ordinal);
         if (conflicts.Count > 0)
         {
-            var preview = string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c));
+            var destinationRoot = Path.GetFullPath(destination);
+            var preview = string.Join(Environment.NewLine, conflicts.Take(5)
+                .Select(c => "  " + Path.GetRelativePath(destinationRoot, c.Target)));
             var more = conflicts.Count > 5 ? Strings.More(conflicts.Count - 5) : string.Empty;
 
             var answer = MessageBox.Show(
@@ -6158,56 +6164,32 @@ public partial class MainWindow : Window
                 return;
             }
 
-            overwrite = answer == MessageBoxResult.Yes;
+            if (answer == MessageBoxResult.Yes)
+            {
+                overwrite = ExtractOverwrite.Only(conflicts.Select(static c => c.Target));
+            }
+            else
+            {
+                declined = conflicts.Select(static c => c.Name).ToHashSet(StringComparer.Ordinal);
+            }
         }
 
         await RunExtractionAsync(
-            Contents.FilePath, Contents.Format, selection, destination, overwrite, basePath);
+            Contents.FilePath, Contents.Format, selection, destination, overwrite, declined, basePath);
     }
 
-    /// <summary>
-    /// 展開先に同じ名前のファイルが既にあるかを調べる。
-    /// </summary>
-    /// <remarks>
-    /// 展開先を一度なめて名前の一覧を作り、そこと突き合わせる。1件ずつ存在を
-    /// 確かめると件数が多い書庫で待たされるため。展開先が空なら即座に終わる。
-    /// </remarks>
-    private static List<string> FindExtractConflicts(
-        ArchiveFolder root, IReadOnlySet<string>? selection, string? basePath, string destination)
+    /// <summary>展開するファイルの、書庫の中の名前。<paramref name="selection"/> が無ければすべて。</summary>
+    private static List<string> SourceNamesIn(ArchiveFolder root, IReadOnlySet<string>? selection)
     {
-        var conflicts = new List<string>();
-
-        if (!Directory.Exists(destination))
-        {
-            return conflicts;
-        }
-
-        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in Directory.EnumerateFiles(destination, "*", SearchOption.AllDirectories))
-        {
-            existing.Add(Path.GetRelativePath(destination, path));
-        }
-
-        if (existing.Count == 0)
-        {
-            return conflicts;
-        }
+        var names = new List<string>();
 
         void Walk(ArchiveFolder folder)
         {
             foreach (var file in folder.Files)
             {
-                if (selection is not null && !selection.Contains(file.SourceName))
+                if (selection is null || selection.Contains(file.SourceName))
                 {
-                    continue;
-                }
-
-                var relative = ArchivePath.ToSafeRelativePath(
-                    ArchiveExtractor.StripBase(file.SourceName, basePath));
-
-                if (relative is not null && existing.Contains(relative))
-                {
-                    conflicts.Add(relative);
+                    names.Add(file.SourceName);
                 }
             }
 
@@ -6218,12 +6200,12 @@ public partial class MainWindow : Window
         }
 
         Walk(root);
-        return conflicts;
+        return names;
     }
 
     private async Task RunExtractionAsync(
         string archivePath, ArchiveFormat format, IReadOnlySet<string>? selection, string destination,
-        bool overwrite, string? basePath = null)
+        ExtractOverwrite overwrite, IReadOnlySet<string> declined, string? basePath = null)
     {
         // パスワード付きの書庫では、始める前に合言葉を用意する (#20)
         if (!TryGetPassword(out var password))
@@ -6252,7 +6234,7 @@ public partial class MainWindow : Window
                 archivePath, format, selection, destination, overwrite, progress, cancellation.Token,
                 zone, basePath, password));
 
-            ShowExtractResult(result, destination);
+            ShowExtractResult(result, destination, declined);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -6833,7 +6815,8 @@ public partial class MainWindow : Window
         Environment.Exit(0);
     }
 
-    private void ShowExtractResult(ExtractResult result, string destination)
+    /// <param name="declined">上書きの確認で「いいえ」と答えた項目。飛ばしても知らせない。</param>
+    private void ShowExtractResult(ExtractResult result, string destination, IReadOnlySet<string> declined)
     {
         StatusMessage.Text = result.Cancelled
             ? Strings.ExtractCancelledStatus(result.Extracted)
@@ -6854,12 +6837,32 @@ public partial class MainWindow : Window
         message.AppendLine();
         message.AppendLine(Strings.ExtractedFilesLine(result.Extracted));
 
-        if (result.Skipped > 0)
+        // 確認に挙げなかった既にあるファイルは置き換えずに残した (#353)。短い名前で指す項目など、
+        // 本人の知らないうちに別のファイルを置き換えかけたものなので、名前を挙げて知らせる
+        var unconfirmed = result.SkippedNames.Where(n => !declined.Contains(n)).ToList();
+        if (result.Skipped - unconfirmed.Count > 0)
         {
-            message.AppendLine(Strings.SkippedFilesLine(result.Skipped));
+            message.AppendLine(Strings.SkippedFilesLine(result.Skipped - unconfirmed.Count));
         }
 
         var icon = MessageBoxImage.Information;
+
+        if (unconfirmed.Count > 0)
+        {
+            icon = MessageBoxImage.Warning;
+            message.AppendLine();
+            message.AppendLine(Strings.UnconfirmedSkippedLine(unconfirmed.Count));
+            message.AppendLine(Strings.UnconfirmedSkippedDetail);
+            foreach (var name in unconfirmed.Take(5))
+            {
+                message.AppendLine($"  {name}");
+            }
+
+            if (unconfirmed.Count > 5)
+            {
+                message.AppendLine("  " + Strings.More(unconfirmed.Count - 5).Trim());
+            }
+        }
 
         // 取り出しは止めない。ファイルごとには出さず、ここで 1 回だけ知らせる (#321)
         if (result.MarkLost)

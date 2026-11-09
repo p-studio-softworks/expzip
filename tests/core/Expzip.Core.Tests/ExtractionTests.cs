@@ -480,6 +480,196 @@ public sealed class ExtractionTests
         }
     }
 
+    [Fact]
+    public void 短い名前の項目は置き換わるファイルの長い名前で確認に挙がる()
+    {
+        // 前は名前の文字列で突き合わせていたので、短い名前の項目は確認に挙がらず、本人は気付けなかった (#353)。
+        // 書き出しと同じ決め方 (GetFullPath が既にある短い名前を長い名前に直す) で、置き換わるファイルの名前で挙がる
+        using var log = new TraceLog();
+        var shortName = ShortNameFor(log);
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var users = Path.Combine(destination, "longfilename.txt");
+        File.WriteAllText(users, "USER DATA");
+        Assert.True(File.Exists(Path.Combine(destination, shortName)), "短い名前で同じファイルを指す");
+
+        var conflict = Assert.Single(ArchiveExtractor.FindConflicts([shortName], destination, null));
+
+        Assert.Equal(shortName, conflict.Name);
+        Assert.Equal(users, conflict.Target, ignoreCase: true);
+    }
+
+    [Fact]
+    public void はいと答えても置き換えるのは確認に挙げたファイルだけ()
+    {
+        // 確認に挙げなかった既にあるファイル (確認のあとに置かれたものなど) は置き換えずに知らせる (#353)
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "two.zip", ("listed.txt", "NEW"), ("later.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        File.WriteAllText(Path.Combine(destination, "listed.txt"), "OLD");
+
+        var conflicts = ArchiveExtractor.FindConflicts(["listed.txt", "later.txt"], destination, null);
+        Assert.Equal(["listed.txt"], conflicts.Select(static c => c.Name));
+        File.WriteAllText(Path.Combine(destination, "later.txt"), "PLACED AFTER");
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+            ExtractOverwrite.Only(conflicts.Select(static c => c.Target)), null, CancellationToken.None);
+
+        Assert.Equal("NEW", File.ReadAllText(Path.Combine(destination, "listed.txt")));
+        Assert.Equal("PLACED AFTER", File.ReadAllText(Path.Combine(destination, "later.txt")));
+        Assert.Equal(1, result.Extracted);
+        Assert.Equal(["later.txt"], result.SkippedNames);
+    }
+
+    [Fact]
+    public void 名前の書き方が違っても同じファイルに書く項目は確認に挙がる()
+    {
+        // 確認と書き出しで書き出し先の決め方が違うと、確認に挙がらずに上書きする (#353)。
+        // tar の先頭の ./ はふつうの書庫でも付く
+        using var log = new TraceLog();
+        string[] names = ["./a.txt", "d/./b.txt", "d/../c.txt", "e.txt.", "f//g.txt", "h.txt "];
+        var archive = MakeZip(log, "names.zip", [.. names.Select(static n => (n, "NEW"))]);
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        Directory.CreateDirectory(Path.Combine(destination, "d"));
+        Directory.CreateDirectory(Path.Combine(destination, "f"));
+        string[] existing = ["a.txt", @"d\b.txt", "c.txt", "e.txt", @"f\g.txt", "h.txt"];
+        foreach (var file in existing)
+        {
+            File.WriteAllText(Path.Combine(destination, file), "OLD");
+        }
+
+        var conflicts = ArchiveExtractor.FindConflicts(names, destination, null);
+        Assert.Equal(names, conflicts.Select(static c => c.Name));
+
+        // 「いいえ」: どれも置き換えない
+        var kept = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+        Assert.Equal(names, kept.SkippedNames);
+        Assert.All(existing, f => Assert.Equal("OLD", File.ReadAllText(Path.Combine(destination, f))));
+
+        // 「はい」: 挙げたものを置き換える
+        var replaced = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+            ExtractOverwrite.Only(conflicts.Select(static c => c.Target)), null, CancellationToken.None);
+        Assert.Empty(replaced.SkippedNames);
+        Assert.All(existing, f => Assert.Equal("NEW", File.ReadAllText(Path.Combine(destination, f))));
+    }
+
+    [Fact]
+    public void 読めないフォルダーが展開先にあっても確認に挙がる()
+    {
+        // 展開先を丸ごと数えると、読めないフォルダーで止まり、同じ名前は無いとみなしていた (#353)。
+        // 「ドキュメント」の中には、一覧を読むことが禁じられた隠しのジャンクションがある
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        File.WriteAllText(Path.Combine(destination, "a.txt"), "OLD");
+        var locked = Directory.CreateDirectory(Path.Combine(destination, "locked"));
+        var me = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+        var rule = new System.Security.AccessControl.FileSystemAccessRule(
+            me, System.Security.AccessControl.FileSystemRights.ListDirectory, System.Security.AccessControl.AccessControlType.Deny);
+        var security = locked.GetAccessControl();
+        security.AddAccessRule(rule);
+        locked.SetAccessControl(security);
+        try
+        {
+            Assert.ThrowsAny<UnauthorizedAccessException>(() => Directory.EnumerateFiles(destination, "*", SearchOption.AllDirectories).ToList());
+
+            var conflicts = ArchiveExtractor.FindConflicts(["a.txt", "locked/x.txt"], destination, null);
+
+            Assert.Equal(["a.txt"], conflicts.Select(static c => c.Name));
+        }
+        finally
+        {
+            security.RemoveAccessRule(rule);
+            locked.SetAccessControl(security);
+        }
+
+        Assert.Equal("OLD", File.ReadAllText(Path.Combine(destination, "a.txt")));
+    }
+
+    [Fact]
+    public void 同じ名前の項目が2つあれば後ろの項目が置き換える()
+    {
+        // tar -r で足した tar では後ろが新しい版。この展開で作ったファイルは置き換えてよい (#353)
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "twice.zip", ("a.txt", "OLD VERSION"), ("a.txt", "NEW VERSION"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+
+        Assert.Equal(2, result.Extracted);
+        Assert.Empty(result.SkippedNames);
+        Assert.Equal("NEW VERSION", File.ReadAllText(Path.Combine(destination, "a.txt")));
+    }
+
+    [Fact]
+    public void 長い名前と短い名前の2項目は後ろの項目が置き換える()
+    {
+        // 1 つ目はこの展開で作ったファイルなので、短い名前で指していても置き換えてよい (#349、#353)
+        using var log = new TraceLog();
+        var shortName = ShortNameFor(log);
+        var archive = MakeNamesZip(log, shortName, "LONG", breakLong: false);
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+
+        Assert.Equal(2, result.Extracted);
+        Assert.Empty(result.SkippedNames);
+        Assert.Equal("SHORT", File.ReadAllText(Assert.Single(Directory.EnumerateFiles(destination))));
+    }
+
+    [Fact]
+    public void 濁点などの形だけが違う名前の作ったファイルと既にあるファイルを取り違えない()
+    {
+        // NTFS は é を 1 文字で書いた名前と、e に記号を重ねた名前を別のファイルとして持つ。
+        // 1 つ目で作ったファイルと、2 つ目が指す既にあるファイルを同じとみなすと、「いいえ」と答えたファイルを置き換える (#353)
+        using var log = new TraceLog();
+        var composed = "café.txt";
+        var decomposed = "café.txt";
+        // 並べると終わる順で結果が変わるので、~ と数字の名前の項目を入れて 1 つずつ展開させる (#349)
+        var archive = MakeZip(log, "forms.zip", (composed, "NEW 1"), (decomposed, "NEW 2"), ("serial~1.txt", "S"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var users = Path.Combine(destination, decomposed);
+        File.WriteAllText(users, "USER DATA");
+        Assert.False(File.Exists(Path.Combine(destination, composed)), "この場所では別のファイルになる");
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+
+        Assert.Equal("USER DATA", File.ReadAllText(users));
+        Assert.Equal("NEW 1", File.ReadAllText(Path.Combine(destination, composed)));
+        Assert.Equal([decomposed], result.SkippedNames);
+    }
+
+    [Fact]
+    public void 大文字小文字だけが違う2項目は後ろの項目が置き換える()
+    {
+        // Windows では同じファイル。この展開で作ったファイルなので、後ろが置き換える
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "case.zip", ("A.txt", "FIRST"), ("a.txt", "SECOND"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+
+        Assert.Empty(result.SkippedNames);
+        Assert.Equal("SECOND", File.ReadAllText(Assert.Single(Directory.EnumerateFiles(destination))));
+    }
+
+    private static string MakeZip(TraceLog log, string name, params (string Name, string Text)[] entries)
+    {
+        var archive = log.PathOf(name);
+        using var zip = ZipFile.Open(archive, ZipArchiveMode.Create);
+        foreach (var (entryName, text) in entries)
+        {
+            using var writer = new StreamWriter(zip.CreateEntry(entryName).Open());
+            writer.Write(text);
+        }
+
+        return archive;
+    }
+
     /// <summary>この場所で 8.3 形式の短い名前が作られなければ、テストを飛ばす。</summary>
     private static string ShortNameFor(TraceLog log)
     {

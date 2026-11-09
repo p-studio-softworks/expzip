@@ -3226,6 +3226,14 @@ TotalSize (total: 52428800, compressed: 20971520)
   ja  合計 52,428,800 バイト (圧縮後 20,971,520 バイト)
   en  52,428,800 bytes total (20,971,520 bytes packed)
 
+UnconfirmedSkippedDetail
+  ja  名前の書き方が違っても同じファイルを指す項目か、確認のあとに置かれたファイルです。
+  en  These entries point to an existing file under a differently written name, or the file appeared after the confirmation.
+
+UnconfirmedSkippedLine (count: 3)
+  ja  確認に挙げなかった既にあるファイルと重なるため、上書きせずに残したファイル: 3 個
+  en  Files left as they were because they matched existing files that were not in the confirmation: 3
+
 UndoChangedOutside
   ja  この書庫はほかのソフトで書き換えられたため、元に戻せません。元に戻すと、その書き換えが消えてしまいます。
   en  This archive was changed by another program, so it cannot be undone. Undoing would discard that change.
