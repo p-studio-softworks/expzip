@@ -6638,12 +6638,12 @@ public partial class MainWindow : Window
     /// そのため書庫を開いていなくても使える。
     /// </remarks>
     /// <summary>分割で置き換わる同じ名前のファイルがあれば、置き換えてよいかを尋ねる。</summary>
-    private bool ConfirmSplitReplaces(string source, string destination, long chunk)
+    private bool ConfirmSplitReplaces(string source, string destination, long chunk, bool makeBatch)
     {
         IReadOnlyList<string> existing;
         try
         {
-            existing = FileSplitter.ExistingOutputs(source, destination, chunk);
+            existing = FileSplitter.ExistingOutputs(source, destination, chunk, makeBatch);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                        or NotSupportedException or ArgumentException)
@@ -6668,7 +6668,7 @@ public partial class MainWindow : Window
 
     private async Task SplitFileAsync()
     {
-        var dialog = new SplitDialog(this, Contents?.FilePath, _settings.SplitChunkSize);
+        var dialog = new SplitDialog(this, Contents?.FilePath, _settings.SplitChunkSize, _settings.SplitMakeBatch);
 
         if (dialog.ShowDialog() != true)
         {
@@ -6678,13 +6678,15 @@ public partial class MainWindow : Window
         var source = dialog.SourcePath;
         var destination = dialog.DestinationDirectory;
         var chunk = dialog.ChunkSize;
+        var makeBatch = dialog.MakeBatch;
 
-        // 選んだ大きさは次回も使う
+        // 選んだ大きさとバッチファイルを作るかは次回も使う
         _settings.SplitChunkSize = chunk;
+        _settings.SplitMakeBatch = dialog.WantBatch;
         SettingsStore.TrySave(_settings);
 
         // 隣の無関係なファイルを、確認なしで置き換えない (#320)
-        if (!ConfirmSplitReplaces(source, destination, chunk))
+        if (!ConfirmSplitReplaces(source, destination, chunk, makeBatch))
         {
             return;
         }
@@ -6702,7 +6704,7 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() => FileSplitter.Split(
-                source, destination, chunk, progress, cancellation.Token));
+                source, destination, chunk, progress, cancellation.Token, makeBatch));
 
             if (result.Cancelled)
             {
@@ -6716,7 +6718,7 @@ public partial class MainWindow : Window
             StatusMessage.Text = Strings.SplitDoneStatus(result.Parts);
             MessageBox.Show(
                 this,
-                Strings.SplitDone(result.Parts, result.JoinerName, destination),
+                Strings.SplitDone(result.Parts, result.JoinerName, result.BatchName, destination),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException

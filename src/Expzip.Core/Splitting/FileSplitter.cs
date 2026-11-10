@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using ICSharpCode.SharpZipLib.Checksum;
 using Expzip.Archives;
@@ -17,7 +18,8 @@ internal readonly record struct SplitProgress(long Done, long Total, string Curr
 /// <param name="Parts">作った断片の数。</param>
 /// <param name="JoinerName">作った結合用のプログラムの名前。</param>
 /// <param name="Cancelled">途中で中断されたか。</param>
-internal sealed record SplitResult(int Parts, string JoinerName, bool Cancelled);
+/// <param name="BatchName">作った結合用のバッチファイルの名前。作らなかったときは null (#343)。</param>
+internal sealed record SplitResult(int Parts, string JoinerName, bool Cancelled, string? BatchName = null);
 
 /// <summary>
 /// 大きなファイルを決まった大きさに分ける (#59)。
@@ -59,13 +61,15 @@ internal static class FileSplitter
     /// <param name="chunkSize">1つあたりの大きさ。</param>
     /// <param name="progress">経過の通知先。</param>
     /// <param name="cancellationToken">中断用。</param>
+    /// <param name="makeBatch">結合用のバッチファイルも作るか (#343)。</param>
     /// <exception cref="IOException">読み書きに失敗した場合。</exception>
     public static SplitResult Split(
         string sourcePath,
         string destinationDirectory,
         long chunkSize,
         IProgress<SplitProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool makeBatch = false)
     {
         var name = Path.GetFileName(sourcePath);
         var target = Path.Combine(destinationDirectory, name);
@@ -87,6 +91,7 @@ internal static class FileSplitter
             var total = source.Length;
             var buffer = new byte[BufferSize];
             var crc = new Crc32();
+            using var sha = makeBatch && JoinBatch.CanMake(name) ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
             var parts = 0;
             long done = 0;
 
@@ -118,6 +123,7 @@ internal static class FileSplitter
 
                         part.Write(buffer, 0, read);
                         crc.Update(new ArraySegment<byte>(buffer, 0, read));
+                        sha?.AppendData(buffer, 0, read);
                         remaining -= read;
                         done += read;
 
@@ -132,9 +138,20 @@ internal static class FileSplitter
             written.Add(joiner);
             WriteJoiner(joiner.Stream, name, parts, total, crc.Value);
 
+            // バッチファイルにも MotW は付けない。結合するときに分割ファイルの MotW を見る (#343)
+            string? batchName = null;
+            if (sha is not null)
+            {
+                var batchPath = target + ".cmd";
+                var batch = AtomicFile.Create(batchPath);
+                written.Add(batch);
+                JoinBatch.Write(batch.Stream, name, parts, total, sha.GetHashAndReset(), JoinBatch.NewWorkName());
+                batchName = Path.GetFileName(batchPath);
+            }
+
             AtomicFile.CommitAll(written);
 
-            return new SplitResult(parts, Path.GetFileName(joinerPath), false);
+            return new SplitResult(parts, Path.GetFileName(joinerPath), false, batchName);
         }
         catch (OperationCanceledException)
         {
@@ -152,7 +169,8 @@ internal static class FileSplitter
     }
 
     /// <summary>分割すると置き換わる、既にあるファイル。</summary>
-    public static IReadOnlyList<string> ExistingOutputs(string sourcePath, string destinationDirectory, long chunkSize)
+    public static IReadOnlyList<string> ExistingOutputs(
+        string sourcePath, string destinationDirectory, long chunkSize, bool makeBatch = false)
     {
         var target = Path.Combine(destinationDirectory, Path.GetFileName(sourcePath));
         var parts = CountParts(new FileInfo(sourcePath).Length, chunkSize);
@@ -160,6 +178,7 @@ internal static class FileSplitter
         return Enumerable.Range(1, parts)
             .Select(number => PartPath(target, number))
             .Append(target + ".exe")
+            .Concat(makeBatch && JoinBatch.CanMake(Path.GetFileName(sourcePath)) ? [target + ".cmd"] : [])
             .Where(File.Exists)
             .ToList();
     }

@@ -20,18 +20,36 @@ internal enum SplitUnit
 /// ファイルの分割を尋ねるダイアログ (#59)。
 /// </summary>
 /// <remarks>
-/// <b>設定は3つだけにする。</b> 対象・置き場・大きさ。結合方法の
-/// 選択肢は出さない。作るものは常に「断片 + 結合用のプログラム (CRC付き)」に
-/// 決めてあるため、選ばせても迷わせるだけになる。
+/// <para>
+/// 設定は対象・置き場・大きさの 3 つ。作るものは常に「断片 + 結合用のプログラム (CRC付き)」で、
+/// 結合方法は選ばせない。
+/// </para>
+/// <para>
+/// 例外として、結合用のバッチファイルを足すかだけは選べる (#343)。結合用のプログラムは署名していないので、
+/// 受け取った人の PC で止められることがある。デフォルトはオフ。名前に % があると作れないので、押せなくする。
+/// </para>
 /// </remarks>
 public partial class SplitDialog : Window
 {
     private bool _ready;
 
-    internal SplitDialog(Window owner, string? sourcePath, long chunkSize)
+    /// <summary>名前のせいで押せなくする前に、選ばれていた値。</summary>
+    private bool _wantBatch;
+
+    /// <summary>画面の側でチェックを付け外ししている間。</summary>
+    private bool _updatingBatch;
+
+    internal SplitDialog(Window owner, string? sourcePath, long chunkSize, bool makeBatch)
     {
         InitializeComponent();
         Owner = owner;
+
+        _wantBatch = makeBatch;
+        BatchCheck.IsChecked = makeBatch;
+        // Click ではなく変化そのものを見る。支援技術から切り替えたときは Click が来ないため。
+        // 名前のせいで外したときは、選ばれていた値を変えない
+        BatchCheck.Checked += (_, _) => { if (!_updatingBatch) _wantBatch = true; };
+        BatchCheck.Unchecked += (_, _) => { if (!_updatingBatch) _wantBatch = false; };
 
         SourceBox.Text = sourcePath ?? string.Empty;
         DestinationBox.Text = sourcePath is null
@@ -57,6 +75,12 @@ public partial class SplitDialog : Window
 
     /// <summary>断片と結合用のプログラムの置き場。</summary>
     internal string DestinationDirectory => DestinationBox.Text.Trim();
+
+    /// <summary>結合用のバッチファイルも作るか。名前のせいで作れないときは false。</summary>
+    internal bool MakeBatch => BatchCheck.IsEnabled && BatchCheck.IsChecked == true;
+
+    /// <summary>次回のために覚えておく、選ばれていた値。</summary>
+    internal bool WantBatch => _wantBatch;
 
     /// <summary>1つあたりの大きさ。読めない場合は 0。</summary>
     internal long ChunkSize
@@ -92,6 +116,19 @@ public partial class SplitDialog : Window
         BrowseDestinationButton.Content = Strings.SplitBrowse;
         SplitButton.Content = Strings.SplitStart;
         CancelButton.Content = Strings.SplitCancel;
+        BatchCheck.Content = Strings.SplitMakeBatch;
+        UpdateBatch();
+    }
+
+    /// <summary>名前に % があればバッチファイルの欄を押せなくし、理由を出す (#343)。</summary>
+    private void UpdateBatch()
+    {
+        var allowed = JoinBatch.CanMake(Path.GetFileName(SourcePath));
+        BatchCheck.IsEnabled = allowed;
+        _updatingBatch = true;
+        BatchCheck.IsChecked = allowed && _wantBatch;
+        _updatingBatch = false;
+        BatchNote.Text = allowed ? Strings.SplitMakeBatchNote : Strings.SplitBatchPercent;
     }
 
     /// <summary>大きさを、割り切れる一番大きな単位で入れる。</summary>
@@ -135,6 +172,7 @@ public partial class SplitDialog : Window
         }
 
         SplitButton.IsEnabled = false;
+        UpdateBatch();
 
         if (SourcePath.Length == 0 || !File.Exists(SourcePath))
         {

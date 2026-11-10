@@ -11,8 +11,8 @@
         TextOptions.TextFormattingMode="Display">
 
     <!--
-        ファイルの分割 (#59)。設定は3つだけにする。
-        結合方法の選択肢は出さない。文言はすべて ApplyLanguage が入れる (#23)
+        ファイルの分割 (#59)。設定は対象・保存先・大きさと、結合用のバッチファイルを作るか (#343)。
+        結合用のプログラムは常に作る。文言はすべて ApplyLanguage が入れる (#23)
     -->
     <StackPanel Margin="16">
         <Grid>
@@ -56,6 +56,13 @@
                           SelectionChanged="Unit_Changed" />
             </StackPanel>
         </Grid>
+
+        <!-- 結合用のバッチファイル (#343)。デフォルトはオフ。名前に % があると作れない -->
+        <CheckBox x:Name="BatchCheck" Margin="0,14,0,0" />
+        <TextBlock x:Name="BatchNote"
+                   Margin="26,4,0,0"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
         <!-- いまの設定だと何個になるか。押す前に分かるようにする -->
         <TextBlock x:Name="PreviewText"

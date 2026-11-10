@@ -82,7 +82,8 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 **Splitting**
 
 - Splits a large file into pieces of a size you choose. **A program to join them** is made at the same time,
-  so the recipient can put the file back together without Expzip. Expzip also checks automatically that the result matches the original
+  so the recipient can put the file back together without Expzip. Expzip also checks automatically that the result matches the original.
+  In case Windows on the recipient's PC blocks the joining program, Expzip can also make a batch file to join the pieces
 
 **Other**
 

@@ -34,6 +34,19 @@ $preview = (ById $dialog 'PreviewText').Current.Name
 Check '何ができるかを言う' ($preview -eq '4 個の分割ファイルと、結合用のプログラムを作成します。元のファイルはそのまま残ります。') $preview
 Check '口の名前' ((ById $dialog 'SplitButton').Current.Name -eq '分割' -and (ById $dialog 'CancelButton').Current.Name -eq 'キャンセル')
 
+# 結合用のバッチファイル (#343)。デフォルトは作らない。名前に % があると押せない
+$batchCheck = ById $dialog 'BatchCheck'
+Check 'バッチファイルの欄の名前' ($batchCheck.Current.Name -eq '結合用のバッチファイルも作成する') $batchCheck.Current.Name
+Check 'バッチファイルはデフォルトで作らない' (-not (IsChecked $batchCheck))
+$note = (ById $dialog 'BatchNote').Current.Name
+Check 'バッチファイルの説明' ($note -eq '受け取った人の PC で、結合用のプログラムが Windows に止められて実行できないときに使います。') $note
+Set-Text (ById $dialog 'SourceBox') (Join-Path $script:Work 'a %OS% b.bin')
+Check '名前に % があると押せない' (-not $batchCheck.Current.IsEnabled)
+$note = (ById $dialog 'BatchNote').Current.Name
+Check '押せない理由' ($note -eq 'ファイル名に % があるため、バッチファイルは作成できません。') $note
+Set-Text (ById $dialog 'SourceBox') $source
+Check '名前を戻すと押せる' ($batchCheck.Current.IsEnabled -and -not (IsChecked $batchCheck))
+
 Section '分割する'
 Push (ById $dialog 'SplitButton')
 $box = Find-MessageBox $app 30000
@@ -43,10 +56,34 @@ if ($box) {
     Check '保存先' ($box.Text -match [regex]::Escape("保存先: $output"))
     Check '戻し方' ($box.Text -match 'すべての分割ファイルを同じフォルダーに置いて「資料\.bin\.exe」を実行してください。')
     Check 'ほかのソフトでも結合できる' ($box.Text -match '7-Zip などほかのソフトでも結合できます。') $box.Text
+    Check 'バッチファイルを作らなければ言わない' ($box.Text -notmatch '\.cmd') $box.Text
     Close-MessageBox $box 'OK'
 }
 Check 'ステータスバー' ((Get-Status $app) -eq '4 個に分割しました') (Get-Status $app)
+
+Section 'バッチファイルも作る'
+$batchOutput = Join-Path $script:Work 'parts-batch'
+New-Item -ItemType Directory -Force -Path $batchOutput | Out-Null
+Push (ById $app.Window 'SplitButton')
+$dialog = Find-Window $app 'ファイルの分割'
+Set-Text (ById $dialog 'SourceBox') $source
+Set-Text (ById $dialog 'DestinationBox') $batchOutput
+Toggle-Check (ById $dialog 'BatchCheck')
+Push (ById $dialog 'SplitButton')
+$box = Find-MessageBox $app 30000
+if ($box) {
+    Check 'バッチファイルのことを言う' ($box.Text -match 'Windows に止められて実行できないときは、「資料\.bin\.cmd」を実行してください。') $box.Text
+    Close-MessageBox $box 'OK'
+}
+Check 'バッチファイルができる' (Test-Path (Join-Path $batchOutput '資料.bin.cmd'))
+Check '選んだことを覚える' ((Read-Settings) -match '"SplitMakeBatch":\s*true') (Read-Settings)
 Stop-Expzip $app
+
+$batch = Start-Process cmd.exe -ArgumentList '/d', '/c', "`"`"$(Join-Path $batchOutput '資料.bin.cmd')`" -q`"" -WindowStyle Hidden -PassThru
+Check 'バッチファイルが終わる' ($batch.WaitForExit(60000))
+Check 'バッチファイルが成功を返す' ($batch.ExitCode -eq 0) $batch.ExitCode
+$joinedByBatch = Join-Path $batchOutput '資料.bin'
+Check 'バッチファイルで元と同じファイルができる' ((Test-Path $joinedByBatch) -and (Get-FileHash $joinedByBatch -Algorithm SHA256).Hash -eq $hash)
 
 $files = @(Get-ChildItem $output | ForEach-Object { $_.Name } | Sort-Object)
 Check '分割ファイルと結合用のプログラムができる' ($files.Count -eq 5 -and $files -contains '資料.bin.exe') ($files -join ', ')

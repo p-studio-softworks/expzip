@@ -2736,18 +2736,33 @@ internal static partial class Strings
         $"{parts:N0} 個に分割しました",
         $"Split into {parts:N0} {Plural(parts, "piece", "pieces")}");
 
-    public static string SplitDone(int parts, string joiner, string destination) => Pick(
+    public static string SplitDone(int parts, string joiner, string? batch, string destination) => Pick(
         $"{parts:N0} 個に分割しました。{Environment.NewLine}{Environment.NewLine}"
         + $"保存先: {destination}{Environment.NewLine}{Environment.NewLine}"
         + $"元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「{joiner}」を実行してください。"
         + $"{Environment.NewLine}"
+        + (batch is null ? string.Empty : $"Windows に止められて実行できないときは、「{batch}」を実行してください。{Environment.NewLine}")
         + "7-Zip などほかのソフトでも結合できます。",
         $"Split into {parts:N0} {Plural(parts, "piece", "pieces")}."
         + $"{Environment.NewLine}{Environment.NewLine}"
         + $"Location: {destination}{Environment.NewLine}{Environment.NewLine}"
         + $"To put it back together, keep every piece in one folder and run \"{joiner}\"."
         + $"{Environment.NewLine}"
+        + (batch is null ? string.Empty : $"If Windows blocks it, run \"{batch}\" instead.{Environment.NewLine}")
         + "Other tools such as 7-Zip can join them too.");
+
+    /// <summary>結合用のバッチファイルも作るか (#343)。</summary>
+    public static string SplitMakeBatch => Pick(
+        "結合用のバッチファイルも作成する", "Also make a batch file to join the pieces");
+
+    public static string SplitMakeBatchNote => Pick(
+        "受け取った人の PC で、結合用のプログラムが Windows に止められて実行できないときに使います。",
+        "Use this when Windows on the recipient's PC blocks the joining program.");
+
+    /// <summary>名前に % があるとバッチファイルが動かないので作らない (#343)。</summary>
+    public static string SplitBatchPercent => Pick(
+        "ファイル名に % があるため、バッチファイルは作成できません。",
+        "A batch file cannot be made because the file name contains %.");
 
     public static string SplitCancelled => Pick(
         "分割を中断しました。書き込み途中の分割ファイルは削除しました。",

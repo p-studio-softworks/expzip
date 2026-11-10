@@ -3067,6 +3067,10 @@ SplitAnyFile
   ja  すべてのファイル|*.*
   en  All files|*.*
 
+SplitBatchPercent
+  ja  ファイル名に % があるため、バッチファイルは作成できません。
+  en  A batch file cannot be made because the file name contains %.
+
 SplitBrowse
   ja  参照
   en  Browse
@@ -3095,7 +3099,37 @@ SplitDestinationTitle
   ja  分割ファイルの保存先を選択
   en  Choose where to put the pieces
 
-SplitDone (parts: 4, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\資料)
+SplitDone (parts: 4, joiner: 資料.zip.exe, batch: 見本, destination: C:\Users\user\Desktop\資料)
+  ja  4 個に分割しました。
+      | 
+      | 保存先: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
+      | Windows に止められて実行できないときは、「⟦見本⟧」を実行してください。
+      | 7-Zip などほかのソフトでも結合できます。
+  en  Split into 4 pieces.
+      | 
+      | Location: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | To put it back together, keep every piece in one folder and run "⟦資料.zip.exe⟧".
+      | If Windows blocks it, run "⟦見本⟧" instead.
+      | Other tools such as 7-Zip can join them too.
+SplitDone (parts: 1, joiner: 資料.zip.exe, batch: 見本, destination: C:\Users\user\Desktop\資料)
+  ja  1 個に分割しました。
+      | 
+      | 保存先: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
+      | Windows に止められて実行できないときは、「⟦見本⟧」を実行してください。
+      | 7-Zip などほかのソフトでも結合できます。
+  en  Split into 1 piece.
+      | 
+      | Location: ⟦C:\Users\user\Desktop\資料⟧
+      | 
+      | To put it back together, keep every piece in one folder and run "⟦資料.zip.exe⟧".
+      | If Windows blocks it, run "⟦見本⟧" instead.
+      | Other tools such as 7-Zip can join them too.
+SplitDone (parts: 4, joiner: 資料.zip.exe, batch: (なし), destination: C:\Users\user\Desktop\資料)
   ja  4 個に分割しました。
       | 
       | 保存先: ⟦C:\Users\user\Desktop\資料⟧
@@ -3103,19 +3137,6 @@ SplitDone (parts: 4, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\
       | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
       | 7-Zip などほかのソフトでも結合できます。
   en  Split into 4 pieces.
-      | 
-      | Location: ⟦C:\Users\user\Desktop\資料⟧
-      | 
-      | To put it back together, keep every piece in one folder and run "⟦資料.zip.exe⟧".
-      | Other tools such as 7-Zip can join them too.
-SplitDone (parts: 1, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\資料)
-  ja  1 個に分割しました。
-      | 
-      | 保存先: ⟦C:\Users\user\Desktop\資料⟧
-      | 
-      | 元に戻すときは、すべての分割ファイルを同じフォルダーに置いて「⟦資料.zip.exe⟧」を実行してください。
-      | 7-Zip などほかのソフトでも結合できます。
-  en  Split into 1 piece.
       | 
       | Location: ⟦C:\Users\user\Desktop\資料⟧
       | 
@@ -3136,6 +3157,14 @@ SplitFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒�
   en  The file could not be split.
       | 
       | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
+SplitMakeBatch
+  ja  結合用のバッチファイルも作成する
+  en  Also make a batch file to join the pieces
+
+SplitMakeBatchNote
+  ja  受け取った人の PC で、結合用のプログラムが Windows に止められて実行できないときに使います。
+  en  Use this when Windows on the recipient's PC blocks the joining program.
 
 SplitNotNeeded
   ja  分割の必要はありません。1つの大きさが分割するファイルより大きいです。

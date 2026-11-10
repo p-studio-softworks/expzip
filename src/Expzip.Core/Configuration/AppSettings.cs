@@ -51,6 +51,9 @@ internal sealed class AppSettings
     /// </remarks>
     public long SplitChunkSize { get; set; } = 100L * 1024 * 1024;
 
+    /// <summary>分割で結合用のバッチファイルも作るか (#343)。デフォルトは作らない。</summary>
+    public bool SplitMakeBatch { get; set; }
+
     /// <summary>AI の API (#24)。OpenAI 互換の場所を入れる (#35)。</summary>
     public string AiEndpoint { get; set; } = string.Empty;
 
