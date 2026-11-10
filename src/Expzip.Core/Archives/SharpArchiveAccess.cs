@@ -220,7 +220,6 @@ internal static class SharpArchiveAccess
 
     /// <summary>
     /// 7z の項目の CRC。項目に無ければフォルダー側の値。どちらも無ければ -1 (#168、#321)。
-    /// 正しく読めるか確かめる手段が無いものは <see cref="SevenZipHeader.Unverifiable"/>。
     /// </summary>
     /// <remarks>項目の 0 は「無い」の意味で使われる。フォルダー側に書かれた 0 は本当の値。</remarks>
     public static long SevenZipCrc(IEntry entry, IReadOnlyDictionary<string, long> folderCrcs)

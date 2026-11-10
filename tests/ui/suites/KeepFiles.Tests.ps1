@@ -254,15 +254,19 @@ $text = Invoke-Overwrite $app $out
 Check '取り出せる' ($text -match '展開したファイル: 1 個' -and (Get-Item (Join-Path $out 'a.txt')).Length -eq 3000000) $text
 Stop-Expzip $app
 
-Section 'CRC の無い、まとめて Deflate した 7z (#321)'
-# SharpCompress が違う中身を返すことがある。確かめる手段が無いので取り出さない
+Section 'CRC の無い、まとめて Deflate した 7z (#321、#323)'
+# SharpCompress 0.50.7 は 2 個目以降に違う中身を返した。CRC が無いので、Windows の tar.exe で取り出したものと比べる
 $path = Join-Path $script:Work 'keep_deflate_nocrc.7z'
 Copy-Item (Join-Path $fixtures 'keep_deflate_nocrc.7z') $path
 $out = New-Folder 'out_deflate'
+$expected = New-Folder 'out_deflate_tar'
+& "$env:SystemRoot\System32\tar.exe" -xf $path -C $expected
 $app = Start-Expzip @($path)
 $text = Invoke-Overwrite $app $out
-Check '取り出さずに理由を出す' ($text -match 'この圧縮方式には対応していません') $text
-Check 'ファイルができない' (@(Get-ChildItem $out -Recurse -File).Count -eq 0) ((Get-ChildItem $out -Recurse -File | ForEach-Object { $_.Name }) -join ', ')
+Check '失敗が出ない' ($text -notmatch '対応していません|壊れています|書き込めなかった') $text
+$names = @(Get-ChildItem $expected -File | ForEach-Object { $_.Name } | Sort-Object)
+$same = @($names | Where-Object { (Test-Path (Join-Path $out $_)) -and (Get-FileHash (Join-Path $out $_)).Hash -eq (Get-FileHash (Join-Path $expected $_)).Hash })
+Check 'すべて tar.exe と同じ中身' ($names.Count -eq 4 -and $same.Count -eq $names.Count) "同じ: $($same -join ', ') / 全部: $($names -join ', ')"
 Stop-Expzip $app
 
 Section 'フォルダー側の CRC を持つ正しい 7z (#321)'

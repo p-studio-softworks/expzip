@@ -103,6 +103,20 @@ else {
     & dotnet publish (Join-Path $repo 'src\Expzip') -p:PublishProfile=win-x64 -nologo
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+    # lock ファイルが無いと、復元は止まらずに新しく作る (#323)。コミットしたものと違えば、
+    # 中身を固定していないパッケージが入ったかもしれないので配らない
+    $locks = & git -C $repo status --porcelain -- '*packages*.lock.json' 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'git で lock ファイルを確かめられません。配るものは git のリポジトリの中で作ってください。'
+        exit 1
+    }
+    if ($locks) {
+        Write-Host 'lock ファイルが、コミットしたものと違います。このビルドは配らないでください:'
+        $locks | ForEach-Object { Write-Host "  $_" }
+        Write-Host 'パッケージを上げたのなら、build\Update-LockFiles.ps1 で作り直し、確かめてからコミットしてください。'
+        exit 1
+    }
+
     # テストの部品 (tests\core) が配るものに混ざっていないか (#332)
     $mixed = @(Get-ChildItem $publish -File | Where-Object { $_.Name -match '^(xunit|Expzip\.Core\.Tests|Microsoft\.Testing\.|Microsoft\.ApplicationInsights)' })
     if ($mixed.Count -gt 0) {

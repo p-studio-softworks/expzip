@@ -1,0 +1,24 @@
+<Project>
+  <!--
+    このリポジトリを別のリポジトリに取り込んでビルドするとき、取り込む側の設定を足すための口。
+    MSBuild は上のフォルダーへ Directory.Build.props を探し、このファイルを見つけるとそこで止まるので、
+    取り込む側のファイルは自動では読まれない。ビルドのときに ExpzipExtraProps でファイルを指定したときだけ読む。
+    上のフォルダーのファイルを必ず読む形にはしない。リポジトリの外のファイルで、下の lock ファイルの設定を外せてしまうため。
+    読み込むのを下の設定より前にして、同じ設定を書かれても下の値が勝つようにしてある
+  -->
+  <Import Project="$(ExpzipExtraProps)" Condition="'$(ExpzipExtraProps)' != '' and Exists('$(ExpzipExtraProps)')" />
+
+  <!--
+    取り込むパッケージの中身を固定する (#323)。
+    packages.lock.json に各パッケージの SHA512 が残り、違う中身が届いたら復元が止まる。
+    すり替えられたパッケージが、配る exe に入らないようにするため。
+    配布用のビルド (PublishProfile=win-x64) は、win-x64 用の部品と発行のときだけ使う部品を加えて復元するので、
+    lock ファイルを分ける (packages.win-x64.lock.json)。同じファイルにすると、開発用のビルドと食い違って止まる。
+    パッケージを足したり上げたりしたときは、build/Update-LockFiles.ps1 で lock ファイルを作り直す
+  -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
+    <NuGetLockFilePath Condition="'$(PublishProfile)' == 'win-x64'">packages.win-x64.lock.json</NuGetLockFilePath>
+  </PropertyGroup>
+</Project>

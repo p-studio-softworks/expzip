@@ -78,11 +78,6 @@ internal static class SharpArchiveExtractor
         if (targets.Count == 1)
         {
             var only = targets[0];
-            if (Refuse(only, folderCrcs, state))
-            {
-                return;
-            }
-
             state.Write(
                 only.Key!, only.Size, only.LastModifiedTime, () => only.OpenEntryStream(), cancellationToken,
                 SharpArchiveAccess.SevenZipCrc(only, folderCrcs), sizeIsExact: true);
@@ -115,11 +110,6 @@ internal static class SharpArchiveExtractor
                     continue;
                 }
 
-                if (Refuse(entry, folderCrcs, state))
-                {
-                    continue;
-                }
-
                 state.Write(
                     key, entry.Size, entry.LastModifiedTime, reader.OpenEntryStream, cancellationToken,
                     SharpArchiveAccess.SevenZipCrc(entry, folderCrcs), sizeIsExact: true);
@@ -129,20 +119,6 @@ internal static class SharpArchiveExtractor
         {
             state.Fail(Path.GetFileName(archivePath), Explain(ex));
         }
-    }
-
-    /// <summary>
-    /// 正しく読めるか確かめる手段が無いファイルは取り出さない (#321)。違う中身を、成功として書き出さないため。
-    /// </summary>
-    private static bool Refuse(IEntry entry, IReadOnlyDictionary<string, long> folderCrcs, ExtractState state)
-    {
-        if (SharpArchiveAccess.SevenZipCrc(entry, folderCrcs) != SevenZipHeader.Unverifiable)
-        {
-            return false;
-        }
-
-        state.Fail(entry.Key ?? string.Empty, Strings.UnsupportedCompressionMethod);
-        return true;
     }
 
     private static void ExtractTar(

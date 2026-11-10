@@ -212,10 +212,9 @@ internal static class ArchiveContentReader
                     continue;
                 }
 
-                // tar は CRC を持たない。7z で正しく読めるか確かめる手段が無いものは、照合せずに読む
-                // (検査は「問題なし」と言い切らない。中身の判定は読めたバイト列に対して行う)
+                // tar は CRC を持たない。7z の CRC の無いファイルも、照合せずに読む
                 visit(new ContentItem(
-                    ArchiveTreeBuilder.Trim(key), Math.Max(0, entry.Size), Math.Max(-1, SharpArchiveAccess.SevenZipCrc(entry, folderCrcs)),
+                    ArchiveTreeBuilder.Trim(key), Math.Max(0, entry.Size), SharpArchiveAccess.SevenZipCrc(entry, folderCrcs),
                     entry.IsEncrypted && password is null, reader.OpenEntryStream));
             }
         }

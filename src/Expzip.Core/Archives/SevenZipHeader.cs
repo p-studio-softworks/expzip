@@ -66,17 +66,6 @@ internal static class SevenZipHeader
 
     private static ReadOnlySpan<byte> Lzma2Method => [0x21];
 
-    private static ReadOnlySpan<byte> DeflateMethod => [0x04, 0x01, 0x08];
-
-    /// <summary>
-    /// CRC が無く、正しく読めるか確かめる手段も無いファイルの印 (#321)。
-    /// </summary>
-    /// <remarks>
-    /// SharpCompress 0.50.7 は、複数のファイルをまとめて Deflate で圧縮したフォルダーを正しく読めないことがある。
-    /// CRC があれば失敗として見つかるが、無いと、大きさが合ったまま違う中身を書き出す。
-    /// </remarks>
-    public const long Unverifiable = -2;
-
     /// <summary>見出しを確かめる。使うメモリの見積もりを返す。</summary>
     /// <param name="archive">7z の本体が先頭に来る、読み取りと移動ができる流れ。</param>
     /// <param name="memoryBudget">見出しの部品に使ってよいメモリ。</param>
@@ -464,10 +453,6 @@ internal static class SevenZipHeader
             {
                 result[i] = streams.FolderCrc[current];
             }
-            else if (counts[current] > 1 && current < streams.FolderList.Count && streams.FolderList[current].Deflate)
-            {
-                result[i] = Unverifiable;
-            }
 
             left--;
         }
@@ -752,8 +737,7 @@ internal static class SevenZipHeader
         {
             streams.FolderList.Add(new FolderInfo(
                 packedStreams,
-                path is not null && path[^1].Method.AsSpan().SequenceEqual(Lzma2Method),
-                coders.Exists(static coder => coder.Method.AsSpan().SequenceEqual(DeflateMethod))));
+                path is not null && path[^1].Method.AsSpan().SequenceEqual(Lzma2Method)));
         }
 
         return outputs;
@@ -893,7 +877,7 @@ internal static class SevenZipHeader
     private sealed record Coder(byte[] Method, ulong Inputs, ulong Outputs, byte[] Properties);
 
     /// <summary>中身を読む前の確認に使う、フォルダーのこと。</summary>
-    private readonly record struct FolderInfo(ulong PackStreams, bool ReadsLzma2, bool Deflate = false);
+    private readonly record struct FolderInfo(ulong PackStreams, bool ReadsLzma2);
 
     /// <summary>見出しから読み取ったこと。</summary>
     private sealed class Streams
