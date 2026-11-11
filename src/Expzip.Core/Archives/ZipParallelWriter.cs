@@ -95,6 +95,7 @@ internal static class ZipParallelWriter
     /// 書庫が、同じ作業の中で作ったばかりの空の書庫か (<see cref="ZipArchiveWriter.CreateWith"/>、#327)。
     /// そうなら差し替えでディスクを待たない。省けないようにしてある (誤って待たなくなると、電源断で書庫を失う)。
     /// </param>
+    /// <param name="planFailed">計画を作るときに入れられなかったもの (#366)。結果の失敗の先頭に並べる。</param>
     /// <returns>この方法で扱えない書庫なら <see langword="null"/>。</returns>
     public static AddResult? TryAdd(
         string archivePath,
@@ -102,7 +103,8 @@ internal static class ZipParallelWriter
         bool replaceExisting,
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken,
-        bool archiveIsNew)
+        bool archiveIsNew,
+        IReadOnlyList<(string, string)>? planFailed = null)
     {
         if (ZipPrefix.Detect(archivePath) != 0)
         {
@@ -110,7 +112,8 @@ internal static class ZipParallelWriter
         }
 
         var temp = ZipArchiveWriter.WorkFilePathFor(archivePath);
-        var failed = new List<(string, string)>();
+        var failed = new List<(string, string)>(planFailed ?? []);
+        var links = new List<AddedLink>();
 
         try
         {
@@ -139,7 +142,11 @@ internal static class ZipParallelWriter
                 var incoming = new List<(PlanItem Item, bool Replaces)>();
                 skipped = 0;
 
-                foreach (var item in plan)
+                // リンクと、同じ名前のフォルダーの中の項目が並ぶ書庫を作らない (#366)
+                var accepted = ZipArchiveWriter.DropLinkConflicts(
+                    [.. plan], existing.Select(static e => (e.Name, ZipLinks.IsLink(e))), failed);
+
+                foreach (var item in accepted)
                 {
                     if (byName.TryGetValue(item.EntryName, out var old))
                     {
@@ -190,6 +197,11 @@ internal static class ZipParallelWriter
                 var gauge = new Gauge(incoming.Sum(static x => x.Item.Length), progress);
                 (added, replaced) = WriteIncoming(output, incoming, failed, gauge, cancellationToken);
 
+                // リンクはディスクから読まないので、書き込みで失敗することは無い
+                links.AddRange(incoming
+                    .Where(static x => x.Item.Link is not null)
+                    .Select(static x => new AddedLink(x.Item.EntryName, x.Item.Link!.Target, x.Item.Link.Outside)));
+
                 output.Finish();
             }
 
@@ -205,7 +217,7 @@ internal static class ZipParallelWriter
                 AtomicFile.Replace(temp, archivePath);
             }
 
-            return new AddResult(added, replaced, skipped, failed, Cancelled: false);
+            return new AddResult(added, replaced, skipped, failed, Cancelled: false) { Links = links };
         }
         catch (OperationCanceledException)
         {
@@ -364,7 +376,11 @@ internal static class ZipParallelWriter
                     continue;
                 }
 
-                Write(output, done, packed, gauge, token);
+                if (Write(output, done, packed, gauge, token) is { } notRead)
+                {
+                    failed.Add((done.SourcePath, notRead));
+                    continue;
+                }
 
                 if (isReplacement)
                 {
@@ -419,6 +435,14 @@ internal static class ZipParallelWriter
     /// <summary>1 件を圧縮する。書き込みはしない。</summary>
     private static Packed Pack(PlanItem item, Gauge gauge, CancellationToken cancellationToken)
     {
+        if (item.Link is { } link)
+        {
+            // リンクは、指す先のパスを格納する。ディスクの指す先には触れない (#366)
+            var content = ZipLinks.Content(link);
+            gauge.Advance(content.Length, item.EntryName);
+            return new Packed(null, SharpCompressionMethod.Stored, content.Length, ZipLinks.Crc(content), new MemoryStream(content));
+        }
+
         // 読めるかを確かめ、あわせて圧縮するかどうかを決める (#38)
         var choice = CompressionChoice.Probe(item.SourcePath);
         if (choice.Error is { } reason)
@@ -445,8 +469,8 @@ internal static class ZipParallelWriter
             long size;
             long crcValue;
 
-            using (var input = new FileStream(
-                       item.SourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize))
+            // 開いたあとで、選んだフォルダーの中のファイルかを確かめる (#366)
+            using (var input = ReadScope.Open(item.Scope, item.SourcePath, BufferSize))
             {
                 if (choice.Method == SharpCompressionMethod.Deflated && item.Length > SplitThreshold)
                 {
@@ -699,7 +723,8 @@ internal static class ZipParallelWriter
     }
 
     /// <summary>圧縮を終えた 1 件を書庫に書き込む。</summary>
-    private static void Write(
+    /// <returns>書き始める前に読めなかったときの理由。書けたら <see langword="null"/>。</returns>
+    private static string? Write(
         ZipOutputStream output, PlanItem item, Packed packed, Gauge gauge, CancellationToken cancellationToken)
     {
         var stamp = ZipArchiveWriter.ReadLastWriteTime(item.SourcePath);
@@ -709,24 +734,42 @@ internal static class ZipParallelWriter
             // 空のフォルダーも構造として残す
             output.PutNextEntry(ZipUpdate.NewEntry(item.EntryName, SharpCompressionMethod.Stored, stamp));
             output.CloseEntry();
-            return;
+            return null;
         }
 
         if (packed.Data is null)
         {
             // 大きくて圧縮しないもの。読みながらそのまま書く
-            output.PutNextEntry(ZipUpdate.NewEntry(item.EntryName, SharpCompressionMethod.Stored, stamp));
-            using var input = new FileStream(
-                item.SourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, BufferSize);
-            CopyWatched(input, output, item.EntryName, gauge, cancellationToken);
-            output.CloseEntry();
-            return;
+            // 項目を書き始める前に開く。開けなければ、その 1 件だけを失敗にする (#366)
+            FileStream input;
+            try
+            {
+                input = ReadScope.Open(item.Scope, item.SourcePath, BufferSize);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return Strings.Reason(ex);
+            }
+
+            using (input)
+            {
+                output.PutNextEntry(ZipUpdate.NewEntry(item.EntryName, SharpCompressionMethod.Stored, stamp));
+                CopyWatched(input, output, item.EntryName, gauge, cancellationToken);
+                output.CloseEntry();
+            }
+
+            return null;
         }
 
         var entry = ZipUpdate.NewEntry(item.EntryName, packed.Method, stamp);
         entry.Crc = packed.Crc;
         entry.Size = packed.Size;
         entry.CompressedSize = packed.Data.Length;
+
+        if (item.Link is { } link)
+        {
+            ZipLinks.Mark(entry, link.PointsToFolder);
+        }
 
         if (packed.Method == SharpCompressionMethod.Deflated)
         {
@@ -739,6 +782,7 @@ internal static class ZipParallelWriter
 
         CancellableCopy.Copy(packed.Data, output, cancellationToken);
         output.CloseEntry();
+        return null;
     }
 
     private static void CopyWatched(

@@ -68,6 +68,7 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 - Create a new ZIP, add files by dragging them in, delete items
 - Rename (F2, or select and click again), move items inside the archive, create empty folders
 - **Whether to compress is decided automatically for each file**. For example, photos and videos, which do not get smaller, are stored as they are
+- Symbolic links and junctions in a folder are **added to the archive as links**, not as the contents they point to. A link that points outside the selected folder puts its target path into the archive, so Expzip names such links after adding them
 - Set, change and remove passwords
 - View and edit the comment of a ZIP archive. When an archive with a comment is opened, the status bar tells you
 - **Undo** changes (Ctrl+Z). Even if you move a folder by mistake, you can put it back until you close Expzip

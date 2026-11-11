@@ -28,7 +28,11 @@ internal sealed record AddResult(
     int Replaced,
     int Skipped,
     IReadOnlyList<(string Name, string Reason)> Failed,
-    bool Cancelled);
+    bool Cancelled)
+{
+    /// <summary>リンクとして入れたもの (#366)。指す先がフォルダーの外のものは、終わったあとに知らせる。</summary>
+    public IReadOnlyList<AddedLink> Links { get; init; } = [];
+}
 
 /// <summary>削除の結果。</summary>
 /// <param name="Deleted">削除したエントリ数。</param>
@@ -168,26 +172,30 @@ internal static class ZipArchiveWriter
         IReadOnlyCollection<string>? exclude,
         bool archiveIsNew)
     {
-        var plan = BuildPlan(sourcePaths, destinationFolder);
-
-        if (exclude is not null)
+        // 足す先の書庫そのものも入れない。追加するフォルダーの中に書庫があることがある (#366)
+        var failed = new List<(string, string)>();
+        List<PlanItem> plan;
+        try
         {
-            plan.RemoveAll(item => exclude.Contains(item.SourcePath, StringComparer.OrdinalIgnoreCase));
+            plan = BuildPlan(sourcePaths, destinationFolder, [.. exclude ?? [], archivePath], failed, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // たどっている間の中止も、書き換えの途中の中止と同じく「中止した」と返す (#366)
+            return new AddResult(0, 0, 0, failed, Cancelled: true);
         }
 
         CheckPlanDepth(plan);
 
-        if (ZipParallelWriter.TryAdd(archivePath, plan, replaceExisting, progress, cancellationToken, archiveIsNew) is { } fast)
+        if (ZipParallelWriter.TryAdd(archivePath, plan, replaceExisting, progress, cancellationToken, archiveIsNew, failed) is { } fast)
         {
             return fast;
         }
 
-        var totalBytes = plan.Sum(static p => p.Length);
-
         var added = 0;
         var replaced = 0;
         var skipped = 0;
-        var failed = new List<(string, string)>();
+        var links = new List<AddedLink>();
         var cancelled = false;
 
         // 実際に中身が読まれるのは CommitUpdate の最中。進み具合もそこで動く
@@ -197,6 +205,13 @@ internal static class ZipArchiveWriter
         // CreateWith の空の書庫はふつう並列の道で扱えるので、ここを archiveIsNew で通ることはまず無い。
         // 通っても、待たないのは作ったばかりの空の書庫だけ
         using var zip = ZipUpdate.Open(archivePath);
+
+        // リンクと、同じ名前のフォルダーの中の項目が並ぶ書庫を作らない (#366)
+        plan = DropLinkConflicts(
+            plan, zip.Cast<ZipEntry>().Select(static e => (e.Name, ZipLinks.IsLink(e))), failed);
+
+        var totalBytes = plan.Sum(static p => p.Length);
+
         BeginUpdate(zip, archiveIsNew);
 
         foreach (var item in plan)
@@ -228,6 +243,26 @@ internal static class ZipArchiveWriter
                 continue;
             }
 
+            if (item.Link is { } link)
+            {
+                // 中身はディスクから読まず、指す先のパスを書く (#366)
+                var entry = ZipUpdate.NewEntry(item.EntryName, CompressionMethod.Stored, ReadLastWriteTime(item.SourcePath));
+                ZipLinks.Mark(entry, link.PointsToFolder);
+                zip.Add(new ZipUpdate.BytesSource(ZipLinks.Content(link)), entry);
+                links.Add(new AddedLink(item.EntryName, link.Target, link.Outside));
+
+                if (found >= 0)
+                {
+                    replaced++;
+                }
+                else
+                {
+                    added++;
+                }
+
+                continue;
+            }
+
             // 読めるかを確かめ、あわせて圧縮するかどうかを決める (#38)。
             // 書き出しが始まってから読めないと分かると、その回の書き換えが
             // まるごと取りやめになり、他の分まで巻き添えになる
@@ -238,10 +273,24 @@ internal static class ZipArchiveWriter
                 continue;
             }
 
+            // 選んだ場所の中のファイルかも、ここで確かめる (#366)。中身を読むのは CommitUpdate の中で、
+            // そこで気付くと追加の全体が取りやめになる (書庫は元のまま残る)
+            try
+            {
+                using (ReadScope.Open(item.Scope, item.SourcePath))
+                {
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                failed.Add((item.SourcePath, Localization.Strings.Reason(ex)));
+                continue;
+            }
+
             var name = item.EntryName;
 
             zip.Add(
-                new ZipUpdate.FileSource(item.SourcePath, cancellationToken, read =>
+                new ZipUpdate.FileSource(item.SourcePath, cancellationToken, item.Scope, read =>
                 {
                     readBytes += read;
 
@@ -271,7 +320,124 @@ internal static class ZipArchiveWriter
             return new AddResult(0, 0, 0, failed, Cancelled: true);
         }
 
-        return new AddResult(added, replaced, skipped, failed, Cancelled: false);
+        return new AddResult(added, replaced, skipped, failed, Cancelled: false) { Links = links };
+    }
+
+    /// <summary>
+    /// リンクと、同じ名前のフォルダーの中の項目が並ぶことになるものを、追加から外す (#366)。
+    /// </summary>
+    /// <remarks>
+    /// 書庫に <c>docs/a.txt</c> があるところへ <c>docs</c> という名前のリンクを足すと、両方が残る。それをリンクを展開できるツールで
+    /// 展開すると、<c>docs/a.txt</c> がリンクを通って展開先の外に書かれる。攻撃に使われる形を、ふつうの操作で作らない。
+    /// 大文字と小文字は区別しない (Windows で同じ場所になるため)。外したものは理由を添えて知らせる。
+    /// </remarks>
+    /// <param name="plan">追加するもの。</param>
+    /// <param name="existing">書庫に既にある項目の名前と、リンクかどうか。</param>
+    /// <param name="failed">外したものの受け口。</param>
+    internal static List<PlanItem> DropLinkConflicts(
+        List<PlanItem> plan, IEnumerable<(string Name, bool IsLink)> existing, List<(string, string)> failed)
+    {
+        var overlap = new LinkOverlap();
+        foreach (var (name, isLink) in existing)
+        {
+            overlap.Note(name, isLink);
+        }
+
+        foreach (var item in plan)
+        {
+            overlap.Note(item.EntryName, item.Link is not null);
+        }
+
+        if (!overlap.HasLinks)
+        {
+            return plan;
+        }
+
+        var kept = new List<PlanItem>(plan.Count);
+        foreach (var item in plan)
+        {
+            if (overlap.Conflicts(item.EntryName, item.Link is not null) is not null)
+            {
+                failed.Add((item.SourcePath, Localization.Strings.LinkOverlapsFolder));
+                continue;
+            }
+
+            kept.Add(item);
+        }
+
+        return kept;
+    }
+
+    /// <summary>
+    /// 書庫の項目の名前を集めて、リンクと重なる名前を見つける (#366)。大文字と小文字は区別しない (Windows で同じ場所になるため)。
+    /// </summary>
+    /// <remarks>
+    /// 重なりは 3 つ。リンクの中を通る名前 (<c>docs</c> がリンクで <c>docs/a.txt</c>)、リンクと同じ名前のフォルダー
+    /// (<c>docs</c> がリンクで <c>docs/</c>)、リンクと大文字と小文字だけが違う名前 (<c>Docs</c> がリンクで <c>docs</c>)。
+    /// まったく同じ名前は、置き換えなので重なりとしない。
+    /// </remarks>
+    private sealed class LinkOverlap
+    {
+        private readonly HashSet<string> _links = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _folders = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, HashSet<string>> _spellings = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool HasLinks => _links.Count > 0;
+
+        public void Note(string name, bool isLink)
+        {
+            var path = ArchivePath.Normalize(name).TrimEnd('/');
+            if (isLink)
+            {
+                _links.Add(path);
+            }
+
+            if (!_spellings.TryGetValue(path, out var spellings))
+            {
+                _spellings[path] = spellings = new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            spellings.Add(path);
+
+            // フォルダーそのものの項目は、それ自身も中身のあるフォルダーと同じ扱い
+            var start = name.EndsWith('/') ? path : ParentOf(path);
+            for (var folder = start; folder.Length > 0; folder = ParentOf(folder))
+            {
+                if (!_folders.Add(folder))
+                {
+                    break;
+                }
+            }
+        }
+
+        /// <summary>この名前がリンクと重なるなら、重なるリンクの名前。重ならなければ <see langword="null"/>。</summary>
+        public string? Conflicts(string name, bool isLink)
+        {
+            var path = ArchivePath.Normalize(name).TrimEnd('/');
+
+            for (var slash = path.IndexOf('/'); slash >= 0; slash = path.IndexOf('/', slash + 1))
+            {
+                if (_links.Contains(path[..slash]))
+                {
+                    return path[..slash];
+                }
+            }
+
+            var sameAsLink = _links.Contains(path);
+            if (!isLink && !sameAsLink)
+            {
+                return null;
+            }
+
+            // リンクと同じ名前のフォルダー
+            if (_folders.Contains(path))
+            {
+                return path;
+            }
+
+            // 大文字と小文字だけが違う、別の項目
+            return _spellings.TryGetValue(path, out var spellings) && spellings.Count > 1 ? path : null;
+        }
     }
 
     /// <summary>経過を知らせる間隔。1回の読み取りごとに出すと細かすぎる。</summary>
@@ -362,6 +528,10 @@ internal static class ZipArchiveWriter
         {
             return false;
         }
+
+        // リンクの中にフォルダーを作らない (#366)
+        CheckLinkOverlap(
+            zip.Cast<ZipEntry>().Select(static e => (e.Name, ZipLinks.IsLink(e))).Append((entryName, false)), [entryName]);
 
         BeginUpdate(zip);
         zip.AddDirectory(entryName.TrimEnd('/'));
@@ -560,30 +730,113 @@ internal static class ZipArchiveWriter
     }
 
     public static IReadOnlyList<string> PlanEntryNames(
-        IReadOnlyList<string> sourcePaths, string destinationFolder)
-        => BuildPlan(sourcePaths, destinationFolder).Select(static p => p.EntryName).ToList();
+        IReadOnlyList<string> sourcePaths, string destinationFolder, CancellationToken cancellationToken = default)
+        => BuildPlan(sourcePaths, destinationFolder, cancellationToken: cancellationToken)
+            .Select(static p => p.EntryName).ToList();
 
-    /// <summary>追加するファイルの一覧。フォルダは中身を辿って展開する。</summary>
-    internal static List<PlanItem> BuildPlan(IReadOnlyList<string> sourcePaths, string destinationFolder)
+    /// <summary>
+    /// 追加するファイルの一覧。フォルダーは中身をたどって展開する。
+    /// </summary>
+    /// <param name="sourcePaths">選んだファイルとフォルダー。</param>
+    /// <param name="destinationFolder">書庫の中の追加先。</param>
+    /// <param name="exclude">
+    /// 入れないファイル。作っている書庫そのものなど (#320)。実際の場所で比べるので、リンクを通って選んだフォルダーの中にあっても入れない (#366)。
+    /// </param>
+    /// <param name="failed">入れられないものと理由の受け口。</param>
+    /// <param name="cancellationToken">中断用。</param>
+    /// <remarks>
+    /// <para>
+    /// フォルダーの中にあるシンボリックリンクとジャンクションの中には入らず、リンクとして入れる (#366)。中に入ると、
+    /// 自分の親を指すリンクで回り続けて落ちる。指す先がフォルダーの外なら、入れるつもりの無いファイルまで書庫に入る。
+    /// </para>
+    /// <para>
+    /// 選んだもの自体がリンクなら、指す先をたどる。選んだ人はその中身を入れるつもりだと考える (#366 で決めた)。
+    /// その中にあるリンクはリンクとして入れるので、回り続けない。
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArchiveTooLargeException">フォルダーの階層が深すぎる場合。</exception>
+    internal static List<PlanItem> BuildPlan(
+        IReadOnlyList<string> sourcePaths,
+        string destinationFolder,
+        IReadOnlyCollection<string>? exclude = null,
+        List<(string, string)>? failed = null,
+        CancellationToken cancellationToken = default)
     {
         var prefix = destinationFolder.Length == 0 ? string.Empty : destinationFolder.TrimEnd('/') + "/";
         var plan = new List<PlanItem>();
+        failed ??= [];
+
+        var excluded = new HashSet<string>(
+            (exclude ?? []).Select(DiskLinks.Canonical), StringComparer.OrdinalIgnoreCase);
 
         foreach (var path in sourcePaths)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (Directory.Exists(path))
             {
-                AddDirectory(plan, path, prefix + EntryNameOf(path.TrimEnd(
-                    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+                var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+
+                // 書庫の中の名前を元のフォルダーの名前から作るので、ドライブ全体には名前が付かない。コマンドラインでも断っている
+                if (string.Equals(Path.GetPathRoot(root), root, StringComparison.OrdinalIgnoreCase))
+                {
+                    failed.Add((path, Localization.Strings.DriveCannotBeAdded));
+                    continue;
+                }
+
+                var scope = ScopeOf(root);
+                string[] roots = scope is null ? [root] : [root, scope.Path];
+                var walk = new Walk(plan, failed, excluded, scope, roots, cancellationToken);
+
+                // 入れないファイルと比べる場所は、入れないファイルと同じ形 (ドライブ文字) でそろえる。
+                // 読む場所の確かめ (scope) はドライブ文字の無いボリュームで GUID の形になることがある
+                walk.AddDirectory(root, DiskLinks.Canonical(root),
+                    prefix + EntryNameOf(root), DiskLinks.IdentityOf(root) is { } id ? [id] : []);
             }
             else if (File.Exists(path))
             {
-                // 利用者が選んだものは、.DS_Store でもそのまま入れる
-                plan.Add(new PlanItem(path, prefix + EntryNameOf(path), new FileInfo(path).Length, false));
+                var scope = ScopeOf(path);
+                var canonical = scope?.Path ?? DiskLinks.Canonical(path);
+                if (excluded.Contains(canonical))
+                {
+                    continue;
+                }
+
+                // 利用者が選んだものは、.DS_Store でもそのまま入れる。リンクなら指す先を入れるので、大きさも指す先から取る (#366)
+                plan.Add(new PlanItem(path, prefix + EntryNameOf(path), LengthOf(path), false)
+                {
+                    Scope = scope,
+                });
             }
         }
 
         return plan;
+    }
+
+    /// <summary>選んだものの実際の場所。読むときに、その中のものを読んでいるかを確かめる (#366)。</summary>
+    private static ReadScope? ScopeOf(string path)
+        => DiskLinks.FinalPathOf(path) is { } dos ? new ReadScope(dos, ByGuid: false)
+            : DiskLinks.FinalPathOf(path, byGuid: true) is { } guid ? new ReadScope(guid, ByGuid: true)
+            : null;
+
+    /// <summary>ファイルの大きさ。リンクなら指す先の大きさ (<see cref="FileInfo.Length"/> はリンクそのものの大きさを返す)。</summary>
+    private static long LengthOf(string path)
+    {
+        var info = new FileInfo(path);
+        if ((info.Attributes & FileAttributes.ReparsePoint) == 0)
+        {
+            return info.Length;
+        }
+
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return stream.Length;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return info.Length;
+        }
     }
 
     /// <summary>
@@ -601,28 +854,125 @@ internal static class ZipArchiveWriter
     private static bool IsFolderClutter(string file)
         => string.Equals(Path.GetFileName(file), ".DS_Store", StringComparison.OrdinalIgnoreCase);
 
-    private static void AddDirectory(List<PlanItem> plan, string directory, string entryPrefix)
+    /// <summary>選んだフォルダー 1 個をたどる。</summary>
+    /// <param name="Plan">追加するものの受け口。</param>
+    /// <param name="Failed">入れられないものと理由の受け口。</param>
+    /// <param name="Excluded">入れないファイルの実際の場所。</param>
+    /// <param name="Scope">選んだフォルダーの実際の場所。</param>
+    /// <param name="Roots">選んだフォルダーの、たどってきたとおりのパスと実際の場所。リンクが中を指すかを決めるのに使う。</param>
+    /// <param name="CancellationToken">中断用。</param>
+    private sealed record Walk(
+        List<PlanItem> Plan,
+        List<(string, string)> Failed,
+        HashSet<string> Excluded,
+        ReadScope? Scope,
+        IReadOnlyList<string> Roots,
+        CancellationToken CancellationToken)
     {
-        var files = Directory.GetFiles(directory).Where(static f => !IsFolderClutter(f)).ToArray();
-        var subdirectories = Directory.GetDirectories(directory);
-
-        // 空のフォルダは、そのままだと書庫に残らないのでフォルダのエントリを作る。
-        // .DS_Store だけが入ったフォルダーも、空のフォルダーとして残す
-        if (files.Length == 0 && subdirectories.Length == 0)
+        /// <param name="directory">たどってきたとおりのパス。</param>
+        /// <param name="canonicalDirectory">実際の場所。入れないファイルと比べるのに使う。</param>
+        /// <param name="entryPrefix">書庫の中の名前。</param>
+        /// <param name="ancestors">たどっている途中の親フォルダーの識別子。</param>
+        public void AddDirectory(string directory, string canonicalDirectory, string entryPrefix, DiskIdentity[] ancestors)
         {
-            plan.Add(new PlanItem(directory, entryPrefix + "/", 0, true));
-            return;
+            CancellationToken.ThrowIfCancellationRequested();
+
+            // たどる途中で止める。書き始める前の確かめ (CheckPlanDepth) を待つと、その前にスタックが溢れることがある
+            ArchiveLimits.CheckDepthToWrite(entryPrefix + "/");
+
+            // 項目の数も、たどる途中で確かめる。NAS などで同じ中身が何度も見えると、メモリーを使い切って落ちる
+            if ((long)Plan.Count * ArchiveLimits.BytesPerEntry > ArchiveLimits.MemoryBudget)
+            {
+                throw new ArchiveTooLargeException(ArchiveLimit.Entries);
+            }
+
+            List<DiskItem> items;
+            try
+            {
+                items = DiskLinks.List(directory);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Failed.Add((directory, Localization.Strings.Reason(ex)));
+                return;
+            }
+
+            // .DS_Store だけが入ったフォルダーも、空のフォルダーとして残す。Windows が置いた互換のためのジャンクションは数えない
+            var kept = items.Where(static i => !i.IsWindowsCompatibilityJunction
+                                               && (i.IsDirectory || !IsFolderClutter(i.Path))).ToList();
+
+            if (kept.Count == 0)
+            {
+                // 空のフォルダーは、そのままだと書庫に残らないのでフォルダーのエントリを作る
+                Plan.Add(new PlanItem(directory, entryPrefix + "/", 0, true));
+                return;
+            }
+
+            // 今までどおり、ファイルを先に、フォルダーを後に並べる
+            foreach (var item in kept.Where(static i => !i.IsDirectory || i.IsNameSurrogate || i.IsAppExecLink))
+            {
+                AddItem(item, canonicalDirectory, entryPrefix + "/" + EntryNameOf(item.Path));
+            }
+
+            foreach (var item in kept.Where(static i => i.IsDirectory && !i.IsNameSurrogate && !i.IsAppExecLink))
+            {
+                var identity = DiskLinks.IdentityOf(item.Path);
+                if (identity is { } id && ancestors.Contains(id))
+                {
+                    // NAS などでは、リンクがふつうのフォルダーに見えることがある。同じフォルダーに 2 度入らない
+                    Failed.Add((item.Path, Localization.Strings.FolderContainsItself));
+                    continue;
+                }
+
+                AddDirectory(
+                    item.Path, Path.Join(canonicalDirectory, Path.GetFileName(item.Path)),
+                    entryPrefix + "/" + EntryNameOf(item.Path),
+                    identity is { } found ? [.. ancestors, found] : ancestors);
+            }
         }
 
-        foreach (var file in files)
+        private void AddItem(DiskItem item, string canonicalDirectory, string entryName)
         {
-            plan.Add(new PlanItem(file, entryPrefix + "/" + EntryNameOf(file),
-                new FileInfo(file).Length, false));
-        }
+            if (item.IsAppExecLink || (item.IsNameSurrogate && !item.IsSymbolicLink && !item.IsJunction))
+            {
+                // WSL のシンボリックリンクなど。ZIP にリンクとして書く決まりが無く、中身としても読めない
+                Failed.Add((item.Path, Localization.Strings.LinkKindNotSupported));
+                return;
+            }
 
-        foreach (var subdirectory in subdirectories)
-        {
-            AddDirectory(plan, subdirectory, entryPrefix + "/" + EntryNameOf(subdirectory));
+            if (item.IsNameSurrogate)
+            {
+                // 中には入らず、リンクとして入れる。指す先には触れない (#366)
+                var link = DiskLinks.ReadTarget(item) is { } read
+                    ? ZipLinks.ForArchive(item.Path, read.Target, read.Relative, item.IsDirectory, Roots)
+                    : null;
+
+                if (link is null)
+                {
+                    Failed.Add((item.Path, Localization.Strings.LinkTargetNotSupported));
+                    return;
+                }
+
+                Plan.Add(new PlanItem(item.Path, entryName, ZipLinks.Content(link).Length, false) { Link = link });
+                return;
+            }
+
+            if (Excluded.Contains(Path.Join(canonicalDirectory, Path.GetFileName(item.Path))))
+            {
+                return;
+            }
+
+            long length;
+            try
+            {
+                length = new FileInfo(item.Path).Length;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                length = 0;
+            }
+
+            Plan.Add(new PlanItem(item.Path, entryName, length, false) { Scope = Scope });
         }
     }
 
@@ -690,7 +1040,7 @@ internal static class ZipArchiveWriter
         CancellationToken cancellationToken)
     {
         var renamed = 0;
-        var carried = new List<(string NewName, string TempPath, DateTime Stamp)>();
+        var carried = new List<(string NewName, string TempPath, DateTime Stamp, ZipEntry Original)>();
 
         try
         {
@@ -708,6 +1058,11 @@ internal static class ZipArchiveWriter
                     ArchiveLimits.CheckDepthToWrite(newName!);
                 }
 
+                // 移したあとに、リンクの中を通る名前ができないか (#366)
+                CheckLinkOverlap(
+                    zip.Cast<ZipEntry>().Select(e => (MapAny(e.Name, changes) ?? e.Name, ZipLinks.IsLink(e))),
+                    targets.Select(static t => t.NewName!));
+
                 // 名前を変えるものの中身だけ、いったん外へ取り出す。
                 // 書き換えの最中に同じ書庫から読むのは避けたいため。
                 // 対象外のエントリには触らないので、そのまま写される
@@ -721,7 +1076,7 @@ internal static class ZipArchiveWriter
                     if (newName!.EndsWith('/'))
                     {
                         // フォルダそのものを表すエントリは中身を持たない
-                        carried.Add((newName, string.Empty, entry.DateTime));
+                        carried.Add((newName, string.Empty, entry.DateTime, entry));
                         continue;
                     }
 
@@ -734,7 +1089,7 @@ internal static class ZipArchiveWriter
                         CancellableCopy.Copy(source, destination, cancellationToken);
                     }
 
-                    carried.Add((newName, holding, entry.DateTime));
+                    carried.Add((newName, holding, entry.DateTime, entry));
                 }
 
                 var remaining = zip.Cast<ZipEntry>()
@@ -755,7 +1110,7 @@ internal static class ZipArchiveWriter
                     zip.AddDirectory(folder);
                 }
 
-                foreach (var (newName, holding, stamp) in carried)
+                foreach (var (newName, holding, stamp, original) in carried)
                 {
                     if (holding.Length == 0)
                     {
@@ -763,10 +1118,11 @@ internal static class ZipArchiveWriter
                     }
                     else
                     {
-                        zip.Add(
-                            new ZipUpdate.FileSource(holding, cancellationToken),
-                            ZipUpdate.NewEntry(
-                                newName, CompressionChoice.Probe(holding).Method, stamp));
+                        // リンクの印も写す。写さないと、リンク先のパスが書かれたふつうのファイルに変わる (#366)
+                        var moved = ZipUpdate.NewEntry(
+                            newName, ZipLinks.IsLink(original) ? CompressionMethod.Stored : CompressionChoice.Probe(holding).Method, stamp);
+                        ZipLinks.CopyMark(original, moved);
+                        zip.Add(new ZipUpdate.FileSource(holding, cancellationToken), moved);
                     }
 
                     renamed++;
@@ -785,7 +1141,7 @@ internal static class ZipArchiveWriter
         }
         finally
         {
-            foreach (var (_, holding, _) in carried)
+            foreach (var (_, holding, _, _) in carried)
             {
                 if (holding.Length > 0)
                 {
@@ -795,6 +1151,43 @@ internal static class ZipArchiveWriter
         }
 
         return new RenameResult(renamed, Cancelled: false);
+    }
+
+    /// <summary>
+    /// 書き換えたあとの書庫に、リンクの中を通る名前や、中に項目のあるリンクができないかを確かめる (#366)。
+    /// </summary>
+    /// <param name="namesAfter">書き換えたあとの、すべての項目の名前と、リンクかどうか。</param>
+    /// <param name="changed">この操作で新しくできる名前。</param>
+    /// <remarks>
+    /// 止めるのは、この操作で新しくできる名前が重なりに関わるときだけ。ほかのツールで作った、もともと重なりのある書庫でも、
+    /// 関係の無いところの編集は止めない。
+    /// </remarks>
+    /// <exception cref="LinkOverlapException">できてしまう場合。書き換える前に止める。</exception>
+    internal static void CheckLinkOverlap(IEnumerable<(string Name, bool IsLink)> namesAfter, IEnumerable<string> changed)
+    {
+        var all = namesAfter.ToList();
+        var overlap = new LinkOverlap();
+        foreach (var (name, isLink) in all)
+        {
+            overlap.Note(name, isLink);
+        }
+
+        if (!overlap.HasLinks)
+        {
+            return;
+        }
+
+        var touched = new HashSet<string>(
+            changed.Select(static n => ArchivePath.Normalize(n).TrimEnd('/')), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (name, isLink) in all)
+        {
+            var path = ArchivePath.Normalize(name).TrimEnd('/');
+            if (overlap.Conflicts(name, isLink) is { } link && (touched.Contains(path) || touched.Contains(link)))
+            {
+                throw new LinkOverlapException();
+            }
+        }
     }
 
     /// <summary>いずれかの組に当てはめた結果を返す。どれにも当たらなければ null。</summary>
@@ -854,5 +1247,56 @@ internal static class ZipArchiveWriter
     /// <param name="EntryName">書庫内での名前。区切りは <c>/</c>。</param>
     /// <param name="Length">ファイルの大きさ。進捗の計算に使う。</param>
     /// <param name="IsDirectory">空のフォルダを表すエントリなら true。</param>
-    internal readonly record struct PlanItem(string SourcePath, string EntryName, long Length, bool IsDirectory);
+    internal readonly record struct PlanItem(string SourcePath, string EntryName, long Length, bool IsDirectory)
+    {
+        /// <summary>リンクとして入れるなら、その指す先 (#366)。中身はディスクから読まず、指す先のパスを書く。</summary>
+        public ArchiveLink? Link { get; init; }
+
+        /// <summary>
+        /// 読んでよい場所。開いたあとで実際の場所がこの中かを確かめる (#366)。
+        /// 確かめてから読むまでの間にリンクに差し替えられても、外のファイルを書庫に入れない。
+        /// </summary>
+        public ReadScope? Scope { get; init; }
+    }
 }
+
+/// <summary>読んでよい場所 (#366)。</summary>
+/// <param name="Path">選んだフォルダーかファイルの実際の場所。</param>
+/// <param name="ByGuid">ドライブ文字ではなく、ボリュームの GUID で表した場所か。</param>
+internal sealed record ReadScope(string Path, bool ByGuid)
+{
+    /// <summary>
+    /// 読むために開く。開いたあとで、実際の場所がこの中かを確かめる。
+    /// </summary>
+    /// <exception cref="IOException">開けない場合や、実際の場所がこの外だった場合。</exception>
+    public FileStream Open(string path, int bufferSize = 4096)
+    {
+        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize);
+        try
+        {
+            var final = DiskLinks.FinalPath(stream.SafeFileHandle, ByGuid);
+            if (final is null || !DiskLinks.IsSameOrInside(final, Path))
+            {
+                throw new FileChangedWhileReadingException();
+            }
+
+            return stream;
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>読むために開く。場所が分からないものは、今までどおりそのまま開く。</summary>
+    public static FileStream Open(ReadScope? scope, string path, int bufferSize = 4096)
+        => scope?.Open(path, bufferSize)
+           ?? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize);
+}
+
+/// <summary>書き換えると、リンクと同じ名前のフォルダーの中に項目ができてしまう (#366)。書き換える前に止める。</summary>
+internal sealed class LinkOverlapException() : IOException("A link would overlap a folder in the archive.");
+
+/// <summary>読もうとしたファイルが、選んだフォルダーの外のものに変わっていた (#366)。</summary>
+internal sealed class FileChangedWhileReadingException() : IOException("The file was replaced while reading.");

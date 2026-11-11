@@ -70,6 +70,7 @@ internal static class ZipArchiveReader
         // 進捗通知が多すぎるとUI側が詰まるため、1%刻みに間引く
         var reportStep = Math.Max(1, entries.Count / 100);
         var done = 0;
+        var links = 0;
 
         foreach (var entry in entries)
         {
@@ -87,6 +88,12 @@ internal static class ZipArchiveReader
             {
                 builder.AddFolder(name, ReadLastWriteTime(entry));
                 continue;
+            }
+
+            // .NET の ZipArchive は作った OS を見せないので、外部属性だけで見る (#366)
+            if (ZipLinks.IsLink(entry.ExternalAttributes))
+            {
+                links++;
             }
 
             builder.AddFile(
@@ -112,6 +119,7 @@ internal static class ZipArchiveReader
             comment: ZipComment.Read(path, names));
         contents.Names = names;
         contents.LegacyNameBytes = recorder.Recorded;
+        contents.LinkCount = links;
         return contents;
     }
 

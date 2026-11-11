@@ -534,6 +534,18 @@ internal static partial class Strings
             "This archive is too large to be made self-extracting."),
     };
 
+    /// <summary>
+    /// リンクの入った書庫から自己解凍書庫を作るとき (#366)。自己解凍のプログラムは、まだリンクを展開できない (#368)。
+    /// </summary>
+    public static string ConfirmSfxWithLinks(int count) => Pick(
+        $"この書庫にはリンクが {count:N0} 個入っています。"
+        + $"{Environment.NewLine}自己解凍書庫から展開すると、どの PC でも、リンクは指す先のパスが書かれた小さなファイルになります。"
+        + $"{Environment.NewLine}{Environment.NewLine}自己解凍書庫を作成しますか?",
+        $"This archive contains {count:N0} {Plural(count, "link", "links")}."
+        + $"{Environment.NewLine}When the self-extracting archive is extracted, "
+        + "each link becomes a small file that contains the path it points to, on any PC."
+        + $"{Environment.NewLine}{Environment.NewLine}Create the self-extracting archive?");
+
     public static string AllFilesFilter => Pick(
         "すべてのファイル (*.*)|*.*", "All files (*.*)|*.*");
 
@@ -551,15 +563,15 @@ internal static partial class Strings
 
     /// <summary>新しい書庫に一部のファイルを入れられず、既にある書庫を置き換えるかを尋ねるとき (#320)。</summary>
     public static string ConfirmReplaceWithFailures(string name, int count, string preview, string more) => Pick(
-        $"{count:N0} 個のファイルを追加できませんでした。"
+        $"{count:N0} 個の項目を追加できませんでした。"
         + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
         + $"{Environment.NewLine}{Environment.NewLine}"
-        + $"追加できたファイルだけの書庫で {name} を置き換えますか?"
+        + $"追加できた項目だけの書庫で {name} を置き換えますか?"
         + $"{Environment.NewLine}「いいえ」を選ぶと、{name} はそのまま残ります。",
-        $"{count:N0} {Plural(count, "file", "files")} could not be added."
+        $"{count:N0} {Plural(count, "item", "items")} could not be added."
         + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
         + $"{Environment.NewLine}{Environment.NewLine}"
-        + $"Replace {name} with an archive of the files that were added?"
+        + $"Replace {name} with an archive of the items that were added?"
         + $"{Environment.NewLine}If you choose No, {name} is left as it is.");
 
     /// <summary>開いている書庫を、新しい書庫で置き換えようとしたとき (#207)。</summary>
@@ -850,12 +862,55 @@ internal static partial class Strings
         $"Files kept instead of replaced: {count:N0}");
 
     public static string FailedFilesLine(int count) => Pick(
-        $"追加できなかったファイル: {count:N0} 個",
-        $"Files that could not be added: {count:N0}");
+        $"追加できなかった項目: {count:N0} 個",
+        $"Items that could not be added: {count:N0}");
 
     public static string AddDone(int count) => Pick(
         $"{count:N0} 個のファイルを追加しました",
         $"Added {count:N0} {Plural(count, "file", "files")}");
+
+    /// <summary>フォルダーの中のリンクを、リンクとして書庫に入れたとき (#366)。</summary>
+    public static string LinksAddedLine(int count) => Pick(
+        $"リンクとして追加した項目: {count:N0} 個",
+        $"Items added as links: {count:N0}");
+
+    /// <summary>
+    /// 選択したフォルダーの外を指すリンクを、指す先のパスのまま入れたとき (#366)。パスにユーザー名などが入ることがある。
+    /// </summary>
+    public static string OutsideLinksLine(int count) => Pick(
+        $"このうち {count:N0} 個は、選択したフォルダーの外を指しています。指す先のパスがそのまま書庫に入っているため、書庫を渡した相手にもパスが見えます:",
+        $"{count:N0} of them {Plural(count, "points", "point")} outside the selected folder. "
+        + "The archive contains the target paths as they are, so anyone you give the archive to can see them:");
+
+    /// <summary>リンクとその指す先を並べる 1 行 (#366)。</summary>
+    public static string LinkLine(string name, string target) => Pick(
+        $"  {name} → {target}", $"  {name} → {target}");
+
+    /// <summary>ドライブ全体を選んで追加しようとしたとき (#366)。書庫の中の名前を付けられない。</summary>
+    public static string DriveCannotBeAdded => Pick(
+        "ドライブ全体は追加できません。", "A whole drive cannot be added.");
+
+    /// <summary>フォルダーが、それ自身を中に含んでいたとき (#366)。NAS などで、リンクがふつうのフォルダーに見える場合。</summary>
+    public static string FolderContainsItself => Pick(
+        "このフォルダーは、外側にあるフォルダーと同じものなので、中身を追加しませんでした。",
+        "This folder is the same as a folder that contains it, so its contents were not added.");
+
+    /// <summary>ZIP にリンクとして書く決まりが無い種類のリンク (#366)。WSL のシンボリックリンクなど。</summary>
+    public static string LinkKindNotSupported => Pick(
+        "この種類のリンクは書庫に追加できません。",
+        "This kind of link cannot be added to an archive.");
+
+    /// <summary>リンクの指す先を読めないか、書庫に記録できない書き方だったとき (#366)。</summary>
+    public static string LinkTargetNotSupported => Pick(
+        "このリンクの指す先のパスは、読み取れないか、書庫に記録できない書き方です。",
+        "The path this link points to could not be read, or is written in a way that cannot be stored in an archive.");
+
+    /// <summary>
+    /// リンクと、同じ名前のフォルダーの中の項目が重なるとき (#366)。追加の理由にも、フォルダーの作成・名前の変更・移動の失敗の理由にも使う。
+    /// </summary>
+    public static string LinkOverlapsFolder => Pick(
+        "書庫の中に、同じ名前のリンクとフォルダーが両方できてしまいます。",
+        "The archive would then contain a link and a folder with the same name.");
 
     // ------------------------------------------------------------------ 既定のアプリで開く (#12, #16)
 
@@ -2907,6 +2962,13 @@ internal static partial class Strings
             Expzip.Archives.ReservedNameException => Pick(
                 "Windows では使えない名前です。", "This name cannot be used on Windows."),
 
+            // 読む直前に、選んだフォルダーの外のファイルに差し替えられていた (#366)
+            Expzip.Archives.FileChangedWhileReadingException => Pick(
+                "読み込む直前に、このファイルの実際の場所が、選択した場所の外に変わりました。",
+                "Just before it was read, the actual location of this file changed to somewhere outside what you selected."),
+
+            Expzip.Archives.LinkOverlapException => LinkOverlapsFolder,
+
             IOException { HResult: SharingViolation or LockViolation } => path is null
                 ? Pick("ほかのプログラムが使用中のため、アクセスできません。",
                     "Another program is using the file.")
@@ -3081,12 +3143,18 @@ internal static partial class Strings
         $"Could not create {path}: {reason}");
 
     public static string CommandFilesFailed(int count) => Pick(
-        $"{count} 個のファイルを圧縮できませんでした。",
-        $"{count} {Plural(count, "file", "files")} could not be compressed.");
+        $"{count} 個の項目を圧縮できませんでした。",
+        $"{count} {Plural(count, "item", "items")} could not be compressed.");
 
     public static string CommandFileFailed(string name, string reason) => Pick(
         $"  {name}: {reason}",
         $"  {name}: {reason}");
+
+    /// <summary>コマンドラインからの圧縮で、選択したフォルダーの外を指すリンクを入れたとき (#366)。</summary>
+    public static string CommandOutsideLinks(int count) => Pick(
+        $"{count} 個のリンクは、ソースの外を指しています。指す先のパスがそのまま書庫に入っているため、書庫を渡した相手にもパスが見えます。",
+        $"{count} {Plural(count, "link points", "links point")} outside the source. "
+        + "The archive contains the target paths as they are, so anyone you give the archive to can see them.");
 
     public static string CommandSummary(int succeeded, int failed) => Pick(
         $"成功 {succeeded} 個、失敗 {failed} 個",

@@ -3238,6 +3238,11 @@ public partial class MainWindow : Window
             {
                 ShowAddResult(result);
             }
+            else if (OutsideLinksText(result) is { } outside)
+            {
+                // 置き換えるかを尋ねたあとでも、外を指すリンクは知らせる。書庫を人に渡す前に気付けるように (#366)
+                MessageBox.Show(this, outside.TrimEnd(), AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
 
             return true;
         }
@@ -3861,7 +3866,37 @@ public partial class MainWindow : Window
 
         // 同名のエントリがある場合だけ確認を出す。無用な確認は挟まない
         var replaceExisting = true;
-        var conflicts = FindConflicts(sourcePaths, destinationFolder);
+        List<string> conflicts;
+
+        // 下見でもフォルダーをたどる。大きなフォルダーでは時間がかかるので、画面を止めず、中止もできるようにする (#366)
+        using (var looking = new CancellationTokenSource())
+        {
+            _cancellation = looking;
+            SetBusy(true);
+            try
+            {
+                conflicts = await FindConflictsAsync(sourcePaths, destinationFolder, looking.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                StatusMessage.Text = Strings.AddCancelled;
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MessageBox.Show(
+                    this,
+                    Strings.AddFailed(Strings.Reason(ex)),
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            finally
+            {
+                _cancellation = null;
+                SetBusy(false);
+            }
+        }
+
         if (conflicts.Count > 0)
         {
             var preview = string.Join(Environment.NewLine, conflicts.Take(5).Select(static c => "  " + c));
@@ -3973,11 +4008,18 @@ public partial class MainWindow : Window
             }
         }
 
+        var outside = OutsideLinksText(result);
+        if (outside is not null)
+        {
+            message.AppendLine();
+            message.Append(outside);
+        }
+
         StatusMessage.Text = Strings.AddDone(result.Added + result.Replaced);
 
         // うまくいった場合はステータスバーだけにする。ファイルを放り込むたびに
         // ダイアログを閉じさせるのは邪魔でしかない。伝えることがある場合だけ出す
-        if (result.Failed.Count == 0 && result.Skipped == 0)
+        if (result.Failed.Count == 0 && result.Skipped == 0 && outside is null)
         {
             return;
         }
@@ -3985,8 +4027,37 @@ public partial class MainWindow : Window
         MessageBox.Show(this, message.ToString().TrimEnd(), AppName, MessageBoxButton.OK, icon);
     }
 
+    /// <summary>
+    /// 外を指すリンクの知らせ (#366)。外を指すリンクは、指す先のパス (ユーザー名などが入ることがある) がそのまま書庫に入っている。
+    /// 名前を挙げて知らせる。無ければ <see langword="null"/>。
+    /// </summary>
+    private static string? OutsideLinksText(AddResult result)
+    {
+        var outside = result.Links.Where(static l => l.Outside).ToList();
+        if (outside.Count == 0)
+        {
+            return null;
+        }
+
+        var message = new System.Text.StringBuilder();
+        message.AppendLine(Strings.LinksAddedLine(result.Links.Count));
+        message.AppendLine(Strings.OutsideLinksLine(outside.Count));
+        foreach (var link in outside.Take(5))
+        {
+            message.AppendLine(Strings.LinkLine(link.Name, link.Target));
+        }
+
+        if (outside.Count > 5)
+        {
+            message.AppendLine(Strings.More(outside.Count - 5).TrimStart('\r', '\n'));
+        }
+
+        return message.ToString();
+    }
+
     /// <summary>追加しようとしている名前のうち、書庫内に既にあるものを返す。</summary>
-    private List<string> FindConflicts(IReadOnlyList<string> sourcePaths, string destinationFolder)
+    private async Task<List<string>> FindConflictsAsync(
+        IReadOnlyList<string> sourcePaths, string destinationFolder, CancellationToken cancellationToken)
     {
         if (Contents is null)
         {
@@ -3996,9 +4067,10 @@ public partial class MainWindow : Window
         var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         CollectPaths(Contents.Root, existing);
 
-        return ZipArchiveWriter.PlanEntryNames(sourcePaths, destinationFolder)
-            .Where(name => existing.Contains(name.TrimEnd('/')))
-            .ToList();
+        var planned = await Task.Run(
+            () => ZipArchiveWriter.PlanEntryNames(sourcePaths, destinationFolder, cancellationToken), cancellationToken);
+
+        return planned.Where(name => existing.Contains(name.TrimEnd('/'))).ToList();
     }
 
     private static void CollectPaths(ArchiveFolder folder, HashSet<string> into)
@@ -4656,6 +4728,16 @@ public partial class MainWindow : Window
                 this,
                 Strings.SfxRejected(reason),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // 自己解凍のプログラムは、まだリンクを展開できない (#368)。受け取った人の PC で起きることを先に知らせる (#366)
+        if (contents.LinkCount > 0
+            && MessageBox.Show(
+                this,
+                Strings.ConfirmSfxWithLinks(contents.LinkCount),
+                AppName, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
             return;
         }
 

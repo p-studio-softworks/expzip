@@ -39,8 +39,26 @@ internal static class ZipEncryptedWriter
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var plan = ZipArchiveWriter.BuildPlan(sourcePaths, destinationFolder);
+        // 足す先の書庫そのものは入れない。追加するフォルダーの中に書庫があることがある (#366)
+        var failed = new List<(string, string)>();
+        List<ZipArchiveWriter.PlanItem> plan;
+        try
+        {
+            plan = ZipArchiveWriter.BuildPlan(sourcePaths, destinationFolder, [archivePath], failed, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // たどっている間の中止も、書き換えの途中の中止と同じく「中止した」と返す (#366)
+            return new AddResult(0, 0, 0, failed, Cancelled: true);
+        }
         ZipArchiveWriter.CheckPlanDepth(plan);
+
+        // リンクと、同じ名前のフォルダーの中の項目が並ぶ書庫を作らない (#366)
+        using (var existing = ZipUpdate.Open(archivePath, password))
+        {
+            plan = ZipArchiveWriter.DropLinkConflicts(
+                plan, existing.Cast<ZipEntry>().Select(static e => (e.Name, ZipLinks.IsLink(e))), failed);
+        }
 
         var additions = plan.Where(static p => !p.IsDirectory).ToList();
         var totalBytes = additions.Sum(static p => p.Length);
@@ -49,7 +67,7 @@ internal static class ZipEncryptedWriter
         var added = 0;
         var replaced = 0;
         var skipped = 0;
-        var failed = new List<(string, string)>();
+        var links = new List<AddedLink>();
 
         var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -97,8 +115,21 @@ internal static class ZipEncryptedWriter
 
                     try
                     {
-                        using var source = File.OpenRead(item.SourcePath);
-                        writer.WriteFile(item.EntryName, source, ReadLastWriteTime(item.SourcePath));
+                        if (item.Link is { } link)
+                        {
+                            // 中身はディスクから読まず、指す先のパスを書く。パスも暗号化される (#366)
+                            using var content = new MemoryStream(ZipLinks.Content(link), writable: false);
+                            writer.WriteFile(
+                                item.EntryName, content, ReadLastWriteTime(item.SourcePath), CompressionMethod.Stored,
+                                entry => ZipLinks.Mark(entry, link.PointsToFolder));
+                            links.Add(new AddedLink(item.EntryName, link.Target, link.Outside));
+                        }
+                        else
+                        {
+                            // 開いたあとで、選んだフォルダーの中のファイルかを確かめる (#366)
+                            using var source = ReadScope.Open(item.Scope, item.SourcePath);
+                            writer.WriteFile(item.EntryName, source, ReadLastWriteTime(item.SourcePath));
+                        }
 
                         if (existed)
                         {
@@ -123,7 +154,7 @@ internal static class ZipEncryptedWriter
             });
 
         return result
-            ? new AddResult(added, replaced, skipped, failed, Cancelled: false)
+            ? new AddResult(added, replaced, skipped, failed, Cancelled: false) { Links = links }
             : new AddResult(0, 0, 0, failed, Cancelled: true);
     }
 
@@ -174,6 +205,15 @@ internal static class ZipEncryptedWriter
         var renamed = 0;
         var namesAfter = new List<string>();
 
+        // 移したあとに、リンクの中を通る名前ができないか。書き換える前に止める (#366)
+        using (var before = ZipUpdate.Open(archivePath, password))
+        {
+            var entries = before.Cast<ZipEntry>().ToList();
+            ZipArchiveWriter.CheckLinkOverlap(
+                entries.Select(e => (ZipArchiveWriter.MapAny(e.Name, changes) ?? e.Name, ZipLinks.IsLink(e))),
+                entries.Select(e => ZipArchiveWriter.MapAny(e.Name, changes)).OfType<string>());
+        }
+
         var result = Rewrite(
             archivePath, password, cancellationToken,
             keep: name =>
@@ -213,6 +253,14 @@ internal static class ZipEncryptedWriter
         ArchiveLimits.CheckDepthToWrite(entryName);
 
         var taken = false;
+
+        // リンクの中にフォルダーを作らない (#366)
+        using (var before = ZipUpdate.Open(archivePath, password))
+        {
+            ZipArchiveWriter.CheckLinkOverlap(
+                before.Cast<ZipEntry>().Select(static e => (e.Name, ZipLinks.IsLink(e))).Append((entryName, false)),
+                [entryName]);
+        }
 
         var result = Rewrite(
             archivePath, password, CancellationToken.None,
@@ -325,8 +373,10 @@ internal static class ZipEncryptedWriter
                     // 残すエントリも一度復号して暗号化し直す。SharpZipLib には
                     // 暗号化されたままのデータを移す手立てが無い。
                     // 圧縮するかどうかは元の書庫での扱いを引き継ぐ (#38)
+                    // リンクの印も写す。写さないと、リンク先のパスが書かれたふつうのファイルに変わる (#366)
                     using var content = source.GetInputStream(entry);
-                    writer.WriteFile(name, content, entry.DateTime, entry.CompressionMethod);
+                    writer.WriteFile(name, content, entry.DateTime, entry.CompressionMethod,
+                        written => ZipLinks.CopyMark(entry, written));
                 }
 
                 append?.Invoke(writer);
@@ -357,11 +407,12 @@ internal static class ZipEncryptedWriter
             output.CloseEntry();
         }
 
+        /// <param name="adjust">書き込む前に項目に手を加える。リンクの印を付けるのに使う (#366)。</param>
         public void WriteFile(
             string entryName, Stream content, DateTime lastWriteTime,
-            CompressionMethod method = CompressionMethod.Deflated)
+            CompressionMethod method = CompressionMethod.Deflated, Action<ZipEntry>? adjust = null)
         {
-            output.PutNextEntry(new ZipEntry(entryName)
+            var entry = new ZipEntry(entryName)
             {
                 DateTime = lastWriteTime,
 
@@ -370,7 +421,9 @@ internal static class ZipEncryptedWriter
                 AESKeySize = encrypt ? AesKeySize : 0,
                 IsUnicodeText = true,
                 CompressionMethod = method,
-            });
+            };
+            adjust?.Invoke(entry);
+            output.PutNextEntry(entry);
 
             content.CopyTo(output);
             output.CloseEntry();

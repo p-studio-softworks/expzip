@@ -410,6 +410,14 @@ IEnumerable<object?> Alternates(ParameterInfo parameter)
         yield return Activator.CreateInstance(
             assembly.GetType("Expzip.Archives.ReservedNameException", throwOnError: true)!,
             @"C:\Users\user\Desktop\CON.txt");
+
+        // 圧縮で読む直前に、選んだ場所の外のファイルに差し替えられていた (#366)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.FileChangedWhileReadingException", throwOnError: true)!);
+
+        // リンクと同じ名前のフォルダーの中に項目ができる書き換え (#366)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.LinkOverlapException", throwOnError: true)!);
     }
     else if (type.IsEnum)
     {

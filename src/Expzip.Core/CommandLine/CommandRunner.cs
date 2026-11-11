@@ -257,10 +257,12 @@ internal static class CommandRunner
                 Report(Strings.CommandTargetDuplicate(job.Target, seen[job.Target] ?? 0));
             }
 
-            // ほかの行のソースも見る。そのフォルダーを圧縮する順番によって、中身が変わってしまう
+            // ほかの行のソースも見る。そのフォルダーを圧縮する順番によって、中身が変わってしまう。
+            // 実際の場所で比べる。ソースがリンクでも、指す先の中に書庫を作る指定はエラーにする (#366)
+            var target = DiskLinks.Canonical(job.Target);
             foreach (var other in jobs)
             {
-                if (IsSameOrInside(job.Target, other.Source))
+                if (IsSameOrInside(target, DiskLinks.Canonical(other.Source)))
                 {
                     Report(Strings.CommandTargetInsideSource(job.Target, other.Source));
                     break;
@@ -269,12 +271,8 @@ internal static class CommandRunner
         }
     }
 
-    private static bool IsSameOrInside(string path, string folder)
-    {
-        var parent = Path.TrimEndingDirectorySeparator(folder);
-        return path.Equals(parent, StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith(parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
+    /// <remarks>ソースがドライブの根を指すリンクのときも比べられるように、根を扱える比べ方を使う (#366)。</remarks>
+    private static bool IsSameOrInside(string path, string folder) => DiskLinks.IsSameOrInside(path, folder);
 
     /// <summary>書庫を 1 個作る。</summary>
     /// <returns>作れたら <see langword="true"/>。</returns>
@@ -312,6 +310,18 @@ internal static class CommandRunner
 
             AtomicFile.Replace(temporary, job.Target, overwrite);
             output.WriteLine(AtLine(job.Line, Strings.CommandCreated(job.Target, result.Added)));
+
+            // 外を指すリンクは、指す先のパス (ユーザー名などが入ることがある) がそのまま入っている (#366)
+            var outside = result.Links.Where(static l => l.Outside).ToList();
+            if (outside.Count > 0)
+            {
+                output.WriteLine(AtLine(job.Line, Strings.CommandOutsideLinks(outside.Count)));
+                foreach (var link in outside)
+                {
+                    output.WriteLine(Strings.LinkLine(link.Name, link.Target));
+                }
+            }
+
             return true;
         }
         catch (Exception ex)

@@ -82,6 +82,11 @@ internal sealed class ArchiveContents
 
     private bool? _split;
 
+    /// <summary>
+    /// リンクの項目の数 (#366)。ZIP だけが数える。自己解凍のプログラムはリンクを展開できないので (#368)、作る前に知らせるのに使う。
+    /// </summary>
+    public int LinkCount { get; set; }
+
     /// <summary>名前をどの読み方で読んだか (#335)。この書庫を読む処理には、これを渡す。</summary>
     public NameReading Names { get; set; } = NameReading.Default;
 

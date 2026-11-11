@@ -205,7 +205,7 @@ $app = Start-Expzip
 
 Check '上書きを確かめる' (Start-DropOverwrite $app @($folder))
 $box = Find-MessageBox $app 30000
-Check '一部を追加できなければ尋ねる' ($box -and $box.Text -match '1 個のファイルを追加できませんでした' -and $box.Text -match '落とす\.zip を置き換えますか') $(if ($box) { $box.Text })
+Check '一部を追加できなければ尋ねる' ($box -and $box.Text -match '1 個の項目を追加できませんでした' -and $box.Text -match '落とす\.zip を置き換えますか') $(if ($box) { $box.Text })
 if ($box) { Close-MessageBox $box 'いいえ(N)' }
 Wait-Idle $app
 Check 'いいえなら元の書庫のまま' ((Get-ZipNames $target) -contains 'old.txt') ((Get-ZipNames $target) -join ', ')

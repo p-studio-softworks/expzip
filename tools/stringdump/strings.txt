@@ -335,11 +335,11 @@ CommandFileFailed (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip
   en    ⟦報告書.pdf⟧: ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
 
 CommandFilesFailed (count: 3)
-  ja  3 個のファイルを圧縮できませんでした。
-  en  3 files could not be compressed.
+  ja  3 個の項目を圧縮できませんでした。
+  en  3 items could not be compressed.
 CommandFilesFailed (count: 1)
-  ja  1 個のファイルを圧縮できませんでした。
-  en  1 file could not be compressed.
+  ja  1 個の項目を圧縮できませんでした。
+  en  1 item could not be compressed.
 
 CommandHelp
   ja  Expzip をコマンドラインで使用する方法
@@ -390,6 +390,13 @@ CommandListUnreadable (path: C:\Users\user\Desktop\資料.zip, reason: C:\Users\
 CommandNothingDone
   ja  指定に不備があるため、何も圧縮していません。
   en  Nothing was compressed because of the problems above.
+
+CommandOutsideLinks (count: 3)
+  ja  3 個のリンクは、ソースの外を指しています。指す先のパスがそのまま書庫に入っているため、書庫を渡した相手にもパスが見えます。
+  en  3 links point outside the source. The archive contains the target paths as they are, so anyone you give the archive to can see them.
+CommandOutsideLinks (count: 1)
+  ja  1 個のリンクは、ソースの外を指しています。指す先のパスがそのまま書庫に入っているため、書庫を渡した相手にもパスが見えます。
+  en  1 link points outside the source. The archive contains the target paths as they are, so anyone you give the archive to can see them.
 
 CommandSourceIsDrive (path: C:\Users\user\Desktop\資料.zip)
   ja  ドライブ全体は圧縮できません: ⟦C:\Users\user\Desktop\資料.zip⟧
@@ -753,39 +760,58 @@ ConfirmReplaceSplit (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   �
       |   メモ.txt⟧
 
 ConfirmReplaceWithFailures (name: 報告書.pdf, count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
-  ja  3 個のファイルを追加できませんでした。
+  ja  3 個の項目を追加できませんでした。
       | 
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧
       | 
-      | 追加できたファイルだけの書庫で ⟦報告書.pdf⟧ を置き換えますか?
+      | 追加できた項目だけの書庫で ⟦報告書.pdf⟧ を置き換えますか?
       | 「いいえ」を選ぶと、⟦報告書.pdf⟧ はそのまま残ります。
-  en  3 files could not be added.
+  en  3 items could not be added.
       | 
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧
       | 
-      | Replace ⟦報告書.pdf⟧ with an archive of the files that were added?
+      | Replace ⟦報告書.pdf⟧ with an archive of the items that were added?
       | If you choose No, ⟦報告書.pdf⟧ is left as it is.
 ConfirmReplaceWithFailures (name: 報告書.pdf, count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
-  ja  1 個のファイルを追加できませんでした。
+  ja  1 個の項目を追加できませんでした。
       | 
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧
       | 
-      | 追加できたファイルだけの書庫で ⟦報告書.pdf⟧ を置き換えますか?
+      | 追加できた項目だけの書庫で ⟦報告書.pdf⟧ を置き換えますか?
       | 「いいえ」を選ぶと、⟦報告書.pdf⟧ はそのまま残ります。
-  en  1 file could not be added.
+  en  1 item could not be added.
       | 
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧
       | 
-      | Replace ⟦報告書.pdf⟧ with an archive of the files that were added?
+      | Replace ⟦報告書.pdf⟧ with an archive of the items that were added?
       | If you choose No, ⟦報告書.pdf⟧ is left as it is.
+
+ConfirmSfxWithLinks (count: 3)
+  ja  この書庫にはリンクが 3 個入っています。
+      | 自己解凍書庫から展開すると、どの PC でも、リンクは指す先のパスが書かれた小さなファイルになります。
+      | 
+      | 自己解凍書庫を作成しますか?
+  en  This archive contains 3 links.
+      | When the self-extracting archive is extracted, each link becomes a small file that contains the path it points to, on any PC.
+      | 
+      | Create the self-extracting archive?
+ConfirmSfxWithLinks (count: 1)
+  ja  この書庫にはリンクが 1 個入っています。
+      | 自己解凍書庫から展開すると、どの PC でも、リンクは指す先のパスが書かれた小さなファイルになります。
+      | 
+      | 自己解凍書庫を作成しますか?
+  en  This archive contains 1 link.
+      | When the self-extracting archive is extracted, each link becomes a small file that contains the path it points to, on any PC.
+      | 
+      | Create the self-extracting archive?
 
 ContentsRemoved
   ja  中身が入っていません。インストール後に Windows が控えたものなど、中身を抜いた形のようです。
@@ -897,6 +923,10 @@ DragTooLarge (fileLimit: 3, megabyteLimit: 1048576, count: 3, megabytes: 1048576
       | You have selected 3 items / 1,048,576MB.
       | 
       | Use Extract on the toolbar instead.
+
+DriveCannotBeAdded
+  ja  ドライブ全体は追加できません。
+  en  A whole drive cannot be added.
 
 EditCopy
   ja  コピー
@@ -1034,8 +1064,8 @@ ExtractingOne (name: 報告書.pdf)
   en  Extracting ⟦報告書.pdf⟧…
 
 FailedFilesLine (count: 3)
-  ja  追加できなかったファイル: 3 個
-  en  Files that could not be added: 3
+  ja  追加できなかった項目: 3 個
+  en  Items that could not be added: 3
 
 FailureLine (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
   ja    ⟦報告書.pdf⟧ … ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
@@ -1054,6 +1084,10 @@ FileCount (count: 3, limits: (空))
 FindingRowName (severity: 危険, target: 画像/2024/写真.jpg, what: ルート直下に README.md を置く / 拡張子は小文字にする)
   ja  ⟦危険⟧、⟦画像/2024/写真.jpg⟧、⟦ルート直下に README.md を置く / 拡張子は小文字にする⟧
   en  ⟦Danger⟧, ⟦画像/2024/写真.jpg⟧, ⟦ルート直下に README.md を置く / 拡張子は小文字にする⟧
+
+FolderContainsItself
+  ja  このフォルダーは、外側にあるフォルダーと同じものなので、中身を追加しませんでした。
+  en  This folder is the same as a folder that contains it, so its contents were not added.
 
 FolderCreated (name: 報告書.pdf)
   ja  「⟦報告書.pdf⟧」を作成しました
@@ -1507,6 +1541,26 @@ LimitTailUnopened
   ja  後ろのデータは開けません
   en  appended data cannot be opened
 
+LinkKindNotSupported
+  ja  この種類のリンクは書庫に追加できません。
+  en  This kind of link cannot be added to an archive.
+
+LinkLine (name: 報告書.pdf, target: 画像/2024/写真.jpg)
+  ja    ⟦報告書.pdf⟧ → ⟦画像/2024/写真.jpg⟧
+  en    ⟦報告書.pdf⟧ → ⟦画像/2024/写真.jpg⟧
+
+LinkOverlapsFolder
+  ja  書庫の中に、同じ名前のリンクとフォルダーが両方できてしまいます。
+  en  The archive would then contain a link and a folder with the same name.
+
+LinkTargetNotSupported
+  ja  このリンクの指す先のパスは、読み取れないか、書庫に記録できない書き方です。
+  en  The path this link points to could not be read, or is written in a way that cannot be stored in an archive.
+
+LinksAddedLine (count: 3)
+  ja  リンクとして追加した項目: 3 個
+  en  Items added as links: 3
+
 LocationHidden
   ja  隠れている場所
   en  Hidden parts of the path
@@ -1811,6 +1865,13 @@ OpenedWithDefaultApp (fileName: 資料.zip)
   ja  ⟦資料.zip⟧ を既定のアプリで開きました
   en  Opened ⟦資料.zip⟧ with its default app
 
+OutsideLinksLine (count: 3)
+  ja  このうち 3 個は、選択したフォルダーの外を指しています。指す先のパスがそのまま書庫に入っているため、書庫を渡した相手にもパスが見えます:
+  en  3 of them point outside the selected folder. The archive contains the target paths as they are, so anyone you give the archive to can see them:
+OutsideLinksLine (count: 1)
+  ja  このうち 1 個は、選択したフォルダーの外を指しています。指す先のパスがそのまま書庫に入っているため、書庫を渡した相手にもパスが見えます:
+  en  1 of them points outside the selected folder. The archive contains the target paths as they are, so anyone you give the archive to can see them:
+
 Paren (detail: (空))
   ja  
   en  
@@ -1906,6 +1967,12 @@ Reason (error: Expzip.Archives.DamagedDataException: The archive data is damaged
 Reason (error: Expzip.Archives.ReservedNameException: 'C:\Users\user\Desktop\CON.txt' is a reserved device name.)
   ja  Windows では使えない名前です。
   en  This name cannot be used on Windows.
+Reason (error: Expzip.Archives.FileChangedWhileReadingException: The file was replaced while reading.)
+  ja  読み込む直前に、このファイルの実際の場所が、選択した場所の外に変わりました。
+  en  Just before it was read, the actual location of this file changed to somewhere outside what you selected.
+Reason (error: Expzip.Archives.LinkOverlapException: A link would overlap a folder in the archive.)
+  ja  書庫の中に、同じ名前のリンクとフォルダーが両方できてしまいます。
+  en  The archive would then contain a link and a folder with the same name.
 
 Rebuilding (done: 45)
   ja  書庫を作り直しています… (45 個)

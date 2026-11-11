@@ -83,12 +83,24 @@ internal static class ZipUpdate
     /// <param name="path">読み出すファイル。</param>
     /// <param name="cancellationToken">中断用。</param>
     /// <param name="onRead">読んだバイト数の通知先。進捗に使う。</param>
+    /// <param name="scope">読んでよい場所 (#366)。開いたあとで、実際の場所がこの中かを確かめる。</param>
     public sealed class FileSource(
-        string path, CancellationToken cancellationToken, Action<int>? onRead = null)
+        string path, CancellationToken cancellationToken, ReadScope? scope = null, Action<int>? onRead = null)
         : IStaticDataSource
     {
+        public FileSource(string path, CancellationToken cancellationToken, Action<int>? onRead)
+            : this(path, cancellationToken, null, onRead)
+        {
+        }
+
         public Stream GetSource()
-            => new WatchedStream(File.OpenRead(path), cancellationToken, onRead);
+            => new WatchedStream(ReadScope.Open(scope, path), cancellationToken, onRead);
+    }
+
+    /// <summary>メモリーの上のバイト列を渡す供給元。リンクの項目の中身 (指す先のパス) に使う (#366)。</summary>
+    public sealed class BytesSource(byte[] content) : IStaticDataSource
+    {
+        public Stream GetSource() => new MemoryStream(content, writable: false);
     }
 
     /// <summary>読むたびに中断を確かめ、読んだ量を知らせる包み。</summary>
