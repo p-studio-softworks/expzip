@@ -657,6 +657,288 @@ public sealed class ExtractionTests
         Assert.Equal("SECOND", File.ReadAllText(Assert.Single(Directory.EnumerateFiles(destination))));
     }
 
+    [Theory]
+    [InlineData(FileAttributes.ReadOnly, false)]
+    [InlineData(FileAttributes.ReadOnly, true)]
+    [InlineData(FileAttributes.Hidden, false)]
+    [InlineData(FileAttributes.System, false)]
+    [InlineData(FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System, false)]
+    [InlineData(FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System, true)]
+    public void はいと答えた保護属性のファイルは置き換える(FileAttributes attribute, bool withoutIgnoreReadOnly)
+    {
+        // 確認に名前が出るので、それを見て「はい」と答えたなら、読み取り専用・隠し・システムでも置き換える (#372)。
+        // 読み取り専用のまま 1 回で置き換えられない場所では、外してから置き換える
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        File.WriteAllText(target, "OLD");
+        File.SetAttributes(target, attribute);
+
+        var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["a.txt"], destination, null));
+        Assert.True(conflict.IsProtected);
+        Assert.Null(conflict.Block);
+
+        AtomicFile.IgnoreReadOnlyRenameDisabled = withoutIgnoreReadOnly;
+        try
+        {
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+                ExtractOverwrite.Only([conflict.Target]), null, CancellationToken.None);
+
+            Assert.Empty(result.NotReplaced);
+            Assert.Empty(result.Failed);
+            Assert.Equal(1, result.Extracted);
+        }
+        finally
+        {
+            AtomicFile.IgnoreReadOnlyRenameDisabled = false;
+        }
+
+        // NTFS では、読み取り専用のまま 1 回で置き換える。外す道を通るのは、その指定を使えないときだけ
+        var readOnly = (attribute & FileAttributes.ReadOnly) != 0;
+        Assert.Equal(readOnly && withoutIgnoreReadOnly, log.Names.Contains("unreadonly", StringComparison.Ordinal));
+        Assert.Equal("NEW", File.ReadAllText(target));
+        // 元の属性は付け直さない。隠しを付け直すと、書庫から届いたファイルがエクスプローラーに出なくなる
+        Assert.Equal(0, (int)(File.GetAttributes(target) & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System)));
+        Assert.Single(Directory.EnumerateFiles(destination));
+    }
+
+    [Theory]
+    [InlineData(FileAttributes.ReadOnly)]
+    [InlineData(FileAttributes.Hidden)]
+    [InlineData(FileAttributes.System)]
+    public void いいえと答えた保護属性のファイルは置き換えない(FileAttributes attribute)
+    {
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        File.WriteAllText(target, "OLD");
+        File.SetAttributes(target, attribute);
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+
+        Assert.Equal(["a.txt"], result.SkippedNames);
+        File.SetAttributes(target, FileAttributes.Normal);
+        Assert.Equal("OLD", File.ReadAllText(target));
+    }
+
+    [Fact]
+    public void すべて置き換える指定では保護属性のファイルは置き換えない()
+    {
+        // 「はい」と答えたファイルだけが特別。確認を出さない取り出し (一時フォルダーなど) では、今までどおり置き換えない
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        File.WriteAllText(target, "OLD");
+        File.SetAttributes(target, FileAttributes.ReadOnly);
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+            true, null, CancellationToken.None);
+
+        Assert.Single(result.NotReplaced);
+        File.SetAttributes(target, FileAttributes.Normal);
+        Assert.Equal("OLD", File.ReadAllText(target));
+    }
+
+    [Fact]
+    public void はいと答えてもアクセス権で書き込みを禁じた読み取り専用のファイルは置き換えない()
+    {
+        // 読み取り専用でもアクセス権でも「アクセスが拒否されました」になる。アクセス権そのものを調べて見分ける (#372)
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        File.WriteAllText(target, "OLD");
+        var me = WindowsIdentity.GetCurrent().User!;
+        var rules = new FileInfo(target).GetAccessControl();
+        rules.AddAccessRule(new FileSystemAccessRule(me, FileSystemRights.WriteData, AccessControlType.Deny));
+        new FileInfo(target).SetAccessControl(rules);
+        File.SetAttributes(target, FileAttributes.ReadOnly);
+
+        try
+        {
+            var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["a.txt"], destination, null));
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+                ExtractOverwrite.Only([conflict.Target]), null, CancellationToken.None);
+
+            Assert.Single(result.NotReplaced);
+            Assert.Equal(0, result.Extracted);
+            Assert.Equal("OLD", File.ReadAllText(target));
+        }
+        finally
+        {
+            File.SetAttributes(target, FileAttributes.Normal);
+            rules.RemoveAccessRule(new FileSystemAccessRule(me, FileSystemRights.WriteData, AccessControlType.Deny));
+            new FileInfo(target).SetAccessControl(rules);
+        }
+
+        AssertNoLeftovers(log);
+    }
+
+    [Fact]
+    public void 外してから置き換える道ではハードリンクのある読み取り専用のファイルは置き換えない()
+    {
+        // 属性は実体ごとに付く。外すと、「はい」と答えていない名前の属性まで変わる (#372)
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        var other = log.PathOf("other-name.txt");
+        File.WriteAllText(target, "OLD");
+        Assert.True(UndoHistory.HardLink.TryCreate(other, target));
+        File.SetAttributes(target, FileAttributes.ReadOnly);
+
+        AtomicFile.IgnoreReadOnlyRenameDisabled = true;
+        try
+        {
+            var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["a.txt"], destination, null));
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+                ExtractOverwrite.Only([conflict.Target]), null, CancellationToken.None);
+
+            Assert.Single(result.NotReplaced);
+        }
+        finally
+        {
+            AtomicFile.IgnoreReadOnlyRenameDisabled = false;
+        }
+
+        Assert.Equal(FileAttributes.ReadOnly, File.GetAttributes(other) & FileAttributes.ReadOnly);
+        File.SetAttributes(target, FileAttributes.Normal);
+        Assert.Equal("OLD", File.ReadAllText(target));
+        AssertNoLeftovers(log);
+    }
+
+    [Fact]
+    public void 同じ名前のフォルダーがあるファイルは確認に挙げて置き換えない()
+    {
+        // 置き換えるにはフォルダーを中身ごと消すことになる。1 回では置き換えられない (#372)
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("docs", "NEW"), ("b.txt", "B"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(destination, "docs")).FullName;
+        File.WriteAllText(Path.Combine(folder, "keep.txt"), "KEEP");
+
+        var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["docs", "b.txt"], destination, null));
+        Assert.Equal(ExtractBlock.FolderInTheWay, conflict.Block);
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+
+        Assert.Equal("docs", Assert.Single(result.NotReplaced).Name);
+        Assert.Equal("KEEP", File.ReadAllText(Path.Combine(folder, "keep.txt")));
+        Assert.Equal("B", File.ReadAllText(Path.Combine(destination, "b.txt")));
+    }
+
+    [Fact]
+    public void 途中のフォルダーの名前にファイルがあれば一度だけ確認に挙げて展開しない()
+    {
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("docs/a.txt", "A"), ("docs/sub/b.txt", "B"), ("c.txt", "C"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        File.WriteAllText(Path.Combine(destination, "docs"), "USER FILE");
+
+        var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["docs/a.txt", "docs/sub/b.txt", "c.txt"], destination, null));
+        Assert.Equal(ExtractBlock.FileInTheWay, conflict.Block);
+        Assert.Equal(Path.Combine(destination, "docs"), conflict.Target);
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+            ExtractOverwrite.Only([]), null, CancellationToken.None);
+
+        Assert.Equal(2, result.NotReplaced.Count);
+        Assert.Empty(result.Failed);
+        Assert.Equal("USER FILE", File.ReadAllText(Path.Combine(destination, "docs")));
+        Assert.Equal("C", File.ReadAllText(Path.Combine(destination, "c.txt")));
+    }
+
+    [Fact]
+    public void はいと答えたあとに別の保護属性のファイルに差し替えられたら置き換えない()
+    {
+        // 置き換える直前に、「はい」と答えたファイルかを番号で読み直す (#372)
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        File.WriteAllText(target, "OLD");
+        var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["a.txt"], destination, null));
+        var overwrite = ExtractOverwrite.Only([conflict.Target]);
+
+        // 確かめたあとで、同じ名前の別のファイル (システムのファイル) に差し替える
+        File.Delete(target);
+        File.WriteAllText(target, "SWAPPED");
+        File.SetAttributes(target, FileAttributes.System);
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+            overwrite, null, CancellationToken.None);
+
+        Assert.Equal(0, result.Extracted);
+        File.SetAttributes(target, FileAttributes.Normal);
+        Assert.Equal("SWAPPED", File.ReadAllText(target));
+    }
+
+    [Fact]
+    public void ディスクに書き切る間に別の保護属性のファイルに差し替えられたら置き換えない()
+    {
+        // 置き換える直前 (名前を変える直前) に、「はい」と答えたファイルかを読み直す (#372)
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        File.WriteAllText(target, "OLD");
+        var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["a.txt"], destination, null));
+        var swapped = false;
+        log.OnEvent = (what, _) =>
+        {
+            if (what == "flush" && !swapped)
+            {
+                swapped = true;
+                File.Delete(target);
+                File.WriteAllText(target, "SWAPPED");
+                File.SetAttributes(target, FileAttributes.System);
+            }
+        };
+
+        var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+            ExtractOverwrite.Only([conflict.Target]), null, CancellationToken.None);
+
+        Assert.True(swapped);
+        Assert.Equal(0, result.Extracted);
+        Assert.Single(result.NotReplaced);
+        File.SetAttributes(target, FileAttributes.Normal);
+        Assert.Equal("SWAPPED", File.ReadAllText(target));
+        AssertNoLeftovers(log);
+    }
+
+    [Fact]
+    public void ハードリンクのある読み取り専用のファイルは理由を添えて知らせる()
+    {
+        using var log = new TraceLog();
+        var archive = MakeZip(log, "a.zip", ("a.txt", "NEW"));
+        var destination = Directory.CreateDirectory(log.PathOf("out")).FullName;
+        var target = Path.Combine(destination, "a.txt");
+        File.WriteAllText(target, "OLD");
+        Assert.True(UndoHistory.HardLink.TryCreate(log.PathOf("other.txt"), target));
+        File.SetAttributes(target, FileAttributes.ReadOnly);
+
+        AtomicFile.IgnoreReadOnlyRenameDisabled = true;
+        try
+        {
+            var conflict = Assert.Single(ArchiveExtractor.FindConflicts(["a.txt"], destination, null));
+            var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, NameReading.Default, null, destination,
+                ExtractOverwrite.Only([conflict.Target]), null, CancellationToken.None);
+
+            var (_, reason) = Assert.Single(result.NotReplaced);
+            Assert.Equal(Localization.Strings.Reason(new LinkedReadOnlyException(target)), reason);
+        }
+        finally
+        {
+            AtomicFile.IgnoreReadOnlyRenameDisabled = false;
+            File.SetAttributes(target, FileAttributes.Normal);
+        }
+    }
+
     private static string MakeZip(TraceLog log, string name, params (string Name, string Text)[] entries)
     {
         var archive = log.PathOf(name);

@@ -96,22 +96,38 @@ internal sealed class AtomicFile : IDisposable
 
     /// <summary>本来の名前に直接書いている (<see cref="CreateForExtraction"/>)。一時的な名前は無い。</summary>
     private readonly bool _direct;
+
+    /// <summary>
+    /// 置き換える先が、確認に挙げて「はい」と答えたファイルか (#372)。そうなら読み取り専用・隠し・システムでも置き換える。
+    /// 書き始めるときと置き換える直前に呼ぶ。書いている間に別のファイルに差し替えられていたら、偽を返す。
+    /// </summary>
+    private readonly Func<string, bool>? _approved;
     private bool _replacing;
     private bool _writingClosed;
     private bool _finished;
 
-    private AtomicFile(string target, string temporary, bool overwrite, string? zone)
+    private AtomicFile(string target, string temporary, bool overwrite, string? zone, Func<string, bool>? approved = null)
     {
         _target = target;
         _temporary = temporary;
         _overwrite = overwrite;
+        _approved = approved;
 
-        RefuseProtected(target);
+        var isApproved = IsApproved(target);
+        RefuseProtected(target, isApproved);
         _replacing = File.Exists(target);
 
         if (_replacing)
         {
-            RefuseUnwritable(target);
+            // 「はい」と答えた読み取り専用のファイルは、書き込みの権利で開けない。アクセス権だけを確かめる (#372)
+            if (isApproved && IsReadOnly(target))
+            {
+                FileWriteAccess.Require(target);
+            }
+            else
+            {
+                RefuseUnwritable(target);
+            }
         }
 
         Register(temporary);
@@ -186,7 +202,10 @@ internal sealed class AtomicFile : IDisposable
     /// </para>
     /// </remarks>
     /// <exception cref="ReservedNameException">NUL など、この Windows で装置を指す名前の場合。</exception>
-    public static AtomicFile CreateForExtraction(string target, bool overwrite, string? zone)
+    /// <param name="approved">
+    /// 置き換える先が、確認に挙げて「はい」と答えたファイルかを返す (#372)。そうなら読み取り専用・隠し・システムでも置き換える。
+    /// </param>
+    public static AtomicFile CreateForExtraction(string target, bool overwrite, string? zone, Func<string, bool>? approved = null)
     {
         // 直接書くときは装置の名前の判定を通らない形 (\\?\) で開くので、先に尋ねる
         if (ReservedNameException.IsReserved(Path.GetFullPath(target)))
@@ -200,7 +219,22 @@ internal sealed class AtomicFile : IDisposable
         }
 
         Trace?.Invoke("fallback", Path.GetFullPath(target));
-        return Create(target, overwrite, zone);
+        return new AtomicFile(target, TemporaryPathFor(target), overwrite, zone, approved);
+    }
+
+    /// <summary>置き換える先が、いま「はい」と答えたファイルか。</summary>
+    private bool IsApproved(string target) => _approved?.Invoke(target) == true;
+
+    private static bool IsReadOnly(string target)
+    {
+        try
+        {
+            return (File.GetAttributes(target) & FileAttributes.ReadOnly) != 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>できあがるまで使う名前。</summary>
@@ -226,8 +260,8 @@ internal sealed class AtomicFile : IDisposable
             return true;
         }
 
-        // 書いている間に属性が変わることがある
-        RefuseProtected(_target);
+        // 書いている間に属性が変わることも、別のファイルに差し替えられることもある
+        RefuseProtected(_target, IsApproved(_target));
 
         if (TryCommitOpen(lastWriteTime))
         {
@@ -239,7 +273,16 @@ internal sealed class AtomicFile : IDisposable
 
         try
         {
-            Move(_temporary, _target, _overwrite);
+            // ディスクに書き切るのを待つ間にも差し替えられることがある。名前を変える直前に読み直す (#372)
+            if (CheckBeforeRename())
+            {
+                // 読み取り専用のまま 1 回で置き換えられない場所 (USB メモリー、NAS など)。外してから置き換える (#372)
+                MoveOverReadOnly(_temporary, _target);
+            }
+            else
+            {
+                Move(_temporary, _target, _overwrite);
+            }
         }
         catch (IOException ex) when (!_overwrite && File.Exists(_target) && !IsSharing(ex))
         {
@@ -528,6 +571,21 @@ internal sealed class AtomicFile : IDisposable
     /// 2 万個を 20 本で作るのに、直接書くと 1.8 秒、閉じてから変えると 4.9 秒、開いたまま変えると 2.4 秒。
     /// できないとき (ほかの OS、対応していないドライブなど) は <see langword="false"/> を返す。呼び出し側が閉じてから変える。
     /// </remarks>
+    /// <summary>
+    /// 名前を変える直前の確かめ (#372)。置き換える先が「はい」と答えたファイルかを読み直し、そうでなければ、読み取り専用・隠し・システムの
+    /// ファイルを置き換えずに例外を投げる。
+    /// </summary>
+    /// <returns>置き換える先が「はい」と答えた読み取り専用のファイルなら <see langword="true"/>。読み取り専用のまま置き換える。</returns>
+    /// <exception cref="UnauthorizedAccessException">置き換えてはいけないファイルの場合。</exception>
+    private bool CheckBeforeRename()
+    {
+        var approved = IsApproved(_target);
+        RefuseProtected(_target, approved);
+
+        // Windows でないときは、フォルダーに書ければ読み取り専用のファイルも名前の変更で置き換えられる。外す道は通らない
+        return approved && _overwrite && OperatingSystem.IsWindows() && IsReadOnly(_target);
+    }
+
     private bool TryCommitOpen(DateTime? lastWriteTime)
     {
         if (!OperatingSystem.IsWindows() || IntPtr.Size != 8 || _writingClosed)
@@ -560,8 +618,19 @@ internal sealed class AtomicFile : IDisposable
             }
         }
 
-        if (!RenameOpen(Stream.SafeFileHandle, Path.GetFullPath(_target), _overwrite))
+        // ディスクに書き切るのを待つ間にも差し替えられることがある。名前を変える直前に読み直す (#372)
+        var ignoreReadOnly = CheckBeforeRename();
+        if (!RenameOpen(Stream.SafeFileHandle, Path.GetFullPath(_target), _overwrite, ignoreReadOnly))
         {
+            var error = System.Runtime.InteropServices.Marshal.GetLastPInvokeError();
+
+            // 読み取り専用のまま置き換える指定が使えない場所なら、閉じてから外して置き換える道に移る。
+            // Windows が使用中などの理由で置き換えさせなかったときは、外さずにその理由で止める。外すと、強制終了で外れたまま残ることがある
+            if (ignoreReadOnly && !IgnoreReadOnlyRenameDisabled && !IsUnsupported(error))
+            {
+                throw MoveError(error, _temporary, _target);
+            }
+
             return false;
         }
 
@@ -698,23 +767,175 @@ internal sealed class AtomicFile : IDisposable
     private static extern uint GetFileType(Microsoft.Win32.SafeHandles.SafeFileHandle handle);
 
     /// <summary>開いているファイルの名前を変える (64 ビットの <c>FILE_RENAME_INFO</c>)。</summary>
-    private static bool RenameOpen(Microsoft.Win32.SafeHandles.SafeFileHandle handle, string target, bool overwrite)
+    /// <param name="ignoreReadOnly">
+    /// 読み取り専用のファイルも 1 回で置き換える (<c>FileRenameInfoEx</c> の <c>FILE_RENAME_FLAG_IGNORE_READONLY_ATTRIBUTE</c>、#372)。
+    /// POSIX の指定は付けない。付けると、ほかのアプリが開いているファイルも置き換わり、そのアプリでの変更が失われる。
+    /// 使えない場所 (古い Windows、USB メモリー、NAS など) では <see langword="false"/> を返し、呼び出し側が別の道で置き換える。
+    /// </param>
+    private static bool RenameOpen(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, string target, bool overwrite, bool ignoreReadOnly = false)
     {
         const int FileRenameInfo = 3;
+        const int FileRenameInfoEx = 22;
+        const uint ReplaceIfExists = 0x1;
+        const uint IgnoreReadOnlyAttribute = 0x40;
         const int NameOffset = 20;
+
+        if (ignoreReadOnly && IgnoreReadOnlyRenameDisabled)
+        {
+            return false;
+        }
 
         // 長いパスは、ファイルを開くときと同じ形にする
         var name = LongPathIfNeeded(target);
 
         var bytes = Encoding.Unicode.GetBytes(name);
         var info = new byte[NameOffset + bytes.Length + 2];
-        info[0] = overwrite ? (byte)1 : (byte)0;
+        if (ignoreReadOnly)
+        {
+            // FileRenameInfoEx では、先頭の 1 バイトの代わりに 4 バイトのフラグになる。並びは同じ
+            BitConverter.TryWriteBytes(info.AsSpan(0), ReplaceIfExists | IgnoreReadOnlyAttribute);
+        }
+        else
+        {
+            info[0] = overwrite ? (byte)1 : (byte)0;
+        }
+
         BitConverter.TryWriteBytes(info.AsSpan(16), bytes.Length);
         bytes.CopyTo(info, NameOffset);
 
         Trace?.Invoke("move", target);
-        return SetFileInformationByHandle(handle, FileRenameInfo, info, info.Length);
+        return SetFileInformationByHandle(handle, ignoreReadOnly ? FileRenameInfoEx : FileRenameInfo, info, info.Length);
     }
+
+    /// <summary>Windows が「この指定は使えない」と返したか (関数が無い、対応していない、引数が正しくない、情報の種類が無い)。</summary>
+    private static bool IsUnsupported(int error) => error is 1 or 50 or 87 or 124;
+
+    /// <summary>
+    /// 読み取り専用のまま 1 回で置き換える指定を使わない。それが使えない場所の道 (外してから置き換える) を確かめるテスト用。
+    /// </summary>
+    internal static bool IgnoreReadOnlyRenameDisabled { get; set; }
+
+    /// <summary>
+    /// 読み取り専用のファイルを、読み取り専用を外してから置き換える (#372)。1 回で置き換えられない場所のための道。
+    /// </summary>
+    /// <remarks>
+    /// 名前で開き直すと別のものに差し替わっていることがあるので、リンクをたどらずに 1 回開き、そのハンドルで確かめて外す
+    /// (<see cref="TempWorkspace"/> の読み取り専用のファイルを消す道と同じ作り、#356)。リンクのものと、ほかの名前 (ハードリンク) が
+    /// あるものは外さない。属性は実体ごとに付くので、「はい」と答えていない名前の属性まで変わるため。
+    /// 開いたままでは Windows が置き換えさせないので、外したら閉じてから置き換える。置き換えられなければ開き直し、
+    /// 同じファイル (番号が同じ) のときだけ読み取り専用を戻す。外してから置き換えるまでの間に強制終了すると、
+    /// 中身はそのままで、読み取り専用だけが外れて残る (#372 で受け入れると決めた)。
+    /// </remarks>
+    private static void MoveOverReadOnly(string temporary, string target)
+    {
+        var full = LongPathIfNeeded(Path.GetFullPath(target));
+        uint attributes;
+        ByHandleFileInformation info;
+
+        using (var handle = OpenAttributes(full))
+        {
+            var basic = new byte[40];
+            if (!GetFileInformationByHandleEx(handle, FileBasicInfo, basic, basic.Length)
+                || !GetFileInformationByHandle(handle, out info))
+            {
+                throw MoveError(System.Runtime.InteropServices.Marshal.GetLastPInvokeError(), temporary, target);
+            }
+
+            attributes = BitConverter.ToUInt32(basic, 32);
+            if ((attributes & (uint)FileAttributes.ReparsePoint) != 0 || info.NumberOfLinks != 1)
+            {
+                throw new LinkedReadOnlyException(target);
+            }
+
+            SetAttributes(handle, attributes & ~(uint)FileAttributes.ReadOnly, temporary, target);
+            Trace?.Invoke("unreadonly", target);
+        }
+
+        try
+        {
+            Move(temporary, target, overwrite: true);
+        }
+        catch
+        {
+            // まだ元のファイルが残っているはず。同じファイルのときだけ戻す
+            try
+            {
+                using var again = OpenAttributes(full);
+                if (GetFileInformationByHandle(again, out var now)
+                    && now.VolumeSerialNumber == info.VolumeSerialNumber
+                    && now.FileIndexHigh == info.FileIndexHigh && now.FileIndexLow == info.FileIndexLow)
+                {
+                    SetAttributes(again, attributes, temporary, target);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // 戻せなくても、中身は元のまま。最初の失敗の理由を伝える
+            }
+
+            throw;
+        }
+    }
+
+    /// <summary>属性を読み書きするために、リンクをたどらずに開く。</summary>
+    private static Microsoft.Win32.SafeHandles.SafeFileHandle OpenAttributes(string longPath)
+    {
+        var handle = CreateFileW(
+            longPath, FileReadAttributes | FileWriteAttributes, FileShareAll,
+            IntPtr.Zero, OpenExisting, FileFlagOpenReparsePoint, IntPtr.Zero);
+
+        if (handle.IsInvalid)
+        {
+            var error = System.Runtime.InteropServices.Marshal.GetLastPInvokeError();
+            handle.Dispose();
+            throw MoveError(error, longPath, longPath);
+        }
+
+        return handle;
+    }
+
+    /// <summary>属性だけを書く。日時は 0 にすると変えない。</summary>
+    private static void SetAttributes(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, uint attributes, string temporary, string target)
+    {
+        var basic = new byte[40];
+        BitConverter.TryWriteBytes(basic.AsSpan(32), attributes == 0 ? (uint)FileAttributes.Normal : attributes);
+        if (!SetFileInformationByHandle(handle, FileBasicInfo, basic, basic.Length))
+        {
+            throw MoveError(System.Runtime.InteropServices.Marshal.GetLastPInvokeError(), temporary, target);
+        }
+    }
+
+    private const uint FileWriteAttributes = 0x00000100;
+    private const uint FileShareAll = 0x00000007;
+    private const uint OpenExisting = 3;
+    private const int FileBasicInfo = 0;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandleEx(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, int infoClass, byte[] info, int size);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, out ByHandleFileInformation info);
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
     [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
@@ -830,7 +1051,11 @@ internal sealed class AtomicFile : IDisposable
     /// 直接書くときは Windows が断るが、名前の変更では隠しファイルやシステムファイルも置き換えられてしまう。
     /// 書庫に入れた名前で、取り出し先の <c>desktop.ini</c> などを置き換えさせない。
     /// </remarks>
-    private static void RefuseProtected(string target)
+    /// <param name="target">置き換える先。</param>
+    /// <param name="approved">
+    /// 確認に挙げて「はい」と答えたファイルか (#372)。そうなら読み取り専用・隠し・システムでも置き換える。フォルダーは置き換えない。
+    /// </param>
+    private static void RefuseProtected(string target, bool approved = false)
     {
         FileAttributes attributes;
         try
@@ -842,10 +1067,12 @@ internal sealed class AtomicFile : IDisposable
             return;
         }
 
-        var isProtected = IsProtectedOverride is not null
-            ? IsProtectedOverride(target, attributes)
-            : (attributes & (FileAttributes.Directory | FileAttributes.ReadOnly
-                                                        | FileAttributes.Hidden | FileAttributes.System)) != 0;
+        var isProtected = approved
+            ? (attributes & FileAttributes.Directory) != 0
+            : IsProtectedOverride is not null
+                ? IsProtectedOverride(target, attributes)
+                : (attributes & (FileAttributes.Directory | FileAttributes.ReadOnly
+                                                            | FileAttributes.Hidden | FileAttributes.System)) != 0;
 
         if (isProtected)
         {

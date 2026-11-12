@@ -22,7 +22,9 @@ function Invoke-Overwrite($App, [string]$Destination) {
     Push (ById $App.Window 'ExtractButton')
     Complete-FileDialog $App '書庫全体の展開先を選択' $Destination | Out-Null
     $box = Find-MessageBox $App 30000
-    if ($box -and $box.Text -match '上書きしますか') {
+    # 上書きできないもの (ファイルとフォルダーが逆) しか無いときは「残りを展開しますか?」と尋ねる (#372)
+    if ($box -and $box.Text -match '上書きしますか|残りを展開しますか') {
+        $script:LastConfirm = $box.Text
         Close-MessageBox $box 'はい(Y)'
         $box = Find-MessageBox $App 30000
     }
@@ -122,10 +124,11 @@ Check '閉じたアクセス権が残る' ((Get-Acl $locked).AreAccessRulesProte
 Check '書き込みを禁じたファイルは置き換えない' ((Read-Text (Join-Path $out 'denied.txt')) -eq 'ORIGINAL')
 # 後始末で消せるように戻す
 icacls (Join-Path $out 'denied.txt') /reset | Out-Null
-Check '読み取り専用は置き換えない'((Read-Text (Join-Path $out 'readonly.txt')) -eq 'ORIGINAL')
-Check '隠しファイルは置き換えない' ((Read-Text (Join-Path $out 'hidden.txt')) -eq 'ORIGINAL')
-Check 'システムファイルは置き換えない' ((Read-Text (Join-Path $out 'system.txt')) -eq 'ORIGINAL')
-Check '置き換えなかったファイルを知らせる' ($text -match 'readonly\.txt' -and $text -match 'hidden\.txt') $text
+# 確認に名前が出るので、それを見て「はい」と答えたなら、読み取り専用・隠し・システムでも置き換える (#372)
+Check '読み取り専用も「はい」で置き換わる' ((Read-Text (Join-Path $out 'readonly.txt')) -eq 'NEW')
+Check '隠しファイルも「はい」で置き換わる' ((Read-Text (Join-Path $out 'hidden.txt')) -eq 'NEW')
+Check 'システムファイルも「はい」で置き換わる' ((Read-Text (Join-Path $out 'system.txt')) -eq 'NEW')
+Check '上書きできなかったファイルを知らせる' ($text -match 'denied\.txt') $text
 Check '一時ファイルが残らない' ((Get-Leftovers $out).Count -eq 0) ((Get-Leftovers $out) -join ', ')
 
 Section '編集の作業用ファイル'
@@ -502,7 +505,10 @@ $out = New-Folder 'junction_out'
 New-Item -ItemType Junction -Path (Join-Path $out 'a.txt') -Target $outside | Out-Null
 $junctionZip = New-TestZip (Join-Path $script:Work 'junction.zip') ([ordered]@{ 'a.txt' = 'NEW'; 'b.txt' = 'NEW' })
 $app = Start-Expzip @($junctionZip)
+$script:LastConfirm = $null
 $text = Invoke-Overwrite $app $out
+# ジャンクションはフォルダーなので、ファイルの a.txt では上書きできない。確認の中で前もって挙げる (#372)
+Check '上書きできないものを確認で挙げる' ($script:LastConfirm -match '上書きできません' -and $script:LastConfirm -match 'a\.txt') $script:LastConfirm
 $inside = @(Get-ChildItem $outside -Force | ForEach-Object { $_.Name })
 Check 'ジャンクションの先は変わらない' ($inside.Count -eq 1 -and (Read-Text (Join-Path $outside 'kept.txt')) -eq 'OUTSIDE') ($inside -join ', ')
 Check 'ジャンクションは残る' ((Get-Item (Join-Path $out 'a.txt') -Force).LinkType -eq 'Junction')

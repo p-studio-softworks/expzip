@@ -235,6 +235,19 @@ AskPasswordAgain (archiveName: 資料.zip)
   en  That password is not correct.
       | Enter the password for "⟦資料.zip⟧".
 
+AttributeTags (attributes: None)
+  ja  
+  en  
+AttributeTags (attributes: ReadOnly)
+  ja   (読み取り専用)
+  en   (read-only)
+AttributeTags (attributes: Hidden)
+  ja   (隠しファイル)
+  en   (hidden)
+AttributeTags (attributes: System)
+  ja   (システムのファイル)
+  en   (system)
+
 Back
   ja  戻る
   en  Back
@@ -620,6 +633,14 @@ ConfirmExecutableWithoutMark (fileName: 資料.zip)
       | 
       | Continue?
 
+ConfirmExtractWithBlocked (blocked: 見本)
+  ja  ⟦見本⟧
+      | 
+      | 残りを展開しますか?
+  en  ⟦見本⟧
+      | 
+      | Extract the rest?
+
 ConfirmOverwrite (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more:  ⏎   ほか 7 個)
   ja  展開先に同じ名前のファイルが 3 個あります。上書きしますか?
       | 
@@ -669,6 +690,33 @@ ConfirmOverwrite (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メ�
       |   メモ.txt⟧
       | 
       | Choosing No leaves those files alone and skips them.
+
+ConfirmOverwriteAndBlocked (overwrite: 見本, blocked: 見本)
+  ja  ⟦見本⟧
+      | 
+      | ⟦見本⟧
+  en  ⟦見本⟧
+      | 
+      | ⟦見本⟧
+
+ConfirmOverwriteBlocked (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  展開先にある次の 3 個は、書庫の中のものとファイルとフォルダーが逆になっているため、上書きできません。書庫の中の同じ名前のもの (フォルダーならその中のものも) は展開しません。
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+  en  The following 3 items in the destination cannot be overwritten, because one is a file and the other is a folder. The item with the same name in the archive (and, for a folder, everything in it) will not be extracted.
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+ConfirmOverwriteBlocked (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  展開先にある次の 1 個は、書庫の中のものとファイルとフォルダーが逆になっているため、上書きできません。書庫の中の同じ名前のもの (フォルダーならその中のものも) は展開しません。
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+  en  The following 1 item in the destination cannot be overwritten, because one is a file and the other is a folder. The item with the same name in the archive (and, for a folder, everything in it) will not be extracted.
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
 
 ConfirmPendingEdits (names:   報告書.pdf ⏎   写真.jpg)
   ja  書庫に反映していない変更があります。
@@ -983,6 +1031,13 @@ Extract
 ExtractAllTitle
   ja  書庫全体の展開先を選択
   en  Select where to extract the whole archive
+
+ExtractBlocked (block: FolderInTheWay)
+  ja  展開先に同じ名前のフォルダーがあるため、上書きできませんでした。
+  en  A folder with the same name is in the destination, so it could not be overwritten.
+ExtractBlocked (block: FileInTheWay)
+  ja  展開先に、この項目を入れるフォルダーと同じ名前のファイルがあり、上書きできないため、展開しませんでした。
+  en  A file in the destination has the same name as the folder this item goes into, and it cannot be overwritten, so this item was not extracted.
 
 ExtractCalledOff
   ja  展開を中止しました
@@ -1672,6 +1727,17 @@ More (count: 3)
   en  
       |   and 3 more
 
+MoreProtected (count: 3)
+  ja  
+      |   ほか 読み取り専用・隠し・システムのファイル 3 個
+  en  
+      |   and 3 more read-only, hidden, or system files
+MoreProtected (count: 1)
+  ja  
+      |   ほか 読み取り専用・隠し・システムのファイル 1 個
+  en  
+      |   and 1 more read-only, hidden, or system file
+
 MoveCancelled
   ja  移動を中断しました
   en  Moving was stopped
@@ -1800,6 +1866,10 @@ NoArchiveOpen
 NoPasswordSet
   ja  この書庫にはパスワードが設定されていません
   en  This archive has no password
+
+NotReplacedFilesLine (count: 3)
+  ja  上書きできなかった項目: 3 個
+  en  Items that could not be overwritten: 3
 
 NotWrittenFilesLine (count: 3)
   ja  書き込めなかったファイル: 3 個
@@ -1970,6 +2040,9 @@ Reason (error: Expzip.Archives.ReservedNameException: 'C:\Users\user\Desktop\CON
 Reason (error: Expzip.Archives.FileChangedWhileReadingException: The file was replaced while reading.)
   ja  読み込む直前に、このファイルの実際の場所が、選択した場所の外に変わりました。
   en  Just before it was read, the actual location of this file changed to somewhere outside what you selected.
+Reason (error: Expzip.Archives.LinkedReadOnlyException: Access to the path 'C:\Users\user\Desktop\a.txt' is denied.)
+  ja  この読み取り専用のファイルには、ほかの名前 (ハードリンク) があるか、ファイル自体がリンクのため、このドライブでは上書きできません。
+  en  This read-only file has another name (a hard link) or is itself a link, so it cannot be overwritten on this drive.
 Reason (error: Expzip.Archives.LinkOverlapException: A link would overlap a folder in the archive.)
   ja  書庫の中に、同じ名前のリンクとフォルダーが両方できてしまいます。
   en  The archive would then contain a link and a folder with the same name.

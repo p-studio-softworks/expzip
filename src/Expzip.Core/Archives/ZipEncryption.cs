@@ -179,6 +179,7 @@ internal static class ZipEncryption
         var marks = new MarkWatch();
         var rejected = new List<string>();
         var failed = new List<(string, string)>();
+        var notReplaced = new List<(string, string)>();
         var cancelled = false;
 
         using var zip = OpenSharp(archivePath, names, password);
@@ -212,10 +213,18 @@ internal static class ZipEncryption
 
             try
             {
-                var replace = overwrite.Allows(target);
-                if (!replace && File.Exists(target))
+                var decision = overwrite.Decide(target);
+                if (decision.Action is ExtractAction.Blocked or ExtractAction.Skip)
                 {
-                    skipped.Add(entry.Name);
+                    if (decision.Block is { } block)
+                    {
+                        notReplaced.Add((entry.Name, Strings.ExtractBlocked(block)));
+                    }
+                    else
+                    {
+                        skipped.Add(entry.Name);
+                    }
+
                     doneBytes += Math.Max(0, entry.Size);
                     continue;
                 }
@@ -227,7 +236,9 @@ internal static class ZipEncryption
                 }
 
                 using var source = fallback.Open(entry.Name, () => zip.GetInputStream(entry));
-                using var file = AtomicFile.CreateForExtraction(target, replace, zoneIdentifier);
+                using var file = AtomicFile.CreateForExtraction(
+                    target, decision.Action != ExtractAction.Write, zoneIdentifier,
+                    decision.Action == ExtractAction.ReplaceApproved ? overwrite.IsApproved : null);
 
                 CancellableCopy.CopyContent(source, file.Stream, cancellationToken, ExpectedCrc(entry));
 
@@ -248,6 +259,11 @@ internal static class ZipEncryption
                 cancelled = true;
                 break;
             }
+            catch (Exception ex) when (ExtractOverwrite.IsNotReplaced(ex, target))
+            {
+                // 既にあるファイルを、アクセス権や使用中のために置き換えられなかった (#372)
+                notReplaced.Add((entry.Name, Strings.Reason(ex)));
+            }
             catch (Exception ex) when (ex is ZipException or IOException or UnauthorizedAccessException
                                        or ArgumentException or NotSupportedException
                                        or PathTooLongException or InvalidDataException)
@@ -261,7 +277,10 @@ internal static class ZipEncryption
             progress?.Report(new ExtractProgress(doneBytes, totalBytes, entry.Name));
         }
 
-        return new ExtractResult(extracted, skipped.Count, rejected, failed, cancelled, marks.Lost, skipped);
+        return new ExtractResult(extracted, skipped.Count, rejected, failed, cancelled, marks.Lost, skipped)
+        {
+            NotReplaced = notReplaced,
+        };
     }
 
     /// <summary>

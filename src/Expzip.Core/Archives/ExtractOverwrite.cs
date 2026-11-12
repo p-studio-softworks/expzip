@@ -4,6 +4,38 @@ using System.Runtime.InteropServices;
 
 namespace Expzip.Archives;
 
+/// <summary>書き出す先に書くときにすること (#372)。</summary>
+internal enum ExtractAction
+{
+    /// <summary>同じ名前のものが無い。置き換えない指定で書く。</summary>
+    Write,
+
+    /// <summary>置き換える (すべて置き換える指定、またはこの展開で作ったファイル)。読み取り専用・隠し・システムは置き換えない。</summary>
+    Replace,
+
+    /// <summary>確認に挙げて「はい」と答えたファイル。読み取り専用・隠し・システムでも置き換える。</summary>
+    ReplaceApproved,
+
+    /// <summary>置き換えずに残す (「いいえ」と答えた、または確認に挙がらなかった)。</summary>
+    Skip,
+
+    /// <summary>置き換えられない。フォルダーやファイルを消すことになる。</summary>
+    Blocked,
+}
+
+/// <summary>置き換えられない理由 (#372)。</summary>
+internal enum ExtractBlock
+{
+    /// <summary>展開先に同じ名前のフォルダーがある。</summary>
+    FolderInTheWay,
+
+    /// <summary>途中のフォルダーの名前に、展開先のファイルがある。</summary>
+    FileInTheWay,
+}
+
+/// <summary>書き出す先に書くときにすることと、置き換えられないときの理由 (#372)。</summary>
+internal readonly record struct ExtractDecision(ExtractAction Action, ExtractBlock? Block);
+
 /// <summary>
 /// 展開で、既にあるファイルを置き換えてよいか (#353)。
 /// </summary>
@@ -62,6 +94,85 @@ internal sealed class ExtractOverwrite
         return Key(target) is { } key && (_approved.Contains(key) || _created.ContainsKey(key));
     }
 
+    /// <summary>
+    /// <paramref name="target"/> に書くときに、どうするか (#372)。書き出しの 3 か所 (ZIP、パスワード付きの ZIP、そのほかの形式) で同じ判断にする。
+    /// </summary>
+    /// <param name="target">書き出す先。</param>
+    public ExtractDecision Decide(string target)
+    {
+        if (Blocker(target) is { } reason)
+        {
+            return new ExtractDecision(ExtractAction.Blocked, reason);
+        }
+
+        if (!File.Exists(target))
+        {
+            return new ExtractDecision(ExtractAction.Write, null);
+        }
+
+        if (IsApproved(target))
+        {
+            // 確認に挙げて「はい」と答えたファイル。読み取り専用・隠し・システムでも置き換える
+            return new ExtractDecision(ExtractAction.ReplaceApproved, null);
+        }
+
+        return Allows(target)
+            ? new ExtractDecision(ExtractAction.Replace, null)
+            : new ExtractDecision(ExtractAction.Skip, null);
+    }
+
+    /// <summary>
+    /// 確認に挙げて「はい」と答えたファイルか。置き換える直前にも呼んで、書いている間に差し替えられていないかを確かめる (#372)。
+    /// </summary>
+    /// <remarks>「すべて置き換える」やこの展開で作ったファイルは含めない。読み取り専用などを置き換えてよいのは、名前を見て「はい」と答えたものだけ。</remarks>
+    public bool IsApproved(string target)
+        => _approved is not null && Key(target) is { } key && _approved.Contains(key);
+
+    /// <summary>
+    /// 置き換えられない理由。展開先に同じ名前のフォルダーがある、または途中のフォルダーの名前にファイルがある (#372)。
+    /// </summary>
+    /// <remarks>
+    /// どちらも、置き換えるにはフォルダーやファイルを消すことになる。1 回では置き換えられず、途中で失敗すると中身が失われる (#320)。
+    /// 途中のフォルダーは、既にあるフォルダーが見つかったところで止める。展開先は既にあるので、その外まではたどらない。
+    /// </remarks>
+    public static ExtractBlock? Blocker(string target)
+    {
+        if (Directory.Exists(target))
+        {
+            return ExtractBlock.FolderInTheWay;
+        }
+
+        for (var folder = Path.GetDirectoryName(Path.GetFullPath(target));
+             folder is not null;
+             folder = Path.GetDirectoryName(folder))
+        {
+            if (Directory.Exists(folder))
+            {
+                return null;
+            }
+
+            if (File.Exists(folder))
+            {
+                return ExtractBlock.FileInTheWay;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 書き出しの失敗が「置き換えられなかった」ものか (#372)。既にあるファイルを、アクセス権や使用中のために置き換えられなかった。
+    /// それ以外 (壊れている、空きが無いなど) は「失敗した」として知らせる。
+    /// </summary>
+    public static bool IsNotReplaced(Exception error, string target)
+    {
+        const int SharingViolation = unchecked((int)0x80070020);
+        const int LockViolation = unchecked((int)0x80070021);
+
+        return File.Exists(target)
+               && error is UnauthorizedAccessException or IOException { HResult: SharingViolation or LockViolation };
+    }
+
     /// <summary>この展開で <paramref name="target"/> に書き終えた。</summary>
     public void Created(string target)
     {
@@ -80,16 +191,44 @@ internal sealed class ExtractOverwrite
             return full;
         }
 
-        // 属性を読む権利だけで開く。中身は読まず、ほかのプログラムの邪魔もしない
+        // 属性を読む権利だけで開く。中身は読まず、ほかのプログラムの邪魔もしない。
+        // リンクはたどらない。置き換えるのはリンクそのものなので、指す先が無いリンクでも同じものと分かるように (#372)
         using var handle = CreateFileW(
-            AtomicFile.LongPathIfNeeded(full), FileReadAttributes, FileShareAll, IntPtr.Zero, OpenExisting, 0, IntPtr.Zero);
-        if (handle.IsInvalid || !GetFileInformationByHandle(handle, out var info))
+            AtomicFile.LongPathIfNeeded(full), FileReadAttributes, FileShareAll, IntPtr.Zero, OpenExisting,
+            FileFlagOpenReparsePoint, IntPtr.Zero);
+        if (handle.IsInvalid)
         {
             return null;
         }
 
-        return $"{info.VolumeSerialNumber:X8}:{info.IndexHigh:X8}{info.IndexLow:X8}";
+        // 128 ビットの番号 (FILE_ID_INFO) を先に使う。ReFS では 64 ビットの番号が重なることがある (#372)
+        var id = new byte[24];
+        if (GetFileInformationByHandleEx(handle, FileIdInfo, id, id.Length))
+        {
+            var volume = BitConverter.ToUInt64(id, 0);
+            var file = Convert.ToHexString(id, 8, 16);
+            return id.AsSpan(8, 16).ContainsAnyExcept((byte)0) ? $"{volume:X16}:{file}" : null;
+        }
+
+        if (!GetFileInformationByHandle(handle, out var info))
+        {
+            return null;
+        }
+
+        // 番号として 0 を返すドライブでは、どのファイルも同じに見える。読めなかったものとして扱う
+        return info.IndexHigh == 0 && info.IndexLow == 0
+            ? null
+            : $"{info.VolumeSerialNumber:X8}:{info.IndexHigh:X8}{info.IndexLow:X8}";
     }
+
+    private const int FileIdInfo = 18;
+    private const uint FileFlagOpenReparsePoint = 0x00200000;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandleEx(
+        Microsoft.Win32.SafeHandles.SafeFileHandle handle, int infoClass, byte[] info, int size);
 
     private const uint FileReadAttributes = 0x00000080;
     private const uint FileShareAll = 0x00000007;

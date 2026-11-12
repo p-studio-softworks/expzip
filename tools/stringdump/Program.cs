@@ -415,6 +415,11 @@ IEnumerable<object?> Alternates(ParameterInfo parameter)
         yield return Activator.CreateInstance(
             assembly.GetType("Expzip.Archives.FileChangedWhileReadingException", throwOnError: true)!);
 
+        // ハードリンクやリンクのある読み取り専用のファイルは、外して置き換えられない (#372)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.LinkedReadOnlyException", throwOnError: true)!,
+            @"C:\Users\user\Desktop\a.txt");
+
         // リンクと同じ名前のフォルダーの中に項目ができる書き換え (#366)
         yield return Activator.CreateInstance(
             assembly.GetType("Expzip.Archives.LinkOverlapException", throwOnError: true)!);

@@ -6261,7 +6261,7 @@ public partial class MainWindow : Window
 
         // 本当に同じ名前があるときだけ確認する。展開先に何か入っているだけで
         // 尋ねるのは、関係のないファイルを見て驚かせるだけになる (#48)
-        List<(string Name, string Target)> conflicts;
+        List<ExtractConflict> conflicts;
         try
         {
             Mouse.OverrideCursor = Cursors.Wait;
@@ -6283,34 +6283,71 @@ public partial class MainWindow : Window
         // 置き換えるのは、確認に挙げて「はい」と答えたファイルだけ (#353)。何も挙がらなければ何も置き換えない
         var overwrite = ExtractOverwrite.Only([]);
         IReadOnlySet<string> declined = new HashSet<string>(StringComparer.Ordinal);
+        // 同じ名前のものがあれば、必ず確認を出す。置き換えられないもの (フォルダーやファイルを消すことになるもの) も、
+        // 同じ確認の中に分けて挙げる (#372)
+        var replaceable = conflicts.Where(static c => c.Block is null)
+            .OrderByDescending(static c => c.IsProtected).ToList();
+        var blocked = conflicts.Where(static c => c.Block is not null).ToList();
+
         if (conflicts.Count > 0)
         {
             var destinationRoot = Path.GetFullPath(destination);
-            var preview = string.Join(Environment.NewLine, conflicts.Take(5)
-                .Select(c => "  " + Path.GetRelativePath(destinationRoot, c.Target)));
-            var more = conflicts.Count > 5 ? Strings.More(conflicts.Count - 5) : string.Empty;
+            string Relative(ExtractConflict c) => Path.GetRelativePath(destinationRoot, c.Target);
 
-            // 初めに選ばれているのは「いいえ」。見ないで Enter キーを押しても置き換えない (#358、自己解凍書庫と揃える)
-            var answer = MessageBox.Show(
-                this,
-                Strings.ConfirmOverwrite(conflicts.Count, preview, more),
-                AppName,
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question,
-                MessageBoxResult.No);
+            var blockedText = blocked.Count == 0
+                ? null
+                : Strings.ConfirmOverwriteBlocked(
+                    blocked.Count,
+                    string.Join(Environment.NewLine, blocked.Take(5).Select(c => "  " + Relative(c))),
+                    blocked.Count > 5 ? Strings.More(blocked.Count - 5) : string.Empty);
 
-            if (answer == MessageBoxResult.Cancel)
+            MessageBoxResult answer;
+            if (replaceable.Count == 0)
             {
-                return;
-            }
-
-            if (answer == MessageBoxResult.Yes)
-            {
-                overwrite = ExtractOverwrite.Only(conflicts.Select(static c => c.Target));
+                // 置き換えるものが無い。残りを展開するかだけを尋ねる
+                answer = MessageBox.Show(
+                    this, Strings.ConfirmExtractWithBlocked(blockedText!), AppName,
+                    MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
+                if (answer != MessageBoxResult.Yes)
+                {
+                    return;
+                }
             }
             else
             {
-                declined = conflicts.Select(static c => c.Name).ToHashSet(StringComparer.Ordinal);
+                // 読み取り専用・隠し・システムのファイルは、「ほか N 個」に紛れないよう、先に名前を属性付きで出す (#372)。
+                // 多すぎるとダイアログが画面に収まらないので名前は 20 個までにし、残りは種類を添えて数を出す
+                var protectedOnes = replaceable.Where(static c => c.IsProtected).ToList();
+                var plainOnes = replaceable.Where(static c => !c.IsProtected).ToList();
+                var shown = protectedOnes.Take(20).Concat(plainOnes.Take(5)).ToList();
+                var preview = string.Join(Environment.NewLine,
+                    shown.Select(c => "  " + Relative(c) + Strings.AttributeTags(c.Attributes)));
+                var more = (protectedOnes.Count > 20 ? Strings.MoreProtected(protectedOnes.Count - 20) : string.Empty)
+                           + (plainOnes.Count > 5 ? Strings.More(plainOnes.Count - 5) : string.Empty);
+                var question = Strings.ConfirmOverwrite(replaceable.Count, preview, more);
+
+                // 初めに選ばれているのは「いいえ」。見ないで Enter キーを押しても置き換えない (#358、自己解凍書庫と揃える)
+                answer = MessageBox.Show(
+                    this,
+                    blockedText is null ? question : Strings.ConfirmOverwriteAndBlocked(question, blockedText),
+                    AppName,
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question,
+                    MessageBoxResult.No);
+
+                if (answer == MessageBoxResult.Cancel)
+                {
+                    return;
+                }
+
+                if (answer == MessageBoxResult.Yes)
+                {
+                    overwrite = ExtractOverwrite.Only(replaceable.Select(static c => c.Target));
+                }
+                else
+                {
+                    declined = replaceable.Select(static c => c.Name).ToHashSet(StringComparer.Ordinal);
+                }
             }
         }
 
@@ -7024,6 +7061,23 @@ public partial class MainWindow : Window
             foreach (var name in result.Rejected.Take(5))
             {
                 message.AppendLine($"  {name}");
+            }
+        }
+
+        // 同じ名前のフォルダーがある、アクセス権で書き込みが禁じられている、使用中など (#372)
+        if (result.NotReplaced.Count > 0)
+        {
+            icon = MessageBoxImage.Warning;
+            message.AppendLine();
+            message.AppendLine(Strings.NotReplacedFilesLine(result.NotReplaced.Count));
+            foreach (var (name, reason) in result.NotReplaced.Take(5))
+            {
+                message.AppendLine(Strings.FailureLine(name, reason));
+            }
+
+            if (result.NotReplaced.Count > 5)
+            {
+                message.AppendLine("  " + Strings.More(result.NotReplaced.Count - 5).Trim());
             }
         }
 

@@ -21,6 +21,7 @@ internal sealed class ExtractState(
     private readonly List<(string Name, string Reason)> _failed = [];
     private long _doneBytes;
     private readonly List<string> _skippedNames = [];
+    private readonly List<(string Name, string Reason)> _notReplaced = [];
     private int _extracted;
     private readonly MarkWatch _marks = new();
 
@@ -61,10 +62,18 @@ internal sealed class ExtractState(
 
         try
         {
-            var replace = overwrite.Allows(target);
-            if (!replace && File.Exists(target))
+            var decision = overwrite.Decide(target);
+            if (decision.Action is ExtractAction.Blocked or ExtractAction.Skip)
             {
-                _skippedNames.Add(key);
+                if (decision.Block is { } block)
+                {
+                    _notReplaced.Add((key, Strings.ExtractBlocked(block)));
+                }
+                else
+                {
+                    _skippedNames.Add(key);
+                }
+
                 Advance(size, key);
                 return;
             }
@@ -78,7 +87,9 @@ internal sealed class ExtractState(
             var source = Open(openEntry);
             try
             {
-                using var file = AtomicFile.CreateForExtraction(target, replace, zoneIdentifier);
+                using var file = AtomicFile.CreateForExtraction(
+                    target, decision.Action != ExtractAction.Write, zoneIdentifier,
+                    decision.Action == ExtractAction.ReplaceApproved ? overwrite.IsApproved : null);
                 CancellableCopy.CopyContent(
                     source, file.Stream, cancellationToken, expectedCrc, sizeIsExact ? size : -1);
 
@@ -112,6 +123,11 @@ internal sealed class ExtractState(
         {
             // パスワード付きの書庫。一覧は読めるが中身は取り出せない
             _failed.Add((key, Explain(ex)));
+        }
+        catch (Exception ex) when (ExtractOverwrite.IsNotReplaced(ex, target))
+        {
+            // 既にあるファイルを、アクセス権や使用中のために置き換えられなかった (#372)
+            _notReplaced.Add((key, Strings.Reason(ex)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException
@@ -157,7 +173,10 @@ internal sealed class ExtractState(
     public void Fail(string name, string reason) => _failed.Add((name, reason));
 
     public ExtractResult ToResult()
-        => new(_extracted, _skippedNames.Count, _rejected, _failed, Cancelled, _marks.Lost, _skippedNames);
+        => new(_extracted, _skippedNames.Count, _rejected, _failed, Cancelled, _marks.Lost, _skippedNames)
+        {
+            NotReplaced = _notReplaced,
+        };
 
     private void Advance(long size, string key)
     {

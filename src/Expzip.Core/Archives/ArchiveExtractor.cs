@@ -33,6 +33,23 @@ internal sealed record ExtractResult(
 {
     /// <summary>既にあるものを置き換えずに飛ばした項目の名前。</summary>
     public IReadOnlyList<string> SkippedNames { get; init; } = SkippedNames ?? [];
+
+    /// <summary>
+    /// 置き換えられなかった項目と理由 (#372)。同じ名前のフォルダーがある、アクセス権で書き込みが禁じられている、使用中など。書庫の順。
+    /// </summary>
+    public IReadOnlyList<(string Name, string Reason)> NotReplaced { get; init; } = [];
+}
+
+/// <summary>展開先に同じ名前のものがある項目 (#353、#372)。上書きの確認に挙げる。</summary>
+/// <param name="Name">書庫の中の名前。</param>
+/// <param name="Target">展開先にある同じ名前のもののフルパス。途中のフォルダーの名前にあるファイルなら、そのファイル。</param>
+/// <param name="Block">置き換えられない理由。置き換えられるなら <see langword="null"/>。</param>
+/// <param name="Attributes">展開先にあるものの属性。</param>
+internal sealed record ExtractConflict(string Name, string Target, ExtractBlock? Block, FileAttributes Attributes)
+{
+    /// <summary>読み取り専用・隠し・システムのファイルか。確認で先に、属性を添えて挙げる。</summary>
+    public bool IsProtected
+        => Block is null && (Attributes & (FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System)) != 0;
 }
 
 /// <summary>書庫から実ファイルへ展開する。</summary>
@@ -360,18 +377,30 @@ internal static class ArchiveExtractor
     /// 書き出しでも置き換えない (<see cref="ExtractOverwrite.Only"/>)。
     /// </para>
     /// </remarks>
-    /// <returns>項目の名前と、置き換わるファイルのフルパス。書庫の順。</returns>
-    public static List<(string Name, string Target)> FindConflicts(
+    /// <remarks>
+    /// <para>
+    /// 同じ名前のフォルダーがあるファイルと、途中のフォルダーの名前にファイルがあるものも挙げる (#372)。どちらも置き換えられない
+    /// (<see cref="ExtractConflict.Block"/>)。途中のフォルダーの名前にあるファイルは、その下の項目を 1 個ずつ挙げず、1 回だけ挙げる。
+    /// </para>
+    /// <para>
+    /// 書庫の中のフォルダーと展開先のフォルダー (ジャンクションを含む) は、中に足すので挙げない (#329)。
+    /// </para>
+    /// </remarks>
+    /// <returns>展開先に同じ名前のものがある項目。書庫の順。</returns>
+    public static List<ExtractConflict> FindConflicts(
         IEnumerable<string> entryNames, string destinationDirectory, string? basePath)
     {
-        var conflicts = new List<(string Name, string Target)>();
-        var root = Path.GetFullPath(destinationDirectory);
+        var conflicts = new List<ExtractConflict>();
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
         if (!Directory.Exists(root))
         {
             return conflicts;
         }
 
-        var listings = new Dictionary<string, HashSet<string>?>(StringComparer.OrdinalIgnoreCase);
+        var listings = new Dictionary<string, Dictionary<string, FileAttributes>?>(StringComparer.OrdinalIgnoreCase);
+        var blocking = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var reported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var name in entryNames)
         {
             var target = TargetFor(root, name, basePath);
@@ -381,26 +410,94 @@ internal static class ArchiveExtractor
             }
 
             var folder = Path.GetDirectoryName(target)!;
+            if (FileInPlaceOfFolder(folder, root, blocking) is { } file)
+            {
+                if (reported.Add(file))
+                {
+                    conflicts.Add(new ExtractConflict(name, file, ExtractBlock.FileInTheWay, AttributesOf(file) ?? 0));
+                }
+
+                continue;
+            }
+
             if (!listings.TryGetValue(folder, out var names))
             {
-                names = ListFileNames(folder);
+                names = ListNames(folder);
                 listings[folder] = names;
             }
 
-            var exists = names is null
-                ? File.Exists(target)
-                : names.Contains(Path.GetFileName(target).Normalize(System.Text.NormalizationForm.FormC));
-            if (exists)
+            FileAttributes? found = names is null
+                ? AttributesOf(target)
+                : names.TryGetValue(Path.GetFileName(target).Normalize(System.Text.NormalizationForm.FormC), out var attributes)
+                    ? attributes
+                    : null;
+
+            if (found is { } existing)
             {
-                conflicts.Add((name, target));
+                conflicts.Add(new ExtractConflict(
+                    name, target,
+                    (existing & FileAttributes.Directory) != 0 ? ExtractBlock.FolderInTheWay : null,
+                    existing));
             }
         }
 
         return conflicts;
     }
 
-    /// <summary>フォルダーの中のファイルの名前。フォルダーが無ければ空、数えられなければ <see langword="null"/>。</summary>
-    private static HashSet<string>? ListFileNames(string folder)
+    /// <summary>
+    /// 途中のフォルダーの名前にある、展開先のファイル。無ければ <see langword="null"/>。既にあるフォルダーが見つかったところで止める。
+    /// </summary>
+    private static string? FileInPlaceOfFolder(string folder, string root, Dictionary<string, string?> known)
+    {
+        var visited = new List<string>();
+        string? found = null;
+
+        for (var current = folder;
+             current.Length > root.Length && current.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+             current = Path.GetDirectoryName(current)!)
+        {
+            if (known.TryGetValue(current, out var cached))
+            {
+                found = cached;
+                break;
+            }
+
+            visited.Add(current);
+            if (Directory.Exists(current))
+            {
+                break;
+            }
+
+            if (File.Exists(current))
+            {
+                found = current;
+                break;
+            }
+        }
+
+        foreach (var path in visited)
+        {
+            known[path] = found;
+        }
+
+        return found;
+    }
+
+    /// <summary>ファイルやフォルダーの属性。無ければ <see langword="null"/>。</summary>
+    private static FileAttributes? AttributesOf(string path)
+    {
+        try
+        {
+            return File.GetAttributes(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>フォルダーの中の名前と属性。フォルダーが無ければ空、数えられなければ <see langword="null"/>。</summary>
+    private static Dictionary<string, FileAttributes>? ListNames(string folder)
     {
         try
         {
@@ -409,10 +506,14 @@ internal static class ArchiveExtractor
                 return [];
             }
 
-            // NAS などは濁点を分けた形で名前を返すことがある。書庫の名前と同じ形に揃えて比べる
-            return new HashSet<string>(
-                Directory.EnumerateFiles(folder).Select(static f => Path.GetFileName(f).Normalize(System.Text.NormalizationForm.FormC)),
-                StringComparer.OrdinalIgnoreCase);
+            // NAS などは濁点を分けた形で名前を返すことがある。書庫の名前と同じ形に揃えて比べる。リンクはたどらない
+            var names = new Dictionary<string, FileAttributes>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in new DirectoryInfo(folder).EnumerateFileSystemInfos())
+            {
+                names.TryAdd(entry.Name.Normalize(System.Text.NormalizationForm.FormC), entry.Attributes);
+            }
+
+            return names;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -434,11 +535,15 @@ internal static class ArchiveExtractor
     {
         try
         {
-            var replace = overwrite.Allows(target);
-            if (!replace && File.Exists(target))
+            var decision = overwrite.Decide(target);
+            switch (decision.Action)
             {
-                tally.Skip(order, name);
-                return;
+                case ExtractAction.Blocked:
+                    tally.NotReplace(order, name, Strings.ExtractBlocked(decision.Block!.Value));
+                    return;
+                case ExtractAction.Skip:
+                    tally.Skip(order, name);
+                    return;
             }
 
             var directory = Path.GetDirectoryName(target);
@@ -450,7 +555,9 @@ internal static class ArchiveExtractor
             // 書庫に MotW が付いていた場合は、書き出したファイルにも引き継ぐ。
             // MotW が消えると SmartScreen や保護ビューが働かなくなる (#12)
             using var source = fallback.Open(entry.FullName, entry.Open);
-            using var file = AtomicFile.CreateForExtraction(target, replace, zoneIdentifier);
+            using var file = AtomicFile.CreateForExtraction(
+                target, decision.Action != ExtractAction.Write, zoneIdentifier,
+                decision.Action == ExtractAction.ReplaceApproved ? overwrite.IsApproved : null);
 
             // 暗号化された項目はこの道では読めない。照合する前に開く時点で断られる
             CancellableCopy.CopyContent(
@@ -473,6 +580,11 @@ internal static class ArchiveExtractor
             // 書きかけは AtomicFile が消す。同じ名前の既にあるファイルには触れていない (#320)
             tally.Cancel();
         }
+        catch (Exception ex) when (ExtractOverwrite.IsNotReplaced(ex, target))
+        {
+            // 既にあるファイルを、アクセス権や使用中のために置き換えられなかった (#372)
+            tally.NotReplace(order, name, Describe(ex));
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException
                                    or PathTooLongException or InvalidDataException)
@@ -493,6 +605,7 @@ internal static class ArchiveExtractor
         private readonly List<(int Order, string Name)> _rejected = [];
         private readonly List<(int Order, string Name, string Reason)> _failed = [];
         private readonly List<(int Order, string Name)> _skippedNames = [];
+        private readonly List<(int Order, string Name, string Reason)> _notReplaced = [];
         private int _extracted;
         private long _doneBytes;
         private volatile bool _cancelled;
@@ -533,6 +646,14 @@ internal static class ArchiveExtractor
             }
         }
 
+        public void NotReplace(int order, string name, string reason)
+        {
+            lock (_lock)
+            {
+                _notReplaced.Add((order, name, reason));
+            }
+        }
+
         public void Advance(long bytes, string name)
         {
             lock (_lock)
@@ -559,7 +680,10 @@ internal static class ArchiveExtractor
                     _failed.OrderBy(static f => f.Order).Select(static f => (f.Name, f.Reason)).ToList(),
                     _cancelled,
                     Marks.Lost,
-                    _skippedNames.OrderBy(static s => s.Order).Select(static s => s.Name).ToList());
+                    _skippedNames.OrderBy(static s => s.Order).Select(static s => s.Name).ToList())
+                {
+                    NotReplaced = _notReplaced.OrderBy(static f => f.Order).Select(static f => (f.Name, f.Reason)).ToList(),
+                };
             }
         }
     }

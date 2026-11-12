@@ -1990,6 +1990,78 @@ internal static partial class Strings
     public static string ExtractFoundTitle => Pick(
         "見つかった項目の展開先を選択", "Select where to extract the items found");
 
+    /// <summary>
+    /// 上書きの確認で、置き換えられないものの一覧の見出し (#372)。置き換えるにはフォルダーやファイルを消すことになるもの。
+    /// </summary>
+    public static string ConfirmOverwriteBlocked(int count, string preview, string more) => Pick(
+        $"展開先にある次の {count:N0} 個は、書庫の中のものとファイルとフォルダーが逆になっているため、上書きできません。"
+        + "書庫の中の同じ名前のもの (フォルダーならその中のものも) は展開しません。"
+        + $"{Environment.NewLine}{preview}{more}",
+        $"The following {count:N0} {Plural(count, "item", "items")} in the destination cannot be overwritten, "
+        + "because one is a file and the other is a folder. "
+        + "The item with the same name in the archive (and, for a folder, everything in it) will not be extracted."
+        + $"{Environment.NewLine}{preview}{more}");
+
+    /// <summary>上書きの確認で、上書きできないものしか無いとき (#372)。「はい」で残りを展開する。</summary>
+    public static string ConfirmExtractWithBlocked(string blocked) => Pick(
+        $"{blocked}{Environment.NewLine}{Environment.NewLine}残りを展開しますか?",
+        $"{blocked}{Environment.NewLine}{Environment.NewLine}Extract the rest?");
+
+    /// <summary>
+    /// 上書きの確認に、上書きするものと上書きできないものの両方があるとき (#372)。
+    /// 上書きできないものを先に置き、問いで終える。「はい / いいえ」が上書きへの答えだと分かるように。
+    /// </summary>
+    public static string ConfirmOverwriteAndBlocked(string overwrite, string blocked) => Pick(
+        $"{blocked}{Environment.NewLine}{Environment.NewLine}{overwrite}",
+        $"{blocked}{Environment.NewLine}{Environment.NewLine}{overwrite}");
+
+    /// <summary>
+    /// 上書きの確認で、名前を出しきれなかった読み取り専用・隠し・システムのファイルの数 (#372)。
+    /// ふつうのファイルの「ほか N 個」に紛れないよう、種類を添える。
+    /// </summary>
+    public static string MoreProtected(int count) => Pick(
+        $"{Environment.NewLine}  ほか 読み取り専用・隠し・システムのファイル {count:N0} 個",
+        $"{Environment.NewLine}  and {count:N0} more read-only, hidden, or system {Plural(count, "file", "files")}");
+
+    /// <summary>上書きの確認で、名前に添える属性 (#372)。読み取り専用・隠し・システムのファイルは先に挙げる。</summary>
+    public static string AttributeTags(FileAttributes attributes)
+    {
+        var tags = new List<string>();
+        if ((attributes & FileAttributes.ReadOnly) != 0)
+        {
+            tags.Add(Pick("読み取り専用", "read-only"));
+        }
+
+        if ((attributes & FileAttributes.Hidden) != 0)
+        {
+            tags.Add(Pick("隠しファイル", "hidden"));
+        }
+
+        if ((attributes & FileAttributes.System) != 0)
+        {
+            tags.Add(Pick("システムのファイル", "system"));
+        }
+
+        return tags.Count == 0 ? string.Empty : $" ({string.Join(Pick("、", ", "), tags)})";
+    }
+
+    /// <summary>置き換えられない理由 (#372)。</summary>
+    public static string ExtractBlocked(Expzip.Archives.ExtractBlock block) => block switch
+    {
+        Expzip.Archives.ExtractBlock.FolderInTheWay => Pick(
+            "展開先に同じ名前のフォルダーがあるため、上書きできませんでした。",
+            "A folder with the same name is in the destination, so it could not be overwritten."),
+        _ => Pick(
+            "展開先に、この項目を入れるフォルダーと同じ名前のファイルがあり、上書きできないため、展開しませんでした。",
+            "A file in the destination has the same name as the folder this item goes into, "
+            + "and it cannot be overwritten, so this item was not extracted."),
+    };
+
+    /// <summary>展開の結果で、上書きできなかったもの (#372)。</summary>
+    public static string NotReplacedFilesLine(int count) => Pick(
+        $"上書きできなかった項目: {count:N0} 個",
+        $"Items that could not be overwritten: {count:N0}");
+
     public static string ConfirmOverwrite(int count, string preview, string more) => Pick(
         $"展開先に同じ名前のファイルが {count:N0} 個あります。上書きしますか?"
         + $"{Environment.NewLine}{Environment.NewLine}{preview}{more}"
@@ -2943,6 +3015,11 @@ internal static partial class Strings
 
         return error switch
         {
+            // アクセスの拒否より前に置く。アクセス権の問題と取り違えないように (#372)
+            Expzip.Archives.LinkedReadOnlyException => Pick(
+                "この読み取り専用のファイルには、ほかの名前 (ハードリンク) があるか、ファイル自体がリンクのため、このドライブでは上書きできません。",
+                "This read-only file has another name (a hard link) or is itself a link, so it cannot be overwritten on this drive."),
+
             UnauthorizedAccessException => path is null
                 ? Pick("アクセスが拒否されました。", "Access was denied.")
                 : Pick($"{path} へのアクセスが拒否されました。", $"Access to {path} was denied."),
