@@ -112,6 +112,9 @@ internal static class ArchiveExtractor
             : format == ArchiveFormat.MsiExe
             ? MsiExeReader.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+            : format == ArchiveFormat.Rar
+            ? RarExtractor.Extract(archivePath, names, sourceNames, destinationDirectory,
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : ArchiveFormats.IsCompressedFile(format)
             ? CompressedFile.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)

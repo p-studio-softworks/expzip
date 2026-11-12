@@ -450,10 +450,11 @@ internal static partial class Strings
     /// 書庫でない .exe / .dll は、中の部品を見せる (#183)。
     /// </remarks>
     public static string OpenFilter => Pick(
-        "書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001"
-        + ";*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi"
+        "書庫ファイル|*.zip;*.7z;*.rar;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001"
+        + ";*.r00;*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi"
         + "|ZIP書庫 (*.zip)|*.zip"
         + "|7z書庫 (*.7z)|*.7z"
+        + "|RAR書庫 (*.rar;*.r00)|*.rar;*.r00"
         + "|CAB書庫 (*.cab)|*.cab"
         + "|MSI インストーラー (*.msi)|*.msi"
         + "|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst"
@@ -463,10 +464,11 @@ internal static partial class Strings
         + "|exe / dll (*.exe;*.dll)|*.exe;*.dll"
         + "|分割された書庫 (*.001)|*.001"
         + "|すべてのファイル (*.*)|*.*",
-        "Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001"
-        + ";*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi"
+        "Archive files|*.zip;*.7z;*.rar;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001"
+        + ";*.r00;*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi"
         + "|ZIP archives (*.zip)|*.zip"
         + "|7z archives (*.7z)|*.7z"
+        + "|RAR archives (*.rar;*.r00)|*.rar;*.r00"
         + "|CAB archives (*.cab)|*.cab"
         + "|MSI installers (*.msi)|*.msi"
         + "|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst"
@@ -2057,6 +2059,36 @@ internal static partial class Strings
             + "and it cannot be overwritten, so this item was not extracted."),
     };
 
+    /// <summary>リンクの名前が、展開先に書けない名前のとき (#336)。</summary>
+    public static string LinkUnsafeName => Pick(
+        "このリンクは、名前のとおりに置くと展開先の外になるため、展開しませんでした。",
+        "This link's name would place it outside the destination, so it was not extracted.");
+
+    /// <summary>リンクを置く場所までの途中にリンクがあるとき (#336)。それを通って展開先の外に置かれることがある。</summary>
+    public static string LinkThroughLink => Pick(
+        "展開先で、このリンクを置くフォルダーまでの途中にリンクがあるため、展開しませんでした。",
+        "In the destination, a folder on the path to this link is itself a link, so this link was not extracted.");
+
+    /// <summary>リンクが書庫の外を指すとき (#336)。</summary>
+    public static string LinkPointsOutside => Pick(
+        "このリンクは書庫の外を指しているため、展開しませんでした。",
+        "This link points outside the archive, so it was not extracted.");
+
+    /// <summary>フォルダーを指すリンクと同じ名前のものが展開先にあるとき (#336、#372)。</summary>
+    public static string LinkNameTaken => Pick(
+        "展開先に同じ名前のものがあるため、上書きできませんでした。",
+        "Something with the same name is in the destination, so it could not be overwritten.");
+
+    /// <summary>ハードリンクとファイルのコピーの指す先が、今回展開されていないとき (#336)。</summary>
+    public static string LinkTargetNotExtracted => Pick(
+        "このリンクが指すファイルを一緒に展開していないため、展開しませんでした。",
+        "The file this link points to was not extracted along with it, so this link was not extracted.");
+
+    /// <summary>展開先のドライブがハードリンクに対応していないとき (#336)。</summary>
+    public static string HardLinkNotSupported => Pick(
+        "展開先のドライブはハードリンクに対応していません。",
+        "The destination drive does not support hard links.");
+
     /// <summary>展開の結果で、上書きできなかったもの (#372)。</summary>
     public static string NotReplacedFilesLine(int count) => Pick(
         $"上書きできなかった項目: {count:N0} 個",
@@ -2971,6 +3003,7 @@ internal static partial class Strings
     {
         ArchiveFormat.Zip => "ZIP",
         ArchiveFormat.SevenZip => "7z",
+        ArchiveFormat.Rar => "RAR",
         ArchiveFormat.Tar => "tar",
         ArchiveFormat.GZip => "gzip",
         ArchiveFormat.BZip2 => "bzip2",
@@ -3066,7 +3099,42 @@ internal static partial class Strings
                 "書庫の項目が多すぎます。", "The archive has too many items."),
 
             Expzip.Archives.EncryptedHeaderException => Pick(
-                "ファイル名まで暗号化された 7z は開けません。", "7z archives with encrypted file names cannot be opened."),
+                "ファイル名まで暗号化された書庫は開けません。", "Archives with encrypted file names cannot be opened."),
+
+            Expzip.Archives.UnsupportedRarException { Kind: Expzip.Archives.UnsupportedRar.SplitSelfExtracting } => Pick(
+                "分割された自己解凍の RAR には対応していません。",
+                "Split self-extracting RAR archives are not supported."),
+
+            Expzip.Archives.UnsupportedRarException { Kind: Expzip.Archives.UnsupportedRar.UnknownVolumeNaming } => Pick(
+                "分割ファイルの名前が決まった形ではないため、続きの分割ファイルを探せません。",
+                "The split files are not named in a known way, so the next split file cannot be found."),
+
+            Expzip.Archives.UnsupportedRarException => Pick(
+                "RAR 1.4 以前の書庫には対応していません。",
+                "RAR archives made with RAR 1.4 or earlier are not supported."),
+
+            // 分割した RAR の途中が欠けている (#336)
+            Expzip.Archives.MissingVolumeException missing => Pick(
+                $"分割ファイル {System.IO.Path.GetFileName(missing.Missing)} が見つかりません。",
+                $"The split file {System.IO.Path.GetFileName(missing.Missing)} was not found."),
+
+            Expzip.Archives.HardLinkNotSupportedException => HardLinkNotSupported,
+
+            // 標準入力から作った RAR など (#336)。今の読む部品では展開できないので、読む前に断る
+            Expzip.Archives.RarSizeUnknownException { After: false } => Pick(
+                "書庫に展開後の大きさが記録されていない項目には対応していません。",
+                "Items whose unpacked size is not recorded in the archive are not supported."),
+
+            // まとめて圧縮した書庫は先頭から順に読むので、その項目より後ろも読めない
+            Expzip.Archives.RarSizeUnknownException => Pick(
+                "まとめて圧縮した書庫で、展開後の大きさが記録されていない項目より後ろにあるため、読み込めません。",
+                "This item comes after an item whose unpacked size is not recorded in this solid archive, so it cannot be read."),
+
+            // 管理者として実行することは勧めない。受け取った書庫を管理者として展開させないため
+            Expzip.Archives.LinkPrivilegeException => Pick(
+                "この PC ではシンボリックリンクを展開する権限がありません。Windows の設定で開発者モードをオンにすると展開できます。",
+                "You do not have permission to extract symbolic links on this PC. "
+                + "Turning on Developer Mode in Windows Settings lets you extract them."),
 
             // 開けた後で中身を読めなかった。方式には対応しているので、形式の話はしない (#167)。
             // SharpCompress は壊れたデータに独自の例外を投げ、文は英語のまま出てくる

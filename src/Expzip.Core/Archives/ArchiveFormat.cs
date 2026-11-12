@@ -76,6 +76,13 @@ internal enum ArchiveFormat
     /// CAB が入った exe (#182)。IExpress で作ったものなど。中の CAB のファイルを並べる。読み取りのみ。
     /// </summary>
     CabExe,
+
+    /// <summary>
+    /// RAR (#336)。RAR 1.5 から RAR 7 までで作った書庫。読み取りのみ。UnRAR のライセンスは、UnRAR のソースを RAR の圧縮に
+    /// 使うことを認めておらず、圧縮の方式も公開されていないので、RAR は作らない。
+    /// 分割したもの (<c>.part1.rar</c>、<c>.rar</c> + <c>.r00</c>) と自己解凍の RAR (exe) も開く。
+    /// </summary>
+    Rar,
 }
 
 /// <summary>書庫の形式を判別する。</summary>
@@ -89,6 +96,7 @@ internal static class ArchiveFormats
     [
         (".zip", ArchiveFormat.Zip),
         (".7z", ArchiveFormat.SevenZip),
+        (".rar", ArchiveFormat.Rar),
         (".tar", ArchiveFormat.Tar),
         (".tar.gz", ArchiveFormat.Tar),
         (".tgz", ArchiveFormat.Tar),
@@ -199,6 +207,12 @@ internal static class ArchiveFormats
             return Unwrap(path, byName);
         }
 
+        // 古い形の分割した RAR の 2 個目以降 (.r00 など、#336)。ZIP の分割 (.z01) も同じ形の名前なので、中身で確かめる
+        if (RarVolumes.IsOldStyleContinuation(path) && StartsWithRar(path))
+        {
+            return ArchiveFormat.Rar;
+        }
+
         if (path.EndsWith(Program, StringComparison.OrdinalIgnoreCase))
         {
             return Sniff(path, libraryOnly: false);
@@ -207,6 +221,20 @@ internal static class ArchiveFormats
         return path.EndsWith(Library, StringComparison.OrdinalIgnoreCase)
             ? Sniff(path, libraryOnly: true)
             : ArchiveFormat.Unknown;
+    }
+
+    /// <summary>RAR のしるしで始まるか (#336)。読めなければ偽。</summary>
+    private static bool StartsWithRar(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            return RarHeader.StartsWithSignature(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -274,6 +302,8 @@ internal static class ArchiveFormats
                 ? ArchiveFormat.Zip
                 : !libraryOnly && SharpArchiveAccess.SevenZipOffset(path) > 0
                     ? ArchiveFormat.SevenZip
+                : !libraryOnly && RarHeader.FindOffset(path) > 0
+                    ? ArchiveFormat.Rar
                     : !libraryOnly && MsiExeReader.IsMsiExe(path)
                         ? ArchiveFormat.MsiExe
                     : !libraryOnly && CabExeReader.IsCabExe(path)

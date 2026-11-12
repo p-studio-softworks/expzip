@@ -172,6 +172,24 @@ internal sealed class ExtractState(
     /// <summary>書庫ごと読めなかったことを記録する。</summary>
     public void Fail(string name, string reason) => _failed.Add((name, reason));
 
+    /// <summary>上書きできなかったことを記録する (#372)。</summary>
+    public void NotReplace(string name, string reason) => _notReplaced.Add((name, reason));
+
+    /// <summary>ライブラリの中で読み進めている間に中止された (#336)。</summary>
+    public void Cancel() => Cancelled = true;
+
+    /// <summary>リンクを展開した (#336)。</summary>
+    public void CountExtracted() => _extracted++;
+
+    /// <summary>展開先。</summary>
+    public string Root => destinationRoot;
+
+    /// <summary>書庫の中の名前から取り除く先頭の部分 (選んだものが展開先の最上位に来るように、#48)。</summary>
+    public string? BasePath => basePath;
+
+    /// <summary>上書きの指定。</summary>
+    public ExtractOverwrite Overwrite => overwrite;
+
     public ExtractResult ToResult()
         => new(_extracted, _skippedNames.Count, _rejected, _failed, Cancelled, _marks.Lost, _skippedNames)
         {

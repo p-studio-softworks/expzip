@@ -119,10 +119,86 @@ internal static class ArchiveContentReader
                     () => CompressedFile.OpenContent(archivePath, format)));
             }
         }
+        else if (format == ArchiveFormat.Rar)
+        {
+            VisitRar(archivePath, contents.Names, visit, cancellationToken);
+        }
         else
         {
             VisitSharp(archivePath, format, contents.Names, password, visit, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// RAR の中身を読む (#336)。ソリッドの書庫は先頭から順に読む。リンク (RAR5 のリダイレクト) は中身を持たないので渡さない。
+    /// </summary>
+    /// <remarks>照らし合わせる CRC は渡さない。SharpCompress が CRC32 か BLAKE2 で確かめ、合わなければ読み取りが失敗する。</remarks>
+    private static void VisitRar(
+        string archivePath, NameReading names, Action<ContentItem> visit, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var session = RarAccess.Open(archivePath, names, null, cancellationToken);
+            if (session.Layout.IsSolid)
+            {
+                // 大きさが書かれていない項目を読み飛ばすと SharpCompress が失敗するので、そこで順に読むのをやめ、
+                // 後ろのものは読めない理由を付けて渡す
+                var stopAt = RarSizeUnknownException.FirstInSolid(session);
+                using var reader = session.Archive.ExtractAllEntries();
+                var index = -1;
+                while (reader.MoveToNextEntry())
+                {
+                    index++;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (index < session.Entries.Count && IsContent(session, index) && reader.Entry.Key is { } key)
+                    {
+                        visit(Item(session, index, key, reader.Entry, reader.OpenEntryStream));
+                    }
+
+                    if (index == stopAt)
+                    {
+                        break;
+                    }
+                }
+
+                for (var i = stopAt + 1; stopAt >= 0 && i < session.Entries.Count; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var entry = session.Entries[i];
+                    if (IsContent(session, i) && entry.Key is { } key)
+                    {
+                        visit(new ContentItem(ArchiveTreeBuilder.Trim(key), session.ItemAt(i).SizeUnknown ? -1 : Math.Max(0, entry.Size), -1,
+                            entry.IsEncrypted, static () => throw new RarSizeUnknownException(after: true)));
+                    }
+                }
+
+                return;
+            }
+
+            for (var i = 0; i < session.Entries.Count; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var entry = session.Entries[i];
+                if (IsContent(session, i) && entry.Key is { } key)
+                {
+                    visit(Item(session, i, key, entry, entry.OpenEntryStream));
+                }
+            }
+        }
+        catch (Exception ex) when (RarReader.Translate(ex) is { } translated)
+        {
+            throw translated;
+        }
+
+        static bool IsContent(RarSession session, int index)
+            => !session.Entries[index].IsDirectory
+               && session.ItemAt(index).Link is RarLinkKind.None or RarLinkKind.LegacyUnixSymbolicLink;
+
+        // 展開後の大きさが書かれていないものは、大きさを不明 (-1) とし、読もうとしたら読む前に断る
+        static ContentItem Item(RarSession session, int index, string key, IEntry entry, Func<Stream> open)
+            => session.ItemAt(index).SizeUnknown
+                ? new ContentItem(ArchiveTreeBuilder.Trim(key), -1, -1, entry.IsEncrypted, static () => throw new RarSizeUnknownException())
+                : new ContentItem(ArchiveTreeBuilder.Trim(key), Math.Max(0, entry.Size), -1, entry.IsEncrypted, open);
     }
 
     /// <summary>

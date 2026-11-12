@@ -10,7 +10,7 @@ repository).
 1. SharpCompress 0.50.8
 https://github.com/adamhathcock/sharpcompress
 
-Used to read 7z, tar and other formats.
+Used to read 7z, RAR, tar and other formats.
 ----------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -34,6 +34,22 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+----------------------------------------------------------------------------
+The RAR decompression code in SharpCompress is derived from the UnRAR
+source code by Alexander Roshal. Expzip only reads (extracts) RAR archives;
+it does not create them. The UnRAR license requires the following paragraph
+to be included:
+
+   2. UnRAR source code may be used in any software to handle
+      RAR archives without limitations free of charge, but cannot be
+      used to develop RAR (WinRAR) compatible archiver and to
+      re-create RAR compression algorithm, which is proprietary.
+      Distribution of modified UnRAR source code in separate form
+      or as a part of other software is permitted, provided that
+      full text of this paragraph, starting from "UnRAR source code"
+      words, is included in license, or in documentation if license
+      is not available, and in source code comments of resulting package.
 
 ============================================================================
 2. SharpZipLib 1.4.2

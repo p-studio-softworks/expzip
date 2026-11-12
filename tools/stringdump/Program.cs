@@ -420,6 +420,37 @@ IEnumerable<object?> Alternates(ParameterInfo parameter)
             assembly.GetType("Expzip.Archives.LinkedReadOnlyException", throwOnError: true)!,
             @"C:\Users\user\Desktop\a.txt");
 
+        // 分割した RAR の途中が欠けている (#336)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.MissingVolumeException", throwOnError: true)!,
+            @"C:\Users\user\Desktop\資料.part2.rar");
+
+        // 扱わない種類の RAR (#336)
+        var unsupported = assembly.GetType("Expzip.Archives.UnsupportedRar", throwOnError: true)!;
+        foreach (var kind in Enum.GetValues(unsupported))
+        {
+            yield return Activator.CreateInstance(
+                assembly.GetType("Expzip.Archives.UnsupportedRarException", throwOnError: true)!, kind);
+        }
+
+        // 展開先のドライブがハードリンクに対応していない (#336)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.HardLinkNotSupportedException", throwOnError: true)!);
+
+        // この PC ではシンボリックリンクを展開できない (#336)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.LinkPrivilegeException", throwOnError: true)!);
+
+        // 展開後の大きさが書かれていない RAR の項目と、ソリッドの書庫でその後ろにあるもの (#336)
+        var sizeUnknown = assembly.GetType("Expzip.Archives.RarSizeUnknownException", throwOnError: true)!;
+        yield return Activator.CreateInstance(sizeUnknown, [false]);
+        yield return Activator.CreateInstance(sizeUnknown, [true]);
+
+        // 名前まで暗号化した書庫 (7z、RAR)
+        yield return Activator.CreateInstance(
+            assembly.GetType("Expzip.Archives.EncryptedHeaderException", throwOnError: true)!,
+            new InvalidDataException("Encrypted headers."));
+
         // リンクと同じ名前のフォルダーの中に項目ができる書き換え (#366)
         yield return Activator.CreateInstance(
             assembly.GetType("Expzip.Archives.LinkOverlapException", throwOnError: true)!);

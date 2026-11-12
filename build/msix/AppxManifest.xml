@@ -60,6 +60,7 @@
             <uap:SupportedFileTypes>
               <uap:FileType>.zip</uap:FileType>
               <uap:FileType>.7z</uap:FileType>
+              <uap:FileType>.rar</uap:FileType>
               <uap:FileType>.tar</uap:FileType>
               <uap:FileType>.tgz</uap:FileType>
               <uap:FileType>.tbz</uap:FileType>

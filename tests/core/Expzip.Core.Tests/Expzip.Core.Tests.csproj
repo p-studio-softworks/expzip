@@ -24,4 +24,9 @@
     <ProjectReference Include="..\..\..\src\Expzip.Core\Expzip.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- RAR の見本 (#336)。出どころは Samples\Rar\README.md -->
+    <None Include="Samples\**\*" Exclude="Samples\**\*.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -22,7 +22,7 @@ Expzip has no relation to Explzh. It uses none of its code, and the formats it s
 | ZIP | ○ | ○ | ○ | Changes: add, delete, rename, move inside the archive, create folders. Compression methods: Stored / Deflate / Deflate64 / BZip2 / LZMA / PPMd / Zstandard. ZIP64 (over 4GB or over 60,000 items in one archive) can also be read |
 | Password-protected ZIP | ○ | ○ | ○ | Opens AES-256 / AES-192 / AES-128 and the old method (ZipCrypto). **New archives are encrypted with AES-256** |
 | Nested archives | ○ | ○ | ○ | Selecting one opens it in its own tab. You can go down any number of levels, and saving your changes writes them back into the parent archive |
-| Self-extracting archives (`.exe`) | ○ | ○ | × | Opens ones that contain ZIP or 7z (judged by the contents, not the name). Can be made from an open ZIP. **Finished ones are never modified**: breaking the program at the front would leave the recipient unable to extract them |
+| Self-extracting archives (`.exe`) | ○ | ○ | × | Opens ones that contain ZIP, 7z or RAR (judged by the contents, not the name). Can be made from an open ZIP. **Finished ones are never modified**: breaking the program at the front would leave the recipient unable to extract them |
 | Split files (`.001` `.002` …) | ○ | ○ | × | Opening `.001` opens the split files joined together, ready to extract. All the pieces must be present; if any are missing, Expzip tells you which numbers. Any file can be split, not only archives, and **a program to join the pieces is made at the same time**. Existing split files are not re-split |
 | 7z | ○ | × | × | **Read-only**. Solid archives are supported. For password-protected 7z, only the list of contents is shown |
 | tar / tar.gz / tar.bz2 / tar.xz / tar.zst | ○ | × | × | **Read-only.** `.tgz` `.tbz` `.tbz2` `.txz` `.tzst` are handled the same way |
@@ -35,7 +35,7 @@ Expzip has no relation to Explzh. It uses none of its code, and the formats it s
 | CAB (`.cab`) | ○ | × | × | **Read-only**. For a CAB split into several files, opening the first one reads the rest too |
 | MSI installers (`.msi`) | ○ | × | × | **Read-only**. Lists the files under their real names and folders, and lets you take them out. The installer's own actions are not run |
 | exe / dll | ○ | × | × | **Read-only**. Not archives, but you can list the icons, version information and other resources embedded in them and take them out. Icons come out as `.ico`, version information as readable text |
-| RAR | × | × | × | Not supported (may be considered in the future) |
+| RAR | ○ | × | × | **Read-only**. Opens archives made with RAR 1.5 through RAR 7, solid archives, split archives (`.part1.rar`, or `.rar` with `.r00`), and self-extracting RAR archives. A split archive is read from the first split file, whichever split file you open. For password-protected RAR, only the list of contents is shown. Links in the archive are extracted as links, but only links that point inside the archive. Symbolic links need Developer Mode to be turned on in Windows Settings. RAR archives cannot be created |
 | LZH | × | × | × | Will not be supported |
 
 **Japanese file names**

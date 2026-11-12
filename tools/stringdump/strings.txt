@@ -1204,6 +1204,9 @@ FormatName (format: MsiExe)
 FormatName (format: CabExe)
   ja  CAB が入った exe
   en  exe with CAB
+FormatName (format: Rar)
+  ja  RAR
+  en  RAR
 
 FormatUnknown
   ja  不明
@@ -1216,6 +1219,10 @@ Forward
 ForwardTooltip
   ja  進む (Alt + 右方向キー)
   en  Forward (Alt + Right Arrow)
+
+HardLinkNotSupported
+  ja  展開先のドライブはハードリンクに対応していません。
+  en  The destination drive does not support hard links.
 
 HashArchiveDone
   ja  書庫ファイルのハッシュ値を計算しました
@@ -1604,13 +1611,33 @@ LinkLine (name: 報告書.pdf, target: 画像/2024/写真.jpg)
   ja    ⟦報告書.pdf⟧ → ⟦画像/2024/写真.jpg⟧
   en    ⟦報告書.pdf⟧ → ⟦画像/2024/写真.jpg⟧
 
+LinkNameTaken
+  ja  展開先に同じ名前のものがあるため、上書きできませんでした。
+  en  Something with the same name is in the destination, so it could not be overwritten.
+
 LinkOverlapsFolder
   ja  書庫の中に、同じ名前のリンクとフォルダーが両方できてしまいます。
   en  The archive would then contain a link and a folder with the same name.
 
+LinkPointsOutside
+  ja  このリンクは書庫の外を指しているため、展開しませんでした。
+  en  This link points outside the archive, so it was not extracted.
+
+LinkTargetNotExtracted
+  ja  このリンクが指すファイルを一緒に展開していないため、展開しませんでした。
+  en  The file this link points to was not extracted along with it, so this link was not extracted.
+
 LinkTargetNotSupported
   ja  このリンクの指す先のパスは、読み取れないか、書庫に記録できない書き方です。
   en  The path this link points to could not be read, or is written in a way that cannot be stored in an archive.
+
+LinkThroughLink
+  ja  展開先で、このリンクを置くフォルダーまでの途中にリンクがあるため、展開しませんでした。
+  en  In the destination, a folder on the path to this link is itself a link, so this link was not extracted.
+
+LinkUnsafeName
+  ja  このリンクは、名前のとおりに置くと展開先の外になるため、展開しませんでした。
+  en  This link's name would place it outside the destination, so it was not extracted.
 
 LinksAddedLine (count: 3)
   ja  リンクとして追加した項目: 3 個
@@ -1912,8 +1939,8 @@ OpenEntryFailed (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip �
       | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
 
 OpenFilter
-  ja  書庫ファイル|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001;*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi|ZIP書庫 (*.zip)|*.zip|7z書庫 (*.7z)|*.7z|CAB書庫 (*.cab)|*.cab|MSI インストーラー (*.msi)|*.msi|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst|圧縮ファイル (*.gz;*.bz2;*.xz;*.zst)|*.gz;*.bz2;*.xz;*.zst|MSIX パッケージ (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle|自己解凍書庫 (*.exe)|*.exe|exe / dll (*.exe;*.dll)|*.exe;*.dll|分割された書庫 (*.001)|*.001|すべてのファイル (*.*)|*.*
-  en  Archive files|*.zip;*.7z;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001;*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi|ZIP archives (*.zip)|*.zip|7z archives (*.7z)|*.7z|CAB archives (*.cab)|*.cab|MSI installers (*.msi)|*.msi|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst|Compressed files (*.gz;*.bz2;*.xz;*.zst)|*.gz;*.bz2;*.xz;*.zst|MSIX packages (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle|Self-extracting archives (*.exe)|*.exe|exe / dll (*.exe;*.dll)|*.exe;*.dll|Split archives (*.001)|*.001|All files (*.*)|*.*
+  ja  書庫ファイル|*.zip;*.7z;*.rar;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001;*.r00;*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi|ZIP書庫 (*.zip)|*.zip|7z書庫 (*.7z)|*.7z|RAR書庫 (*.rar;*.r00)|*.rar;*.r00|CAB書庫 (*.cab)|*.cab|MSI インストーラー (*.msi)|*.msi|tar書庫 (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst|圧縮ファイル (*.gz;*.bz2;*.xz;*.zst)|*.gz;*.bz2;*.xz;*.zst|MSIX パッケージ (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle|自己解凍書庫 (*.exe)|*.exe|exe / dll (*.exe;*.dll)|*.exe;*.dll|分割された書庫 (*.001)|*.001|すべてのファイル (*.*)|*.*
+  en  Archive files|*.zip;*.7z;*.rar;*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst;*.gz;*.bz2;*.xz;*.zst;*.exe;*.001;*.r00;*.msix;*.msixbundle;*.appx;*.appxbundle;*.dll;*.cab;*.msi|ZIP archives (*.zip)|*.zip|7z archives (*.7z)|*.7z|RAR archives (*.rar;*.r00)|*.rar;*.r00|CAB archives (*.cab)|*.cab|MSI installers (*.msi)|*.msi|tar archives (*.tar;*.tar.gz;*.tar.bz2;*.tar.xz;*.tar.zst)|*.tar;*.tar.gz;*.tgz;*.tar.bz2;*.tbz;*.tbz2;*.tar.xz;*.txz;*.tar.zst;*.tzst|Compressed files (*.gz;*.bz2;*.xz;*.zst)|*.gz;*.bz2;*.xz;*.zst|MSIX packages (*.msix;*.msixbundle;*.appx;*.appxbundle)|*.msix;*.msixbundle;*.appx;*.appxbundle|Self-extracting archives (*.exe)|*.exe|exe / dll (*.exe;*.dll)|*.exe;*.dll|Split archives (*.001)|*.001|All files (*.*)|*.*
 
 OpenLaunchCancelled
   ja  キャンセルしました
@@ -2043,6 +2070,35 @@ Reason (error: Expzip.Archives.FileChangedWhileReadingException: The file was re
 Reason (error: Expzip.Archives.LinkedReadOnlyException: Access to the path 'C:\Users\user\Desktop\a.txt' is denied.)
   ja  この読み取り専用のファイルには、ほかの名前 (ハードリンク) があるか、ファイル自体がリンクのため、このドライブでは上書きできません。
   en  This read-only file has another name (a hard link) or is itself a link, so it cannot be overwritten on this drive.
+Reason (error: Expzip.Archives.MissingVolumeException: RAR volume not found: C:\Users\user\Desktop\資料.part2.rar)
+  ja  分割ファイル 資料.part2.rar が見つかりません。
+  en  The split file 資料.part2.rar was not found.
+Reason (error: Expzip.Archives.UnsupportedRarException: Unsupported RAR: SplitSelfExtracting)
+  ja  分割された自己解凍の RAR には対応していません。
+  en  Split self-extracting RAR archives are not supported.
+Reason (error: Expzip.Archives.UnsupportedRarException: Unsupported RAR: UnknownVolumeNaming)
+  ja  分割ファイルの名前が決まった形ではないため、続きの分割ファイルを探せません。
+  en  The split files are not named in a known way, so the next split file cannot be found.
+Reason (error: Expzip.Archives.UnsupportedRarException: Unsupported RAR: TooOld)
+  ja  RAR 1.4 以前の書庫には対応していません。
+  en  RAR archives made with RAR 1.4 or earlier are not supported.
+Reason (error: Expzip.Archives.HardLinkNotSupportedException: The destination drive does not support hard links.)
+  ja  展開先のドライブはハードリンクに対応していません。
+  en  The destination drive does not support hard links.
+Reason (error: Expzip.Archives.LinkPrivilegeException: A required privilege is not held to create a symbolic link.)
+  ja  この PC ではシンボリックリンクを展開する権限がありません。Windows の設定で開発者モードをオンにすると展開できます。
+  en  You do not have permission to extract symbolic links on this PC. Turning on Developer Mode in Windows Settings lets you extract them.
+Reason (error: Expzip.Archives.RarSizeUnknownException: The unpacked size of this RAR entry is not recorded.)
+  ja  書庫に展開後の大きさが記録されていない項目には対応していません。
+  en  Items whose unpacked size is not recorded in the archive are not supported.
+Reason (error: Expzip.Archives.RarSizeUnknownException: This RAR entry follows an entry whose unpacked size is not recorded.)
+  ja  まとめて圧縮した書庫で、展開後の大きさが記録されていない項目より後ろにあるため、読み込めません。
+  en  This item comes after an item whose unpacked size is not recorded in this solid archive, so it cannot be read.
+Reason (error: Expzip.Archives.EncryptedHeaderException: Encrypted headers.
+ ---> System.IO.InvalidDataException: Encrypted headers.
+   --- End of inner exception stack trace ---)
+  ja  ファイル名まで暗号化された書庫は開けません。
+  en  Archives with encrypted file names cannot be opened.
 Reason (error: Expzip.Archives.LinkOverlapException: A link would overlap a folder in the archive.)
   ja  書庫の中に、同じ名前のリンクとフォルダーが両方できてしまいます。
   en  The archive would then contain a link and a folder with the same name.

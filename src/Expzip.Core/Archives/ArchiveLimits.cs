@@ -56,7 +56,7 @@ internal static class ArchiveLimits
 }
 
 /// <summary>
-/// ファイル名まで暗号化された 7z で、一覧を読めない (#294)。壊れているのではないので、壊れているとは言わない。
+/// ファイル名まで暗号化された書庫 (7z、RAR) で、一覧を読めない (#294、#336)。壊れているのではないので、壊れているとは言わない。
 /// </summary>
 internal sealed class EncryptedHeaderException(Exception inner) : IOException(inner.Message, inner);
 

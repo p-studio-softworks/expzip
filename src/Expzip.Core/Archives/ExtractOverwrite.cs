@@ -173,14 +173,26 @@ internal sealed class ExtractOverwrite
                && error is UnauthorizedAccessException or IOException { HResult: SharingViolation or LockViolation };
     }
 
+    /// <summary>
+    /// <paramref name="target"/> が、この展開で書いたファイルか (#336)。ハードリンクとファイルのコピーの指す先を確かめるのに使う。
+    /// 名前ではなくファイルの番号で比べる。展開先に前からあったファイルを指させないため。
+    /// </summary>
+    public bool WasCreated(string target)
+        => Key(target) is { } key && _created.ContainsKey(key);
+
     /// <summary>この展開で <paramref name="target"/> に書き終えた。</summary>
     public void Created(string target)
     {
-        if (_approved is not null && Key(target) is { } key)
+        // リンクを展開するときは、すべて置き換える指定でも覚える。リンクの指す先を確かめるのに使う (#336)。
+        // ファイルごとに開いて番号を読むので、要らないときは読まない (#328)
+        if ((_approved is not null || RecordCreated) && Key(target) is { } key)
         {
             _created.TryAdd(key, 0);
         }
     }
+
+    /// <summary>この展開で書いたファイルを、指定にかかわらず覚えるか (#336)。リンクを展開する書庫で立てる。</summary>
+    public bool RecordCreated { get; set; }
 
     /// <summary>同じファイルかを比べるための値。読めなければ <see langword="null"/>。</summary>
     private static string? Key(string path)
