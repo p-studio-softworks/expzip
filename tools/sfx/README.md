@@ -7,7 +7,7 @@
 
 ## 出来上がりをリポジトリに置いてある理由
 
-`src/Expzip.Core/Resources/sfx-x86.exe` (11,264 バイト) を同梱してある。**Expzip 本体をビルドするのに
+`src/Expzip.Core/Resources/sfx-x86.exe` (12,288 バイト) を同梱してある。**Expzip 本体をビルドするのに
 C のツールチェーンは要らない。** `dotnet build` だけで通る。結合用のプログラム (`tools/joiner`) と
 同じ考え方で、理由もそちらの README に書いてある。
 
