@@ -71,6 +71,7 @@ internal static class ZipArchiveReader
         var reportStep = Math.Max(1, entries.Count / 100);
         var done = 0;
         var links = 0;
+        var linkTable = new Dictionary<string, ListedLink>();
 
         foreach (var entry in entries)
         {
@@ -94,6 +95,14 @@ internal static class ZipArchiveReader
             if (ZipLinks.IsLink(entry.ExternalAttributes))
             {
                 links++;
+
+                // 指す先は中身にあるので、開くときに読む (#367)
+                linkTable[name] = new ListedLink(RarLinkKind.UnixSymbolicLink, null, null);
+            }
+            else
+            {
+                // 同じ名前の項目が後ろにあれば、そちらが残る
+                linkTable.Remove(name);
             }
 
             builder.AddFile(
@@ -120,6 +129,7 @@ internal static class ZipArchiveReader
         contents.Names = names;
         contents.LegacyNameBytes = recorder.Recorded;
         contents.LinkCount = links;
+        contents.Links = linkTable;
         return contents;
     }
 

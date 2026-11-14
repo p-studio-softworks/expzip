@@ -144,6 +144,10 @@ internal static class ZipArchiveWriter
     /// </para>
     /// </remarks>
     /// <exception cref="IOException"><paramref name="archivePath"/> に既にファイルがある場合など。</exception>
+    /// <param name="links">
+    /// ディスクを通さずに入れるリンク (#367)。選んだ項目から新しい書庫を作るときに、元の書庫から読んだリンクを入れる。
+    /// 開発者モードがオフの PC でも、リンクをリンクのまま入れられる。
+    /// </param>
     public static AddResult CreateWith(
         string archivePath,
         IReadOnlyList<string> sourcePaths,
@@ -151,7 +155,8 @@ internal static class ZipArchiveWriter
         bool replaceExisting,
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken,
-        IReadOnlyCollection<string>? exclude = null)
+        IReadOnlyCollection<string>? exclude = null,
+        IReadOnlyList<CarriedLink>? links = null)
     {
         // 閉じた時点で終端レコードが書かれ、読み取り可能な書庫になる
         using (var stream = new FileStream(archivePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -159,7 +164,7 @@ internal static class ZipArchiveWriter
         {
         }
 
-        return Add(archivePath, sourcePaths, destinationFolder, replaceExisting, progress, cancellationToken, exclude, archiveIsNew: true);
+        return Add(archivePath, sourcePaths, destinationFolder, replaceExisting, progress, cancellationToken, exclude, archiveIsNew: true, links);
     }
 
     private static AddResult Add(
@@ -170,7 +175,8 @@ internal static class ZipArchiveWriter
         IProgress<AddProgress>? progress,
         CancellationToken cancellationToken,
         IReadOnlyCollection<string>? exclude,
-        bool archiveIsNew)
+        bool archiveIsNew,
+        IReadOnlyList<CarriedLink>? carried = null)
     {
         // 足す先の書庫そのものも入れない。追加するフォルダーの中に書庫があることがある (#366)
         var failed = new List<(string, string)>();
@@ -178,6 +184,14 @@ internal static class ZipArchiveWriter
         try
         {
             plan = BuildPlan(sourcePaths, destinationFolder, [.. exclude ?? [], archivePath], failed, cancellationToken);
+
+            // 名前は、ファイルと同じく濁点を合わせた書き方にそろえる。そろえないと、リンクと同じ名前のフォルダーの重なりを見落とす
+            foreach (var link in carried ?? [])
+            {
+                var name = link.EntryName.Normalize(System.Text.NormalizationForm.FormC);
+                var archived = new ArchiveLink(link.Target, link.PointsToFolder, Outside: false);
+                plan.Add(new PlanItem(link.SourcePath, name, ZipLinks.Content(archived).Length, false) { Link = archived });
+            }
         }
         catch (OperationCanceledException)
         {

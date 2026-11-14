@@ -87,6 +87,12 @@ internal sealed class ArchiveContents
     /// </summary>
     public int LinkCount { get; set; }
 
+    /// <summary>
+    /// リンクの項目 (#367)。書庫の中の名前 (<see cref="ArchiveEntry.SourceName"/>) から引く。リンクを開くときに、指す先をたどるのに使う。
+    /// 同じ名前の項目が後ろにあれば、そちらが残るので入れない (展開と同じ)。
+    /// </summary>
+    public IReadOnlyDictionary<string, ListedLink> Links { get; set; } = new Dictionary<string, ListedLink>();
+
     /// <summary>名前をどの読み方で読んだか (#335)。この書庫を読む処理には、これを渡す。</summary>
     public NameReading Names { get; set; } = NameReading.Default;
 

@@ -10,6 +10,13 @@ namespace Expzip.Archives;
 /// <param name="Outside">選んだフォルダーの外を指すか。そのまま入れて、終わったあとに知らせる。</param>
 internal sealed record ArchiveLink(string Target, bool PointsToFolder, bool Outside);
 
+/// <summary>ディスクを通さずに、新しい書庫にリンクとして入れるもの (#367)。</summary>
+/// <param name="EntryName">新しい書庫の中の名前。</param>
+/// <param name="Target">指す先。リンクのあるフォルダーからの相対パスで、区切りは <c>/</c>。新しい書庫の中を指すこと。</param>
+/// <param name="PointsToFolder">フォルダーを指すか。</param>
+/// <param name="SourcePath">入れられなかったときに名前として出すパス。更新日時もここから読む (無ければ今の日時)。</param>
+internal sealed record CarriedLink(string EntryName, string Target, bool PointsToFolder, string SourcePath);
+
 /// <summary>書庫にリンクとして入れたもの (#366)。終わったあとの知らせに使う。</summary>
 /// <param name="Name">書庫の中の名前。</param>
 /// <param name="Target">書庫に入れた指す先。</param>
@@ -56,12 +63,15 @@ internal static class ZipLinks
     /// <summary>フォルダーを指す印。</summary>
     private const byte PointsToFolderFlag = 1;
 
-    /// <summary>リンクの項目か。作った OS が Unix で、種類がシンボリックリンクのもの。</summary>
-    public static bool IsLink(ZipEntry entry)
-        => entry.HostSystem == UnixHost && ((entry.ExternalFileAttributes >> 16) & TypeMask) == SymbolicLinkType;
+    /// <summary>リンクの項目か。外部属性だけで見る (<see cref="IsLink(int)"/>)。</summary>
+    /// <remarks>
+    /// 一覧、展開、パスワード付きの展開、書き換えで同じ見分け方にする (#367)。作った OS も見ると、
+    /// 作った OS を Unix 以外にした項目が、道によってリンクになったりファイルになったりする。
+    /// </remarks>
+    public static bool IsLink(ZipEntry entry) => IsLink(entry.ExternalFileAttributes);
 
     /// <summary>
-    /// 外部属性だけから見て、リンクの項目か。作った OS が分からないとき (.NET の <c>ZipArchive</c>) に使う。
+    /// 外部属性だけから見て、リンクの項目か。.NET の <c>ZipArchive</c> は作った OS を見せないので、どの道でもこれで見る。
     /// </summary>
     /// <remarks>Windows で作った書庫は上位 16 ビットを 0 にするので、取り違えない。</remarks>
     public static bool IsLink(int externalAttributes) => ((externalAttributes >> 16) & TypeMask) == SymbolicLinkType;

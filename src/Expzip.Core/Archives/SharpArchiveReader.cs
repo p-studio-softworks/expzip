@@ -63,6 +63,7 @@ internal static class SharpArchiveReader
         var reportStep = Math.Max(1, entries.Count / 100);
         var done = 0;
         var encrypted = false;
+        var linkTable = new Dictionary<string, ListedLink>();
 
         foreach (var entry in entries)
         {
@@ -85,6 +86,20 @@ internal static class SharpArchiveReader
                 continue;
             }
 
+            // リンクも一覧ではファイルとして出す。指す先は中身にあるので、開くときに読む (#367)
+            switch (ArchiveLinks.SevenZipKind(entry))
+            {
+                case SevenZipLink.Symbolic:
+                    linkTable[key] = new ListedLink(RarLinkKind.UnixSymbolicLink, null, null);
+                    break;
+                case SevenZipLink.WindowsReparse:
+                    linkTable[key] = new ListedLink(RarLinkKind.UnixSymbolicLink, null, null, Unsupported: true);
+                    break;
+                default:
+                    linkTable.Remove(key);
+                    break;
+            }
+
             // 7z はまとめて圧縮する (ソリッド) ため、エントリごとの圧縮後サイズを持たない
             builder.AddFile(
                 key, entry.Size, 0, compressedLengthKnown: false,
@@ -95,9 +110,11 @@ internal static class SharpArchiveReader
         progress?.Report(new OpenProgress(entries.Count, entries.Count));
 
         // エントリごとの内訳が無いので、書庫そのものの大きさを圧縮後の合計として出す
-        return builder.Build(
+        var contents = builder.Build(
             path, ArchiveFormat.SevenZip, FileLength(path), encrypted,
             isSelfExtracting: SharpArchiveAccess.SevenZipOffset(path) > 0);
+        contents.Links = linkTable;
+        return contents;
     }
 
     /// <summary>
@@ -145,6 +162,7 @@ internal static class SharpArchiveReader
         // tar は中央の索引を持たないため、総数は最後まで読むまで分からない。
         // 進捗は「読んだ件数」だけを出し、割合は出せる範囲で近似する。
         var done = 0;
+        var linkTable = new Dictionary<string, ListedLink>();
 
         while (reader.MoveToNextEntry())
         {
@@ -165,6 +183,19 @@ internal static class SharpArchiveReader
                 // 圧縮された tar では、エントリ単位の圧縮後サイズは意味を持たない
                 // (書庫全体をまとめて圧縮しているため)。ここでは展開後サイズを使う
                 builder.AddFile(key, entry.Size, entry.Size, compressedLengthKnown: false, ReadTime(entry.LastModifiedTime));
+
+                // リンクも一覧ではファイルとして出す。開くときに指す先をたどる (#367)
+                var kind = ArchiveLinks.TarKind(entry);
+                if (kind == RarLinkKind.None)
+                {
+                    linkTable.Remove(key);
+                }
+                else
+                {
+                    linkTable[key] = new ListedLink(
+                        kind, entry.LinkTarget is { Length: <= ArchiveLinks.MaxTarget } target ? target : null,
+                        kind == RarLinkKind.HardLink ? false : null, Unsupported: kind == RarLinkKind.LegacyUnixSymbolicLink);
+                }
             }
 
             if (++done % 100 == 0)
@@ -178,6 +209,7 @@ internal static class SharpArchiveReader
         var contents = builder.Build(path, ArchiveFormat.Tar, FileLength(path));
         contents.Names = names;
         contents.LegacyNameBytes = recorder.Recorded;
+        contents.Links = linkTable;
         return contents;
     }
 

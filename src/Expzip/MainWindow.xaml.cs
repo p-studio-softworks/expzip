@@ -3172,7 +3172,8 @@ public partial class MainWindow : Window
     /// <param name="sources">入れるファイルとフォルダー。</param>
     /// <param name="zone">書庫に付ける MotW。</param>
     /// <returns>作れたら <see langword="true"/>。元のファイルが残ったら <see langword="false"/>。</returns>
-    private async Task<bool> BuildArchiveAsync(string path, IReadOnlyList<string> sources, string? zone)
+    private async Task<bool> BuildArchiveAsync(
+        string path, IReadOnlyList<string> sources, string? zone, IReadOnlyList<CarriedLink>? links = null)
     {
         var temporary = AtomicFile.TemporaryPathFor(path);
 
@@ -3197,7 +3198,7 @@ public partial class MainWindow : Window
             var result = await Task.Run(() =>
             {
                 return ZipArchiveWriter.CreateWith(
-                    temporary, sources, string.Empty, replaceExisting: true, progress, cancellation.Token, exclude);
+                    temporary, sources, string.Empty, replaceExisting: true, progress, cancellation.Token, exclude, links);
             });
 
             if (result.Cancelled || (result.Added == 0 && result.Failed.Count > 0))
@@ -3345,8 +3346,10 @@ public partial class MainWindow : Window
             // 書庫に付いている MotW は、新しい書庫にも引き継ぐ (#12)
             var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath);
 
-            var sources = await ExtractSelectionAsync(rows, directory, zone);
-            if (sources is null or [] || !await BuildArchiveAsync(path, sources, zone))
+            // リンクはディスクに作らず、元の書庫から読んだものをそのまま入れる (#367)
+            var taken = await ExtractSelectionAsync(rows, directory, zone);
+            if (taken is not { } selection || (selection.Paths.Length == 0 && selection.Links.Count == 0)
+                || !await BuildArchiveAsync(path, selection.Paths, zone, selection.Links))
             {
                 return;
             }
@@ -3620,7 +3623,40 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 選んだ行を取り出し、新しい書庫に入れるパスを返す (#207)。
+    /// 受け取ったリンクに、新しい書庫の中の名前を付ける (#367)。選んだ項目はそれぞれ新しい書庫のいちばん上に来るので、
+    /// その項目の名前から下をそのまま使う。指す先は同じ項目の中にあるので、相対パスは変わらない。
+    /// </summary>
+    private static List<CarriedLink> CarryLinks(IReadOnlyList<CollectedLink> links, IReadOnlyList<string> roots, string directory)
+    {
+        var carried = new List<CarriedLink>();
+        foreach (var link in links)
+        {
+            foreach (var root in roots)
+            {
+                if (ArchiveLinks.Canonical(root) is not { } top)
+                {
+                    continue;
+                }
+
+                if (!link.Name.Equals(top, StringComparison.OrdinalIgnoreCase)
+                    && !link.Name.StartsWith(top + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var slash = top.LastIndexOf('/');
+                var name = slash < 0 ? link.Name : link.Name[(slash + 1)..];
+                carried.Add(new CarriedLink(
+                    name, link.Target, link.ToFolder, Path.Combine(directory, name.Replace('/', Path.DirectorySeparatorChar))));
+                break;
+            }
+        }
+
+        return carried;
+    }
+
+    /// <summary>
+    /// 選んだ行を取り出し、新しい書庫に入れるパスと、ディスクを通さずに入れるリンク (#367) を返す (#207)。
     /// 取りやめた場合や、取り出せないものがあった場合は <see langword="null"/>。
     /// </summary>
     /// <remarks>
@@ -3630,7 +3666,7 @@ public partial class MainWindow : Window
     /// <param name="failed">
     /// 取り出せなかったときに出す文。書庫の名前と理由を受け取る。省くと新しい書庫を作れなかった旨の文。
     /// </param>
-    private async Task<string[]?> ExtractSelectionAsync(
+    private async Task<(string[] Paths, IReadOnlyList<CarriedLink> Links)?> ExtractSelectionAsync(
         List<EntryRow> rows, string directory, string? zone, Func<string, string, string>? failed = null)
     {
         failed ??= Strings.CreateArchiveFailed;
@@ -3658,9 +3694,13 @@ public partial class MainWindow : Window
         {
             // 取り出し先は毎回新しく作るフォルダーなので、上書きしない指定で取り出す。書き出すと同じファイルになる
             // 2 項目 (末尾のピリオドや、選び直した読み方で同じ名前になるもの) を、黙って 1 つにしないため (#335)
+            // リンクはディスクに作らずに受け取り、新しい書庫へそのまま入れる。開発者モードがオフの PC でも作れるようにするため。
+            // 新しい書庫では選んだ項目がそれぞれいちばん上に来るので、同じ項目の中を指すリンクだけを入れる (#367)
+            var roots = rows.Select(static r => r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath).ToList();
             var result = await Task.Run(() => ArchiveExtractor.Extract(
                 archivePath, format, reading, names, directory, overwrite: false, progress: progress,
-                cancellationToken: cancellation.Token, zoneIdentifier: zone, password: password));
+                cancellationToken: cancellation.Token, zoneIdentifier: zone, password: password,
+                links: new LinkOptions { Roots = roots, Collect = true }));
 
             if (result.Cancelled)
             {
@@ -3701,13 +3741,14 @@ public partial class MainWindow : Window
             }
 
             // 書庫に入れるのは選んだ項目そのもの。フォルダーは中身ごと入る
-            return rows
+            var paths = rows
                 .Select(r => r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath)
                 .Select(ArchivePath.ToSafeRelativePath)
                 .Where(static relative => relative is not null)
                 .Select(relative => Path.Combine(directory, relative!))
                 .Where(static path => File.Exists(path) || Directory.Exists(path))
                 .ToArray();
+            return (paths, CarryLinks(result.Links, roots, directory));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException or NotSupportedException
@@ -5521,9 +5562,16 @@ public partial class MainWindow : Window
         }
 
         string[] paths;
+        ExtractResult extracted;
         try
         {
-            var directory = workspace.DirectoryFor(Contents.FilePath);
+            // リンクを含むドラッグは、そのたびに新しいフォルダーに取り出す (#367)。前のドラッグで残ったリンクを通って書いたり、
+            // 移動で落としたジャンクションが、あとで同じ場所に取り出したものを指したりしないため。
+            // リンクを含まないときは、前と同じく書庫ごとのフォルダーを使う。毎回新しくすると、閉じるまで一時フォルダーが増え続ける。
+            // 書庫ごとのフォルダーでは、既に取り出してあるものは触らない。開いたままのアプリに掴まれていて上書きできなくても、ドラッグは成り立つ
+            var directory = ContainsLinks(rows)
+                ? workspace.CreateScratchDirectory(Path.GetFileNameWithoutExtension(Contents.FilePath))
+                : workspace.DirectoryFor(Contents.FilePath);
             var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath);
 
             Mouse.OverrideCursor = Cursors.Wait;
@@ -5535,12 +5583,17 @@ public partial class MainWindow : Window
             // ここで操作を拾って入れ子になることはない
             Dispatcher.Invoke(static () => { }, DispatcherPriority.Render);
 
-            // 既に取り出してあるものは触らない。開いたままのアプリに掴まれていて
-            // 上書きできない場合でも、ドラッグ自体は成り立つようにする
-            ArchiveExtractor.Extract(
+            // リンクは、ドラッグする項目の中を指すものだけを取り出す。落とした先では、項目どうしの位置が書庫の中と変わるため。
+            // ジャンクションは指す先を絶対パスで持つので、エクスプローラーがコピーや移動をすると正しい場所を指さない (#367)
+            extracted = ArchiveExtractor.Extract(
                 Contents.FilePath, Contents.Format, Contents.Names, names, directory,
                 overwrite: false, progress: null, cancellationToken: CancellationToken.None,
-                zoneIdentifier: zone, password: dragPassword);
+                zoneIdentifier: zone, password: dragPassword,
+                links: new LinkOptions
+                {
+                    Roots = rows.Select(static r => r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath).ToList(),
+                    JunctionsNotAllowed = true,
+                });
 
             // ドラッグの対象は選んだ項目そのもの。フォルダを選んだ場合は
             // 配下のファイルではなくフォルダを渡す
@@ -5571,6 +5624,7 @@ public partial class MainWindow : Window
         if (paths.Length == 0)
         {
             StatusMessage.Text = Strings.DragCannotStart;
+            ShowDragLinksNotice(extracted, arrived: false);
             return;
         }
 
@@ -5600,9 +5654,16 @@ public partial class MainWindow : Window
                 // 移動を許しているのは書庫の中での移動 (#43) のためで、同じドライブへ落とすと
                 // エクスプローラーは移動を選ぶ。以前はコピーのときしか言わず、
                 // 「展開しています…」が残っていた (#157)
-                StatusMessage.Text = PerformedEffect(effect, data) == DragDropEffects.None
+                var performed = PerformedEffect(effect, data);
+                StatusMessage.Text = performed == DragDropEffects.None
                     ? Strings.DragCancelled
                     : Strings.DragExtracted(paths.Length);
+
+                // ドラッグの最後のコピーや移動はエクスプローラーが行う。リンクのまま届いたかは Expzip からは分からない (#367)
+                if (performed != DragDropEffects.None)
+                {
+                    ShowDragLinksNotice(extracted, arrived: true);
+                }
             }
         }
         catch (COMException)
@@ -5615,6 +5676,54 @@ public partial class MainWindow : Window
         {
             _draggingOut = false;
         }
+    }
+
+    /// <summary>選んだ行 (フォルダーなら中身も) に、書庫の中のリンクがあるか (#367)。</summary>
+    private bool ContainsLinks(List<EntryRow> rows)
+    {
+        if (Contents is not { Links.Count: > 0 } contents)
+        {
+            return false;
+        }
+
+        return contents.Links.Keys.Any(name =>
+        {
+            var path = ArchiveTreeBuilder.Trim(name);
+            return rows.Any(r => r.Folder is not null
+                ? path.StartsWith(r.Folder.FullPath + "/", StringComparison.OrdinalIgnoreCase)
+                : string.Equals(r.Entry!.SourceName, name, StringComparison.Ordinal));
+        });
+    }
+
+    /// <summary>
+    /// ドラッグで書庫の外へ出したあとに、リンクについて知らせる (#367)。取り出さなかったリンクと、
+    /// 落とした先でリンクではなくなっているかもしれないリンクの名前を挙げ、「展開」を案内する。
+    /// </summary>
+    /// <remarks>
+    /// ドラッグを始める前には出さない。ドラッグはボタンを押したまま動かしている間に始まるので、
+    /// その前にウィンドウを出すとドラッグが途切れる。エクスプローラーが返すコピーか移動かは、
+    /// 別のドライブへの移動やエクスプローラー以外へ落としたときに当てにならないので、どちらでも知らせる。
+    /// </remarks>
+    /// <param name="arrived">落とされたか。落とされていなければ、取り出さなかったものだけを挙げる。</param>
+    private void ShowDragLinksNotice(ExtractResult extracted, bool arrived)
+    {
+        var notTaken = extracted.LinkFailures.Select(static f => (ArchiveTreeBuilder.Trim(f.Name), f.Reason)).ToList();
+        var created = arrived ? extracted.CreatedLinks.Select(ArchiveTreeBuilder.Trim).ToList() : [];
+        if (notTaken.Count == 0 && created.Count == 0)
+        {
+            return;
+        }
+
+        static string List(IReadOnlyList<string> lines)
+            => string.Join(Environment.NewLine, lines.Take(5).Select(static l => "  " + l))
+               + (lines.Count > 5 ? Environment.NewLine + Strings.More(lines.Count - 5) : string.Empty);
+
+        MessageBox.Show(
+            this,
+            Strings.DragLinksNotice(
+                notTaken.Count == 0 ? string.Empty : List(notTaken.Select(static f => $"{f.Item1}: {f.Reason}").ToList()),
+                created.Count == 0 ? string.Empty : List(created)),
+            AppName, MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     /// <summary>ドラッグの結果、実際に行われたこと (#157)。</summary>
@@ -5840,6 +5949,69 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// リンクの指す先の項目を、書庫の中でたどる (#367)。ファイルならそれを返す。フォルダーなら一覧でそこへ移り、
+    /// 開けなければ理由を出して、どちらも <see langword="null"/> を返す。
+    /// </summary>
+    private async Task<ArchiveEntry?> ResolveLinkAsync(ArchiveEntry link)
+    {
+        if (Contents is not { } contents)
+        {
+            return null;
+        }
+
+        // パスワード付きの ZIP では、指す先も暗号化された中身にある
+        string? password = null;
+        if (contents.RequiresPassword && ArchiveFormats.IsZipBased(contents.Format) && !TryGetPassword(out password))
+        {
+            return null;
+        }
+
+        // まとめて圧縮した 7z では、指す先を読むのに時間がかかることがある。作業中にして、中止を効かせる。
+        // その間にほかの操作やタブの切り替えで、別の書庫の同じ名前の項目を開かないようにする
+        LinkResolution? resolution;
+        using var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        SetBusy(true);
+        try
+        {
+            resolution = await Task.Run(() => ArchiveLinkResolver.Resolve(contents, link, password, cancellation.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage.Text = Strings.ExtractOneCancelled;
+            return null;
+        }
+        finally
+        {
+            _cancellation = null;
+            SetBusy(false);
+        }
+
+        // たどっている間に別のタブへ移っていたら開かない
+        if (!ReferenceEquals(Contents, contents))
+        {
+            return null;
+        }
+
+        if (resolution?.Folder is { } folder)
+        {
+            Navigate(folder);
+            return null;
+        }
+
+        if (resolution?.File is { } file)
+        {
+            return file;
+        }
+
+        MessageBox.Show(
+            this,
+            Strings.CannotOpenLink(link.Name, resolution?.Reason ?? Strings.LinkOpenUnreadable),
+            AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        return null;
+    }
+
     /// <summary>選んだファイルを、実行せずに Expzip 自身の新しいタブで開く (#206)。</summary>
     private async void OpenInTabMenuItem_Click(object sender, RoutedEventArgs e)
     {
@@ -5868,6 +6040,18 @@ public partial class MainWindow : Window
         if (Contents is null || _cancellation is not null)
         {
             return;
+        }
+
+        // リンクなら、指す先の項目を開く (#367)。この先の確認 (実行できるファイルか)、タブで開くか、取り出す場所、
+        // 編集の反映は、すべて指す先の項目で決める。リンクの名前で決めると、確かめないまま実行できるファイルを開いてしまう
+        if (Contents.Links.ContainsKey(entry.SourceName))
+        {
+            if (await ResolveLinkAsync(entry) is not { } resolved)
+            {
+                return;
+            }
+
+            entry = resolved;
         }
 
         // 取り出し先は書庫内のパスから決める。展開と同じ判定を使い、

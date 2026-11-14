@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using System.Text;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 using Expzip.Localization;
@@ -27,9 +26,6 @@ namespace Expzip.Archives;
 /// </remarks>
 internal static class RarExtractor
 {
-    /// <summary>RAR4 のシンボリックリンクの指す先として読む中身の上限。</summary>
-    private const int MaxLinkTarget = 4096;
-
     /// <summary>指定したエントリを展開する。引数の意味は <see cref="ArchiveExtractor.Extract"/> と同じ。</summary>
     public static ExtractResult Extract(
         string archivePath,
@@ -40,10 +36,11 @@ internal static class RarExtractor
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
-        string? basePath = null)
+        string? basePath = null,
+        LinkOptions? links = null)
     {
         var state = new ExtractState(
-            Path.GetFullPath(destinationDirectory), overwrite, zoneIdentifier, basePath, progress);
+            Path.GetFullPath(destinationDirectory), overwrite, zoneIdentifier, basePath, progress) { Links = links };
 
         try
         {
@@ -88,6 +85,11 @@ internal static class RarExtractor
 
             (session.ItemAt(i).Link == RarLinkKind.None ? files : links).Add(i);
         }
+
+        // 同じ名前のリンクが後ろにあるファイルは書かない。同じ名前の項目は、書庫でいちばん後ろのものだけを展開する (#367)
+        var laterLink = ArchiveExtractor.LaterLinks(
+            entries.Select((e, i) => (e.Key ?? string.Empty, session.ItemAt(i).Link != RarLinkKind.None)).ToList());
+        files.RemoveAll(laterLink.Contains);
 
         // まとめて圧縮した書庫では、大きさが書かれていない項目より後ろは読めない (読み飛ばすところで SharpCompress が失敗する)。
         // 読み始める前に理由を付けて外し、手前のものだけを展開する
@@ -136,7 +138,7 @@ internal static class RarExtractor
 
             foreach (var i in legacyWanted)
             {
-                if (ReadLegacyTarget(entries[i].OpenEntryStream) is { } target)
+                if (ReadLegacyTarget(entries[i].OpenEntryStream, entries[i].Size, cancellationToken) is { } target)
                 {
                     legacyTargets[i] = target;
                 }
@@ -159,15 +161,17 @@ internal static class RarExtractor
             if (target is null)
             {
                 // RAR4 のシンボリックリンクで、中身 (指す先) を読めなかった
-                state.Fail(entries[i].Key!, Strings.LinkTargetNotSupported);
+                state.FailLink(entries[i].Key!, Strings.LinkTargetUnreadable);
                 continue;
             }
 
-            requests.Add(new LinkRequest(entries[i].Key!, item.Link, target, item.LinkToFolder));
+            // RAR4 のシンボリックリンクは、ファイルかフォルダーかを書庫から決める (#367)
+            requests.Add(new LinkRequest(entries[i].Key!, item.Link, target,
+                item.Link == RarLinkKind.LegacyUnixSymbolicLink ? null : item.LinkToFolder, i));
         }
 
-        var allNames = entries.Where(static e => e.Key is not null).Select(static e => e.Key!).ToList();
-        LinkExtractor.Extract(requests, allNames, state, zone, cancellationToken);
+        var all = entries.Select(static e => new LinkScopeEntry(e.Key ?? string.Empty, e.IsDirectory)).ToList();
+        LinkExtractor.Extract(requests, all, state, zone, cancellationToken);
     }
 
     /// <summary>ソリッドの書庫を先頭から順に読み、欲しいものだけを書き出す。</summary>
@@ -204,7 +208,7 @@ internal static class RarExtractor
                 }
                 else if (legacyLinks.Contains(index))
                 {
-                    if (ReadLegacyTarget(reader.OpenEntryStream) is { } target)
+                    if (ReadLegacyTarget(reader.OpenEntryStream, entry.Size, cancellationToken) is { } target)
                     {
                         legacyTargets[index] = target;
                     }
@@ -244,21 +248,10 @@ internal static class RarExtractor
         => session.ItemAt(index).SizeUnknown ? static () => throw new RarSizeUnknownException() : open;
 
     /// <summary>RAR4 の Unix のシンボリックリンクの指す先 (中身) を読む。長すぎるもの、読めないものは <see langword="null"/>。</summary>
-    private static string? ReadLegacyTarget(Func<Stream> open)
-    {
-        try
-        {
-            using var stream = open();
-            var buffer = new byte[MaxLinkTarget + 1];
-            var read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
-
-            // 残りは読み切る。読み切らないと CRC が確かめられない
-            stream.CopyTo(Stream.Null);
-            return read is 0 or > MaxLinkTarget ? null : Encoding.UTF8.GetString(buffer, 0, read);
-        }
-        catch (Exception ex) when (ex is SharpCompressException or IOException or InvalidDataException)
-        {
-            return null;
-        }
-    }
+    /// <remarks>
+    /// 読み方は ZIP と 7z と同じ (<see cref="ArchiveLinks.ReadTarget"/>)。上限を超えたら残りは読まない (#367)。
+    /// 上限までに終わるものは終わりまで読むので、SharpCompress が CRC を確かめる。
+    /// </remarks>
+    private static string? ReadLegacyTarget(Func<Stream> open, long size, CancellationToken cancellationToken)
+        => ArchiveLinks.ReadTarget(open, size, expectedCrc: -1, cancellationToken, out _);
 }

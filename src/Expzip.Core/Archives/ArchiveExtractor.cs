@@ -38,6 +38,27 @@ internal sealed record ExtractResult(
     /// 置き換えられなかった項目と理由 (#372)。同じ名前のフォルダーがある、アクセス権で書き込みが禁じられている、使用中など。書庫の順。
     /// </summary>
     public IReadOnlyList<(string Name, string Reason)> NotReplaced { get; init; } = [];
+
+    /// <summary>ディスクに作らずに返したリンク (#367、<see cref="LinkOptions.Collect"/>)。書庫の順。</summary>
+    public IReadOnlyList<CollectedLink> Links { get; init; } = [];
+
+    /// <summary>リンクのまま展開したリンクの名前 (#367)。書庫の順。</summary>
+    public IReadOnlyList<string> CreatedLinks { get; init; } = [];
+
+    /// <summary>展開しなかったリンクと理由 (#367)。<see cref="Failed"/> にも入っている。書庫の順。</summary>
+    public IReadOnlyList<(string Name, string Reason)> LinkFailures { get; init; } = [];
+
+    /// <summary>ファイルを書いたあとに展開したリンクの結果を足す (#367)。リンクは後ろに並ぶ。</summary>
+    public ExtractResult With(ExtractResult links)
+        => new(Extracted + links.Extracted, Skipped + links.Skipped, [.. Rejected, .. links.Rejected],
+            [.. Failed, .. links.Failed], Cancelled || links.Cancelled, MarkLost || links.MarkLost,
+            [.. SkippedNames, .. links.SkippedNames])
+        {
+            NotReplaced = [.. NotReplaced, .. links.NotReplaced],
+            Links = [.. Links, .. links.Links],
+            CreatedLinks = [.. CreatedLinks, .. links.CreatedLinks],
+            LinkFailures = [.. LinkFailures, .. links.LinkFailures],
+        };
 }
 
 /// <summary>展開先に同じ名前のものがある項目 (#353、#372)。上書きの確認に挙げる。</summary>
@@ -82,6 +103,9 @@ internal static class ArchiveExtractor
     /// </param>
     /// <param name="format">書庫の形式 (#19)。中身が ZIP でないものは SharpCompress 側へ回す。</param>
     /// <param name="password">パスワード付きZIPの合言葉 (#20)。要らない書庫では <see langword="null"/>。</param>
+    /// <param name="links">
+    /// リンクの扱いを変える指定 (#367)。ドラッグと、選んだ項目から新しい書庫を作るときに渡す。画面の「展開」では <see langword="null"/>。
+    /// </param>
     public static ExtractResult Extract(
         string archivePath,
         ArchiveFormat format,
@@ -93,7 +117,8 @@ internal static class ArchiveExtractor
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
         string? basePath = null,
-        string? password = null)
+        string? password = null,
+        LinkOptions? links = null)
         => format == ArchiveFormat.Nsis
             ? NsisExtractor.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
@@ -114,18 +139,18 @@ internal static class ArchiveExtractor
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : format == ArchiveFormat.Rar
             ? RarExtractor.Extract(archivePath, names, sourceNames, destinationDirectory,
-                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath, links)
             : ArchiveFormats.IsCompressedFile(format)
             ? CompressedFile.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : !ArchiveFormats.IsZipBased(format)
             ? SharpArchiveExtractor.Extract(archivePath, format, names, sourceNames, destinationDirectory,
-                overwrite, progress, cancellationToken, zoneIdentifier, basePath)
+                overwrite, progress, cancellationToken, zoneIdentifier, basePath, links)
             : password is null
                 ? ExtractZip(archivePath, format, names, sourceNames, destinationDirectory, overwrite,
-                    progress, cancellationToken, zoneIdentifier, basePath)
+                    progress, cancellationToken, zoneIdentifier, basePath, links)
                 : ZipEncryption.Extract(archivePath, names, password, sourceNames, destinationDirectory,
-                    overwrite, progress, cancellationToken, zoneIdentifier, basePath);
+                    overwrite, progress, cancellationToken, zoneIdentifier, basePath, links);
 
     private static ExtractResult ExtractZip(
         string archivePath,
@@ -137,7 +162,8 @@ internal static class ArchiveExtractor
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier,
-        string? basePath)
+        string? basePath,
+        LinkOptions? links)
     {
         // 展開先の正規化。これを基準に、書庫外へ書き出そうとするエントリを弾く
         var destinationRoot = Path.GetFullPath(destinationDirectory);
@@ -149,13 +175,29 @@ internal static class ArchiveExtractor
 
         // 名前は一覧に出したものと同じ形で扱う。MSIX では元の名前に戻す (#182)。
         // 並列で取り出すときは書庫を開き直すので、エントリは番号で指す
-        var targets = zip.Entries
+        var all = zip.Entries
             .Select((e, i) => (Index: i, Entry: e, Name: ArchiveFormats.EntryName(format, e.FullName)))
+            .ToList();
+        var targets = all
             .Where(t => !ZipEntryKind.IsFolder(t.Name))
             .Where(t => sourceNames is null || sourceNames.Contains(t.Name))
             .ToList();
 
-        var tally = new ExtractTally(targets.Sum(static t => t.Entry.Length), progress);
+        // リンクは、ファイルを全部書き出したあとに展開する (#367)。見分けは外部属性だけで行う (一覧と同じ)
+        var linkEntries = targets.Where(static t => ZipLinks.IsLink(t.Entry.ExternalAttributes)).ToList();
+        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)
+        var kinds = all.Select(static t => (t.Name, ZipLinks.IsLink(t.Entry.ExternalAttributes) && !ZipEntryKind.IsFolder(t.Name))).ToList();
+
+        // リンクの指す先が、今回展開したファイルかを確かめられるように、書いたファイルを覚える (#367)
+        if (linkEntries.Count > 0)
+        {
+            overwrite.RecordCreated = true;
+        }
+        var laterLink = LaterLinks(kinds);
+        var superseded = Superseded(kinds);
+
+        var tally = new ExtractTally(
+            targets.Where(static t => !ZipLinks.IsLink(t.Entry.ExternalAttributes)).Sum(static t => t.Entry.Length), progress);
 
         // 書き出し先を先に決める。書庫の外へ出るものはここで弾く
         var work = new List<(int Index, string Name, long Length, string Target)>();
@@ -166,6 +208,12 @@ internal static class ArchiveExtractor
             if (target is null)
             {
                 tally.Reject(work.Count, name);
+                continue;
+            }
+
+            // 同じ名前のリンクが後ろにあれば、そちらが残る。先に書くと、リンクを置けなかったときに前のファイルが残る
+            if (ZipLinks.IsLink(entry.ExternalAttributes) || laterLink.Contains(index))
+            {
                 continue;
             }
 
@@ -202,16 +250,67 @@ internal static class ArchiveExtractor
             }
         }
 
+        ExtractResult Finish()
+        {
+            var result = tally.ToResult();
+            if (result.Cancelled || linkEntries.Count == 0)
+            {
+                return result;
+            }
+
+            var state = new ExtractState(destinationRoot, overwrite, zoneIdentifier, basePath, null) { Links = links };
+            var requests = new List<LinkRequest>();
+            using var fallback = new ZipMethodFallback(archivePath, names);
+            foreach (var (index, entry, name) in linkEntries)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                // 後ろに同じ名前の項目があるリンクは置かない。読まずに済ませる
+                if (TargetFor(destinationRoot, name, basePath) is null || superseded.Contains(index))
+                {
+                    continue;
+                }
+
+                if (ArchiveLinks.ReadTarget(
+                        () => fallback.Open(entry.FullName, entry.Open), entry.Length, entry.IsEncrypted ? -1 : entry.Crc32,
+                        cancellationToken, out var reason) is { } target)
+                {
+                    requests.Add(new LinkRequest(name, RarLinkKind.UnixSymbolicLink, target, null, index));
+                }
+                else if (!cancellationToken.IsCancellationRequested)
+                {
+                    state.FailLink(name, reason);
+                }
+            }
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                LinkExtractor.Extract(
+                    requests, all.Select(static t => new LinkScopeEntry(t.Name, ZipEntryKind.IsFolder(t.Name))).ToList(),
+                    state, zoneIdentifier, cancellationToken);
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                state.Cancel();
+            }
+
+            return result.With(state.ToResult());
+        }
+
         if (lanes == 1)
         {
             Run(zip, cancellationToken);
-            return tally.ToResult();
+            return Finish();
         }
 
         // どれか 1 本が思わぬ失敗で止まったら、ほかも止める。書きかけはそれぞれが片付ける
         using var halt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var all = Enumerable.Range(0, lanes).Select(lane => Task.Run(() =>
+        var lanesRunning = Enumerable.Range(0, lanes).Select(lane => Task.Run(() =>
         {
             try
             {
@@ -234,9 +333,44 @@ internal static class ArchiveExtractor
             }
         })).ToArray();
 
-        // すべて終わるのを待ってから、最初の失敗をそのまま投げる
-        Task.WhenAll(all).GetAwaiter().GetResult();
-        return tally.ToResult();
+        // すべて終わるのを待ってから、最初の失敗をそのまま投げる。リンクは全部の書き出しが終わってから置く
+        Task.WhenAll(lanesRunning).GetAwaiter().GetResult();
+        return Finish();
+    }
+
+    /// <summary>
+    /// 後ろに同じ名前のリンクがある項目の番号 (#367)。同じ名前の項目は、書庫でいちばん後ろのものだけを展開する。
+    /// </summary>
+    /// <param name="entries">書庫のすべての項目の名前と、リンクか。書庫の順。</param>
+    internal static HashSet<int> LaterLinks(IReadOnlyList<(string Name, bool IsLink)> entries)
+        => Later(entries, onlyLinks: true);
+
+    /// <summary>後ろに同じ名前の項目 (ファイルでもリンクでも) がある項目の番号 (#367)。</summary>
+    internal static HashSet<int> Superseded(IReadOnlyList<(string Name, bool IsLink)> entries)
+        => Later(entries, onlyLinks: false);
+
+    private static HashSet<int> Later(IReadOnlyList<(string Name, bool IsLink)> entries, bool onlyLinks)
+    {
+        var result = new HashSet<int>();
+        var lastLink = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = entries.Count - 1; i >= 0; i--)
+        {
+            if (ArchiveLinks.Canonical(entries[i].Name)?.Normalize(System.Text.NormalizationForm.FormC) is not { } key)
+            {
+                continue;
+            }
+
+            if (onlyLinks ? !entries[i].IsLink && lastLink.Contains(key) : !lastLink.Add(key))
+            {
+                result.Add(i);
+            }
+            else if (onlyLinks && entries[i].IsLink)
+            {
+                lastLink.Add(key);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

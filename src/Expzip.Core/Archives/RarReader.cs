@@ -60,6 +60,7 @@ internal static class RarReader
         var entries = session.Entries;
         var reportStep = Math.Max(1, entries.Count / 100);
         var encrypted = false;
+        var linkTable = new Dictionary<string, ListedLink>();
 
         for (var i = 0; i < entries.Count; i++)
         {
@@ -87,6 +88,20 @@ internal static class RarReader
             // リンクも一覧ではファイルとして出す。展開ではリンクとして展開する
             // 展開後の大きさが不明なもの (標準入力から作った書庫など) は、大きさを不明として出す
             var sizeUnknown = session.ItemAt(i).SizeUnknown;
+
+            // 開くときに指す先をたどる (#367)。RAR4 のシンボリックリンクの指す先は中身にあるので、そのときに読む
+            var item = session.ItemAt(i);
+            if (item.Link == RarLinkKind.None)
+            {
+                linkTable.Remove(key);
+            }
+            else
+            {
+                linkTable[key] = item.Link == RarLinkKind.LegacyUnixSymbolicLink
+                    ? new ListedLink(item.Link, null, null)
+                    : new ListedLink(item.Link, item.LinkTarget, item.LinkToFolder);
+            }
+
             builder.AddFile(key, sizeUnknown ? 0 : Math.Max(0, entry.Size), Math.Max(0, entry.CompressedSize), compressedLengthKnown: true,
                 time, entry.IsEncrypted, lengthKnown: !sizeUnknown);
         }
@@ -101,6 +116,7 @@ internal static class RarReader
             comment: Comment(layout, names));
 
         contents.Names = names;
+        contents.Links = linkTable;
         if (!layout.IsRar5)
         {
             contents.LegacyNameBytes = recorder.Recorded;

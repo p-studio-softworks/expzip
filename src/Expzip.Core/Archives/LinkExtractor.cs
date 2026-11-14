@@ -6,15 +6,23 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Expzip.Archives;
 
-/// <summary>展開する 1 個のリンク (#336)。</summary>
+/// <summary>展開する 1 個のリンク (#336、#367)。</summary>
 /// <param name="Name">書庫の中の名前。</param>
 /// <param name="Kind">種類。</param>
 /// <param name="Target">指す先。書庫に入っているまま (区切りは <c>/</c> か <c>\</c>)。</param>
-/// <param name="ToFolder">フォルダーを指すか。</param>
-internal sealed record LinkRequest(string Name, RarLinkKind Kind, string Target, bool ToFolder);
+/// <param name="ToFolder">
+/// フォルダーを指すか。書庫に書いてない形式 (tar・ZIP・7z) では <see langword="null"/> にし、書庫の中身から決める。
+/// </param>
+/// <param name="Index">書庫の中の順番 (<see cref="LinkExtractor.Extract"/> に渡す項目の番号)。同じ名前の項目の後ろのものを決める。</param>
+internal sealed record LinkRequest(string Name, RarLinkKind Kind, string Target, bool? ToFolder, int Index);
+
+/// <summary>書庫の中の 1 個の項目 (#367)。リンクの指す先を書庫の中で解くのに使う。</summary>
+/// <param name="Name">書庫の中の名前。</param>
+/// <param name="IsFolder">フォルダーの項目か。</param>
+internal readonly record struct LinkScopeEntry(string Name, bool IsFolder);
 
 /// <summary>
-/// 書庫に入っているリンクを、リンクのまま展開する (#336)。
+/// 書庫に入っているリンクを、リンクのまま展開する (#336、#367)。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,40 +35,33 @@ internal sealed record LinkRequest(string Name, RarLinkKind Kind, string Target,
 /// <item><description>
 /// シンボリックリンクとジャンクションは、書庫の中を指す相対パスのものだけを展開する。指す先は、ディスクを見ずに文字の上で解く。
 /// 絶対パス、ドライブ名、ネットワークのパス、<c>\\?\</c>、<c>\??\</c>、<c>:</c> を含むもの、書庫の外に出るもの、
-/// 書庫に無い名前を指すものは展開しない。
+/// 書庫に無い名前を指すものは展開しない。名前は、ファイルの書き出し先と同じ手順で整えてから解く (#367)。
 /// </description></item>
 /// <item><description>リンクを置く場所までの途中のフォルダーに、リンク (リパースポイント) があれば展開しない。</description></item>
 /// <item><description>
 /// ハードリンクとファイルのコピーの指す先は、今回この書庫から展開したファイルだけ。展開先に前からあったファイルは指させない。
 /// </description></item>
+/// <item><description>同じ名前の項目が書庫に 2 つ以上あれば、書庫でいちばん後ろのものだけを展開する (#367)。</description></item>
 /// <item><description>同じ名前のものがあれば、ファイルを指すリンクは上書きの確認の結果に従う。フォルダーを指すリンクは展開しない (#372)。</description></item>
 /// <item><description>一時的な名前で作ってから、1 回の名前の変更で置く (#320)。MotW は付けない (付けると指す先に書かれる)。</description></item>
 /// </list>
 /// </remarks>
 internal static class LinkExtractor
 {
+    /// <summary>リンクを指すリンクをたどる回数の上限。Windows がたどる回数と同じくらい。</summary>
+    private const int MaxChain = 40;
+
     /// <summary>リンクをまとめて展開する。ファイルを全部書き出したあとに呼ぶ。</summary>
     /// <param name="links">展開するリンク。書庫の順。</param>
-    /// <param name="archiveNames">書庫の中のすべての項目の名前 (フォルダーを含む)。指す先が書庫の中かを決める。</param>
+    /// <param name="entries">書庫の中のすべての項目 (フォルダーを含む)。書庫の順。指す先が書庫の中か、ファイルかフォルダーかを決める。</param>
     /// <param name="state">展開の途中経過。結果をここに記録する。</param>
     /// <param name="zone">ファイルのコピーに付ける MotW。</param>
     /// <param name="cancellationToken">中断用。</param>
     public static void Extract(
-        IReadOnlyList<LinkRequest> links, IReadOnlyCollection<string> archiveNames, ExtractState state, string? zone,
+        IReadOnlyList<LinkRequest> links, IReadOnlyList<LinkScopeEntry> entries, ExtractState state, string? zone,
         CancellationToken cancellationToken)
     {
-        var inArchive = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var name in archiveNames)
-        {
-            var path = ArchivePath.Normalize(name).Trim('/');
-            for (var current = path; current.Length > 0; current = Parent(current))
-            {
-                if (!inArchive.Add(current))
-                {
-                    break;
-                }
-            }
-        }
+        var index = new ArchiveIndex(entries, links, state.Links?.Roots);
 
         foreach (var link in links)
         {
@@ -69,11 +70,17 @@ internal static class LinkExtractor
                 return;
             }
 
+            // 同じ名前の項目が後ろにあれば、そちらが残る (ファイルなら、リンクは置かない)
+            if (ArchiveLinks.Canonical(link.Name) is { } own && index.IsSuperseded(own, link.Index))
+            {
+                continue;
+            }
+
             try
             {
-                if (ExtractOne(link, inArchive, state, zone, cancellationToken) is { } reason)
+                if (ExtractOne(link, index, state, zone, cancellationToken) is { } reason)
                 {
-                    state.Fail(link.Name, reason);
+                    state.FailLink(link.Name, reason);
                 }
             }
             catch (Exception ex) when (ExtractOverwrite.IsNotReplaced(ex, ArchiveExtractor.TargetFor(state.Root, link.Name, state.BasePath) ?? string.Empty))
@@ -83,19 +90,99 @@ internal static class LinkExtractor
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
                                            or NotSupportedException or PathTooLongException)
             {
-                state.Fail(link.Name, Strings.Reason(ex));
+                state.FailLink(link.Name, Strings.Reason(ex));
             }
         }
     }
 
     /// <summary>1 個を展開する。展開しなかったときは理由を返す。</summary>
     private static string? ExtractOne(
-        LinkRequest link, HashSet<string> inArchive, ExtractState state, string? zone, CancellationToken cancellationToken)
+        LinkRequest link, ArchiveIndex index, ExtractState state, string? zone, CancellationToken cancellationToken)
     {
         var path = ArchiveExtractor.TargetFor(state.Root, link.Name, state.BasePath);
-        if (path is null)
+        var linkInArchive = ArchiveLinks.Canonical(link.Name);
+        if (path is null || linkInArchive is null)
         {
             return Strings.LinkUnsafeName;
+        }
+
+        var options = state.Links;
+
+        // ドラッグでは、ジャンクションは正しい場所を指したまま届かない (#367 で決めた)
+        if (link.Kind == RarLinkKind.Junction && options?.JunctionsNotAllowed == true)
+        {
+            return Strings.LinkJunctionNotDragged;
+        }
+
+        if (link.Kind is RarLinkKind.HardLink or RarLinkKind.FileCopy)
+        {
+            // ZIP にはハードリンクを入れる決まりが無い。中身を写したファイルにはしない (#367 で決めた)
+            if (options?.Collect == true)
+            {
+                return Strings.LinkHardLinkNotInZip;
+            }
+
+            if (HasLinkOnTheWay(Path.GetDirectoryName(path)!, state.Root))
+            {
+                return Strings.LinkThroughLink;
+            }
+
+            return ExtractCopyOrHardLink(link, linkInArchive, path, index, state, zone, cancellationToken);
+        }
+
+        // シンボリックリンクとジャンクション: 書庫の中を指す相対パスだけ。一部を選んで展開したときは、選んだ範囲の中を指すものだけ。
+        // 範囲の外を指すと、選んだフォルダーを取り除いて置いたときに、展開先の外を指すことになる
+        if (Resolve(linkInArchive, link.Target) is not { } resolved || index.Spelling(resolved) is not { } spelling
+            || !InsideBase(spelling, state.BasePath))
+        {
+            return Strings.LinkPointsOutside;
+        }
+
+        // ドラッグと、選んだ項目から作るとき: 落とした先や新しい書庫では、取り出す項目どうしの位置が変わる。
+        // 同じ項目の中を指すものだけにする
+        if (index.Roots is { } roots && !SameRoot(linkInArchive, spelling, roots, index.RootsShareFolder))
+        {
+            return Strings.LinkPointsOutsideItems;
+        }
+
+        bool toFolder;
+        if (link.Kind == RarLinkKind.Junction)
+        {
+            toFolder = true;
+        }
+        else if (link.ToFolder is { } given)
+        {
+            toFolder = given;
+        }
+        else if (index.PointsToFolder(spelling, linkInArchive) is { } decided
+                 && !(EndsWithSeparator(link.Target) && !decided))
+        {
+            toFolder = decided;
+        }
+        else
+        {
+            return Strings.LinkKindUnknown;
+        }
+
+        var relative = RelativeTarget(linkInArchive, spelling);
+
+        if (options?.Collect == true)
+        {
+            // 新しい書庫では、リンクの中を通る名前とリンクが重なる。書き込む側で外されると、黙って欠けた書庫になる
+            if (index.HasItemsUnder(linkInArchive))
+            {
+                return Strings.LinkOverlapsFolder;
+            }
+
+            // tar は順に読むので、同じ名前の前のファイルを作業用のフォルダーに書いてしまっている。後ろのリンクが残るので消す。
+            // 作業用のフォルダーは毎回新しく作るもので、今回書いたファイルしか無い
+            if (File.Exists(path) && state.Overwrite.WasCreated(path))
+            {
+                File.Delete(path);
+            }
+
+            state.Collect(new CollectedLink(linkInArchive, relative.Replace('\\', '/'), toFolder));
+            return null;
         }
 
         // リンクを置く場所までの途中にリンクがあれば、それを通って外に置かれることがある
@@ -104,22 +191,16 @@ internal static class LinkExtractor
             return Strings.LinkThroughLink;
         }
 
-        var linkInArchive = ArchivePath.Normalize(link.Name).Trim('/');
-
-        if (link.Kind is RarLinkKind.HardLink or RarLinkKind.FileCopy)
+        // ファイルを指すリンクは、展開先にある指す先が、今回この書庫から展開したものか、この展開で置いたリンクのときだけ作る。
+        // 上書きに「いいえ」と答えて残った本人のファイルを、書庫の中身のリンクが指さないようにする (#367)。
+        // 指す先がまだ無いとき (リンクだけを選んだときなど) は作る
+        if (!toFolder && ArchiveExtractor.TargetFor(state.Root, spelling, state.BasePath) is { } pointed
+            && (File.Exists(pointed) || Directory.Exists(pointed))
+            && !state.Overwrite.WasCreated(pointed) && !state.IsCreatedLink(pointed))
         {
-            return ExtractCopyOrHardLink(link, path, state, zone, cancellationToken);
+            return Strings.LinkTargetNotExtracted;
         }
 
-        // シンボリックリンクとジャンクション: 書庫の中を指す相対パスだけ。一部を選んで展開したときは、選んだ範囲の中を指すものだけ。
-        // 範囲の外を指すと、選んだフォルダーを取り除いて置いたときに、展開先の外を指すことになる
-        if (Resolve(linkInArchive, link.Target) is not { } resolved || !inArchive.Contains(resolved)
-            || !InsideBase(resolved, state.BasePath))
-        {
-            return Strings.LinkPointsOutside;
-        }
-
-        var toFolder = link.Kind == RarLinkKind.Junction || link.ToFolder;
         var decision = state.Overwrite.Decide(path);
 
         if (Directory.Exists(path) || File.Exists(path))
@@ -133,12 +214,12 @@ internal static class LinkExtractor
 
             if (decision.Action is ExtractAction.Skip)
             {
+                state.Skip(link.Name);
                 return null;
             }
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var relative = RelativeTarget(linkInArchive, resolved);
         var temporary = AtomicFile.TemporaryPathFor(path);
 
         if (link.Kind == RarLinkKind.Junction)
@@ -162,17 +243,25 @@ internal static class LinkExtractor
             throw;
         }
 
-        state.CountExtracted();
+        state.LinkCreated(link.Name);
         return null;
     }
 
     /// <summary>ハードリンクとファイルのコピー。指す先は、今回この書庫から展開したファイル。</summary>
     private static string? ExtractCopyOrHardLink(
-        LinkRequest link, string path, ExtractState state, string? zone, CancellationToken cancellationToken)
+        LinkRequest link, string linkInArchive, string path, ArchiveIndex index, ExtractState state, string? zone,
+        CancellationToken cancellationToken)
     {
-        // RAR5 のハードリンクとファイルのコピーの指す先は、書庫の中の名前。一部を選んで展開したときは、選んだ範囲の中のものだけ
-        var source = InsideBase(ArchivePath.Normalize(link.Target).Trim('/'), state.BasePath)
-            ? ArchiveExtractor.TargetFor(state.Root, link.Target, state.BasePath)
+        // 指す先は書庫の中の名前。一部を選んで展開したときは、選んだ範囲の中のものだけ。
+        // ドラッグのときは、同じ取り出す項目の中のものだけ
+        var target = ArchiveLinks.Canonical(link.Target);
+        if (target is not null && index.Roots is { } roots && !SameRoot(linkInArchive, target, roots, index.RootsShareFolder))
+        {
+            return Strings.LinkPointsOutsideItems;
+        }
+
+        var source = target is not null && InsideBase(target, state.BasePath)
+            ? ArchiveExtractor.TargetFor(state.Root, target, state.BasePath)
             : null;
         if (source is null || !File.Exists(source) || !state.Overwrite.WasCreated(source))
         {
@@ -186,6 +275,7 @@ internal static class LinkExtractor
                 state.NotReplace(link.Name, Strings.ExtractBlocked(decision.Block!.Value));
                 return null;
             case ExtractAction.Skip:
+                state.Skip(link.Name);
                 return null;
         }
 
@@ -206,7 +296,7 @@ internal static class LinkExtractor
                 throw;
             }
 
-            state.CountExtracted();
+            state.LinkCreated(link.Name);
             return null;
         }
 
@@ -219,6 +309,7 @@ internal static class LinkExtractor
             CancellableCopy.Copy(input, file.Stream, cancellationToken);
             if (!file.Commit(File.GetLastWriteTime(source)))
             {
+                state.Skip(link.Name);
                 return null;
             }
         }
@@ -231,11 +322,11 @@ internal static class LinkExtractor
     /// <summary>
     /// 指す先を、書庫の中の名前として解く。書庫の外に出るもの、解けない形のものは <see langword="null"/>。
     /// </summary>
-    /// <param name="link">リンクの書庫の中の名前。</param>
+    /// <param name="link">リンクの書庫の中の名前 (<see cref="ArchiveLinks.Canonical"/> で整えたもの)。</param>
     /// <param name="target">書庫に入っている指す先。</param>
     internal static string? Resolve(string link, string target)
     {
-        if (target.Length == 0 || target.Any(char.IsControl))
+        if (target.Length == 0 || target.Length > ArchiveLinks.MaxTarget || target.Any(char.IsControl))
         {
             return null;
         }
@@ -284,6 +375,8 @@ internal static class LinkExtractor
         return parts.Count == 0 ? null : string.Join('/', parts);
     }
 
+    private static bool EndsWithSeparator(string target) => target.EndsWith('/') || target.EndsWith('\\');
+
     /// <summary>書庫の中の名前が、選んだ範囲 (<paramref name="basePath"/>) の中か。範囲が無ければ常に中。</summary>
     private static bool InsideBase(string name, string? basePath)
     {
@@ -292,8 +385,164 @@ internal static class LinkExtractor
             return true;
         }
 
-        var top = ArchivePath.Normalize(basePath).Trim('/');
+        var top = ArchiveLinks.Canonical(basePath) ?? basePath;
         return name.StartsWith(top + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>リンクと指す先が、取り出す項目 (<paramref name="roots"/>、整えた名前) の同じものの中にあるか (#367)。</summary>
+    /// <param name="shareFolder">
+    /// 取り出す項目がすべて同じフォルダーの中にあるか。そのときは、取り出す項目のどれかの中を指せばよい。
+    /// 落とした先や新しい書庫でも、項目どうしは書庫の中と同じく隣どうしに並ぶので、相対パスはそのまま正しい (#367 で決めた)。
+    /// </param>
+    private static bool SameRoot(string link, string target, IReadOnlyList<string> roots, bool shareFolder)
+    {
+        if (shareFolder)
+        {
+            return roots.Any(top => Within(link, top)) && roots.Any(top => Within(target, top));
+        }
+
+        foreach (var top in roots)
+        {
+            if (Within(link, top))
+            {
+                return Within(target, top);
+            }
+        }
+
+        return false;
+
+        static bool Within(string name, string top)
+            => name.Equals(top, StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith(top + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 書庫の中の名前の一覧。名前は整え、濁点を合わせた書き方 (FormC) にし、大文字と小文字を区別せずに引く (Windows で同じ場所になるため)。
+    /// </summary>
+    private sealed class ArchiveIndex
+    {
+        private readonly Dictionary<string, string> _spelling = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _folders = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _files = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _last = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, LinkRequest> _links = new(StringComparer.OrdinalIgnoreCase);
+
+        public ArchiveIndex(IReadOnlyList<LinkScopeEntry> entries, IReadOnlyList<LinkRequest> links, IReadOnlyList<string>? roots)
+        {
+            // 取り出す項目の名前は 1 回だけ整える。リンクごとに整え直すと、リンクが多い書庫で時間が 2 乗で増える
+            Roots = roots?.Select(ArchiveLinks.Canonical).OfType<string>().ToList();
+            RootsShareFolder = Roots is { Count: > 0 }
+                               && Roots.Select(Parent).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1;
+
+            var linkIndexes = links.Select(static l => l.Index).ToHashSet();
+            for (var i = 0; i < entries.Count; i++)
+            {
+                if (ArchiveLinks.Canonical(entries[i].Name) is not { } canonical)
+                {
+                    continue;
+                }
+
+                // 置くときの相対パスは、ディスクに書いた名前と同じ書き方で作る (濁点を分けた名前のままにする)
+                var key = Fold(canonical);
+                _spelling.TryAdd(key, canonical);
+                _last[key] = i;
+
+                if (entries[i].IsFolder)
+                {
+                    _folders.Add(key);
+                }
+                else if (!linkIndexes.Contains(i))
+                {
+                    _files.Add(key);
+                }
+
+                for (var parent = Parent(canonical); parent.Length > 0; parent = Parent(parent))
+                {
+                    _spelling.TryAdd(Fold(parent), parent);
+                    if (!_folders.Add(Fold(parent)))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            foreach (var link in links)
+            {
+                if (ArchiveLinks.Canonical(link.Name) is { } canonical)
+                {
+                    // 同じ名前のリンクが 2 つあれば、後ろのもの
+                    _links[Fold(canonical)] = link;
+                }
+            }
+        }
+
+        private static string Fold(string name) => name.Normalize(NormalizationForm.FormC);
+
+        /// <summary>書庫にある名前なら、その書き方。無ければ <see langword="null"/>。</summary>
+        public string? Spelling(string name) => _spelling.TryGetValue(Fold(name), out var spelling) ? spelling : null;
+
+        /// <summary>同じ名前の項目が、<paramref name="index"/> より後ろにあるか。</summary>
+        public bool IsSuperseded(string name, int index)
+            => index >= 0 && _last.TryGetValue(Fold(name), out var last) && last > index;
+
+        /// <summary>取り出す項目の整えた名前 (<see cref="LinkOptions.Roots"/>)。指定が無ければ <see langword="null"/>。</summary>
+        public IReadOnlyList<string>? Roots { get; }
+
+        /// <summary>取り出す項目がすべて同じフォルダーの中にあるか (ふつうの一覧から選んだとき)。検索の結果では違うことがある。</summary>
+        public bool RootsShareFolder { get; }
+
+        /// <summary>この名前の下 (<c>名前/…</c>) に項目があるか、同じ名前のフォルダーの項目があるか。</summary>
+        /// <remarks>ほかの項目の親になる名前は、作るときにフォルダーとして覚えてあるので、引くだけで済む。</remarks>
+        public bool HasItemsUnder(string name) => _folders.Contains(Fold(name));
+
+        /// <summary>
+        /// 書庫の中の名前がフォルダーかを決める。リンクならたどる。ファイルとしてもフォルダーとしてもあるもの、
+        /// たどり切れないもの (輪になったもの、長すぎる鎖) は <see langword="null"/>。
+        /// </summary>
+        public bool? PointsToFolder(string name, string from)
+        {
+            var current = name;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Fold(from) };
+            for (var depth = 0; depth < MaxChain; depth++)
+            {
+                if (_links.TryGetValue(Fold(current), out var link))
+                {
+                    if (!seen.Add(Fold(current)))
+                    {
+                        return null;
+                    }
+
+                    if (link.Kind == RarLinkKind.Junction)
+                    {
+                        return true;
+                    }
+
+                    if (link.ToFolder is { } given)
+                    {
+                        return given;
+                    }
+
+                    if (link.Kind is RarLinkKind.HardLink or RarLinkKind.FileCopy)
+                    {
+                        return false;
+                    }
+
+                    if (Resolve(current, link.Target) is not { } next || Spelling(next) is not { } spelling)
+                    {
+                        return null;
+                    }
+
+                    current = spelling;
+                    continue;
+                }
+
+                var folder = _folders.Contains(Fold(current));
+                var file = _files.Contains(Fold(current));
+                return folder == file ? null : folder;
+            }
+
+            return null;
+        }
     }
 
     /// <summary>ハードリンクを作る。作れない理由は Windows の答えで分ける。</summary>

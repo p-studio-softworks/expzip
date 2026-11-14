@@ -58,7 +58,9 @@ Japanese names in old archives are read correctly. Japanese names inside tar arc
 
 - Extract the whole archive, the selected items, or a folder
 - Expzip asks whether to overwrite **only when a file with the same name actually exists** at the destination
+- Symbolic links, junctions and hard links in an archive are **extracted as links**, but only those that point inside the archive (ZIP, 7z, tar and RAR). Symbolic links need Developer Mode to be turned on in Windows Settings
 - Drag items straight from the archive to Explorer to take them out
+  - Depending on where you drop them, links taken out by dragging may become ordinary files or folders. Junctions, and links that point outside the items you drag, are not taken out. Expzip tells you when links were taken out or left out. To take links out as links, use Extract
 - Double-clicking takes the file out temporarily and opens it in its default program
   - If you save it there, **Expzip asks whether to put the change back into the archive**
   - Files taken out temporarily are deleted when Expzip closes
@@ -183,7 +185,7 @@ Here is how Expzip deals with problems that are well known in archivers.
 | Known problem | How Expzip handles it |
 |---|---|
 | **Tricks that write files outside the destination folder**. A name such as `..\..\Windows\…` is put in the archive, so that extracting it places a file somewhere unrelated | **Handled**. Such names are rejected up front, and right before writing Expzip checks again that the file stays inside the destination. The same check is made on **every path that takes files out**: ZIP, password-protected ZIP, 7z, tar and installers |
-| **Tricks that use links (a kind of shortcut) to write somewhere else** | **Not affected**. Expzip never creates links, so this trick does not work |
+| **Tricks that use links (a kind of shortcut) to write somewhere else** | **Handled**. Links are extracted only if they point inside the archive, after all other files have been extracted. Nothing is written outside the destination folder through a link in the archive |
 | **The Mark of the Web, which shows that a file came from the internet, is lost**. Without the Mark of the Web, Windows and app protections (SmartScreen, Protected View) do not kick in when the file is opened | **Handled**. The Mark of the Web on the archive is carried over to the files taken out of it. This also applies when dragging files out and when making a self-extracting archive |
 | **Archives that swell enormously when extracted**. A small archive grows tens of thousands of times when extracted and fills the disk | **Reported by the inspection**. It shows how many times larger the contents will be, so you notice before extracting |
 | **Tricks that disguise contents by their names**. Fake extensions, characters that reverse the text direction to show an extension backwards, invisible characters in names, names that differ only in upper and lower case so that one overwrites the other | **Reported by the inspection**. The list also puts a warning mark on unusual names |

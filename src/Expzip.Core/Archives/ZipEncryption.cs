@@ -170,7 +170,8 @@ internal static class ZipEncryption
         IProgress<ExtractProgress>? progress,
         CancellationToken cancellationToken,
         string? zoneIdentifier = null,
-        string? basePath = null)
+        string? basePath = null,
+        LinkOptions? links = null)
     {
         var destinationRoot = Path.GetFullPath(destinationDirectory);
 
@@ -187,12 +188,27 @@ internal static class ZipEncryption
         // SharpZipLib が扱えない鍵長 (AES-192) のエントリ用 (#67)。要るまで開かない
         using var fallback = new ZipMethodFallback(archivePath, names, password);
 
-        var targets = zip.Cast<ZipEntry>()
+        var all = zip.Cast<ZipEntry>().ToList();
+        var targets = all
             .Where(e => !ZipEntryKind.IsFolder(e))
             .Where(e => sourceNames is null || sourceNames.Contains(e.Name))
             .ToList();
 
-        var totalBytes = targets.Sum(static e => Math.Max(0, e.Size));
+        // リンクは、ファイルを全部書き出したあとに展開する (#367)。見分けはパスワードの無い ZIP と同じく外部属性だけで行う
+        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)
+        var kinds = all.Select(static e => (e.Name, ZipLinks.IsLink(e) && !ZipEntryKind.IsFolder(e))).ToList();
+
+        // リンクの指す先が、今回展開したファイルかを確かめられるように、書いたファイルを覚える (#367)
+        if (kinds.Any(static k => k.Item2))
+        {
+            overwrite.RecordCreated = true;
+        }
+        var laterLink = ArchiveExtractor.LaterLinks(kinds);
+        var superseded = ArchiveExtractor.Superseded(kinds);
+        var position = all.Select((e, i) => (e, i)).ToDictionary(static p => p.e, static p => p.i);
+        var linkEntries = new List<ZipEntry>();
+
+        var totalBytes = targets.Where(static e => !ZipLinks.IsLink(e)).Sum(static e => Math.Max(0, e.Size));
         long doneBytes = 0;
 
         foreach (var entry in targets)
@@ -208,6 +224,18 @@ internal static class ZipEncryption
             if (target is null)
             {
                 rejected.Add(entry.Name);
+                continue;
+            }
+
+            if (ZipLinks.IsLink(entry))
+            {
+                linkEntries.Add(entry);
+                continue;
+            }
+
+            // 同じ名前のリンクが後ろにあれば、そちらが残る
+            if (laterLink.Contains(position[entry]))
+            {
                 continue;
             }
 
@@ -277,10 +305,68 @@ internal static class ZipEncryption
             progress?.Report(new ExtractProgress(doneBytes, totalBytes, entry.Name));
         }
 
-        return new ExtractResult(extracted, skipped.Count, rejected, failed, cancelled, marks.Lost, skipped)
+        var result = new ExtractResult(extracted, skipped.Count, rejected, failed, cancelled, marks.Lost, skipped)
         {
             NotReplaced = notReplaced,
         };
+
+        if (cancelled || linkEntries.Count == 0)
+        {
+            return result;
+        }
+
+        var state = new ExtractState(destinationRoot, overwrite, zoneIdentifier, basePath, null) { Links = links };
+        var requests = new List<LinkRequest>();
+        foreach (var entry in linkEntries)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (superseded.Contains(position[entry]))
+            {
+                continue;
+            }
+
+            if (ArchiveLinks.ReadTarget(
+                    () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)), entry.Size, ExpectedCrc(entry),
+                    cancellationToken, out var reason) is { } linkTarget)
+            {
+                requests.Add(new LinkRequest(entry.Name, RarLinkKind.UnixSymbolicLink, linkTarget, null, position[entry]));
+            }
+            else if (!cancellationToken.IsCancellationRequested)
+            {
+                state.FailLink(entry.Name, reason);
+            }
+        }
+
+        if (!cancellationToken.IsCancellationRequested)
+        {
+            LinkExtractor.Extract(
+                requests, all.Select(static e => new LinkScopeEntry(e.Name, ZipEntryKind.IsFolder(e))).ToList(),
+                state, zoneIdentifier, cancellationToken);
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            state.Cancel();
+        }
+
+        return result.With(state.ToResult());
+    }
+
+    /// <summary>パスワード付きの ZIP の、リンクの項目の指す先を読む (#367)。読めなければ <see langword="null"/>。</summary>
+    public static string? ReadLinkTarget(
+        string path, NameReading names, string password, string name, CancellationToken cancellationToken)
+    {
+        using var zip = OpenSharp(path, names, password);
+        using var fallback = new ZipMethodFallback(path, names, password);
+        var entry = zip.Cast<ZipEntry>().LastOrDefault(e => e.Name == name);
+        return entry is null || !ZipLinks.IsLink(entry)
+            ? null
+            : ArchiveLinks.ReadTarget(() => fallback.Open(entry.Name, () => zip.GetInputStream(entry)), entry.Size,
+                ExpectedCrc(entry), cancellationToken, out _);
     }
 
     /// <summary>

@@ -260,6 +260,14 @@ Bullet
   ja  ・
   en  - 
 
+CannotOpenLink (name: 報告書.pdf, reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。)
+  ja  リンク「⟦報告書.pdf⟧」が指す先を開けませんでした。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip へのアクセスが拒否されました。⟧
+  en  Could not open what the link "⟦報告書.pdf⟧" points to.
+      | 
+      | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
+
 CannotOpenOutsidePath (sourceName: ..\..\Windows\System32\evil.dll)
   ja  このファイルは開けません。
       | 
@@ -962,6 +970,26 @@ DragFailed
   ja  ドラッグを完了できませんでした
   en  The drag could not be completed
 
+DragLinksNotice (notTaken: 見本, mayNotArrive: 見本)
+  ja  次のリンクは取り出しませんでした。
+      | 
+      | ⟦見本⟧
+      | 
+      | 次のリンクは、落とした先によっては、リンクではなくふつうのファイルやフォルダーになっていることがあります。
+      | 
+      | ⟦見本⟧
+      | 
+      | リンクをリンクのまま取り出すには、「展開」を使用してください。
+  en  The following links were not taken out.
+      | 
+      | ⟦見本⟧
+      | 
+      | Depending on where you dropped them, the following links may have become ordinary files or folders instead of links.
+      | 
+      | ⟦見本⟧
+      | 
+      | To take links out as links, use Extract.
+
 DragTooLarge (fileLimit: 3, megabyteLimit: 1048576, count: 3, megabytes: 1048576)
   ja  ドラッグで展開できるのは 3 個 / 1,048,576 MB までです。
       | 選択されているのは 3 個 / 1,048,576 MB です。
@@ -1603,17 +1631,53 @@ LimitTailUnopened
   ja  後ろのデータは開けません
   en  appended data cannot be opened
 
+LinkHardLinkNotInZip
+  ja  ハードリンクは ZIP に入れられないため、新しい書庫に入れられません。
+  en  This hard link cannot be added to the new archive, because ZIP cannot store hard links.
+
+LinkJunctionNotDragged
+  ja  ジャンクションはドラッグでは正しく取り出せません。
+  en  Junctions cannot be taken out correctly by dragging.
+
+LinkKindNotExtracted
+  ja  この種類のリンクの展開には対応していないため、展開しませんでした。
+  en  Extracting this kind of link is not supported, so it was not extracted.
+
 LinkKindNotSupported
   ja  この種類のリンクは書庫に追加できません。
   en  This kind of link cannot be added to an archive.
+
+LinkKindUnknown
+  ja  このリンクがファイルとフォルダーのどちらを指すかが書庫から分からないため、展開しませんでした。
+  en  The archive does not show whether this link points to a file or a folder, so it was not extracted.
 
 LinkLine (name: 報告書.pdf, target: 画像/2024/写真.jpg)
   ja    ⟦報告書.pdf⟧ → ⟦画像/2024/写真.jpg⟧
   en    ⟦報告書.pdf⟧ → ⟦画像/2024/写真.jpg⟧
 
+LinkLoops
+  ja  このリンクは、たどっていくと元のリンクに戻るか、リンクの先がリンクである回数が多すぎます。
+  en  Following this link leads back to where it started, or it leads through too many other links.
+
 LinkNameTaken
   ja  展開先に同じ名前のものがあるため、上書きできませんでした。
   en  Something with the same name is in the destination, so it could not be overwritten.
+
+LinkOpenKindUnknown
+  ja  このリンクがファイルとフォルダーのどちらを指すかが書庫から分かりません。
+  en  The archive does not show whether this link points to a file or a folder.
+
+LinkOpenNotSupported
+  ja  この種類のリンクには対応していません。
+  en  This kind of link is not supported.
+
+LinkOpenOutside
+  ja  このリンクは書庫の外を指しています。
+  en  This link points outside the archive.
+
+LinkOpenUnreadable
+  ja  このリンクが指す先を読み取れません。
+  en  Where this link points could not be read.
 
 LinkOverlapsFolder
   ja  書庫の中に、同じ名前のリンクとフォルダーが両方できてしまいます。
@@ -1623,6 +1687,10 @@ LinkPointsOutside
   ja  このリンクは書庫の外を指しているため、展開しませんでした。
   en  This link points outside the archive, so it was not extracted.
 
+LinkPointsOutsideItems
+  ja  このリンクは、選んだ項目の外を指しています。
+  en  This link points outside the selected items.
+
 LinkTargetNotExtracted
   ja  このリンクが指すファイルを一緒に展開していないため、展開しませんでした。
   en  The file this link points to was not extracted along with it, so this link was not extracted.
@@ -1630,6 +1698,10 @@ LinkTargetNotExtracted
 LinkTargetNotSupported
   ja  このリンクの指す先のパスは、読み取れないか、書庫に記録できない書き方です。
   en  The path this link points to could not be read, or is written in a way that cannot be stored in an archive.
+
+LinkTargetUnreadable
+  ja  このリンクが指す先を読み取れないため、展開しませんでした。
+  en  Where this link points could not be read, so it was not extracted.
 
 LinkThroughLink
   ja  展開先で、このリンクを置くフォルダーまでの途中にリンクがあるため、展開しませんでした。

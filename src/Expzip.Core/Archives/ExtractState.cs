@@ -24,6 +24,10 @@ internal sealed class ExtractState(
     private readonly List<(string Name, string Reason)> _notReplaced = [];
     private int _extracted;
     private readonly MarkWatch _marks = new();
+    private readonly List<string> _createdLinks = [];
+    private readonly HashSet<string> _createdLinkPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<(string Name, string Reason)> _linkFailed = [];
+    private readonly List<CollectedLink> _collected = [];
 
     public long TotalBytes { get; set; }
 
@@ -178,8 +182,38 @@ internal sealed class ExtractState(
     /// <summary>ライブラリの中で読み進めている間に中止された (#336)。</summary>
     public void Cancel() => Cancelled = true;
 
-    /// <summary>リンクを展開した (#336)。</summary>
+    /// <summary>展開した (#336)。</summary>
     public void CountExtracted() => _extracted++;
+
+    /// <summary>リンクを展開した (#367)。ドラッグのあとの知らせに名前を使う。</summary>
+    public void LinkCreated(string name)
+    {
+        _extracted++;
+        _createdLinks.Add(name);
+        if (ArchiveExtractor.TargetFor(destinationRoot, name, basePath) is { } path)
+        {
+            _createdLinkPaths.Add(path);
+        }
+    }
+
+    /// <summary>この展開で置いたリンクか (#367)。リンクを指すリンクを作ってよいかを決める。</summary>
+    public bool IsCreatedLink(string path) => _createdLinkPaths.Contains(Path.GetFullPath(path));
+
+    /// <summary>リンクを展開しなかった (#367)。ドラッグのあとの知らせに名前を使う。</summary>
+    public void FailLink(string name, string reason)
+    {
+        _failed.Add((name, reason));
+        _linkFailed.Add((name, reason));
+    }
+
+    /// <summary>既にあるものを置き換えずに飛ばした (#367)。リンクも飛ばしたものに数える。</summary>
+    public void Skip(string name) => _skippedNames.Add(name);
+
+    /// <summary>ディスクに作らずに返すリンク (#367)。</summary>
+    public void Collect(CollectedLink link) => _collected.Add(link);
+
+    /// <summary>リンクの扱いを変える指定 (#367)。画面の「展開」では <see langword="null"/>。</summary>
+    public LinkOptions? Links { get; init; }
 
     /// <summary>展開先。</summary>
     public string Root => destinationRoot;
@@ -194,6 +228,9 @@ internal sealed class ExtractState(
         => new(_extracted, _skippedNames.Count, _rejected, _failed, Cancelled, _marks.Lost, _skippedNames)
         {
             NotReplaced = _notReplaced,
+            Links = _collected,
+            CreatedLinks = _createdLinks,
+            LinkFailures = _linkFailed,
         };
 
     private void Advance(long size, string key)

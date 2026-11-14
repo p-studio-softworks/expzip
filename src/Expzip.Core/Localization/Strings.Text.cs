@@ -2084,6 +2084,92 @@ internal static partial class Strings
         "このリンクが指すファイルを一緒に展開していないため、展開しませんでした。",
         "The file this link points to was not extracted along with it, so this link was not extracted.");
 
+    /// <summary>7-Zip が Windows の形で入れたリンク (#367、#377)、種類の分からない tar のリンク。</summary>
+    public static string LinkKindNotExtracted => Pick(
+        "この種類のリンクの展開には対応していないため、展開しませんでした。",
+        "Extracting this kind of link is not supported, so it was not extracted.");
+
+    /// <summary>リンクの指す先が読めない、長すぎる、壊れているとき (#367)。</summary>
+    public static string LinkTargetUnreadable => Pick(
+        "このリンクが指す先を読み取れないため、展開しませんでした。",
+        "Where this link points could not be read, so it was not extracted.");
+
+    /// <summary>リンクがファイルとフォルダーのどちらを指すかを、書庫から決められないとき (#367)。</summary>
+    public static string LinkKindUnknown => Pick(
+        "このリンクがファイルとフォルダーのどちらを指すかが書庫から分からないため、展開しませんでした。",
+        "The archive does not show whether this link points to a file or a folder, so it was not extracted.");
+
+    /// <summary>ドラッグや、選んだ項目から作るときに、リンクが選んだ項目の外を指すとき (#367)。</summary>
+    public static string LinkPointsOutsideItems => Pick(
+        "このリンクは、選んだ項目の外を指しています。",
+        "This link points outside the selected items.");
+
+    /// <summary>ドラッグでジャンクションを取り出さないとき (#367)。</summary>
+    public static string LinkJunctionNotDragged => Pick(
+        "ジャンクションはドラッグでは正しく取り出せません。",
+        "Junctions cannot be taken out correctly by dragging.");
+
+    /// <summary>選んだ項目から新しい書庫を作るときに、ハードリンクとファイルのコピーがあるとき (#367)。</summary>
+    public static string LinkHardLinkNotInZip => Pick(
+        "ハードリンクは ZIP に入れられないため、新しい書庫に入れられません。",
+        "This hard link cannot be added to the new archive, because ZIP cannot store hard links.");
+
+    /// <summary>リンクを開くときに、指す先が書庫の外のとき (#367)。</summary>
+    public static string LinkOpenOutside => Pick(
+        "このリンクは書庫の外を指しています。",
+        "This link points outside the archive.");
+
+    /// <summary>リンクを開くときに、ファイルとフォルダーのどちらを指すかが分からないとき (#367)。</summary>
+    public static string LinkOpenKindUnknown => Pick(
+        "このリンクがファイルとフォルダーのどちらを指すかが書庫から分かりません。",
+        "The archive does not show whether this link points to a file or a folder.");
+
+    /// <summary>リンクを開くときに、対応していない種類のとき (#367)。</summary>
+    public static string LinkOpenNotSupported => Pick(
+        "この種類のリンクには対応していません。",
+        "This kind of link is not supported.");
+
+    /// <summary>リンクを開くときに、指す先を読めないとき (#367)。</summary>
+    public static string LinkOpenUnreadable => Pick(
+        "このリンクが指す先を読み取れません。",
+        "Where this link points could not be read.");
+
+    /// <summary>リンクをたどると元に戻るか、たどる回数が多すぎるとき (#367)。</summary>
+    public static string LinkLoops => Pick(
+        "このリンクは、たどっていくと元のリンクに戻るか、リンクの先がリンクである回数が多すぎます。",
+        "Following this link leads back to where it started, or it leads through too many other links.");
+
+    /// <summary>リンクを開けなかったとき (#367)。</summary>
+    public static string CannotOpenLink(string name, string reason) => Pick(
+        $"リンク「{name}」が指す先を開けませんでした。\n\n{reason}",
+        $"Could not open what the link \"{name}\" points to.\n\n{reason}");
+
+    /// <summary>
+    /// ドラッグで書庫の外へ出したあとの、リンクについての知らせ (#367)。取り出さなかったものと、リンクとして届いていないかもしれないもの。
+    /// </summary>
+    public static string DragLinksNotice(string notTaken, string mayNotArrive)
+    {
+        var parts = new List<string>();
+        if (notTaken.Length > 0)
+        {
+            parts.Add(Pick(
+                $"次のリンクは取り出しませんでした。\n\n{notTaken}",
+                $"The following links were not taken out.\n\n{notTaken}"));
+        }
+
+        if (mayNotArrive.Length > 0)
+        {
+            parts.Add(Pick(
+                $"次のリンクは、落とした先によっては、リンクではなくふつうのファイルやフォルダーになっていることがあります。\n\n{mayNotArrive}",
+                $"Depending on where you dropped them, the following links may have become ordinary files or folders instead of links.\n\n{mayNotArrive}"));
+        }
+
+        parts.Add(Pick(
+            "リンクをリンクのまま取り出すには、「展開」を使用してください。",
+            "To take links out as links, use Extract."));
+        return string.Join("\n\n", parts);
+    }
+
     /// <summary>展開先のドライブがハードリンクに対応していないとき (#336)。</summary>
     public static string HardLinkNotSupported => Pick(
         "展開先のドライブはハードリンクに対応していません。",
