@@ -28,7 +28,8 @@ public sealed class JoinBatchTests
         "日本語のファイル名.bin",
         "表ソ能.bin",
         "emoji \U0001F600.bin",
-        "rtl ‮txt.bin",
+        "アラビア語 \u0627\u0644\u0639\u0631\u0628\u064A\u0629.bin",
+        "ヘブライ語 \u05E2\u05D1\u05E8\u05D9\u05EA.bin",
         "no-extension",
         "two words",
         "a+b.bin",
@@ -377,6 +378,201 @@ public sealed class JoinBatchTests
             static p => p.EndsWith(".cmd", StringComparison.Ordinal));
     }
 
+    /// <summary>文字の向きを変える制御文字 12 個 (#373)。</summary>
+    public static TheoryData<char> BidiControls =>
+    [
+        '\u202A', '\u202B', '\u202C', '\u202D', '\u202E',
+        '\u2066', '\u2067', '\u2068', '\u2069',
+        '\u200E', '\u200F', '\u061C',
+    ];
+
+    [Theory]
+    [MemberData(nameof(BidiControls))]
+    public void 向きを変える文字は除きほかの文字は残す(char control)
+    {
+        // ディスクには何も作らない。偽装した名前の実行ファイルは Defender に止められる (#373)
+        var name = $"rtl {control}txt.bin";
+
+        Assert.Equal("rtl txt.bin", Inspection.BidiControl.Strip(name));
+        Assert.False(JoinBatch.CanMake(name));
+        Assert.Equal(Localization.Strings.SplitBatchBidi, JoinBatch.WhyNot(name));
+        Assert.Equal(Path.Combine("dir", "rtl txt.bin.exe"), FileSplitter.JoinerPath(Path.Combine("dir", name)));
+    }
+
+    [Theory]
+    [InlineData("\u0627\u0644\u0639\u0631\u0628\u064A\u0629.bin")]
+    [InlineData("\u05E2\u05D1\u05E8\u05D9\u05EA.bin")]
+    [InlineData("zero\u200Bwidth\u2060.bin")]
+    [InlineData("line\u2028sep.bin")]
+    public void アラビア語やヘブライ語の文字とゼロ幅の文字は除かない(string name)
+    {
+        Assert.Equal(name, Inspection.BidiControl.Strip(name));
+        Assert.True(JoinBatch.CanMake(name));
+        Assert.Equal(Path.Combine("dir", name + ".exe"), FileSplitter.JoinerPath(Path.Combine("dir", name)));
+    }
+
+    [Fact]
+    public void 向きを変える文字を複数含んでも全部除く()
+    {
+        Assert.Equal("abc.bin", Inspection.BidiControl.Strip("\u202Ea\u2066b\u200Fc\u061C.bin\u202C"));
+    }
+
+    [Fact]
+    public void 向きを変える文字だけの名前は分割しない()
+    {
+        using var place = new Place();
+        var source = place.Source("\u202E\u202D", 300 * 1024);
+
+        Assert.Throws<JoinerNameException>(() => FileSplitter.JoinerPath(Path.Combine(place.Output, "\u202E\u202D")));
+        var error = Assert.Throws<JoinerNameException>(() => FileSplitter.Split(source, place.Output, FileSplitter.MinimumChunk));
+
+        Assert.Null(error.Taken);
+        Assert.Equal(Localization.Strings.SplitNameOnlyBidi, Localization.Strings.Reason(error));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(place.Output));
+    }
+
+    [Fact]
+    public void 向きを変える文字があると結合用のプログラムの名前から除きバッチファイルは作らない()
+    {
+        using var place = new Place();
+        var name = "rtl \u202Etxt.bin";
+        var source = place.Source(name, 300 * 1024);
+
+        var result = FileSplitter.Split(source, place.Output, FileSplitter.MinimumChunk, makeBatch: true);
+
+        Assert.Equal("rtl txt.bin.exe", result.JoinerName);
+        Assert.Null(result.BatchName);
+        Assert.Empty(Directory.EnumerateFiles(place.Output, "*.cmd"));
+        Assert.True(File.Exists(Path.Combine(place.Output, name + ".001")));
+        Assert.Single(Directory.EnumerateFiles(place.Output, "*.exe"));
+
+        // 結合用のプログラムは、末尾に書いた元の名前で分割ファイルを探し、元の名前で結合する
+        var (code, output) = RunJoiner(Path.Combine(place.Output, result.JoinerName));
+        Assert.True(code == 0, output);
+        Assert.Equal(place.Bytes(300 * 1024), File.ReadAllBytes(Path.Combine(place.Output, name)));
+    }
+
+    [Fact]
+    public void 除いた名前に別のファイルがあれば何も書かずに止める()
+    {
+        using var place = new Place();
+        var source = place.Source("rtl \u202Etxt.bin", 300 * 1024);
+        var other = Path.Combine(place.Output, "rtl txt.bin.exe");
+        File.WriteAllText(other, "本人のファイル");
+
+        var listed = Assert.Throws<JoinerNameException>(() => FileSplitter.ExistingOutputs(source, place.Output, FileSplitter.MinimumChunk));
+        var error = Assert.Throws<JoinerNameException>(() => FileSplitter.Split(source, place.Output, FileSplitter.MinimumChunk));
+
+        Assert.Equal("rtl txt.bin.exe", listed.Taken);
+        Assert.Equal(Localization.Strings.SplitJoinerNameTaken("rtl txt.bin.exe"), Localization.Strings.Reason(error));
+        Assert.Equal("本人のファイル", File.ReadAllText(other));
+        Assert.Single(Directory.EnumerateFileSystemEntries(place.Output));
+    }
+
+    [Fact]
+    public void 除いた名前に別の元の名前の結合用のプログラムがあれば止める()
+    {
+        // 《向き》の無い「rtl txt.bin」を分割したときの結合用のプログラム。置き換えると、そちらを元に戻せなくなる
+        using var place = new Place();
+        var plain = place.Source("rtl txt.bin", 300 * 1024);
+        FileSplitter.Split(plain, place.Output, FileSplitter.MinimumChunk);
+        var joiner = Path.Combine(place.Output, "rtl txt.bin.exe");
+        var before = File.ReadAllBytes(joiner);
+
+        var source = place.Source("rtl \u202Etxt.bin", 200 * 1024);
+        Assert.Throws<JoinerNameException>(() => FileSplitter.Split(source, place.Output, FileSplitter.MinimumChunk));
+
+        Assert.Equal(before, File.ReadAllBytes(joiner));
+        Assert.Empty(Directory.EnumerateFiles(place.Output, "rtl \u202E*"));
+    }
+
+    [Fact]
+    public void 分割の間に除いた名前のファイルが置かれても置き換えず名前を挙げて止める()
+    {
+        using var place = new Place();
+        var source = place.Source("rtl \u202Etxt.bin", 300 * 1024);
+        var other = Path.Combine(place.Output, "rtl txt.bin.exe");
+        var placed = new PlaceOnce(other);
+
+        var error = Assert.Throws<JoinerNameException>(
+            () => FileSplitter.Split(source, place.Output, FileSplitter.MinimumChunk, placed));
+
+        Assert.Equal("rtl txt.bin.exe", error.Taken);
+        Assert.Equal("あとから置かれた", File.ReadAllText(other));
+        Assert.Single(Directory.EnumerateFileSystemEntries(place.Output));
+    }
+
+    /// <summary>最初の経過の知らせで、その名前にファイルを置く。分割の間に別のプログラムが置いた形を作る。</summary>
+    private sealed class PlaceOnce(string path) : IProgress<SplitProgress>
+    {
+        public void Report(SplitProgress value)
+        {
+            if (!File.Exists(path))
+            {
+                File.WriteAllText(path, "あとから置かれた");
+            }
+        }
+    }
+
+    [Fact]
+    public void 除いた名前にフォルダーがあれば止める()
+    {
+        using var place = new Place();
+        var source = place.Source("rtl \u202Etxt.bin", 300 * 1024);
+        Directory.CreateDirectory(Path.Combine(place.Output, "rtl txt.bin.exe"));
+
+        Assert.Throws<JoinerNameException>(() => FileSplitter.Split(source, place.Output, FileSplitter.MinimumChunk));
+        Assert.Single(Directory.EnumerateFileSystemEntries(place.Output));
+    }
+
+    [Fact]
+    public void 同じ元のファイルをもう一度分割すると前の結合用のプログラムを尋ねて置き換える()
+    {
+        using var place = new Place();
+        var name = "rtl \u202Etxt.bin";
+        var source = place.Source(name, 300 * 1024);
+        FileSplitter.Split(source, place.Output, FileSplitter.MinimumChunk);
+        var joiner = Path.Combine(place.Output, "rtl txt.bin.exe");
+
+        var existing = FileSplitter.ExistingOutputs(source, place.Output, 256 * 1024);
+        var result = FileSplitter.Split(source, place.Output, 256 * 1024);
+
+        Assert.Contains(joiner, existing);
+        Assert.Equal(2, result.Parts);
+        Assert.Equal("rtl txt.bin.exe", result.JoinerName);
+    }
+
+    [Fact]
+    public void 置き換えない指定のファイルは名前にあるものを置き換えずに全部をやめる()
+    {
+        using var place = new Place();
+        var first = Path.Combine(place.Output, "first.bin");
+        File.WriteAllText(first, "前の first");
+
+        var files = new List<Archives.AtomicFile>
+        {
+            Archives.AtomicFile.Create(first),
+            Archives.AtomicFile.Create(Path.Combine(place.Output, "third.bin"), overwrite: false),
+        };
+        try
+        {
+            files[0].Stream.Write("新しい"u8);
+            files[1].Stream.Write("新しい"u8);
+
+            // 書いている間に置かれたもの
+            File.WriteAllText(Path.Combine(place.Output, "third.bin"), "あとから置かれた");
+
+            Assert.Throws<IOException>(() => Archives.AtomicFile.CommitAll(files));
+        }
+        finally
+        {
+            files.ForEach(static f => f.Dispose());
+        }
+
+        Assert.Equal("前の first", File.ReadAllText(first));
+        Assert.Equal("あとから置かれた", File.ReadAllText(Path.Combine(place.Output, "third.bin")));
+    }
+
     [Fact]
     public void デフォルトではバッチファイルを作らない()
     {
@@ -392,6 +588,21 @@ public sealed class JoinBatchTests
     /// <summary>作業用の名前を、バッチファイルから読む。</summary>
     private static string WorkNameIn(string batch)
         => File.ReadAllLines(batch).Single(l => l.StartsWith("set \"work=", StringComparison.Ordinal))["set \"work=".Length..^1];
+
+    /// <summary>結合用のプログラムを動かす。-q で、終わったときのメッセージを出さない。</summary>
+    private static (int Code, string Output) RunJoiner(string joiner)
+    {
+        var info = new ProcessStartInfo(joiner, "-q")
+        {
+            WorkingDirectory = Path.GetTempPath(),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var process = Process.Start(info)!;
+        Assert.True(process.WaitForExit(120_000), "結合用のプログラムが終わらない");
+        return (process.ExitCode, $"終了コード {process.ExitCode}");
+    }
 
     /// <summary>ダブルクリックと同じく cmd /c で動かす。-q で pause しない。</summary>
     private static (int Code, string Output) Run(string batch)
@@ -435,11 +646,31 @@ public sealed class JoinBatchTests
 
         public string Source(string name, int size)
         {
+            // 文字を除く処理や一覧が壊れていたら、分割する前に止める。一覧を使わずに確かめるので、一覧が壊れても効く。
+            // 偽装した名前の exe をディスクに作ると Defender が通知する (#373)
+            if (name.Contains('\u202E'))
+            {
+                try
+                {
+                    Assert.DoesNotContain('\u202E', FileSplitter.JoinerPath(Path.Combine(Output, name)));
+                }
+                catch (JoinerNameException)
+                {
+                    // 名前が向きを変える文字だけのときは、名前を決めずに止まる
+                }
+            }
+
             var path = Path.Combine(Root, "src", name);
+            File.WriteAllBytes(path, Bytes(size));
+            return path;
+        }
+
+        /// <summary><see cref="Source"/> が書く中身。</summary>
+        public byte[] Bytes(int size)
+        {
             var bytes = new byte[size];
             new Random(size).NextBytes(bytes);
-            File.WriteAllBytes(path, bytes);
-            return path;
+            return bytes;
         }
 
         /// <summary>バッチファイルも作って分割する。300 KB なら 3 個になる。</summary>

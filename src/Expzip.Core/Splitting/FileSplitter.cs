@@ -22,6 +22,17 @@ internal readonly record struct SplitProgress(long Done, long Total, string Curr
 internal sealed record SplitResult(int Parts, string JoinerName, bool Cancelled, string? BatchName = null);
 
 /// <summary>
+/// 結合用のプログラムの名前を使えない (#373)。
+/// </summary>
+/// <param name="taken">その名前に既にある、置き換えられないものの名前。名前が空になるときは <see langword="null"/>。</param>
+internal sealed class JoinerNameException(string? taken)
+    : IOException(taken is null ? "The name of the joining program would be empty." : $"'{taken}' already exists.")
+{
+    /// <summary>その名前に既にある、置き換えられないものの名前。</summary>
+    public string? Taken { get; } = taken;
+}
+
+/// <summary>
 /// 大きなファイルを決まった大きさに分ける (#59)。
 /// </summary>
 /// <remarks>
@@ -33,6 +44,7 @@ internal sealed record SplitResult(int Parts, string JoinerName, bool Cancelled,
 /// あわせて、断片を結合する小さな実行ファイルを <c>&lt;元の名前&gt;.exe</c> として作る。
 /// 受け取った人が Expzip を持っていなくても元に戻せるようにするため。中身は
 /// <c>tools/joiner</c> にある C のプログラムで、末尾に元の名前と照合用の値を書き足して配る。
+/// 元の名前に文字の向きを変える制御文字があれば、プログラムの名前からはその文字を除く (#373、<see cref="JoinerPath"/>)。
 /// </para>
 /// <para>
 /// <b>元のファイルは消さない。</b> 分割は移動ではなく写しを作る操作として扱う。
@@ -80,6 +92,10 @@ internal static class FileSplitter
         // MotW は分割ファイルに引き継ぐ。結合用のプログラムには付けない。手元で作っただけのものを実行するたびに
         // Windows の警告が出てしまう。結合用のプログラムは、結合するときに分割ファイルの MotW を読む (#321)
         var zone = MarkOfTheWeb.TryRead(sourcePath);
+
+        // 結合用のプログラムの名前は、書き始める前に決めて確かめる。使えなければ保存先のフォルダーも作らない (#373)
+        var joinerPath = JoinerPath(target);
+        var replaceJoiner = MayReplaceJoiner(joinerPath, name);
 
         Directory.CreateDirectory(destinationDirectory);
 
@@ -133,8 +149,7 @@ internal static class FileSplitter
                 }
             }
 
-            var joinerPath = target + ".exe";
-            var joiner = AtomicFile.Create(joinerPath);
+            var joiner = AtomicFile.Create(joinerPath, overwrite: replaceJoiner);
             written.Add(joiner);
             WriteJoiner(joiner.Stream, name, parts, total, crc.Value);
 
@@ -142,14 +157,23 @@ internal static class FileSplitter
             string? batchName = null;
             if (sha is not null)
             {
-                var batchPath = target + ".cmd";
+                var batchPath = BatchPath(target);
                 var batch = AtomicFile.Create(batchPath);
                 written.Add(batch);
                 JoinBatch.Write(batch.Stream, name, parts, total, sha.GetHashAndReset(), JoinBatch.NewWorkName());
                 batchName = Path.GetFileName(batchPath);
             }
 
-            AtomicFile.CommitAll(written);
+            try
+            {
+                AtomicFile.CommitAll(written);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                       && !replaceJoiner && Occupied(joinerPath))
+            {
+                // 分割の間に、文字を除いた結合用のプログラムの名前に何かが置かれた。置き換えずに止まったので、その名前を挙げて知らせる (#373)
+                throw new JoinerNameException(Path.GetFileName(joinerPath));
+            }
 
             return new SplitResult(parts, Path.GetFileName(joinerPath), false, batchName);
         }
@@ -172,15 +196,138 @@ internal static class FileSplitter
     public static IReadOnlyList<string> ExistingOutputs(
         string sourcePath, string destinationDirectory, long chunkSize, bool makeBatch = false)
     {
-        var target = Path.Combine(destinationDirectory, Path.GetFileName(sourcePath));
+        var name = Path.GetFileName(sourcePath);
+        var target = Path.Combine(destinationDirectory, name);
         var parts = CountParts(new FileInfo(sourcePath).Length, chunkSize);
+
+        // 文字を除いた名前の結合用のプログラムは、同じ元の名前から作ったものだけを尋ねる。ほかのものがあれば例外 (#373)
+        var joinerPath = JoinerPath(target);
+        var joiner = MayReplaceJoiner(joinerPath, name) ? [joinerPath] : Array.Empty<string>();
 
         return Enumerable.Range(1, parts)
             .Select(number => PartPath(target, number))
-            .Append(target + ".exe")
-            .Concat(makeBatch && JoinBatch.CanMake(Path.GetFileName(sourcePath)) ? [target + ".cmd"] : [])
+            .Concat(joiner)
+            .Concat(makeBatch && JoinBatch.CanMake(name) ? [BatchPath(target)] : [])
             .Where(File.Exists)
             .ToList();
+    }
+
+    /// <summary>
+    /// 結合用のプログラムのパス。元の名前から、文字の向きを変える制御文字を除いて <c>.exe</c> を付ける (#373)。
+    /// </summary>
+    /// <remarks>
+    /// 元の名前のままだと、U+202E などで拡張子を偽装した名前の実行ファイルになり、Defender に止められる。
+    /// 結合用のプログラムは自分の名前ではなく、末尾に書いた元の名前で分割ファイルを探すので、名前を変えても結合できる。
+    /// 分割ファイルの名前は元のまま (本当の拡張子は必ず数字なので、実行されない)。
+    /// </remarks>
+    /// <exception cref="JoinerNameException">除くと名前が空になる場合。</exception>
+    /// <exception cref="ReservedNameException">除いた名前が、この Windows で装置を指す場合。</exception>
+    public static string JoinerPath(string target)
+    {
+        var name = Path.GetFileName(target);
+        var stripped = Inspection.BidiControl.Strip(name);
+        if (stripped.Length == 0)
+        {
+            throw new JoinerNameException(null);
+        }
+
+        var path = Path.Combine(Path.GetDirectoryName(target) ?? string.Empty, stripped + ".exe");
+        if (stripped != name && ReservedNameException.IsReserved(Path.GetFullPath(path)))
+        {
+            throw new ReservedNameException(path);
+        }
+
+        return Guard(path);
+    }
+
+    /// <summary>結合用のバッチファイルのパス。作れる名前 (<see cref="JoinBatch.CanMake"/>) のときだけ呼ぶ。</summary>
+    private static string BatchPath(string target) => Guard(target + ".cmd");
+
+    /// <summary>
+    /// 最後の守り。文字の向きを変える制御文字が残った名前の実行ファイルを作らない (#373)。
+    /// </summary>
+    /// <remarks>
+    /// 名前を決める処理があとで壊れても、アプリを使う人の PC にもテストを走らせる PC にも、偽装した名前の実行ファイルを作らない。
+    /// </remarks>
+    private static string Guard(string path)
+        => Inspection.BidiControl.Contains(Path.GetFileName(path))
+            ? throw new InvalidOperationException("結合用のファイルの名前に、文字の向きを変える文字が残っている")
+            : path;
+
+    /// <summary>
+    /// 結合用のプログラムの名前にあるものを置き換えてよいか。
+    /// </summary>
+    /// <remarks>
+    /// <para>名前を変えていなければ、今までどおり置き換える (尋ねるのは画面)。</para>
+    /// <para>
+    /// 文字を除いた名前には、別の元のファイルの結合用のプログラムや、関係の無いファイルがあることがある。
+    /// 何も無ければ置き換えない指定で作り、分割の間に置かれたものも置き換えない。
+    /// Expzip が同じ元の名前から作った結合用のプログラムなら (同じファイルを同じ場所にもう一度分割したとき)、
+    /// ほかの分割ファイルと同じく尋ねて置き換える。それ以外のものがあれば、何も書かずに止める。
+    /// </para>
+    /// </remarks>
+    /// <exception cref="JoinerNameException">置き換えられないものがある場合。</exception>
+    private static bool MayReplaceJoiner(string joinerPath, string name)
+    {
+        if (Path.GetFileName(joinerPath) == name + ".exe")
+        {
+            return true;
+        }
+
+        if (!Occupied(joinerPath))
+        {
+            return false;
+        }
+
+        var attributes = File.GetAttributes(joinerPath);
+        if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) == 0 && IsJoinerFor(joinerPath, name))
+        {
+            return true;
+        }
+
+        throw new JoinerNameException(Path.GetFileName(joinerPath));
+    }
+
+    /// <summary>その名前に何かあるか。リンクはたどらず、フォルダーや壊れたリンクも「ある」とみなす。</summary>
+    private static bool Occupied(string path)
+    {
+        try
+        {
+            File.GetAttributes(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Expzip が、この元の名前から作った結合用のプログラムか。末尾の印と名前だけを読む。</summary>
+    private static bool IsJoinerFor(string path, string name)
+    {
+        var encoded = Encoding.Unicode.GetBytes(name);
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var tail = encoded.Length + FooterSize;
+            if (stream.Length < tail)
+            {
+                return false;
+            }
+
+            var buffer = new byte[tail];
+            stream.Seek(-tail, SeekOrigin.End);
+            stream.ReadExactly(buffer);
+
+            var footer = buffer.AsSpan(encoded.Length);
+            return footer[..FooterMagic.Length].SequenceEqual(FooterMagic)
+                   && BitConverter.ToUInt32(footer[28..]) == (uint)name.Length
+                   && buffer.AsSpan(0, encoded.Length).SequenceEqual(encoded);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -44,6 +44,11 @@ Set-Text (ById $dialog 'SourceBox') (Join-Path $script:Work 'a %OS% b.bin')
 Check '名前に % があると押せない' (-not $batchCheck.Current.IsEnabled)
 $note = (ById $dialog 'BatchNote').Current.Name
 Check '押せない理由' ($note -eq 'ファイル名に % があるため、バッチファイルは作成できません。') $note
+# 名前に文字の向きを変える文字があっても押せない (#373)。名前を入れるだけで、ファイルは作らない
+Set-Text (ById $dialog 'SourceBox') (Join-Path $script:Work ('rtl ' + [char]0x202E + 'txt.bin'))
+Check '向きを変える文字があると押せない' (-not $batchCheck.Current.IsEnabled)
+$note = (ById $dialog 'BatchNote').Current.Name
+Check '向きを変える文字の理由' ($note -eq 'ファイル名に文字の向きを変える特殊な文字があるため、バッチファイルは作成できません。') $note
 Set-Text (ById $dialog 'SourceBox') $source
 Check '名前を戻すと押せる' ($batchCheck.Current.IsEnabled -and -not (IsChecked $batchCheck))
 

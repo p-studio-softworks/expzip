@@ -303,6 +303,20 @@ internal sealed class AtomicFile : IDisposable
     /// </remarks>
     public static void CommitAll(IReadOnlyList<AtomicFile> files)
     {
+        static bool Occupied(string path)
+        {
+            try
+            {
+                // リンクはたどらない。壊れたリンクも「ある」とみなす
+                File.GetAttributes(path);
+                return true;
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return false;
+            }
+        }
+
         lock (Gate)
         {
             ThrowIfClosed();
@@ -312,6 +326,12 @@ internal sealed class AtomicFile : IDisposable
         {
             file.CloseWriting(null);
             RefuseProtected(file._target);
+
+            // 置き換えない指定のものは、何か (フォルダーや壊れたリンクも) があれば、どれも置き換え始める前に止める (#373)
+            if (!file._overwrite && Occupied(file._target))
+            {
+                throw new IOException("The file already exists.", unchecked((int)0x800700B7));
+            }
         }
 
         var done = new List<(string Target, string? Kept)>();
@@ -319,8 +339,9 @@ internal sealed class AtomicFile : IDisposable
         {
             foreach (var file in files)
             {
+                // 置き換えない指定のものは退避の道に入れない。確かめたあとに置かれたものも、名前の変更が失敗して残る
                 string? kept = null;
-                if (File.Exists(file._target))
+                if (file._overwrite && File.Exists(file._target))
                 {
                     kept = TemporaryPathFor(file._target);
                     if (!UndoHistory.HardLink.TryCreate(kept, file._target))

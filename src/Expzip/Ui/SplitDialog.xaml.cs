@@ -120,15 +120,16 @@ public partial class SplitDialog : Window
         UpdateBatch();
     }
 
-    /// <summary>名前に % があればバッチファイルの欄を押せなくし、理由を出す (#343)。</summary>
+    /// <summary>名前に % や文字の向きを変える文字があればバッチファイルの欄を押せなくし、理由を出す (#343、#373)。</summary>
     private void UpdateBatch()
     {
-        var allowed = JoinBatch.CanMake(Path.GetFileName(SourcePath));
+        var reason = JoinBatch.WhyNot(Path.GetFileName(SourcePath));
+        var allowed = reason is null;
         BatchCheck.IsEnabled = allowed;
         _updatingBatch = true;
         BatchCheck.IsChecked = allowed && _wantBatch;
         _updatingBatch = false;
-        BatchNote.Text = allowed ? Strings.SplitMakeBatchNote : Strings.SplitBatchPercent;
+        BatchNote.Text = reason ?? Strings.SplitMakeBatchNote;
     }
 
     /// <summary>大きさを、割り切れる一番大きな単位で入れる。</summary>

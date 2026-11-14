@@ -6948,6 +6948,14 @@ public partial class MainWindow : Window
         {
             existing = FileSplitter.ExistingOutputs(source, destination, chunk, makeBatch);
         }
+        catch (Exception ex) when (ex is JoinerNameException or ReservedNameException)
+        {
+            // 結合用のプログラムの名前を使えない (#373)。分割の処理に確かめ直させず、ここで知らせて始めない
+            MessageBox.Show(
+                this, Strings.SplitFailed(Strings.Reason(ex)), AppName,
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                        or NotSupportedException or ArgumentException)
         {

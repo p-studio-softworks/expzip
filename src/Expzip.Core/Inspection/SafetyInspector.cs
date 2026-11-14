@@ -135,25 +135,12 @@ internal static class SafetyInspector
                 context.Findings.Add(InspectionIssue.InvalidCharacter, target, segment);
             }
 
-            if (segment.Any(IsBidiControl))
+            if (BidiControl.Contains(segment))
             {
                 context.Findings.Add(InspectionIssue.BidiOverride, target, segment);
             }
         }
     }
-
-    /// <summary>
-    /// 文字の向きを変える記号か。
-    /// </summary>
-    /// <remarks>
-    /// U+202E (右横書き) を名前の途中に入れると、そこから先が逆さに表示される。
-    /// <c>写真gpj.exe</c> を <c>写真exe.jpg</c> のように見せる古典的な細工で、
-    /// 一覧の上では画像にしか見えない。
-    /// </remarks>
-    private static bool IsBidiControl(char c)
-        => c is >= (char)0x202A and <= (char)0x202E   // LRE, RLE, PDF, LRO, RLO
-            or >= (char)0x2066 and <= (char)0x2069    // LRI, RLI, FSI, PDI
-            or (char)0x200E or (char)0x200F;          // LRM, RLM
 
     /// <summary>展開すると極端に大きくなるエントリと、開くと実行される拡張子を調べる。</summary>
     private static void CheckSize(InspectionContext context, ArchiveEntry file)

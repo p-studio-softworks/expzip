@@ -3009,6 +3009,21 @@ internal static partial class Strings
         "ファイル名に % があるため、バッチファイルは作成できません。",
         "A batch file cannot be made because the file name contains %.");
 
+    /// <summary>名前に文字の向きを変える文字があるとバッチファイルを作らない (#373)。</summary>
+    public static string SplitBatchBidi => Pick(
+        "ファイル名に文字の向きを変える特殊な文字があるため、バッチファイルは作成できません。",
+        "A batch file cannot be made because the file name contains a special character that changes the text direction.");
+
+    /// <summary>結合用のプログラムの名前 (向きを変える文字を除いたもの) に、別のものが既にある (#373)。</summary>
+    public static string SplitJoinerNameTaken(string name) => Pick(
+        $"保存先に「{name}」という名前のファイルまたはフォルダーが既にあるため、結合用のプログラムを作成できません。",
+        $"The joining program cannot be made because the destination already contains a file or folder named \"{name}\".");
+
+    /// <summary>名前が向きを変える文字だけでできていて、結合用のプログラムの名前を決められない (#373)。</summary>
+    public static string SplitNameOnlyBidi => Pick(
+        "ファイル名が、文字の向きを変える特殊な文字だけでできているため、結合用のプログラムの名前を決められません。",
+        "The name of the joining program cannot be decided because the file name consists only of special characters that change the text direction.");
+
     public static string SplitCancelled => Pick(
         "分割を中断しました。書き込み途中の分割ファイルは削除しました。",
         "Splitting was stopped. The half-written pieces were deleted.");
@@ -3205,6 +3220,10 @@ internal static partial class Strings
                 $"The split file {System.IO.Path.GetFileName(missing.Missing)} was not found."),
 
             Expzip.Archives.HardLinkNotSupportedException => HardLinkNotSupported,
+
+            // 分割で作る結合用のプログラムの名前 (#373)
+            Expzip.Splitting.JoinerNameException { Taken: { } taken } => SplitJoinerNameTaken(taken),
+            Expzip.Splitting.JoinerNameException => SplitNameOnlyBidi,
 
             // 標準入力から作った RAR など (#336)。今の読む部品では展開できないので、読む前に断る
             Expzip.Archives.RarSizeUnknownException { After: false } => Pick(

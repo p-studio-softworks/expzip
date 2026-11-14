@@ -3335,6 +3335,10 @@ SplitAnyFile
   ja  すべてのファイル|*.*
   en  All files|*.*
 
+SplitBatchBidi
+  ja  ファイル名に文字の向きを変える特殊な文字があるため、バッチファイルは作成できません。
+  en  A batch file cannot be made because the file name contains a special character that changes the text direction.
+
 SplitBatchPercent
   ja  ファイル名に % があるため、バッチファイルは作成できません。
   en  A batch file cannot be made because the file name contains %.
@@ -3426,6 +3430,10 @@ SplitFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒�
       | 
       | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
 
+SplitJoinerNameTaken (name: 報告書.pdf)
+  ja  保存先に「⟦報告書.pdf⟧」という名前のファイルまたはフォルダーが既にあるため、結合用のプログラムを作成できません。
+  en  The joining program cannot be made because the destination already contains a file or folder named "⟦報告書.pdf⟧".
+
 SplitMakeBatch
   ja  結合用のバッチファイルも作成する
   en  Also make a batch file to join the pieces
@@ -3433,6 +3441,10 @@ SplitMakeBatch
 SplitMakeBatchNote
   ja  受け取った人の PC で、結合用のプログラムが Windows に止められて実行できないときに使います。
   en  Use this when Windows on the recipient's PC blocks the joining program.
+
+SplitNameOnlyBidi
+  ja  ファイル名が、文字の向きを変える特殊な文字だけでできているため、結合用のプログラムの名前を決められません。
+  en  The name of the joining program cannot be decided because the file name consists only of special characters that change the text direction.
 
 SplitNotNeeded
   ja  分割の必要はありません。1つの大きさが分割するファイルより大きいです。

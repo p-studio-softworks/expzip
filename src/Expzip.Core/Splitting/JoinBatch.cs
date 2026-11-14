@@ -44,8 +44,19 @@ internal static class JoinBatch
     /// 名前に <c>%</c> があると作らない。Windows はバッチファイルを起動するときに、ファイル名の <c>%OS%</c> のような部分を
     /// 環境変数の値に置き換えるので、バッチファイルが自分自身を見つけられない。命令は走らないが、逃げ道として役に立たない。
     /// 手で打つ <c>copy /b</c> も、コマンド プロンプトが同じ置き換えをする。
+    /// <para>
+    /// 名前に文字の向きを変える制御文字があっても作らない (#373)。バッチファイルの名前が拡張子を偽装した形になり、
+    /// Defender に止められる。その文字を除いた名前にすると、自分の名前から分割ファイルの名前を組み立てられなくなる。
+    /// 元の名前を中に書くと、上の「名前を命令の部分に入れない」「実行される部分は ASCII だけ」を破る。
+    /// </para>
     /// </remarks>
-    public static bool CanMake(string name) => !name.Contains('%');
+    public static bool CanMake(string name) => WhyNot(name) is null;
+
+    /// <summary>この名前でバッチファイルを作れない理由。作れるなら <see langword="null"/>。</summary>
+    public static string? WhyNot(string name)
+        => name.Contains('%') ? Localization.Strings.SplitBatchPercent
+            : Inspection.BidiControl.Contains(name) ? Localization.Strings.SplitBatchBidi
+            : null;
 
     /// <summary>作業用の名前の終わり。</summary>
     public const string WorkSuffix = ".joining.tmp";
