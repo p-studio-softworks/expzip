@@ -29,7 +29,8 @@ if ($pushed.Count -gt 0) { Ng "push していないコミットが $($pushed.Cou
 # ------------------------------------------------------------------ ビルドに入っているコミット (#104、#176)
 # AssemblyMetadata は「長さ + 名前 + 長さ + 値」の形で DLL に入っている
 $text = [Text.Encoding]::GetEncoding(28591).GetString([IO.File]::ReadAllBytes((Resolve-Path $dll)))
-if ($text.Contains('RevisionModified')) {
+# 名前だけで探さない。画面の文言の名前 AboutRevisionModified も DLL に入っていて、それに当たる (#383)
+if ([regex]::IsMatch($text, '\x10RevisionModified\x04true')) {
     Ng '「変更あり」のビルドです。コミットしたあと何も変えずにビルドし直してください'
 }
 else {
