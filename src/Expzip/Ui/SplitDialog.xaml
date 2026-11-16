@@ -57,7 +57,7 @@
             </StackPanel>
         </Grid>
 
-        <!-- 結合用のバッチファイル (#343)。デフォルトはオフ。名前に % があると作れない -->
+        <!-- 結合用のバッチファイル (#343)。デフォルトはオフ。作れない名前のときだけ、下に理由を出す (#373、#384) -->
         <CheckBox x:Name="BatchCheck" Margin="0,14,0,0" />
         <TextBlock x:Name="BatchNote"
                    Margin="26,4,0,0"

@@ -34,12 +34,12 @@ $preview = (ById $dialog 'PreviewText').Current.Name
 Check '何ができるかを言う' ($preview -eq '4 個の分割ファイルと、結合用のプログラムを作成します。元のファイルはそのまま残ります。') $preview
 Check '口の名前' ((ById $dialog 'SplitButton').Current.Name -eq '分割' -and (ById $dialog 'CancelButton').Current.Name -eq 'キャンセル')
 
-# 結合用のバッチファイル (#343)。デフォルトは作らない。名前に % があると押せない
+# 結合用のバッチファイル (#343)。デフォルトは作らない。名前に % があると押せず、理由を出す
 $batchCheck = ById $dialog 'BatchCheck'
 Check 'バッチファイルの欄の名前' ($batchCheck.Current.Name -eq '結合用のバッチファイルも作成する') $batchCheck.Current.Name
 Check 'バッチファイルはデフォルトで作らない' (-not (IsChecked $batchCheck))
-$note = (ById $dialog 'BatchNote').Current.Name
-Check 'バッチファイルの説明' ($note -eq '受け取った人の PC で、結合用のプログラムが Windows に止められて実行できないときに使います。') $note
+# 作れるときは説明を出さない。バッチファイルが要る理由は人によって違う (#384)
+Check '作れるときは説明を出さない' ($null -eq (ById $dialog 'BatchNote'))
 Set-Text (ById $dialog 'SourceBox') (Join-Path $script:Work 'a %OS% b.bin')
 Check '名前に % があると押せない' (-not $batchCheck.Current.IsEnabled)
 $note = (ById $dialog 'BatchNote').Current.Name
@@ -51,6 +51,7 @@ $note = (ById $dialog 'BatchNote').Current.Name
 Check '向きを変える文字の理由' ($note -eq 'ファイル名に文字の向きを変える特殊な文字があるため、バッチファイルは作成できません。') $note
 Set-Text (ById $dialog 'SourceBox') $source
 Check '名前を戻すと押せる' ($batchCheck.Current.IsEnabled -and -not (IsChecked $batchCheck))
+Check '名前を戻すと理由が消える' ($null -eq (ById $dialog 'BatchNote'))
 
 Section '分割する'
 Push (ById $dialog 'SplitButton')
@@ -61,7 +62,7 @@ if ($box) {
     Check '保存先' ($box.Text -match [regex]::Escape("保存先: $output"))
     Check '戻し方' ($box.Text -match 'すべての分割ファイルを同じフォルダーに置いて「資料\.bin\.exe」を実行してください。')
     Check 'ほかのソフトでも結合できる' ($box.Text -match '7-Zip などほかのソフトでも結合できます。') $box.Text
-    Check 'バッチファイルを作らなければ言わない' ($box.Text -notmatch '\.cmd') $box.Text
+    Check 'バッチファイルのことは言わない' ($box.Text -notmatch '\.cmd') $box.Text
     Close-MessageBox $box 'OK'
 }
 Check 'ステータスバー' ((Get-Status $app) -eq '4 個に分割しました') (Get-Status $app)
@@ -77,7 +78,8 @@ Toggle-Check (ById $dialog 'BatchCheck')
 Push (ById $dialog 'SplitButton')
 $box = Find-MessageBox $app 30000
 if ($box) {
-    Check 'バッチファイルのことを言う' ($box.Text -match 'Windows に止められて実行できないときは、「資料\.bin\.cmd」を実行してください。') $box.Text
+    # 作っても知らせの中では触れない。オンにした人は使い方を知っている (#384)
+    Check 'バッチファイルを作っても言わない' ($box.Text -notmatch '\.cmd') $box.Text
     Close-MessageBox $box 'OK'
 }
 Check 'バッチファイルができる' (Test-Path (Join-Path $batchOutput '資料.bin.cmd'))

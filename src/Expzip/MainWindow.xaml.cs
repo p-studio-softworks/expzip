@@ -7029,7 +7029,7 @@ public partial class MainWindow : Window
             StatusMessage.Text = Strings.SplitDoneStatus(result.Parts);
             MessageBox.Show(
                 this,
-                Strings.SplitDone(result.Parts, result.JoinerName, result.BatchName, destination),
+                Strings.SplitDone(result.Parts, result.JoinerName, destination),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
