@@ -8,6 +8,17 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
   **Write progress updates and reports in Japanese too.** Once one short update slips into English, the rest tends to follow
 - This file lives in `.claude/` on purpose, to keep the repository top level for users (#129).
 
+## Shared rules
+
+Rules that apply to every application are kept in the private studio repository (#385). **Open them with the Read tool before the work they cover.**
+
+- **Before writing on-screen text, documents, comments, tickets or commit messages**, read 「どのアプリにも共通の書き方」 in `~/.claude/roles/wording.md`. The rules below are only the ones specific to Expzip
+- **Before designing anything that writes, replaces or deletes the user's files**, read 「どのアプリにも共通の決まり」 in `~/.claude/roles/security.md`
+- **Before editing `docs/SPEC.md`**, read the paragraph on what a specification describes, just before 「始める前に」 in `~/.claude/roles/spec.md`
+- How to change files (Edit / Write, no `sed -i`, keeping the BOM and line endings, reading only the log lines you need) is in `claude-settings/editing.md` in the studio repository, loaded from `~/.claude/CLAUDE.md`
+- Which reviewer to ask for which change, and how the security design check goes, is in 「係に頼む場面」 of `agents/README.md` in the studio repository
+- Finishing a change (commit, push, closing the ticket) follows the `finish-ticket` skill
+
 ## Build and test
 
 - Build with `build.cmd` at the repository root (`-Debug` for development / `-Test` to also run the UI tests). The script itself is `build/build.ps1`. Do not call `dotnet publish` directly
@@ -29,7 +40,6 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 
 - `.cs` `.xaml` `.csproj` `.ps1` `.md`: UTF-8 + CRLF. `.ps1` and `.cs` carry a BOM (PowerShell 5.1 misreads Japanese without one)
 - `.cmd` is ASCII only (cmd.exe reads it in the ANSI code page, so Japanese text belongs in the `.ps1`)
-- Bulk replacements must not break the BOM or the line endings
 
 ## Colors
 
@@ -40,28 +50,13 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
 ## On-screen text
 
 - Text lives in the table in `src/Expzip.Core/Localization/Strings.Text.cs`, with Japanese and English side by side. **Never write it in XAML**
-- Verbs for operations are written in kanji (入力する、設定する、削除する、作成する、選択する、使用する、展開する)
-- Do not use developer jargon (断片 → 分割ファイル、置き場 → 保存先). **Write 「ビルド」, not 「建てる」**
-- Use the words people actually say: 「ウィンドウ」, not 「窓」; 「バージョン」, not 「版」 (#142). This also applies to `README.ja.md`
-- **Call the machine 「PC」, not 「パソコン」 or 「コンピューター」 (#280)**, as Windows does (「この PC」). Put a half-width space on each side: 「この PC で」.
-  The one exception is 「コンピューター名」, which is the name Windows itself uses. This also applies to documents, comments and tickets
-- Do not write 「〜製」 for the tool an installer was built with: 「NSIS インストーラー」, not 「NSIS 製インストーラー」 (#181).
-  「製」 means where something was manufactured (日本製). Also in tickets, the wiki and replies to the user
-- For one file inside another, write 「MSI が入った exe」, not 「MSI を包んだ exe」 (#182). Also in tickets, the wiki and replies to the user
-- **In comments, documents, tickets and the wiki too, write 「ツール」, not 「道具」 (#154); 「スクリプト」, not 「台本」 (#153); and 「モデル」, not 「模型」 (#155).** Loanwords that people use every day are clearer than a literal Japanese translation
 - **For the Zone.Identifier mark, in on-screen text and in `README.md` / `README.ja.md` write 「インターネットから入手したことを示す情報 (Mark of the Web)」 the first time in each message, and 「Mark of the Web」 after that (#351).** In English: "the Mark of the Web, which shows that … came from the internet", then "the Mark of the Web".
   Everywhere users do not see (comments, the specification, other documents such as `tools/*/README.md`, tests, commit messages, tickets and the wiki), write 「MotW」. Do not call it 「印」 or 「出所の印」: users do not know that name, and 「印」 also means the marks on list rows and in the tree
-- Put a half-width space between a number and its unit (`3 件`). Files and items are counted with 「個」; rules, violations and detections with 「件」
-- Write the long vowel: `フォルダー` `ヘッダー`. Write `既に` in kanji
-- Tooltips and the status bar do not end with 「。」. Sentences in dialogs do
-- Do not explain internal reasons. **Keep warnings that matter for safety**
 - Failure reasons go through `Strings.Reason` and are shown in Japanese. Never show an English exception message as is
 
 ## Attribution
 
-- The copyright notice is `Copyright (c) <year> P studio`. **Never show a personal name**
 - Commits are authored as `paliensup <193758124+paliensup@users.noreply.github.com>` (set for this repository only)
-- **Do not add `Co-Authored-By` to commits.** GitHub would show the commit as co-authored
 
 ## Writing
 
@@ -70,24 +65,11 @@ The full specification is `docs/SPEC.md`. This file holds **only the rules to fo
   Links to documents that exist only in Japanese get "(Japanese)" after them in the English README
 - **`THIRD-PARTY-NOTICES.txt` is English only** (#198). It is shown as is in the license window whatever the UI language,
   so Japanese text in it shows up for English users. The permission notices themselves are copied verbatim, never translated
-- **In Markdown, close bold before the punctuation: `**…**。`, not `**…。**`.** On GitHub, `**` right after 「。」 does not close
-  when a letter follows, so the text shows raw asterisks. The same goes for opening `**` before 「「」 right after a letter:
-  write `「**…**」`. Redmine renders both, so check on GitHub (the `/markdown` API shows it without pushing)
-- **Do not write 「色弱」 or 「色盲」.** Write 「色の見え方の違い」 or 「色覚特性」, and describe a type by how colors look,
-  such as 「赤と緑の区別がつきにくい」. This also applies to tickets and commit messages
-- The specification `docs/SPEC.md` describes **how things are now**. **Do not write plans or phases**
-- **The issue tracker is private. Never link to it from the repository** (a bare number such as `#123` is fine)
 - **Do not name other archivers as a point of comparison or as an origin** (#127). When a comparison is needed,
   use Explorer (エクスプローラー) or 7-Zip. The only exception is the one line in each README saying there is no relation.
   Details are in #127 in the issue tracker
 
 ## How to work
 
-- **Before implementing a ticket that changes archive reading, writing, extraction, startup, the input passed to third-party libraries, or what is sent to AI, have `security-reviewer` check the design (#294).** That agent is kept in a private shared repository, so that the same one can be used across applications (#324).
-  Show it a short design and ask for a 「設計の確認」. Explain the findings and any decisions to the user in plain words, and start building only after they are settled. Put the attack samples into the tests first. It still reviews the result after implementation, because a design check cannot find everything
-
-- **A failure must leave the user's files as they were (#320).** Never write directly onto a path that may already hold the user's data, and never delete such a path as cleanup. Write to a temporary name in the same folder, finish everything (including the mark of the web), then replace in one step, using `AtomicFile`.
-  Think through all three kinds of failure: an error, a cancel, and a forced end (hang, crash, power loss). This covers extraction, created files, settings and saved data, and the self-extractor. Before building something that cannot follow this, tell the user what could be lost and let them decide
-- Change files with Edit / Write. **Rewriting them with an external script makes the whole file get read again, which is wasteful**
-- **Do not use `sed -i` from Git Bash on repository files.** It rewrites CRLF as LF across the whole file
-- Only look at the lines of logs and output that you need (for example `Select-String 'NG'`)
+- **Before implementing a ticket that changes archive reading, writing, extraction, startup, the input passed to third-party libraries, or what is sent to AI, have `security-reviewer` check the design (#294).** The steps are in 「係に頼む場面」 (see Shared rules)
+- **A failure must leave the user's files as they were (#320).** Follow 「どのアプリにも共通の決まり」 in `~/.claude/roles/security.md`, using `AtomicFile` to write to a temporary name and replace in one step
