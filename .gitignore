@@ -53,10 +53,8 @@ Expzip.settings.json
 .redmine-api-key
 
 # === Claude Code ===
-# PC ごとの許可の設定は入れない。作業の決まり (.claude/CLAUDE.md) は追いかける (#129)
-.claude/settings.local.json
-# スキルの名前が、ビルドの出力の [Rr]elease/ に巻き込まれないように
-!.claude/skills/release/
+# 作業の決まりは公開しない。.claude は PC ごとに置く別の場所へのリンク (#386)
+.claude/
 
 # === OS / エディタ ===
 Thumbs.db
