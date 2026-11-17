@@ -166,7 +166,7 @@ internal static class ZipSalvage
             // MotW は元の書庫から引き継ぐ (#12、#211)。ネットから落としたものを書き直しただけで
             // MotW が消えると、取り出したファイルに SmartScreen などが働かなくなる。
             // 失敗や中断では作りかけだけが消える。同じ名前のファイルができていても消さない (#320)
-            using var output = AtomicFile.Create(destination, overwrite: false, MarkOfTheWeb.TryReadArchive(source));
+            using var output = AtomicFile.Create(destination, overwrite: false, MarkOfTheWeb.TryReadArchive(source, ArchiveFormat.Zip));
             Write(input, entries, output.Stream, cancellationToken);
 
             if (!output.Commit())

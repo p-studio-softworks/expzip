@@ -88,7 +88,8 @@ internal static class MsiReader
         }
         catch (OperationCanceledException)
         {
-            // 中断は ExtractState が数えている
+            // 1 個目を書く前に中止されると、ExtractState は中止を数えていない。中止したことを結果で知らせる (#390)
+            state.Cancel();
         }
 
         return state.ToResult();
@@ -207,14 +208,27 @@ internal static class MsiReader
     /// <summary>MSI の隣に置かれたファイルを開く。MSI のフォルダーの外は読まない。</summary>
     private static FileStream OpenBeside(string folder, string relative)
     {
-        var full = Path.GetFullPath(Path.Combine(folder, relative.Replace('/', '\\')));
+        var full = BesidePath(folder, relative) ?? throw new InvalidDataException();
+        OpenedFiles.Note(full);
+        return File.OpenRead(full);
+    }
 
-        if (!ArchiveExtractor.IsInside(folder, full))
+    /// <summary>
+    /// MSI の隣に置かれたファイルのパス。MSI のフォルダーの外と、<c>:</c> を含む名前は <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// <c>a.txt::$DATA</c> のような名前は、開くと <c>a.txt</c> の中身を読むのに、MotW はその名前のままでは読めない。
+    /// 読み取りと MotW (<see cref="ArchiveSources"/>) で読むものが食い違わないよう、どちらも開かない (#390)。
+    /// </remarks>
+    internal static string? BesidePath(string folder, string relative)
+    {
+        if (relative.Contains(':'))
         {
-            throw new InvalidDataException();
+            return null;
         }
 
-        return File.OpenRead(full);
+        var full = Path.GetFullPath(Path.Combine(folder, relative.Replace('/', '\\')));
+        return ArchiveExtractor.IsInside(folder, full) ? full : null;
     }
 
     /// <summary>入れ物の CAB を読む。<c>#</c> で始まれば MSI に埋め込まれたもの、そうでなければ隣のファイル。</summary>
@@ -234,6 +248,7 @@ internal static class MsiReader
                 throw new FileNotFoundException($"'{beside}'");
             }
 
+            OpenedFiles.Note(beside);
             CabReader.Visit(() => File.OpenRead(beside), folder, keys, visit, cancellationToken);
             return;
         }

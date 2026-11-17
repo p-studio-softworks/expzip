@@ -100,15 +100,43 @@ internal static class MarkOfTheWeb
            || ex is IOException { HResult: InvalidName or InvalidParameter or NotSupportedError };
 
     /// <summary>
-    /// 書庫の MotW を読む。分割された書庫は、すべての分割ファイルの中でいちばん警戒度の高い MotW を使う (#321)。
+    /// 書庫の MotW を読む。展開で読むかもしれないすべてのファイル (<see cref="ArchiveSources"/>) の中で、
+    /// いちばん警戒度の高い MotW を使う (#321、#390)。例外は外へ出さない。
     /// </summary>
+    /// <param name="path">開いた書庫。</param>
+    /// <param name="format">展開に使う形式。分割した RAR、続きのある CAB、隣のファイルを読む MSI で、読むファイルが増える。</param>
+    /// <param name="cancellationToken">中止用。中止されたら <see cref="OperationCanceledException"/> を投げる。ほかの例外は外へ出さない。</param>
     /// <remarks>
+    /// <para>
     /// USB メモリーを通ると、一部の分割ファイルだけ MotW が消えることがある。1 個でも付いていれば、付いているものとして扱う。
+    /// </para>
+    /// <para>
+    /// 挙げきれなかったとき (見出しが壊れている、数が多すぎる、など) は、区分 3 (インターネット) の MotW を候補に足す。
+    /// 読めないファイルの MotW が抜けて、弱い側に倒れないため。展開を始める前に呼び、ファイルは書かない。
+    /// </para>
     /// </remarks>
-    public static string? TryReadArchive(string path)
-        => SplitVolumes.IsFirstVolume(path)
-            ? Strongest(SplitVolumes.Find(path).Select(TryRead))
-            : TryRead(path);
+    public static string? TryReadArchive(string path, ArchiveFormat format, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var sources = ArchiveSources.Of(path, format, cancellationToken);
+            var zones = sources.Files.Select(file =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return TryRead(file);
+            });
+            return Strongest(sources.Complete ? zones : zones.Append(Internet));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // 展開を始める前なので、ファイルは失わない。落とさずに、安全側の MotW にする
+            return Strongest([TryRead(path), Internet]);
+        }
+    }
 
     /// <summary>いちばん警戒度の高い MotW。同じ強さなら、見本より本物の MotW を残す。</summary>
     public static string? Strongest(IEnumerable<string?> zones)

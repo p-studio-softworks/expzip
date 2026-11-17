@@ -102,7 +102,8 @@ internal static class CabReader
         }
         catch (OperationCanceledException)
         {
-            // 中断は ExtractState が数えている
+            // 1 個目を書く前に中止されると、ExtractState は中止を数えていない。中止したことを結果で知らせる (#390)
+            state.Cancel();
         }
 
         return state.ToResult();
@@ -369,6 +370,8 @@ internal static class CabReader
                         return -1;
                     }
 
+                    // 続きの CAB の MotW も読む。ArchiveSources は、ここで覚えたもので続きを挙げる (#390)
+                    OpenedFiles.Note(sibling);
                     stream = File.OpenRead(sibling);
                 }
 

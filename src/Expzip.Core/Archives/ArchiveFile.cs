@@ -13,7 +13,19 @@ internal static class ArchiveFile
     /// <exception cref="InvalidDataException">断片が揃っていない場合。</exception>
     /// <exception cref="IOException">ファイルを読めない場合。</exception>
     public static Stream OpenRead(string path)
-        => SplitVolumes.IsFirstVolume(path)
-            ? SplitVolumes.Open(path)
-            : File.OpenRead(path);
+    {
+        if (!SplitVolumes.IsFirstVolume(path))
+        {
+            OpenedFiles.Note(path);
+            return File.OpenRead(path);
+        }
+
+        // 分割ファイルの MotW も読むことを、テストで確かめられるようにする (#390)
+        foreach (var volume in SplitVolumes.Find(path))
+        {
+            OpenedFiles.Note(volume);
+        }
+
+        return SplitVolumes.Open(path);
+    }
 }

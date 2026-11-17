@@ -3343,13 +3343,11 @@ public partial class MainWindow : Window
 
         try
         {
-            // 書庫に付いている MotW は、新しい書庫にも引き継ぐ (#12)
-            var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath);
-
-            // リンクはディスクに作らず、元の書庫から読んだものをそのまま入れる (#367)
-            var taken = await ExtractSelectionAsync(rows, directory, zone);
+            // リンクはディスクに作らず、元の書庫から読んだものをそのまま入れる (#367)。
+            // 書庫に付いている MotW は、新しい書庫にも引き継ぐ (#12)。作業中の扱いが始まってから読むので、取り出しの中で読む (#390)
+            var taken = await ExtractSelectionAsync(rows, directory);
             if (taken is not { } selection || (selection.Paths.Length == 0 && selection.Links.Count == 0)
-                || !await BuildArchiveAsync(path, selection.Paths, zone, selection.Links))
+                || !await BuildArchiveAsync(path, selection.Paths, selection.Zone, selection.Links))
             {
                 return;
             }
@@ -3656,6 +3654,25 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// 書庫の MotW を、画面とは別に読む (#390)。分割ファイルや隣のファイルが多いと時間がかかるため。
+    /// </summary>
+    /// <remarks>
+    /// 中止されたら、区分 3 (インターネット) の MotW を返す。続く取り出しは同じ中止の指定で止まり、
+    /// 中止したことは取り出しの結果で知らせる。止まる前に書かれるものがあっても、弱い MotW にはしない。
+    /// </remarks>
+    private static async Task<string?> ReadArchiveZoneAsync(string archivePath, ArchiveFormat format, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await Task.Run(() => MarkOfTheWeb.TryReadArchive(archivePath, format, cancellationToken), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return MarkOfTheWeb.Internet;
+        }
+    }
+
+    /// <summary>
     /// 選んだ行を取り出し、新しい書庫に入れるパスと、ディスクを通さずに入れるリンク (#367) を返す (#207)。
     /// 取りやめた場合や、取り出せないものがあった場合は <see langword="null"/>。
     /// </summary>
@@ -3666,8 +3683,9 @@ public partial class MainWindow : Window
     /// <param name="failed">
     /// 取り出せなかったときに出す文。書庫の名前と理由を受け取る。省くと新しい書庫を作れなかった旨の文。
     /// </param>
-    private async Task<(string[] Paths, IReadOnlyList<CarriedLink> Links)?> ExtractSelectionAsync(
-        List<EntryRow> rows, string directory, string? zone, Func<string, string, string>? failed = null)
+    /// <returns>取り出したもののパス、新しい書庫へそのまま入れるリンク、引き継ぐ MotW。</returns>
+    private async Task<(string[] Paths, IReadOnlyList<CarriedLink> Links, string? Zone)?> ExtractSelectionAsync(
+        List<EntryRow> rows, string directory, Func<string, string, string>? failed = null)
     {
         failed ??= Strings.CreateArchiveFailed;
         var archivePath = Contents!.FilePath;
@@ -3697,6 +3715,11 @@ public partial class MainWindow : Window
             // リンクはディスクに作らずに受け取り、新しい書庫へそのまま入れる。開発者モードがオフの PC でも作れるようにするため。
             // 新しい書庫では選んだ項目がそれぞれいちばん上に来るので、同じ項目の中を指すリンクだけを入れる (#367)
             var roots = rows.Select(static r => r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath).ToList();
+
+            // 書庫に付いている MotW は、新しい書庫にも引き継ぐ (#12)。分割ファイルや隣のファイルも読むので画面とは別に読み、
+            // 作業中の扱い (SetBusy) の後で読む。読んでいる間にタブを切り替えさせないため (#390)
+            var zone = await ReadArchiveZoneAsync(archivePath, format, cancellation.Token);
+
             var result = await Task.Run(() => ArchiveExtractor.Extract(
                 archivePath, format, reading, names, directory, overwrite: false, progress: progress,
                 cancellationToken: cancellation.Token, zoneIdentifier: zone, password: password,
@@ -3748,7 +3771,7 @@ public partial class MainWindow : Window
                 .Select(relative => Path.Combine(directory, relative!))
                 .Where(static path => File.Exists(path) || Directory.Exists(path))
                 .ToArray();
-            return (paths, CarryLinks(result.Links, roots, directory));
+            return (paths, CarryLinks(result.Links, roots, directory), zone);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException or NotSupportedException
@@ -5572,8 +5595,6 @@ public partial class MainWindow : Window
             var directory = ContainsLinks(rows)
                 ? workspace.CreateScratchDirectory(Path.GetFileNameWithoutExtension(Contents.FilePath))
                 : workspace.DirectoryFor(Contents.FilePath);
-            var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath);
-
             Mouse.OverrideCursor = Cursors.Wait;
             StatusMessage.Text = Strings.ExtractingCount(names.Count);
 
@@ -5582,6 +5603,10 @@ public partial class MainWindow : Window
             // 描画と同じ優先度で空の処理を待つと、描画まで済む。入力はそれより低いので、
             // ここで操作を拾って入れ子になることはない
             Dispatcher.Invoke(static () => { }, DispatcherPriority.Render);
+
+            // 落とす前に中身を用意するので、画面のまま読む。分割ファイルや隣のファイルも読むので、
+            // 待ちのカーソルと表示を出してから読む (#390)
+            var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath, Contents.Format);
 
             // リンクは、ドラッグする項目の中を指すものだけを取り出す。落とした先では、項目どうしの位置が書庫の中と変わるため。
             // ジャンクションは指す先を絶対パスで持つので、エクスプローラーがコピーや移動をすると正しい場所を指さない (#367)
@@ -6233,8 +6258,8 @@ public partial class MainWindow : Window
 
         try
         {
-            // 書庫に付いている MotW は、取り出したファイルにも引き継ぐ (#12)
-            var zone = MarkOfTheWeb.TryReadArchive(archivePath);
+            // 書庫に付いている MotW は、取り出したファイルにも引き継ぐ (#12)。分割ファイルや隣のファイルも読むので、画面とは別に読む (#390)
+            var zone = await ReadArchiveZoneAsync(archivePath, format, cancellation.Token);
 
             var result = await Task.Run(() =>
             {
@@ -6588,8 +6613,8 @@ public partial class MainWindow : Window
 
         try
         {
-            // 書庫に付いている MotW は、書き出したファイルにも引き継ぐ (#12)
-            var zone = MarkOfTheWeb.TryReadArchive(archivePath);
+            // 書庫に付いている MotW は、書き出したファイルにも引き継ぐ (#12)。分割ファイルや隣のファイルも読むので、画面とは別に読む (#390)
+            var zone = await ReadArchiveZoneAsync(archivePath, format, cancellation.Token);
 
             var result = await Task.Run(() => ArchiveExtractor.Extract(
                 archivePath, format, reading, selection, destination, overwrite, progress, cancellation.Token,
