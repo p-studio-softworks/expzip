@@ -260,7 +260,7 @@ internal static class ZipEncryption
                 var directory = Path.GetDirectoryName(target);
                 if (!string.IsNullOrEmpty(directory))
                 {
-                    Directory.CreateDirectory(directory);
+                    overwrite.CreateFolder(directory);
                 }
 
                 using var source = fallback.Open(entry.Name, () => zip.GetInputStream(entry));

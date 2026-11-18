@@ -85,7 +85,7 @@ internal sealed class ExtractState(
             var directory = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(directory))
             {
-                Directory.CreateDirectory(directory);
+                overwrite.CreateFolder(directory);
             }
 
             var source = Open(openEntry);

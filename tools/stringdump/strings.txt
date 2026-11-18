@@ -1646,6 +1646,14 @@ LimitTailUnopened
   ja  後ろのデータは開けません
   en  appended data cannot be opened
 
+LinkFolderNotExtracted
+  ja  このリンクが指すフォルダーを一緒に展開していないため、展開しませんでした。
+  en  The folder this link points to was not extracted along with it, so this link was not extracted.
+
+LinkFolderUnverifiable
+  ja  このリンクが指すフォルダーを一緒に展開したかを確かめられないため、展開しませんでした。
+  en  Could not confirm that the folder this link points to was extracted along with it, so this link was not extracted.
+
 LinkHardLinkNotInZip
   ja  ハードリンクは ZIP に入れられないため、新しい書庫に入れられません。
   en  This hard link cannot be added to the new archive, because ZIP cannot store hard links.
@@ -1713,6 +1721,10 @@ LinkTargetNotExtracted
 LinkTargetNotSupported
   ja  このリンクの指す先のパスは、読み取れないか、書庫に記録できない書き方です。
   en  The path this link points to could not be read, or is written in a way that cannot be stored in an archive.
+
+LinkTargetThroughLink
+  ja  展開先で、このリンクが指すフォルダーまでの途中にリンクがあるため、展開しませんでした。
+  en  In the destination, a folder on the path to the folder this link points to is itself a link, so this link was not extracted.
 
 LinkTargetUnreadable
   ja  このリンクが指す先を読み取れないため、展開しませんでした。

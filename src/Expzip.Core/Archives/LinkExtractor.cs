@@ -41,6 +41,11 @@ internal readonly record struct LinkScopeEntry(string Name, bool IsFolder);
 /// <item><description>
 /// ハードリンクとファイルのコピーの指す先は、今回この書庫から展開したファイルだけ。展開先に前からあったファイルは指させない。
 /// </description></item>
+/// <item><description>
+/// フォルダーを指すリンクの指す先は、今回の展開で作ったフォルダーか、この展開で置いたリンクだけ (#392)。
+/// 展開先に前からあるフォルダー、選んでいないフォルダー、途中に前からあるリンクを通るフォルダーは指させない。
+/// 指す先がまだ無いリンクは後回しにし、ほかのリンクを置いてからもう一度確かめる。
+/// </description></item>
 /// <item><description>同じ名前の項目が書庫に 2 つ以上あれば、書庫でいちばん後ろのものだけを展開する (#367)。</description></item>
 /// <item><description>同じ名前のものがあれば、ファイルを指すリンクは上書きの確認の結果に従う。フォルダーを指すリンクは展開しない (#372)。</description></item>
 /// <item><description>一時的な名前で作ってから、1 回の名前の変更で置く (#320)。MotW は付けない (付けると指す先に書かれる)。</description></item>
@@ -63,22 +68,70 @@ internal static class LinkExtractor
     {
         var index = new ArchiveIndex(entries, links, state.Links?.Roots);
 
-        foreach (var link in links)
+        // 同じ名前の項目が後ろにあれば、そちらが残る (ファイルなら、リンクは置かない)
+        var pending = links
+            .Where(link => !(ArchiveLinks.Canonical(link.Name) is { } own && index.IsSuperseded(own, link.Index)))
+            .ToList();
+
+        // 指す先のフォルダーがまだ無いリンクは後回しにする (#392)。指す先が、書庫で後ろにあるリンクや、
+        // リンクを置くときに初めてできるフォルダーのことがある。後回しの数が 1 回りで減らなくなったら止める。
+        // 2 回り目からは、待っている指す先がまだ無いリンクを確かめ直さない (深い場所のリンクが多い書庫で、回るたびに重くならないように)
+        var waiting = new Dictionary<LinkRequest, string>();
+        for (var round = 0; round < MaxChain && pending.Count > 0; round++)
+        {
+            var later = new List<LinkRequest>();
+            foreach (var link in pending)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    state.Cancel();
+                    return;
+                }
+
+                if (waiting.TryGetValue(link, out var awaited) && !Directory.Exists(awaited) && !File.Exists(awaited))
+                {
+                    later.Add(link);
+                    continue;
+                }
+
+                if (Run(link, final: false) is { } waitFor)
+                {
+                    waiting[link] = waitFor;
+                    later.Add(link);
+                }
+            }
+
+            if (later.Count == pending.Count)
+            {
+                break;
+            }
+
+            pending = later;
+        }
+
+        foreach (var link in pending)
         {
             if (cancellationToken.IsCancellationRequested)
             {
+                state.Cancel();
                 return;
             }
 
-            // 同じ名前の項目が後ろにあれば、そちらが残る (ファイルなら、リンクは置かない)
-            if (ArchiveLinks.Canonical(link.Name) is { } own && index.IsSuperseded(own, link.Index))
-            {
-                continue;
-            }
+            Run(link, final: true);
+        }
 
+        // 1 個を展開する。指す先のフォルダーがまだ無くて後回しにしたときは、待っている指す先のパス
+        string? Run(LinkRequest link, bool final)
+        {
             try
             {
-                if (ExtractOne(link, index, state, zone, cancellationToken) is { } reason)
+                var reason = ExtractOne(link, index, state, zone, final, out var waitFor, cancellationToken);
+                if (ReferenceEquals(reason, NotYet))
+                {
+                    return waitFor;
+                }
+
+                if (reason is not null)
                 {
                     state.FailLink(link.Name, reason);
                 }
@@ -92,13 +145,22 @@ internal static class LinkExtractor
             {
                 state.FailLink(link.Name, Strings.Reason(ex));
             }
+
+            return null;
         }
     }
 
-    /// <summary>1 個を展開する。展開しなかったときは理由を返す。</summary>
+    /// <summary>指す先のフォルダーがまだ無いので、後回しにする印 (#392)。</summary>
+    private static readonly string NotYet = new('-', 1);
+
+    /// <summary>1 個を展開する。展開しなかったときは理由を返す。後回しにするときは <see cref="NotYet"/>。</summary>
+    /// <param name="final">最後の回りか。指す先のフォルダーがまだ無ければ、後回しにせずに展開しない。</param>
+    /// <param name="waitFor">後回しにしたとき、待っている指す先のパス。</param>
     private static string? ExtractOne(
-        LinkRequest link, ArchiveIndex index, ExtractState state, string? zone, CancellationToken cancellationToken)
+        LinkRequest link, ArchiveIndex index, ExtractState state, string? zone, bool final, out string? waitFor,
+        CancellationToken cancellationToken)
     {
+        waitFor = null;
         var path = ArchiveExtractor.TargetFor(state.Root, link.Name, state.BasePath);
         var linkInArchive = ArchiveLinks.Canonical(link.Name);
         if (path is null || linkInArchive is null)
@@ -201,6 +263,21 @@ internal static class LinkExtractor
             return Strings.LinkTargetNotExtracted;
         }
 
+        // フォルダーを指すリンクは 1 回では置き換えられない (#372)。同じ書庫をもう一度展開したときは、
+        // 指す先を確かめる前に「上書きできなかった」と知らせる (前に展開したフォルダーは、今回から見ると前からあるもの)
+        if (toFolder && (Directory.Exists(path) || File.Exists(path)))
+        {
+            state.NotReplace(link.Name, Strings.LinkNameTaken);
+            return null;
+        }
+
+        // フォルダーを指すリンクは、指す先が今回の展開で作ったフォルダーか、この展開で置いたリンクのときだけ作る (#392)。
+        // 展開先に前からある本人のフォルダーや、選んでいないフォルダーを、書庫の中身のリンクが指さないようにする
+        if (toFolder && FolderTargetProblem(spelling, state, final, out waitFor) is { } problem)
+        {
+            return problem;
+        }
+
         var decision = state.Overwrite.Decide(path);
 
         if (Directory.Exists(path) || File.Exists(path))
@@ -219,7 +296,7 @@ internal static class LinkExtractor
             }
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        state.Overwrite.CreateFolder(Path.GetDirectoryName(path)!);
         var temporary = AtomicFile.TemporaryPathFor(path);
 
         if (link.Kind == RarLinkKind.Junction)
@@ -245,6 +322,37 @@ internal static class LinkExtractor
 
         state.LinkCreated(link.Name);
         return null;
+    }
+
+    /// <summary>
+    /// フォルダーを指すリンクの指す先を確かめる (#392)。作ってよければ <see langword="null"/>、まだ無くて後回しにするなら <see cref="NotYet"/>。
+    /// </summary>
+    private static string? FolderTargetProblem(string spelling, ExtractState state, bool final, out string? waitFor)
+    {
+        waitFor = null;
+        if (ArchiveExtractor.TargetFor(state.Root, spelling, state.BasePath) is not { } pointed)
+        {
+            return Strings.LinkFolderNotExtracted;
+        }
+
+        // 指す先までの途中に前からあるリンクがあると、その向きが変わったときに本人のフォルダーを指すことになる
+        if (HasLinkOnTheWay(Path.GetDirectoryName(pointed)!, state.Root))
+        {
+            return Strings.LinkTargetThroughLink;
+        }
+
+        if (!Directory.Exists(pointed) && !File.Exists(pointed))
+        {
+            waitFor = pointed;
+            return final ? Strings.LinkFolderNotExtracted : NotYet;
+        }
+
+        if (state.Overwrite.WasCreated(pointed) || state.IsCreatedLink(pointed))
+        {
+            return null;
+        }
+
+        return ExtractOverwrite.CanIdentify(pointed) ? Strings.LinkFolderNotExtracted : Strings.LinkFolderUnverifiable;
     }
 
     /// <summary>ハードリンクとファイルのコピー。指す先は、今回この書庫から展開したファイル。</summary>
@@ -279,7 +387,7 @@ internal static class LinkExtractor
                 return null;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        state.Overwrite.CreateFolder(Path.GetDirectoryName(path)!);
 
         if (link.Kind == RarLinkKind.HardLink)
         {

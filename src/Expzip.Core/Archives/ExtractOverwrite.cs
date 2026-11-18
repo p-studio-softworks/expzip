@@ -194,6 +194,89 @@ internal sealed class ExtractOverwrite
     /// <summary>この展開で書いたファイルを、指定にかかわらず覚えるか (#336)。リンクを展開する書庫で立てる。</summary>
     public bool RecordCreated { get; set; }
 
+    /// <summary>
+    /// 展開で書くファイルやリンクを置くフォルダーを作る。リンクを展開する書庫では、この展開で作ったフォルダーを覚える (#392)。
+    /// フォルダーを指すリンクの指す先を確かめるのに使う。
+    /// </summary>
+    /// <remarks>
+    /// 「作る前に無かった」ではなく、Windows が「作った」と答えた段だけを覚える。無いと見てから作るまでの間に、
+    /// ほかのプログラムが同じ名前のフォルダーを作っても、それを今回作ったものと取り違えない。
+    /// </remarks>
+    public void CreateFolder(string directory)
+    {
+        if (!(_approved is not null || RecordCreated))
+        {
+            Directory.CreateDirectory(directory);
+            return;
+        }
+
+        // 無い段を下から集め、上から 1 段ずつ作る
+        var missing = new Stack<string>();
+        for (var current = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+             !Directory.Exists(current);
+             current = Path.GetDirectoryName(current)!)
+        {
+            missing.Push(current);
+            if (Path.GetDirectoryName(current) is null)
+            {
+                break;
+            }
+        }
+
+        while (missing.TryPop(out var folder))
+        {
+            var created = CreateOne(folder);
+            if (created is null)
+            {
+                // 作れなかった。理由は下の .NET の呼び出しに出させる (どのフォルダーか、途中にファイルがあるかが文に入る)
+                break;
+            }
+
+            if (created == true && Key(folder) is { } key)
+            {
+                _created.TryAdd(key, 0);
+            }
+        }
+
+        // 途中にファイルがあるとき、書き込めないときなどは、ここで今までと同じ例外になる
+        Directory.CreateDirectory(directory);
+    }
+
+    /// <summary>フォルダーを 1 段作る。作ったときは真、既にあれば偽、ほかの理由で作れなければ <see langword="null"/>。</summary>
+    private static bool? CreateOne(string folder)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            if (Directory.Exists(folder))
+            {
+                return false;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        if (CreateDirectoryW(AtomicFile.LongPathIfNeeded(folder), IntPtr.Zero))
+        {
+            return true;
+        }
+
+        const int AlreadyExists = 183;
+        return Marshal.GetLastPInvokeError() == AlreadyExists ? false : null;
+    }
+
+    /// <summary>
+    /// この展開で作ったかを <see cref="WasCreated"/> で確かめられるか (#392)。ファイルの番号を返さないドライブでは確かめられない。
+    /// </summary>
+    public static bool CanIdentify(string path) => Key(path) is not null;
+
     /// <summary>同じファイルかを比べるための値。読めなければ <see langword="null"/>。</summary>
     private static string? Key(string path)
     {
@@ -204,10 +287,11 @@ internal sealed class ExtractOverwrite
         }
 
         // 属性を読む権利だけで開く。中身は読まず、ほかのプログラムの邪魔もしない。
-        // リンクはたどらない。置き換えるのはリンクそのものなので、指す先が無いリンクでも同じものと分かるように (#372)
+        // リンクはたどらない。置き換えるのはリンクそのものなので、指す先が無いリンクでも同じものと分かるように (#372)。
+        // フォルダーも開く。フォルダーを指すリンクの指す先を確かめるのに使う (#392)
         using var handle = CreateFileW(
             AtomicFile.LongPathIfNeeded(full), FileReadAttributes, FileShareAll, IntPtr.Zero, OpenExisting,
-            FileFlagOpenReparsePoint, IntPtr.Zero);
+            FileFlagOpenReparsePoint | FileFlagBackupSemantics, IntPtr.Zero);
         if (handle.IsInvalid)
         {
             return null;
@@ -235,6 +319,12 @@ internal sealed class ExtractOverwrite
 
     private const int FileIdInfo = 18;
     private const uint FileFlagOpenReparsePoint = 0x00200000;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateDirectoryW(string path, IntPtr security);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

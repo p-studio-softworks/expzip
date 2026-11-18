@@ -686,7 +686,7 @@ internal static class ArchiveExtractor
             var directory = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(directory))
             {
-                Directory.CreateDirectory(directory);
+                overwrite.CreateFolder(directory);
             }
 
             // 書庫に MotW が付いていた場合は、書き出したファイルにも引き継ぐ。

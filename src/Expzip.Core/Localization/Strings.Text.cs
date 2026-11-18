@@ -2084,6 +2084,23 @@ internal static partial class Strings
         "このリンクが指すファイルを一緒に展開していないため、展開しませんでした。",
         "The file this link points to was not extracted along with it, so this link was not extracted.");
 
+    /// <summary>
+    /// フォルダーを指すリンクの指す先が、今回の展開で作ったフォルダーでないとき (#392)。前からあるフォルダー、選んでいないフォルダー。
+    /// </summary>
+    public static string LinkFolderNotExtracted => Pick(
+        "このリンクが指すフォルダーを一緒に展開していないため、展開しませんでした。",
+        "The folder this link points to was not extracted along with it, so this link was not extracted.");
+
+    /// <summary>指す先のフォルダーを今回作ったかを、ドライブがファイルの番号を返さないために確かめられないとき (#392)。</summary>
+    public static string LinkFolderUnverifiable => Pick(
+        "このリンクが指すフォルダーを一緒に展開したかを確かめられないため、展開しませんでした。",
+        "Could not confirm that the folder this link points to was extracted along with it, so this link was not extracted.");
+
+    /// <summary>フォルダーを指すリンクの指す先までの途中に、リンクがあるとき (#392)。向きが変わると別の場所を指す。</summary>
+    public static string LinkTargetThroughLink => Pick(
+        "展開先で、このリンクが指すフォルダーまでの途中にリンクがあるため、展開しませんでした。",
+        "In the destination, a folder on the path to the folder this link points to is itself a link, so this link was not extracted.");
+
     /// <summary>7-Zip が Windows の形で入れたリンク (#367、#377)、種類の分からない tar のリンク。</summary>
     public static string LinkKindNotExtracted => Pick(
         "この種類のリンクの展開には対応していないため、展開しませんでした。",
