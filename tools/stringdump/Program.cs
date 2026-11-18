@@ -186,7 +186,8 @@ foreach (var method in table.GetMethods(Flags))
 
         variants.Add(new Variant(Display(parameters, jaArgs), ja.Text, en.Text, ja.Error ?? en.Error));
 
-        if (variants.Count >= 24)
+        // 検査の事柄 (InspectionMessage) は種類が 30 を超える。足りないと後ろの種類が黙って一覧から落ちる (#391)
+        if (variants.Count >= 40)
         {
             break;
         }

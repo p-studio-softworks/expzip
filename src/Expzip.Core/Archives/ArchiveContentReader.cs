@@ -15,7 +15,10 @@ namespace Expzip.Archives;
 /// <param name="ExpectedCrc">書庫に書かれた CRC32。持たない形式では -1。</param>
 /// <param name="Locked">パスワードが要るのに渡されていない。開いても読めない。</param>
 /// <param name="Open">中身を読む流れを開く。流れは呼び出しの中で閉じる。次のファイルへ進むと読めなくなる。</param>
-internal sealed record ContentItem(string Name, long Size, long ExpectedCrc, bool Locked, Func<Stream> Open);
+/// <param name="Index">形式の読み方での項目の番号 (<see cref="SequenceItem.Index"/> と同じ数え方)。数えない形式では -1。</param>
+/// <param name="IsLink">中身に指す先が書かれたリンク (7z と RAR4 のシンボリックリンク、ZIP のリンク) か (#391)。</param>
+internal sealed record ContentItem(
+    string Name, long Size, long ExpectedCrc, bool Locked, Func<Stream> Open, int Index = -1, bool IsLink = false);
 
 /// <summary>
 /// 書庫の中のファイルを、形式ごとの読み方で 1 個ずつ、中身の流れとして渡す。
@@ -152,7 +155,10 @@ internal static class ArchiveContentReader
                     cancellationToken.ThrowIfCancellationRequested();
                     if (index < session.Entries.Count && IsContent(session, index) && reader.Entry.Key is { } key)
                     {
-                        visit(Item(session, index, key, reader.Entry, reader.OpenEntryStream));
+                        visit(Item(session, index, key, reader.Entry, reader.OpenEntryStream) with
+                        {
+                            Index = index, IsLink = IsLink(session, index),
+                        });
                     }
 
                     if (index == stopAt)
@@ -168,7 +174,7 @@ internal static class ArchiveContentReader
                     if (IsContent(session, i) && entry.Key is { } key)
                     {
                         visit(new ContentItem(ArchiveTreeBuilder.Trim(key), session.ItemAt(i).SizeUnknown ? -1 : Math.Max(0, entry.Size), -1,
-                            entry.IsEncrypted, static () => throw new RarSizeUnknownException(after: true)));
+                            entry.IsEncrypted, static () => throw new RarSizeUnknownException(after: true), i, IsLink(session, i)));
                     }
                 }
 
@@ -181,7 +187,7 @@ internal static class ArchiveContentReader
                 var entry = session.Entries[i];
                 if (IsContent(session, i) && entry.Key is { } key)
                 {
-                    visit(Item(session, i, key, entry, entry.OpenEntryStream));
+                    visit(Item(session, i, key, entry, entry.OpenEntryStream) with { Index = i, IsLink = IsLink(session, i) });
                 }
             }
         }
@@ -193,6 +199,9 @@ internal static class ArchiveContentReader
         static bool IsContent(RarSession session, int index)
             => !session.Entries[index].IsDirectory
                && session.ItemAt(index).Link is RarLinkKind.None or RarLinkKind.LegacyUnixSymbolicLink;
+
+        // RAR4 のシンボリックリンクは、指す先を中身に持つ
+        static bool IsLink(RarSession session, int index) => session.ItemAt(index).Link == RarLinkKind.LegacyUnixSymbolicLink;
 
         // 展開後の大きさが書かれていないものは、大きさを不明 (-1) とし、読もうとしたら読む前に断る
         static ContentItem Item(RarSession session, int index, string key, IEntry entry, Func<Stream> open)
@@ -220,8 +229,10 @@ internal static class ArchiveContentReader
         // 標準の実装が扱えないエントリ用 (#66、#67)。要るまで開かない
         using var fallback = new ZipMethodFallback(archivePath, names, password);
 
+        var index = -1;
         foreach (ZipEntry entry in zip)
         {
+            index++;
             cancellationToken.ThrowIfCancellationRequested();
 
             // フォルダーかどうかは一覧と同じく名前だけで決める (#266)
@@ -237,7 +248,8 @@ internal static class ArchiveContentReader
             visit(new ContentItem(
                 name, Math.Max(0, entry.Size), ZipEncryption.ExpectedCrc(entry),
                 entry.IsCrypted && password is null,
-                () => fallback.Open(entry.Name, () => zip.GetInputStream(entry))));
+                () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)),
+                index, ZipLinks.IsLink(entry.ExternalFileAttributes)));
         }
     }
 
@@ -263,6 +275,10 @@ internal static class ArchiveContentReader
         IReader? reader = null;
         IReadOnlyDictionary<string, long> folderCrcs = new Dictionary<string, long>();
 
+        // 7z の項目の番号は、一覧と同じく archive.Entries の並びで数える (#391)。ExtractAllEntries はフォルダーを先にまとめて返すので、
+        // 読み出しの順で数えると一覧の番号とずれる。返ってくる項目は archive.Entries の部品そのものなので、参照で引く
+        Dictionary<IEntry, int>? numbers = null;
+
         try
         {
             if (format == ArchiveFormat.SevenZip)
@@ -270,6 +286,12 @@ internal static class ArchiveContentReader
                 var fileCrcs = SharpArchiveAccess.CheckSevenZipContent(archivePath, cancellationToken);
                 archive = SharpArchiveAccess.OpenSevenZip(archivePath, password);
                 folderCrcs = SharpArchiveAccess.FolderCrcsByName(archive, fileCrcs);
+                numbers = new Dictionary<IEntry, int>(ReferenceEqualityComparer.Instance);
+                foreach (var listed in archive.Entries)
+                {
+                    numbers[listed] = numbers.Count;
+                }
+
                 reader = archive.ExtractAllEntries();
             }
             else
@@ -278,8 +300,10 @@ internal static class ArchiveContentReader
                 reader = SharpArchiveAccess.OpenTarReader(file, names);
             }
 
+            var index = -1;
             while (reader.MoveToNextEntry())
             {
+                index++;
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var entry = reader.Entry;
@@ -288,10 +312,14 @@ internal static class ArchiveContentReader
                     continue;
                 }
 
-                // tar は CRC を持たない。7z の CRC の無いファイルも、照合せずに読む
+                // tar は CRC を持たない。7z の CRC の無いファイルも、照合せずに読む。
+                // tar のリンクは指す先を見出しに持つので、中身からは読まない (#391)
+                // 一覧の番号が引けなければ -1 にし、リンクの指す先は確かめられないとする
+                var number = numbers is null ? index : numbers.GetValueOrDefault(entry, -1);
                 visit(new ContentItem(
                     ArchiveTreeBuilder.Trim(key), Math.Max(0, entry.Size), SharpArchiveAccess.SevenZipCrc(entry, folderCrcs),
-                    entry.IsEncrypted && password is null, reader.OpenEntryStream));
+                    entry.IsEncrypted && password is null, reader.OpenEntryStream, number,
+                    format == ArchiveFormat.SevenZip && ArchiveLinks.SevenZipKind(entry) == SevenZipLink.Symbolic));
             }
         }
         finally

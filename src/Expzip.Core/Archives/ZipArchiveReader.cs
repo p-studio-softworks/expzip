@@ -72,6 +72,7 @@ internal static class ZipArchiveReader
         var done = 0;
         var links = 0;
         var linkTable = new Dictionary<string, ListedLink>();
+        var sequence = new SequenceBuilder();
 
         foreach (var entry in entries)
         {
@@ -88,6 +89,7 @@ internal static class ZipArchiveReader
             if (ZipEntryKind.IsFolder(name))
             {
                 builder.AddFolder(name, ReadLastWriteTime(entry));
+                sequence.Add(done - 1, name, folder: true);
                 continue;
             }
 
@@ -97,12 +99,15 @@ internal static class ZipArchiveReader
                 links++;
 
                 // 指す先は中身にあるので、開くときに読む (#367)
-                linkTable[name] = new ListedLink(RarLinkKind.UnixSymbolicLink, null, null);
+                var link = new ListedLink(RarLinkKind.UnixSymbolicLink, null, null);
+                linkTable[name] = link;
+                sequence.Add(done - 1, name, folder: false, link);
             }
             else
             {
                 // 同じ名前の項目が後ろにあれば、そちらが残る
                 linkTable.Remove(name);
+                sequence.Add(done - 1, name, folder: false);
             }
 
             builder.AddFile(
@@ -130,6 +135,7 @@ internal static class ZipArchiveReader
         contents.LegacyNameBytes = recorder.Recorded;
         contents.LinkCount = links;
         contents.Links = linkTable;
+        contents.Sequence = sequence.Build();
         return contents;
     }
 

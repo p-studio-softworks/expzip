@@ -208,6 +208,27 @@ internal static class ArchiveLinks
     }
 
     /// <summary>
+    /// 中身の先頭のバイト列を、指す先として読む (#391)。空のもの、上限より長いもの、UTF-8 として読めないものは <see langword="null"/>。
+    /// 書庫の検査が、中身を読み通すついでに使う。読み方は <see cref="ReadTarget"/> と同じ。
+    /// </summary>
+    public static string? DecodeTarget(byte[] buffer, int length)
+    {
+        if (length == 0 || length > MaxTarget)
+        {
+            return null;
+        }
+
+        try
+        {
+            return StrictUtf8.GetString(buffer, 0, length);
+        }
+        catch (DecoderFallbackException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// 書庫の中の名前を、書き出す先を決めるとき (<see cref="ArchiveExtractor.TargetFor"/>) と同じ手順で整える。
     /// 区切りは <c>/</c>。展開先の外に出るもの、空になるものは <see langword="null"/>。
     /// </summary>
@@ -229,6 +250,31 @@ internal static class ArchiveLinks
 
     /// <summary>名前を整えるときの、仮の展開先。ディスクには触れない。</summary>
     private static readonly string Anchor = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "expzip-link-anchor"));
+}
+
+/// <summary>書庫の並びの 1 個 (#391)。<see cref="ArchiveContents.Sequence"/> に入る。</summary>
+/// <param name="Index">
+/// 形式の読み方での項目の番号 (フォルダーの項目も数える)。ZIP は中央ディレクトリの順、7z と RAR は書庫の項目の順。
+/// 書庫の検査が、中身から読んだリンクの指す先を、この項目と結び付けるのに使う。
+/// </param>
+/// <param name="Name">書庫の中の名前 (<see cref="ArchiveEntry.SourceName"/> と同じ形)。</param>
+/// <param name="Folder">フォルダーの項目か。</param>
+/// <param name="Link">リンクなら、その種類と指す先。</param>
+internal sealed record SequenceItem(int Index, string Name, bool Folder, ListedLink? Link);
+
+/// <summary>書庫の並びを集める (#391)。リンクが 1 つも無ければ何も残さない。</summary>
+internal sealed class SequenceBuilder
+{
+    private readonly List<SequenceItem> _items = [];
+    private bool _hasLink;
+
+    public void Add(int index, string name, bool folder, ListedLink? link = null)
+    {
+        _items.Add(new SequenceItem(index, name, folder, link));
+        _hasLink |= link is not null;
+    }
+
+    public IReadOnlyList<SequenceItem>? Build() => _hasLink ? _items : null;
 }
 
 /// <summary>7z の項目のリンクの種類 (#367)。</summary>

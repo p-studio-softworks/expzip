@@ -29,6 +29,12 @@ internal enum InspectionPhase
 internal readonly record struct InspectProgress(
     double Percent, InspectionPhase Phase, string CurrentName);
 
+/// <summary>中身から読んだリンクの指す先 (#391)。</summary>
+/// <param name="Name">中身を読んだ項目の名前。一覧の項目と同じものかを確かめるのに使う。</param>
+/// <param name="Target">指す先。読めなかった、長すぎる、壊れているときは <see langword="null"/>。</param>
+/// <param name="Locked">パスワードが分からず読めなかった。</param>
+internal sealed record LinkRead(string Name, string? Target, bool Locked = false);
+
 /// <summary>
 /// 検査1回分に要るものをまとめたもの。各検査はこれを受け取り、見つけたものをここへ入れる。
 /// </summary>
@@ -84,6 +90,25 @@ internal sealed class InspectionContext(
 
     /// <summary>見つかったものの置き場。</summary>
     public FindingCollector Findings { get; } = new();
+
+    /// <summary>
+    /// 中身から読んだリンクの指す先 (#391)。項目の番号 (<see cref="SequenceItem.Index"/>) から引く。
+    /// 中身の検査が読み通すついでに入れ、<see cref="LinkInspector"/> が使う。書庫を 2 回読まないため。
+    /// </summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<int, LinkRead> LinkTargets { get; } = new();
+
+    /// <summary>
+    /// <see cref="LinkTargets"/> に取っておく指す先の文字数の合計の上限 (#391)。リンクが何万個もある書庫で、
+    /// 検査の終わりまで抱えるメモリーが膨らまないようにする (おおよそ 32 MB)。
+    /// </summary>
+    private const long LinkTargetBudget = 16L * 1024 * 1024;
+
+    private long _linkTargetChars;
+
+    /// <summary>
+    /// 指す先を取っておけるか。上限を超えたら <see langword="false"/> で、そのリンクは確かめられないとする (黙って通さない)。
+    /// </summary>
+    public bool TryKeepLinkTarget(int length) => Interlocked.Add(ref _linkTargetChars, length) <= LinkTargetBudget;
 
     /// <summary>中断が要求されているか。</summary>
     public bool Stopped => cancellationToken.IsCancellationRequested;

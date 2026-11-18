@@ -2498,6 +2498,29 @@ internal static partial class Strings
             $"開くとプログラムとして実行される種類のファイルです{Paren(detail)}",
             $"Opening this runs it instead of showing its contents{Paren(detail)}"),
 
+        InspectionIssue.LinkOutside => Pick(
+            $"展開先の外を指すリンクです{Paren(detail)}",
+            $"This link points outside the folder you extract into{Paren(detail)}"),
+
+        InspectionIssue.LinkUnverified => Pick(
+            "リンクが指す先を確かめられませんでした。展開先の外を指しているおそれがあります",
+            "Could not check where this link points. It may point outside the folder you extract into."),
+
+        InspectionIssue.WriteThroughLink => Pick(
+            $"リンクの中に入る項目です{Paren(detail)}。リンクをたどるソフトで展開すると、リンクが指す先に書き込まれます",
+            $"This item goes inside a link{Paren(detail)}. "
+            + "Programs that follow links write it where the link points."),
+
+        InspectionIssue.BeforeLink => Pick(
+            $"書庫の後ろにあるリンクの中に入る名前です{Paren(detail)}。ソフトによっては、リンクが指す先に書き込まれます",
+            $"This name goes inside a link that comes later in the archive{Paren(detail)}. "
+            + "Some programs write it where the link points."),
+
+        InspectionIssue.ReplacesLink => Pick(
+            "リンクと同じ名前の項目です。リンクをたどるソフトで展開すると、リンクが指す先に書き込まれます",
+            "A link has the same name. "
+            + "Programs that follow links write this item where the link points."),
+
         InspectionIssue.MalwareDetected => Pick(
             "ウイルス対策ソフトが脅威として検出しました",
             "The antimalware service flagged this"),

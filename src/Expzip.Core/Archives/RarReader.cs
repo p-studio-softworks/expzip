@@ -61,6 +61,7 @@ internal static class RarReader
         var reportStep = Math.Max(1, entries.Count / 100);
         var encrypted = false;
         var linkTable = new Dictionary<string, ListedLink>();
+        var sequence = new SequenceBuilder();
 
         for (var i = 0; i < entries.Count; i++)
         {
@@ -80,6 +81,12 @@ internal static class RarReader
             if (entry.IsDirectory)
             {
                 builder.AddFolder(key, time);
+
+                // フォルダーの印の付いたリンクも、検査では見る (#391)。ほかのツールではリンクとして作られる
+                var folderItem = session.ItemAt(i);
+                sequence.Add(i, key, folder: true, folderItem.Link == RarLinkKind.None
+                    ? null
+                    : new ListedLink(folderItem.Link, folderItem.LinkTarget, folderItem.LinkToFolder));
                 continue;
             }
 
@@ -94,12 +101,15 @@ internal static class RarReader
             if (item.Link == RarLinkKind.None)
             {
                 linkTable.Remove(key);
+                sequence.Add(i, key, folder: false);
             }
             else
             {
-                linkTable[key] = item.Link == RarLinkKind.LegacyUnixSymbolicLink
+                var link = item.Link == RarLinkKind.LegacyUnixSymbolicLink
                     ? new ListedLink(item.Link, null, null)
                     : new ListedLink(item.Link, item.LinkTarget, item.LinkToFolder);
+                linkTable[key] = link;
+                sequence.Add(i, key, folder: false, link);
             }
 
             builder.AddFile(key, sizeUnknown ? 0 : Math.Max(0, entry.Size), Math.Max(0, entry.CompressedSize), compressedLengthKnown: true,
@@ -117,6 +127,7 @@ internal static class RarReader
 
         contents.Names = names;
         contents.Links = linkTable;
+        contents.Sequence = sequence.Build();
         if (!layout.IsRar5)
         {
             contents.LegacyNameBytes = recorder.Recorded;

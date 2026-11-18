@@ -1544,6 +1544,21 @@ InspectionMessage (issue: ZipBomb, detail: 画像/2024/写真.jpg)
 InspectionMessage (issue: ExecutableExtension, detail: 画像/2024/写真.jpg)
   ja  開くとプログラムとして実行される種類のファイルです (⟦画像/2024/写真.jpg⟧)
   en  Opening this runs it instead of showing its contents (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: LinkOutside, detail: 画像/2024/写真.jpg)
+  ja  展開先の外を指すリンクです (⟦画像/2024/写真.jpg⟧)
+  en  This link points outside the folder you extract into (⟦画像/2024/写真.jpg⟧)
+InspectionMessage (issue: LinkUnverified, detail: 画像/2024/写真.jpg)
+  ja  リンクが指す先を確かめられませんでした。展開先の外を指しているおそれがあります
+  en  Could not check where this link points. It may point outside the folder you extract into.
+InspectionMessage (issue: WriteThroughLink, detail: 画像/2024/写真.jpg)
+  ja  リンクの中に入る項目です (⟦画像/2024/写真.jpg⟧)。リンクをたどるソフトで展開すると、リンクが指す先に書き込まれます
+  en  This item goes inside a link (⟦画像/2024/写真.jpg⟧). Programs that follow links write it where the link points.
+InspectionMessage (issue: BeforeLink, detail: 画像/2024/写真.jpg)
+  ja  書庫の後ろにあるリンクの中に入る名前です (⟦画像/2024/写真.jpg⟧)。ソフトによっては、リンクが指す先に書き込まれます
+  en  This name goes inside a link that comes later in the archive (⟦画像/2024/写真.jpg⟧). Some programs write it where the link points.
+InspectionMessage (issue: ReplacesLink, detail: 画像/2024/写真.jpg)
+  ja  リンクと同じ名前の項目です。リンクをたどるソフトで展開すると、リンクが指す先に書き込まれます
+  en  A link has the same name. Programs that follow links write this item where the link points.
 InspectionMessage (issue: MalwareDetected, detail: 画像/2024/写真.jpg)
   ja  ウイルス対策ソフトが脅威として検出しました
   en  The antimalware service flagged this

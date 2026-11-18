@@ -114,14 +114,20 @@ internal static class ContentInspector
 
                 // パスワードが分からない項目は中身を見られない。
                 // 黙って飛ばさず、調べられなかったことを報告する (#56)
+                var link = item.IsLink && item.Index >= 0 ? item.Index : -1;
                 if (item.Locked)
                 {
                     context.Findings.Add(InspectionIssue.EncryptedNotChecked, name, null, order);
                     pass.Bytes(context, Math.Max(0, item.Size), name);
+                    if (link >= 0)
+                    {
+                        context.LinkTargets[link] = new LinkRead(name, null, Locked: true);
+                    }
+
                     return;
                 }
 
-                Read(context, pass, order, name, item.Size, item.ExpectedCrc, item.Open);
+                Read(context, pass, order, name, item.Size, item.ExpectedCrc, item.Open, link);
             }, context.Cancellation);
         }
         catch (OperationCanceledException)
@@ -282,12 +288,21 @@ internal static class ContentInspector
         var size = Math.Max(0, entry.Size);
         pass.Entry(context, name);
 
+        // リンクは中央ディレクトリの順番で一覧の項目と結び付ける (#391)。名前で結ぶと、
+        // 同じ名前が 2 つある書庫で別の項目の中身を指す先として読んでしまう
+        var link = ZipLinks.IsLink(entry.ExternalFileAttributes) ? order : -1;
+
         // 合言葉が分からない項目は中身を見られない。
         // 黙って飛ばさず、調べられなかったことを報告する (#56)
         if (entry.IsCrypted && context.Password is null)
         {
             context.Findings.Add(InspectionIssue.EncryptedNotChecked, name, null, order);
             pass.Bytes(context, size, name);
+            if (link >= 0)
+            {
+                context.LinkTargets[link] = new LinkRead(name, null, Locked: true);
+            }
+
             return;
         }
 
@@ -295,7 +310,7 @@ internal static class ContentInspector
         // 開き直して読む。読めれば CRC まで確かめられるので、
         // 「検査できなかった」ではなく本当の判定を出せる (#66、#67)
         Read(context, pass, order, name, size, ZipEncryption.ExpectedCrc(entry),
-            () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)));
+            () => fallback.Open(entry.Name, () => zip.GetInputStream(entry)), link);
     }
 
     /// <summary>
@@ -306,10 +321,33 @@ internal static class ContentInspector
     /// 最後にまとめて報告に載せる (#199)。並列で読む ZIP では、どの作業からも呼ばれる。
     /// </remarks>
     /// <param name="order">書庫の中でのエントリの順番。報告をこの順に並べる。</param>
+    /// <param name="link">
+    /// 中身に指す先が書かれたリンクなら、その項目の番号 (<see cref="SequenceItem.Index"/>)。それ以外は -1。
+    /// 先頭の <see cref="ArchiveLinks.MaxTarget"/> + 1 バイトを取っておき、読み終えてから指す先として読む (#391)。
+    /// </param>
     private static void Read(
         InspectionContext context, Pass pass, long order, string name, long size, long expectedCrc,
-        Func<Stream> open)
+        Func<Stream> open, int link = -1)
     {
+        // 指す先は、ほかのファイルと同じ 1 回の読み出しで読む。中止と読む量の扱いもほかのファイルと同じになる
+        var head = link >= 0 ? new byte[ArchiveLinks.MaxTarget + 1] : null;
+        var headLength = 0;
+        var linkRecorded = false;
+
+        void RecordLink(string? target)
+        {
+            if (link >= 0 && !linkRecorded)
+            {
+                linkRecorded = true;
+                if (target is not null && !context.TryKeepLinkTarget(target.Length))
+                {
+                    target = null;
+                }
+
+                context.LinkTargets[link] = new LinkRead(name, target);
+            }
+        }
+
         var pool = pass.Pool;
 
         // 上限を超えるものは分割せずに「検査できず」とする。分割すると署名が
@@ -356,6 +394,13 @@ internal static class ContentInspector
                        whole is null ? buffer.Length : Math.Min(whole.Length - filled, ChunkSize))) > 0)
             {
                 crc.Update(new ArraySegment<byte>(buffer, whole is null ? 0 : filled, read));
+                if (head is not null && headLength < head.Length)
+                {
+                    var take = Math.Min(read, head.Length - headLength);
+                    Array.Copy(buffer, whole is null ? 0 : filled, head, headLength, take);
+                    headLength += take;
+                }
+
                 filled += read;
                 total += read;
 
@@ -383,6 +428,9 @@ internal static class ContentInspector
                 context.Findings.Add(
                     InspectionIssue.Unreadable, name,
                     Strings.Reason(new DamagedDataException(new InvalidDataException())), order);
+
+                // 書かれた大きさと中身が違うリンクは、ツールによって読む長さが違う
+                RecordLink(null);
             }
         }
         catch (OperationCanceledException)
@@ -394,6 +442,7 @@ internal static class ContentInspector
         {
             pool?.Release(reserved);
             context.Findings.Add(InspectionIssue.Unreadable, name, Strings.Reason(ex), order);
+            RecordLink(null);
             return;
         }
         finally
@@ -406,7 +455,10 @@ internal static class ContentInspector
         if (expectedCrc >= 0 && crc.Value != expectedCrc)
         {
             context.Findings.Add(InspectionIssue.CrcMismatch, name, null, order);
+            RecordLink(null);
         }
+
+        RecordLink(head is null ? null : ArchiveLinks.DecodeTarget(head, headLength));
 
         if (size < 0 && pool is not null && total > AmsiScanner.SizeLimit)
         {

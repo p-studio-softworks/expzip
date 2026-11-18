@@ -93,6 +93,15 @@ internal sealed class ArchiveContents
     /// </summary>
     public IReadOnlyDictionary<string, ListedLink> Links { get; set; } = new Dictionary<string, ListedLink>();
 
+    /// <summary>
+    /// 書庫の並びのままの項目 (#391)。リンクが 1 つでもある書庫だけで持ち、無ければ <see langword="null"/>。
+    /// </summary>
+    /// <remarks>
+    /// 書庫の検査が、リンクの下や、リンクと同じ名前に書かれる項目を見つけるのに使う。<see cref="Links"/> と違い、
+    /// 後ろの同じ名前の項目に消されたリンクも残す。書き込むときにリンクをたどるツールでは、そのリンクを通って書かれるため。
+    /// </remarks>
+    public IReadOnlyList<SequenceItem>? Sequence { get; set; }
+
     /// <summary>名前をどの読み方で読んだか (#335)。この書庫を読む処理には、これを渡す。</summary>
     public NameReading Names { get; set; } = NameReading.Default;
 

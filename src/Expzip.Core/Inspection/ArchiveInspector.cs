@@ -49,6 +49,9 @@ internal static class ArchiveInspector
             StructureInspector.Inspect(context);
             SafetyInspector.Inspect(context);
             counts = ContentInspector.Inspect(context);
+
+            // リンクの指す先は、中身の検査が読み通すついでに取っておく。そのあとで調べる (#391)
+            LinkInspector.Inspect(context);
         }
         catch (OperationCanceledException)
         {

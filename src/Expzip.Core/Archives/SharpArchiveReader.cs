@@ -64,6 +64,7 @@ internal static class SharpArchiveReader
         var done = 0;
         var encrypted = false;
         var linkTable = new Dictionary<string, ListedLink>();
+        var sequence = new SequenceBuilder();
 
         foreach (var entry in entries)
         {
@@ -83,22 +84,28 @@ internal static class SharpArchiveReader
             if (entry.IsDirectory)
             {
                 builder.AddFolder(key, ReadTime(entry.LastModifiedTime));
+                sequence.Add(done - 1, key, folder: true);
                 continue;
             }
 
             // リンクも一覧ではファイルとして出す。指す先は中身にあるので、開くときに読む (#367)
-            switch (ArchiveLinks.SevenZipKind(entry))
+            ListedLink? link = ArchiveLinks.SevenZipKind(entry) switch
             {
-                case SevenZipLink.Symbolic:
-                    linkTable[key] = new ListedLink(RarLinkKind.UnixSymbolicLink, null, null);
-                    break;
-                case SevenZipLink.WindowsReparse:
-                    linkTable[key] = new ListedLink(RarLinkKind.UnixSymbolicLink, null, null, Unsupported: true);
-                    break;
-                default:
-                    linkTable.Remove(key);
-                    break;
+                SevenZipLink.Symbolic => new ListedLink(RarLinkKind.UnixSymbolicLink, null, null),
+                SevenZipLink.WindowsReparse => new ListedLink(RarLinkKind.UnixSymbolicLink, null, null, Unsupported: true),
+                _ => null,
+            };
+
+            if (link is null)
+            {
+                linkTable.Remove(key);
             }
+            else
+            {
+                linkTable[key] = link;
+            }
+
+            sequence.Add(done - 1, key, folder: false, link);
 
             // 7z はまとめて圧縮する (ソリッド) ため、エントリごとの圧縮後サイズを持たない
             builder.AddFile(
@@ -114,6 +121,7 @@ internal static class SharpArchiveReader
             path, ArchiveFormat.SevenZip, FileLength(path), encrypted,
             isSelfExtracting: SharpArchiveAccess.SevenZipOffset(path) > 0);
         contents.Links = linkTable;
+        contents.Sequence = sequence.Build();
         return contents;
     }
 
@@ -163,6 +171,7 @@ internal static class SharpArchiveReader
         // 進捗は「読んだ件数」だけを出し、割合は出せる範囲で近似する。
         var done = 0;
         var linkTable = new Dictionary<string, ListedLink>();
+        var sequence = new SequenceBuilder();
 
         while (reader.MoveToNextEntry())
         {
@@ -177,6 +186,7 @@ internal static class SharpArchiveReader
             if (entry.IsDirectory)
             {
                 builder.AddFolder(key, ReadTime(entry.LastModifiedTime));
+                sequence.Add(done, key, folder: true);
             }
             else
             {
@@ -189,12 +199,15 @@ internal static class SharpArchiveReader
                 if (kind == RarLinkKind.None)
                 {
                     linkTable.Remove(key);
+                    sequence.Add(done, key, folder: false);
                 }
                 else
                 {
-                    linkTable[key] = new ListedLink(
+                    var link = new ListedLink(
                         kind, entry.LinkTarget is { Length: <= ArchiveLinks.MaxTarget } target ? target : null,
                         kind == RarLinkKind.HardLink ? false : null, Unsupported: kind == RarLinkKind.LegacyUnixSymbolicLink);
+                    linkTable[key] = link;
+                    sequence.Add(done, key, folder: false, link);
                 }
             }
 
@@ -210,6 +223,7 @@ internal static class SharpArchiveReader
         contents.Names = names;
         contents.LegacyNameBytes = recorder.Recorded;
         contents.Links = linkTable;
+        contents.Sequence = sequence.Build();
         return contents;
     }
 

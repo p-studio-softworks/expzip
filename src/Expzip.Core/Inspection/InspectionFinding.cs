@@ -76,6 +76,32 @@ internal enum InspectionIssue
     /// <summary>開くと実行されうる拡張子。</summary>
     ExecutableExtension,
 
+    /// <summary>
+    /// 展開先の外を指すリンク (#391)。Expzip は展開しないが、ほかのツールでは外を指すリンクが作られる。
+    /// </summary>
+    LinkOutside,
+
+    /// <summary>
+    /// 指す先を確かめられないリンク (#391)。長すぎる、大きさを偽っている、壊れている、対応していない種類、輪になっている。
+    /// </summary>
+    LinkUnverified,
+
+    /// <summary>
+    /// 書庫の並びでリンクより後ろにあり、リンクの下に書かれる項目 (#391)。リンクをたどるツールでは、リンクの指す先に書かれる。
+    /// ZIP は並びの前後を決められないので、前にあってもこちら。
+    /// </summary>
+    WriteThroughLink,
+
+    /// <summary>
+    /// リンクの下に書かれる名前だが、書庫の並びでリンクより前にある項目 (#391)。順に展開するツールでは、リンクを作る前に書かれる。
+    /// </summary>
+    BeforeLink,
+
+    /// <summary>
+    /// 書庫の並びでリンクより後ろにある、リンクと同じ名前の項目 (#391)。書き込むときにリンクをたどるツールでは、リンクの指す先に書かれる。
+    /// </summary>
+    ReplacesLink,
+
     // -------------------------------------------------------------- マルウェア (#56)
 
     /// <summary>対策ソフトが検出した。</summary>
@@ -150,6 +176,8 @@ internal static class InspectionIssues
         InspectionIssue.BidiOverride => InspectionSeverity.Danger,
         InspectionIssue.ZipBomb => InspectionSeverity.Danger,
         InspectionIssue.MalwareDetected => InspectionSeverity.Danger,
+        InspectionIssue.WriteThroughLink => InspectionSeverity.Danger,
+        InspectionIssue.ReplacesLink => InspectionSeverity.Danger,
         _ => InspectionSeverity.Warning,
     };
 
@@ -165,6 +193,9 @@ internal static class InspectionIssues
             or InspectionIssue.CaseCollision or InspectionIssue.BidiOverride
             or InspectionIssue.HighRatio or InspectionIssue.ZipBomb
             or InspectionIssue.ExecutableExtension
+            or InspectionIssue.LinkOutside or InspectionIssue.LinkUnverified
+            or InspectionIssue.WriteThroughLink or InspectionIssue.BeforeLink
+            or InspectionIssue.ReplacesLink
             => InspectionCheck.Safety,
 
         _ => InspectionCheck.Structure,
