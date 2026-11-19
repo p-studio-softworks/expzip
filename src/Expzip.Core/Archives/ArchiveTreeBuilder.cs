@@ -45,6 +45,7 @@ internal sealed class ArchiveTreeBuilder
     public long TotalCompressedLength { get; private set; }
 
     /// <summary>フォルダを作る。中身の無いフォルダを残すために使う。</summary>
+    /// <param name="path">書庫のフォルダーの項目の、元の名前。展開でこのフォルダーを作るのに使う (#397)。</param>
     /// <param name="lastWriteTime">書庫に記録されたフォルダーの更新日時 (#194)。分からなければ省く。</param>
     public void AddFolder(string path, DateTime lastWriteTime = default)
     {
@@ -54,6 +55,7 @@ internal sealed class ArchiveTreeBuilder
             ArchiveLimits.CheckDepth(normalized, isFolder: true);
 
             var folder = GetOrCreateFolder(normalized);
+            folder.SourceName ??= path;
             if (lastWriteTime != default)
             {
                 folder.RecordedLastWriteTime = lastWriteTime;

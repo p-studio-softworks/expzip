@@ -86,10 +86,18 @@ internal static class RarExtractor
             (session.ItemAt(i).Link == RarLinkKind.None ? files : links).Add(i);
         }
 
-        // 同じ名前のリンクが後ろにあるファイルは書かない。同じ名前の項目は、書庫でいちばん後ろのものだけを展開する (#367)
+        // 同じ名前のリンクが後ろにあるファイルは書かない。同じ名前の項目は、書庫でいちばん後ろのものだけを展開する (#367)。
+        // フォルダーの項目は数えない (#397)
         var laterLink = ArchiveExtractor.LaterLinks(
-            entries.Select((e, i) => (e.Key ?? string.Empty, session.ItemAt(i).Link != RarLinkKind.None)).ToList());
+            entries.Select((e, i) => e.IsDirectory
+                ? (string.Empty, false)
+                : (e.Key ?? string.Empty, session.ItemAt(i).Link != RarLinkKind.None)).ToList());
         files.RemoveAll(laterLink.Contains);
+
+        // 中身の無いフォルダーも作る (#397)。中身を読まないので、大きさが書かれていない項目より後ろのものも作る
+        var folders = Enumerable.Range(0, entries.Count)
+            .Where(i => entries[i].IsDirectory && entries[i].Key is { } key && (sourceNames is null || sourceNames.Contains(key)))
+            .ToList();
 
         // まとめて圧縮した書庫では、大きさが書かれていない項目より後ろは読めない (読み飛ばすところで SharpCompress が失敗する)。
         // 読み始める前に理由を付けて外し、手前のものだけを展開する
@@ -145,7 +153,38 @@ internal static class RarExtractor
             }
         }
 
-        if (state.Cancelled || links.Count == 0)
+        if (state.Cancelled)
+        {
+            return;
+        }
+
+        var all = entries.Select(static e => new LinkScopeEntry(e.Key ?? string.Empty, e.IsDirectory)).ToList();
+        var nonFolders = EmptyFolders.NonFolderNames(all.Select(static e => (e.Name, e.IsFolder)));
+        foreach (var i in folders)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                state.Cancel();
+                return;
+            }
+
+            var key = entries[i].Key!;
+            if (EmptyFolders.IsShadowed(key, nonFolders))
+            {
+                // 同じ名前のファイルやリンクを展開する
+            }
+            else if (session.ItemAt(i).Link != RarLinkKind.None)
+            {
+                // フォルダーの印の付いたリンク (RAR5 のリダイレクト)。空のフォルダーにはせず、展開しなかったことを知らせる (#397)
+                state.FailLink(key, Strings.LinkKindNotExtracted);
+            }
+            else
+            {
+                state.CreateFolder(key);
+            }
+        }
+
+        if (links.Count == 0)
         {
             return;
         }
@@ -170,7 +209,6 @@ internal static class RarExtractor
                 item.Link == RarLinkKind.LegacyUnixSymbolicLink ? null : item.LinkToFolder, i));
         }
 
-        var all = entries.Select(static e => new LinkScopeEntry(e.Key ?? string.Empty, e.IsDirectory)).ToList();
         LinkExtractor.Extract(requests, all, state, zone, cancellationToken);
     }
 

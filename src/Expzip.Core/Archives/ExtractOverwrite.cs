@@ -31,6 +31,9 @@ internal enum ExtractBlock
 
     /// <summary>途中のフォルダーの名前に、展開先のファイルがある。</summary>
     FileInTheWay,
+
+    /// <summary>書庫の中身の無いフォルダーと同じ名前のファイルが、展開先にある (#397)。</summary>
+    FileInPlaceOfFolder,
 }
 
 /// <summary>書き出す先に書くときにすることと、置き換えられないときの理由 (#372)。</summary>

@@ -7,6 +7,8 @@ $archive = New-TestZip (Join-Path $script:Work '資料.zip') ([ordered]@{
     '報告/'          = ''
     '報告/本文.txt'  = 'honbun'
     '報告/図.txt'    = 'zu'
+    '報告/空/'       = ''
+    '空のまま/'      = ''
     'メモ.txt'       = 'memo'
 })
 $destination = Join-Path $script:Work 'out'
@@ -26,6 +28,8 @@ if ($box) {
 }
 Check 'ステータスバー' ((Get-Status $app) -eq '3 個のファイルを展開しました') (Get-Status $app)
 Check 'フォルダーの形のまま出る' ((Test-Path (Join-Path $destination '報告\本文.txt')) -and (Test-Path (Join-Path $destination 'メモ.txt')))
+# 中身の無いフォルダーも作る (#397)
+Check '中身の無いフォルダーも出る' ((Test-Path -PathType Container (Join-Path $destination '報告\空')) -and (Test-Path -PathType Container (Join-Path $destination '空のまま')))
 
 Section '同じ名前があるとき'
 Set-Content -Path (Join-Path $destination 'メモ.txt') -Value 'kaeta' -Encoding UTF8 -NoNewline
@@ -54,7 +58,22 @@ Push (ById $app.Window 'ExtractButton')
 Check '選択した項目の展開先を尋ねる' (Complete-FileDialog $app '選択した項目の展開先を選択' $picked)
 $box = Find-MessageBox $app 30000
 if ($box) { Close-MessageBox $box 'OK' }
-Check '選んだフォルダーだけが出る' ((Test-Path (Join-Path $picked '報告\図.txt')) -and -not (Test-Path (Join-Path $picked 'メモ.txt'))) ((Get-ChildItem $picked -Recurse | ForEach-Object { $_.Name }) -join ', ')
+Check '選んだフォルダーだけが出る' ((Test-Path (Join-Path $picked '報告\図.txt')) -and -not (Test-Path (Join-Path $picked 'メモ.txt')) -and -not (Test-Path (Join-Path $picked '空のまま'))) ((Get-ChildItem $picked -Recurse | ForEach-Object { $_.Name }) -join ', ')
+Check '選んだフォルダーの中の中身の無いフォルダーも出る' (Test-Path -PathType Container (Join-Path $picked '報告\空'))
+
+Section '中身の無いフォルダーだけを展開する (#397)'
+$emptyOnly = Join-Path $script:Work 'emptyonly'
+New-Item -ItemType Directory -Force -Path $emptyOnly | Out-Null
+Select-Row $app '空のまま' | Out-Null
+Push (ById $app.Window 'ExtractButton')
+Check '選択した項目の展開先を尋ねる' (Complete-FileDialog $app '選択した項目の展開先を選択' $emptyOnly)
+$box = Find-MessageBox $app 30000
+if ($box) {
+    Check '作成したフォルダーの数を言う' ($box.Text -match '作成したフォルダー: 1 個') $box.Text
+    Close-MessageBox $box 'OK'
+}
+Check 'ステータスバーもフォルダーの数' ((Get-Status $app) -eq '1 個のフォルダーを作成しました') (Get-Status $app)
+Check 'そのフォルダーだけが出る' ((Test-Path -PathType Container (Join-Path $emptyOnly '空のまま')) -and @(Get-ChildItem $emptyOnly).Count -eq 1) ((Get-ChildItem $emptyOnly | ForEach-Object { $_.Name }) -join ', ')
 
 Section '自己解凍書庫'
 $sfx = Join-Path $script:Work 'sfx\資料.exe'

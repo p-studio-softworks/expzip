@@ -194,9 +194,18 @@ internal static class ZipEncryption
             .Where(e => sourceNames is null || sourceNames.Contains(e.Name))
             .ToList();
 
+        // 中身の無いフォルダーも作る (#397)。ファイルを全部書き出したあと、リンクの前に作る
+        var folderEntries = all
+            .Where(e => ZipEntryKind.IsFolder(e) && (sourceNames is null || sourceNames.Contains(e.Name)))
+            .ToList();
+        var nonFolders = EmptyFolders.NonFolderNames(all.Select(static e => (e.Name, ZipEntryKind.IsFolder(e))));
+
         // リンクは、ファイルを全部書き出したあとに展開する (#367)。見分けはパスワードの無い ZIP と同じく外部属性だけで行う
-        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)
-        var kinds = all.Select(static e => (e.Name, ZipLinks.IsLink(e) && !ZipEntryKind.IsFolder(e))).ToList();
+        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)。
+        // 同じ名前の項目のどれを展開するかも、フォルダーの項目は数えない (#397)
+        var kinds = all.Select(static e => ZipEntryKind.IsFolder(e)
+            ? (string.Empty, false)
+            : (e.Name, ZipLinks.IsLink(e))).ToList();
 
         // リンクの指す先が、今回展開したファイルかを確かめられるように、書いたファイルを覚える (#367)
         if (kinds.Any(static k => k.Item2))
@@ -310,12 +319,40 @@ internal static class ZipEncryption
             NotReplaced = notReplaced,
         };
 
-        if (cancelled || linkEntries.Count == 0)
+        if (cancelled)
         {
             return result;
         }
 
         var state = new ExtractState(destinationRoot, overwrite, zoneIdentifier, basePath, null) { Links = links };
+        foreach (var entry in folderEntries)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                state.Cancel();
+                return result.With(state.ToResult());
+            }
+
+            if (EmptyFolders.IsShadowed(entry.Name, nonFolders))
+            {
+                // 同じ名前のファイルやリンクを展開する
+            }
+            else if (ZipLinks.IsLink(entry))
+            {
+                // フォルダーの印の付いたリンク。空のフォルダーにはせず、展開しなかったことを知らせる (#397)
+                state.FailLink(entry.Name, Strings.LinkKindNotExtracted);
+            }
+            else
+            {
+                state.CreateFolder(entry.Name);
+            }
+        }
+
+        if (linkEntries.Count == 0)
+        {
+            return result.With(state.ToResult());
+        }
+
         var requests = new List<LinkRequest>();
         foreach (var entry in linkEntries)
         {

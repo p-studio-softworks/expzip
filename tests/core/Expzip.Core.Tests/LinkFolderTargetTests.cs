@@ -198,20 +198,6 @@ public sealed class LinkFolderTargetTests : IDisposable
         AssertRefused(result, "alias", Strings.LinkFolderNotExtracted);
     }
 
-    [Fact]
-    public void 中身の無いフォルダーを指すリンクは作らない()
-    {
-        // 展開で中身の無いフォルダーを作るようになるまで (#397)
-        var archive = new RarSample()
-            .File("empty", directory: true)
-            .File("alias", redirect: JunctionTo("empty"))
-            .Save(_place.PathOf("empty.rar"));
-
-        var result = Extract(archive, ArchiveFormat.Rar);
-
-        AssertRefused(result, "alias", Strings.LinkFolderNotExtracted);
-    }
-
     // ------------------------------------------------------------------ 今回作ったフォルダー (正しいものを拒まない)
 
     [Fact]

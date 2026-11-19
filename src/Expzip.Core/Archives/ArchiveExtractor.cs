@@ -48,12 +48,18 @@ internal sealed record ExtractResult(
     /// <summary>展開しなかったリンクと理由 (#367)。<see cref="Failed"/> にも入っている。書庫の順。</summary>
     public IReadOnlyList<(string Name, string Reason)> LinkFailures { get; init; } = [];
 
-    /// <summary>ファイルを書いたあとに展開したリンクの結果を足す (#367)。リンクは後ろに並ぶ。</summary>
+    /// <summary>
+    /// 書庫のフォルダーの項目から作ったフォルダーの数 (#397)。展開先に前からあったものは数えない。<see cref="Extracted"/> には入らない。
+    /// </summary>
+    public int CreatedFolders { get; init; }
+
+    /// <summary>ファイルを書いたあとに作ったフォルダーと、展開したリンクの結果を足す (#367、#397)。後ろに並ぶ。</summary>
     public ExtractResult With(ExtractResult links)
         => new(Extracted + links.Extracted, Skipped + links.Skipped, [.. Rejected, .. links.Rejected],
             [.. Failed, .. links.Failed], Cancelled || links.Cancelled, MarkLost || links.MarkLost,
             [.. SkippedNames, .. links.SkippedNames])
         {
+            CreatedFolders = CreatedFolders + links.CreatedFolders,
             NotReplaced = [.. NotReplaced, .. links.NotReplaced],
             Links = [.. Links, .. links.Links],
             CreatedLinks = [.. CreatedLinks, .. links.CreatedLinks],
@@ -183,10 +189,19 @@ internal static class ArchiveExtractor
             .Where(t => sourceNames is null || sourceNames.Contains(t.Name))
             .ToList();
 
+        // 中身の無いフォルダーも作る (#397)。ファイルを全部書き出したあと、リンクの前に作る
+        var folderEntries = all
+            .Where(t => ZipEntryKind.IsFolder(t.Name) && (sourceNames is null || sourceNames.Contains(t.Name)))
+            .ToList();
+        var nonFolders = EmptyFolders.NonFolderNames(all.Select(static t => (t.Name, ZipEntryKind.IsFolder(t.Name))));
+
         // リンクは、ファイルを全部書き出したあとに展開する (#367)。見分けは外部属性だけで行う (一覧と同じ)
         var linkEntries = targets.Where(static t => ZipLinks.IsLink(t.Entry.ExternalAttributes)).ToList();
-        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)
-        var kinds = all.Select(static t => (t.Name, ZipLinks.IsLink(t.Entry.ExternalAttributes) && !ZipEntryKind.IsFolder(t.Name))).ToList();
+        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)。
+        // 同じ名前の項目のどれを展開するかも、フォルダーの項目は数えない。同じ名前のリンクが前にあっても、リンクを展開する (#397)
+        var kinds = all.Select(static t => ZipEntryKind.IsFolder(t.Name)
+            ? (string.Empty, false)
+            : (t.Name, ZipLinks.IsLink(t.Entry.ExternalAttributes))).ToList();
 
         // リンクの指す先が、今回展開したファイルかを確かめられるように、書いたファイルを覚える (#367)
         if (linkEntries.Count > 0)
@@ -253,12 +268,40 @@ internal static class ArchiveExtractor
         ExtractResult Finish()
         {
             var result = tally.ToResult();
-            if (result.Cancelled || linkEntries.Count == 0)
+            if (result.Cancelled)
             {
                 return result;
             }
 
             var state = new ExtractState(destinationRoot, overwrite, zoneIdentifier, basePath, null) { Links = links };
+            foreach (var (_, entry, name) in folderEntries)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    state.Cancel();
+                    return result.With(state.ToResult());
+                }
+
+                if (EmptyFolders.IsShadowed(name, nonFolders))
+                {
+                    // 同じ名前のファイルやリンクを展開する
+                }
+                else if (ZipLinks.IsLink(entry.ExternalAttributes))
+                {
+                    // フォルダーの印の付いたリンク。空のフォルダーにはせず、展開しなかったことを知らせる (#397)
+                    state.FailLink(name, Strings.LinkKindNotExtracted);
+                }
+                else
+                {
+                    state.CreateFolder(name);
+                }
+            }
+
+            if (linkEntries.Count == 0)
+            {
+                return result.With(state.ToResult());
+            }
+
             var requests = new List<LinkRequest>();
             using var fallback = new ZipMethodFallback(archivePath, names);
             foreach (var (index, entry, name) in linkEntries)
@@ -501,6 +544,28 @@ internal static class ArchiveExtractor
     }
 
     /// <summary>
+    /// 項目の名前が、展開先そのものを指すか (#397)。tar の先頭の <c>./</c> のフォルダーの項目など。
+    /// <see cref="TargetFor"/> はこれを書き出せない名前として <see langword="null"/> を返すが、フォルダーの項目では外を指すものと分けて、何もせずに飛ばす。
+    /// </summary>
+    public static bool IsDestinationItself(string destinationRoot, string entryName, string? basePath)
+    {
+        var stripped = StripBase(ArchiveTreeBuilder.Trim(entryName), basePath);
+        if (stripped.Length == 0)
+        {
+            return true;
+        }
+
+        if (ArchivePath.ToSafeRelativePath(stripped) is not { } relative)
+        {
+            return false;
+        }
+
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationRoot));
+        var target = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(root, relative)));
+        return string.Equals(root, target, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// 展開すると置き換わる、展開先に既にあるファイル (#353)。上書きの確認に挙げる。
     /// </summary>
     /// <remarks>
@@ -523,9 +588,19 @@ internal static class ArchiveExtractor
     /// 書庫の中のフォルダーと展開先のフォルダー (ジャンクションを含む) は、中に足すので挙げない (#329)。
     /// </para>
     /// </remarks>
-    /// <returns>展開先に同じ名前のものがある項目。書庫の順。</returns>
+    /// <remarks>
+    /// <para>
+    /// 中身の無いフォルダー (書庫のフォルダーの項目、#397) は <paramref name="folderNames"/> で別に渡す。7z と RAR のフォルダーの名前は末尾に <c>/</c> が無く、
+    /// 名前だけではファイルと見分けられない。フォルダーは、展開先に同じ名前のファイルがあるときと、途中のフォルダーの名前にファイルがあるときだけ挙げる
+    /// (どちらも置き換えられない)。同じ名前のフォルダーがあれば中に足すので挙げない。<paramref name="entryNames"/> に同じ名前のファイルがあれば、
+    /// そのフォルダーは作らないので挙げない。
+    /// </para>
+    /// </remarks>
+    /// <param name="folderNames">展開するフォルダーの項目の、書庫の中の名前。</param>
+    /// <returns>展開先に同じ名前のものがある項目。ファイル、フォルダーの順。それぞれ書庫の順。</returns>
     public static List<ExtractConflict> FindConflicts(
-        IEnumerable<string> entryNames, string destinationDirectory, string? basePath)
+        IEnumerable<string> entryNames, string destinationDirectory, string? basePath,
+        IEnumerable<string>? folderNames = null)
     {
         var conflicts = new List<ExtractConflict>();
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationDirectory));
@@ -537,8 +612,9 @@ internal static class ArchiveExtractor
         var listings = new Dictionary<string, Dictionary<string, FileAttributes>?>(StringComparer.OrdinalIgnoreCase);
         var blocking = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var reported = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var files = entryNames as IReadOnlyCollection<string> ?? entryNames.ToList();
 
-        foreach (var name in entryNames)
+        foreach (var name in files)
         {
             var target = TargetFor(root, name, basePath);
             if (target is null)
@@ -575,6 +651,35 @@ internal static class ArchiveExtractor
                     name, target,
                     (existing & FileAttributes.Directory) != 0 ? ExtractBlock.FolderInTheWay : null,
                     existing));
+            }
+        }
+
+        if (folderNames is null)
+        {
+            return conflicts;
+        }
+
+        var nonFolders = EmptyFolders.NonFolderNames(files.Select(static n => (n, false)));
+        foreach (var name in folderNames)
+        {
+            if (TargetFor(root, name, basePath) is not { } target || EmptyFolders.IsShadowed(name, nonFolders))
+            {
+                continue;
+            }
+
+            if (FileInPlaceOfFolder(Path.GetDirectoryName(target)!, root, blocking) is { } file)
+            {
+                if (reported.Add(file))
+                {
+                    conflicts.Add(new ExtractConflict(name, file, ExtractBlock.FileInTheWay, AttributesOf(file) ?? 0));
+                }
+
+                continue;
+            }
+
+            if (AttributesOf(target) is { } existing && (existing & FileAttributes.Directory) == 0 && reported.Add(target))
+            {
+                conflicts.Add(new ExtractConflict(name, target, ExtractBlock.FileInPlaceOfFolder, existing));
             }
         }
 

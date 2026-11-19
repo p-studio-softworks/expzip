@@ -889,6 +889,10 @@ CreateFolderFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセス�
       | 
       | ⟦Access to C:\Users\user\Desktop\資料.zip was denied.⟧
 
+CreatedFoldersLine (count: 3)
+  ja  作成したフォルダー: 3 個
+  en  Folders created: 3
+
 CreatingFolder
   ja  フォルダーを作成しています…
   en  Creating the folder…
@@ -1066,6 +1070,9 @@ ExtractBlocked (block: FolderInTheWay)
 ExtractBlocked (block: FileInTheWay)
   ja  展開先に、この項目を入れるフォルダーと同じ名前のファイルがあり、上書きできないため、展開しませんでした。
   en  A file in the destination has the same name as the folder this item goes into, and it cannot be overwritten, so this item was not extracted.
+ExtractBlocked (block: FileInPlaceOfFolder)
+  ja  展開先に同じ名前のファイルがあるため、このフォルダーを作成できませんでした。
+  en  A file with the same name is in the destination, so this folder could not be created.
 
 ExtractCalledOff
   ja  展開を中止しました
@@ -1109,6 +1116,13 @@ ExtractFailed (reason: C:\Users\user\Desktop\資料.zip へのアクセスが拒
 ExtractFolderTitle (name: 報告書.pdf)
   ja  「⟦報告書.pdf⟧」の展開先を選択
   en  Select where to extract "⟦報告書.pdf⟧"
+
+ExtractFoldersDone (folders: 6)
+  ja  6 個のフォルダーを作成しました
+  en  Created 6 folders
+ExtractFoldersDone (folders: 1)
+  ja  1 個のフォルダーを作成しました
+  en  Created 1 folder
 
 ExtractFoundTitle
   ja  見つかった項目の展開先を選択

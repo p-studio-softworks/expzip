@@ -2053,6 +2053,9 @@ internal static partial class Strings
         Expzip.Archives.ExtractBlock.FolderInTheWay => Pick(
             "展開先に同じ名前のフォルダーがあるため、上書きできませんでした。",
             "A folder with the same name is in the destination, so it could not be overwritten."),
+        Expzip.Archives.ExtractBlock.FileInPlaceOfFolder => Pick(
+            "展開先に同じ名前のファイルがあるため、このフォルダーを作成できませんでした。",
+            "A file with the same name is in the destination, so this folder could not be created."),
         _ => Pick(
             "展開先に、この項目を入れるフォルダーと同じ名前のファイルがあり、上書きできないため、展開しませんでした。",
             "A file in the destination has the same name as the folder this item goes into, "
@@ -2225,6 +2228,15 @@ internal static partial class Strings
     public static string ExtractDone(int extracted) => Pick(
         $"{extracted:N0} 個のファイルを展開しました",
         $"Extracted {extracted:N0} {Plural(extracted, "file", "files")}");
+
+    /// <summary>ファイルは 0 個で、中身の無いフォルダーだけを作成したとき (#397)。</summary>
+    public static string ExtractFoldersDone(int folders) => Pick(
+        $"{folders:N0} 個のフォルダーを作成しました",
+        $"Created {folders:N0} {Plural(folders, "folder", "folders")}");
+
+    /// <summary>展開の結果のダイアログで、ファイルは 0 個で中身の無いフォルダーだけを作成したときに、「展開したファイル」の行の代わりに出す (#397)。</summary>
+    public static string CreatedFoldersLine(int count) => Pick(
+        $"作成したフォルダー: {count:N0} 個", $"Folders created: {count:N0}");
 
     public static string ExtractCancelledLine1 => Pick(
         "展開を中断しました。", "Extracting was stopped.");

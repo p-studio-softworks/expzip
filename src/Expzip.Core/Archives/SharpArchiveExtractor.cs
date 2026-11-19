@@ -71,8 +71,17 @@ internal static class SharpArchiveExtractor
         // リンクの見分けは、その項目の属性で行う (#367)。名前で引くと、同じ名前のリンクとファイルを取り違える
         var entries = archive.Entries.ToList();
         var kinds = entries.Select(static e => ArchiveLinks.SevenZipKind(e)).ToList();
-        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)
-        var linkFlags = entries.Select((e, i) => (e.Key ?? string.Empty, kinds[i] != SevenZipLink.None && !e.IsDirectory)).ToList();
+        // フォルダーの項目は、リンクの属性が付いていてもリンクとしては扱わない (一覧と同じ)。
+        // 同じ名前の項目のどれを展開するかも、フォルダーの項目は数えない。同じ名前のリンクが前にあっても、リンクを展開する (#397)
+        var linkFlags = entries.Select((e, i) => e.IsDirectory
+            ? (string.Empty, false)
+            : (e.Key ?? string.Empty, kinds[i] != SevenZipLink.None)).ToList();
+
+        // 中身の無いフォルダーも作る (#397)。ファイルを全部書き出したあと、リンクの前に作る
+        var folderIndexes = Enumerable.Range(0, entries.Count)
+            .Where(i => entries[i].IsDirectory && entries[i].Key is { } key && (sourceNames is null || sourceNames.Contains(key)))
+            .ToList();
+        var nonFolders = EmptyFolders.NonFolderNames(entries.Select(static e => (e.Key ?? string.Empty, e.IsDirectory)));
         var laterLink = ArchiveExtractor.LaterLinks(linkFlags);
         var superseded = ArchiveExtractor.Superseded(linkFlags);
 
@@ -143,17 +152,19 @@ internal static class SharpArchiveExtractor
         else if (wantedIndexes.Count > 1)
         {
             // 2 件以上は先頭から順に読む。塊ごとに一度だけ復号すれば済む。
-            // 順に読む道の項目は別のオブジェクトなので、同じ名前の何番目かで一覧の項目と結び付ける
-            var byName = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            // 順に読む道の項目は別のオブジェクトなので、同じ名前の何番目かで一覧の項目と結び付ける。
+            // フォルダーとそれ以外は分けて数える。順に読む道は、中身の無い項目を中身のある項目と違う順で返すことがある (#397)
+            var byName = new Dictionary<(string, bool), List<int>>();
             for (var i = 0; i < entries.Count; i++)
             {
                 if (entries[i].Key is { } key)
                 {
-                    (byName.TryGetValue(key, out var list) ? list : byName[key] = []).Add(i);
+                    var slot = (key, entries[i].IsDirectory);
+                    (byName.TryGetValue(slot, out var list) ? list : byName[slot] = []).Add(i);
                 }
             }
 
-            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            var seen = new Dictionary<(string, bool), int>();
             using var reader = archive.ExtractAllEntries();
 
             // 塊の復号に失敗すると、取り出しの手前 (次のエントリへ進む段階) で例外になる。
@@ -168,13 +179,13 @@ internal static class SharpArchiveExtractor
                     }
 
                     var entry = reader.Entry;
-                    if (entry.Key is not { } key || !byName.TryGetValue(key, out var indexes))
+                    if (entry.Key is not { } key || !byName.TryGetValue((key, entry.IsDirectory), out var indexes))
                     {
                         continue;
                     }
 
-                    var nth = seen.GetValueOrDefault(key);
-                    seen[key] = nth + 1;
+                    var nth = seen.GetValueOrDefault((key, entry.IsDirectory));
+                    seen[(key, entry.IsDirectory)] = nth + 1;
                     if (nth >= indexes.Count || !wantedIndexes.Contains(indexes[nth]) || entry.IsDirectory)
                     {
                         continue;
@@ -196,7 +207,36 @@ internal static class SharpArchiveExtractor
             }
         }
 
-        if (state.Cancelled || cancellationToken.IsCancellationRequested || linkTargets.Count == 0)
+        if (state.Cancelled || cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        foreach (var i in folderIndexes)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                state.Cancel();
+                return;
+            }
+
+            var key = entries[i].Key!;
+            if (EmptyFolders.IsShadowed(key, nonFolders))
+            {
+                // 同じ名前のファイルやリンクを展開する
+            }
+            else if (kinds[i] != SevenZipLink.None)
+            {
+                // フォルダーの印の付いたリンク (7-Zip の -snl など)。空のフォルダーにはせず、展開しなかったことを知らせる (#397)
+                state.FailLink(key, Strings.LinkKindNotExtracted);
+            }
+            else
+            {
+                state.CreateFolder(key);
+            }
+        }
+
+        if (linkTargets.Count == 0)
         {
             return;
         }
@@ -222,18 +262,42 @@ internal static class SharpArchiveExtractor
 
         var all = new List<LinkScopeEntry>();
         var requests = new List<LinkRequest>();
+        var folders = new List<string>();
 
+        var readable = true;
         try
         {
-            TarLoop(reader, sourceNames, state, all, requests, cancellationToken);
+            TarLoop(reader, sourceNames, state, all, requests, folders, cancellationToken);
         }
         catch (Exception ex) when (IsReadFailure(ex))
         {
             state.Fail(Path.GetFileName(archivePath), Explain(ex));
+            readable = false;
+        }
+
+        if (state.Cancelled || cancellationToken.IsCancellationRequested)
+        {
             return;
         }
 
-        if (state.Cancelled || cancellationToken.IsCancellationRequested || requests.Count == 0)
+        // 中身の無いフォルダーも作る (#397)。順に読むので、読みながら覚えたものを、ファイルを読み終えたあと、リンクの前に作る。
+        // 途中で読めなくなったときも、そこまでに読んだフォルダーは作る (そこまでに書いたファイルが残るのと同じ)
+        var nonFolders = EmptyFolders.NonFolderNames(all.Select(static e => (e.Name, e.IsFolder)));
+        foreach (var key in folders)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                state.Cancel();
+                return;
+            }
+
+            if (!EmptyFolders.IsShadowed(key, nonFolders))
+            {
+                state.CreateFolder(key);
+            }
+        }
+
+        if (!readable || requests.Count == 0)
         {
             return;
         }
@@ -243,7 +307,7 @@ internal static class SharpArchiveExtractor
 
     private static void TarLoop(
         IReader reader, IReadOnlySet<string>? sourceNames, ExtractState state,
-        List<LinkScopeEntry> all, List<LinkRequest> requests, CancellationToken cancellationToken)
+        List<LinkScopeEntry> all, List<LinkRequest> requests, List<string> folders, CancellationToken cancellationToken)
     {
         while (reader.MoveToNextEntry())
         {
@@ -256,13 +320,19 @@ internal static class SharpArchiveExtractor
             var index = all.Count;
             all.Add(new LinkScopeEntry(entry.Key ?? string.Empty, entry.IsDirectory));
 
-            if (entry.IsDirectory || entry.Key is not { } key)
+            if (entry.Key is not { } key)
             {
                 continue;
             }
 
             if (sourceNames is not null && !sourceNames.Contains(key))
             {
+                continue;
+            }
+
+            if (entry.IsDirectory)
+            {
+                folders.Add(key);
                 continue;
             }
 

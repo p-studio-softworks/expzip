@@ -3710,7 +3710,7 @@ public partial class MainWindow : Window
         _abandonable = cancellation;
         SetBusy(true);
 
-        StatusMessage.Text = Strings.ExtractingCount(names.Count);
+        StatusMessage.Text = Strings.ExtractingCount(CountFiles(rows));
         var progress = new Progress<ExtractProgress>(p => ProgressIndicator.Value = p.Percent);
 
         try
@@ -3759,7 +3759,7 @@ public partial class MainWindow : Window
                 return null;
             }
 
-            // 取り出しで作られるのはファイルだけ。中身の無いフォルダーも、構造として残るように作っておく
+            // 書庫にフォルダーの項目がある中身の無いフォルダーは、取り出しで作られる (#397)。項目が無いフォルダーも、構造として残るように作っておく
             foreach (var row in rows)
             {
                 if (row.Folder is not null)
@@ -5601,7 +5601,7 @@ public partial class MainWindow : Window
                 ? workspace.CreateScratchDirectory(Path.GetFileNameWithoutExtension(Contents.FilePath))
                 : workspace.DirectoryFor(Contents.FilePath);
             Mouse.OverrideCursor = Cursors.Wait;
-            StatusMessage.Text = Strings.ExtractingCount(names.Count);
+            StatusMessage.Text = Strings.ExtractingCount(CountFiles(rows));
 
             // 取り出しが終わるまで画面は描き直されない。描かせてから取り出さないと、
             // 「展開しています…」は取り出しが終わってから出る (実測、#200)。
@@ -6481,8 +6481,11 @@ public partial class MainWindow : Window
             Mouse.OverrideCursor = Cursors.Wait;
             // 中身の木はここで取っておく。Contents はタブの選択から引くため、裏の糸からは読めない (#107)
             var root = Contents.Root;
-            conflicts = await Task.Run(() => ArchiveExtractor.FindConflicts(
-                SourceNamesIn(root, selection), destination, basePath));
+            conflicts = await Task.Run(() =>
+            {
+                var (files, folders) = SourceNamesIn(root, selection);
+                return ArchiveExtractor.FindConflicts(files, destination, basePath, folders);
+            });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -6569,13 +6572,22 @@ public partial class MainWindow : Window
             Contents.FilePath, Contents.Format, Contents.Names, selection, destination, overwrite, declined, basePath);
     }
 
-    /// <summary>展開するファイルの、書庫の中の名前。<paramref name="selection"/> が無ければすべて。</summary>
-    private static List<string> SourceNamesIn(ArchiveFolder root, IReadOnlySet<string>? selection)
+    /// <summary>
+    /// 展開するファイルとフォルダーの項目の、書庫の中の名前。<paramref name="selection"/> が無ければすべて。
+    /// フォルダーは、名前だけではファイルと見分けられない形式 (7z、RAR) があるので、分けて返す (#397)。
+    /// </summary>
+    private static (List<string> Files, List<string> Folders) SourceNamesIn(ArchiveFolder root, IReadOnlySet<string>? selection)
     {
         var names = new List<string>();
+        var folders = new List<string>();
 
         void Walk(ArchiveFolder folder)
         {
+            if (folder.SourceName is { } own && (selection is null || selection.Contains(own)))
+            {
+                folders.Add(own);
+            }
+
             foreach (var file in folder.Files)
             {
                 if (selection is null || selection.Contains(file.SourceName))
@@ -6591,7 +6603,21 @@ public partial class MainWindow : Window
         }
 
         Walk(root);
-        return names;
+
+        // 書庫に同じ名前のファイルやリンクがあるフォルダーは作らないので、確認にも挙げない。選んだ範囲ではなく書庫の全体で決める (展開と同じ)
+        var everyFile = new List<(string, bool)>();
+        void Collect(ArchiveFolder folder)
+        {
+            everyFile.AddRange(folder.Files.Select(static f => (f.SourceName, false)));
+            foreach (var child in folder.Folders)
+            {
+                Collect(child);
+            }
+        }
+
+        Collect(root);
+        var nonFolders = EmptyFolders.NonFolderNames(everyFile);
+        return (names, folders.Where(f => !EmptyFolders.IsShadowed(f, nonFolders)).ToList());
     }
 
     private async Task RunExtractionAsync(
@@ -7219,9 +7245,13 @@ public partial class MainWindow : Window
     /// <param name="declined">上書きの確認で「いいえ」と答えた項目。飛ばしても知らせない。</param>
     private void ShowExtractResult(ExtractResult result, string destination, IReadOnlySet<string> declined)
     {
+        // ファイルが 0 個で中身の無いフォルダーだけを作ったときは、作ったフォルダーの数を出す。「0 個のファイルを展開しました」で何もしなかったように見せない (#397)
+        var onlyFolders = result.Extracted == 0 && result.CreatedFolders > 0;
         StatusMessage.Text = result.Cancelled
             ? Strings.ExtractCancelledStatus(result.Extracted)
-            : Strings.ExtractDone(result.Extracted);
+            : onlyFolders
+                ? Strings.ExtractFoldersDone(result.CreatedFolders)
+                : Strings.ExtractDone(result.Extracted);
 
         var message = new System.Text.StringBuilder();
 
@@ -7236,7 +7266,9 @@ public partial class MainWindow : Window
 
         message.AppendLine(Strings.ExtractDestinationLine(destination));
         message.AppendLine();
-        message.AppendLine(Strings.ExtractedFilesLine(result.Extracted));
+        message.AppendLine(onlyFolders
+            ? Strings.CreatedFoldersLine(result.CreatedFolders)
+            : Strings.ExtractedFilesLine(result.Extracted));
 
         // 確認に挙げなかった既にあるファイルは置き換えずに残した (#353)。短い名前で指す項目など、
         // 本人の知らないうちに別のファイルを置き換えかけたものなので、名前を挙げて知らせる
@@ -7328,7 +7360,10 @@ public partial class MainWindow : Window
         return rows.Count == 0 ? null : CollectSourceNames(rows);
     }
 
-    /// <summary>指定した行に含まれるファイルのエントリ名を集める。フォルダは配下ごと。</summary>
+    /// <summary>
+    /// 指定した行に含まれるファイルのエントリ名を集める。フォルダーは配下ごと。書庫にフォルダーの項目があるフォルダーは、その名前も入れる。
+    /// 中身の無いフォルダーも展開で作るため (#397)。
+    /// </summary>
     private static IReadOnlySet<string> CollectSourceNames(IReadOnlyList<EntryRow> rows)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -7347,8 +7382,46 @@ public partial class MainWindow : Window
         return names;
     }
 
+    /// <summary>指定した行に含まれるファイルの数。フォルダーは配下ごと。「展開しています… N 個」に出す (#397。フォルダーの項目は数えない)。</summary>
+    private static int CountFiles(IReadOnlyList<EntryRow> rows)
+    {
+        var files = new HashSet<string>(StringComparer.Ordinal);
+
+        void Walk(ArchiveFolder folder)
+        {
+            foreach (var file in folder.Files)
+            {
+                files.Add(file.SourceName);
+            }
+
+            foreach (var child in folder.Folders)
+            {
+                Walk(child);
+            }
+        }
+
+        foreach (var row in rows)
+        {
+            if (row.Entry is not null)
+            {
+                files.Add(row.Entry.SourceName);
+            }
+            else if (row.Folder is not null)
+            {
+                Walk(row.Folder);
+            }
+        }
+
+        return files.Count;
+    }
+
     private static void AddFilesRecursively(ArchiveFolder folder, HashSet<string> names)
     {
+        if (folder.SourceName is { } own)
+        {
+            names.Add(own);
+        }
+
         foreach (var file in folder.Files)
         {
             names.Add(file.SourceName);

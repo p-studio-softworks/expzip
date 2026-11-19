@@ -96,6 +96,12 @@ internal sealed class ArchiveFolder : INotifyPropertyChanged
     /// <summary>書庫内のパス。ルートは空文字。区切りは <c>/</c>。</summary>
     public required string FullPath { get; init; }
 
+    /// <summary>
+    /// 書庫のフォルダーの項目の、元の名前 (#397)。展開でこのフォルダーを作るのに使う。ファイルの名前から組み立てただけで、
+    /// フォルダーの項目が無ければ <see langword="null"/>。同じ名前のフォルダーの項目が 2 つ以上あれば、最初のもの。
+    /// </summary>
+    public string? SourceName { get; set; }
+
     /// <summary>親フォルダ。ルートの場合は <see langword="null"/>。</summary>
     public ArchiveFolder? Parent { get; init; }
 

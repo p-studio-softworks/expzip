@@ -553,15 +553,19 @@ internal static class LinkExtractor
                 // 置くときの相対パスは、ディスクに書いた名前と同じ書き方で作る (濁点を分けた名前のままにする)
                 var key = Fold(canonical);
                 _spelling.TryAdd(key, canonical);
-                _last[key] = i;
 
                 if (entries[i].IsFolder)
                 {
+                    // 同じ名前のリンクより後ろにあっても、リンクを外さない。中身の無いフォルダーより、リンクを展開する (#397)
                     _folders.Add(key);
                 }
-                else if (!linkIndexes.Contains(i))
+                else
                 {
-                    _files.Add(key);
+                    _last[key] = i;
+                    if (!linkIndexes.Contains(i))
+                    {
+                        _files.Add(key);
+                    }
                 }
 
                 for (var parent = Parent(canonical); parent.Length > 0; parent = Parent(parent))

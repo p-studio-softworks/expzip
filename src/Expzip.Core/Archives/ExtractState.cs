@@ -173,6 +173,72 @@ internal sealed class ExtractState(
         }
     }
 
+    /// <summary>
+    /// 書庫のフォルダーの項目から、フォルダーを作る (#397)。すべてのファイルを書き出したあと、リンクを置く前に呼ぶ。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// リンクより前に作るので、書庫の中のリンクを通って展開先の外に作られることは無い。作るのはファイルの親と同じ
+    /// <see cref="ExtractOverwrite.CreateFolder"/> で、リンクのある書庫では、今回作ったフォルダーとして覚える (#392)。
+    /// </para>
+    /// <para>
+    /// 消す・置き換える・名前を変えることはしない。展開先に同じ名前のフォルダー (ジャンクションを含む) があれば何もせず、
+    /// ファイルがあれば作らずに「上書きできなかった項目」に入れる (#320)。展開先そのものを指す項目 (tar の <c>./</c>) は何もせず、知らせない。
+    /// </para>
+    /// </remarks>
+    /// <param name="key">書庫の中の名前。</param>
+    public void CreateFolder(string key)
+    {
+        var target = ArchiveExtractor.TargetFor(destinationRoot, key, basePath);
+        if (target is null)
+        {
+            if (!ArchiveExtractor.IsDestinationItself(destinationRoot, key, basePath))
+            {
+                _rejected.Add(key);
+            }
+
+            return;
+        }
+
+        try
+        {
+            if (Directory.Exists(target))
+            {
+                return;
+            }
+
+            if (File.Exists(target))
+            {
+                _notReplaced.Add((key, Strings.ExtractBlocked(ExtractBlock.FileInPlaceOfFolder)));
+                return;
+            }
+
+            if (ExtractOverwrite.Blocker(target) is { } block)
+            {
+                _notReplaced.Add((key, Strings.ExtractBlocked(block)));
+                return;
+            }
+
+            overwrite.CreateFolder(target);
+            _createdFolders++;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or ArgumentException or NotSupportedException)
+        {
+            // 確かめたあとに同じ名前のファイルが置かれた、アクセス権が無い、パスが長すぎるなど。この項目だけを知らせて続ける
+            if (File.Exists(target))
+            {
+                _notReplaced.Add((key, Strings.ExtractBlocked(ExtractBlock.FileInPlaceOfFolder)));
+            }
+            else
+            {
+                _failed.Add((key, Strings.Reason(ex)));
+            }
+        }
+    }
+
+    private int _createdFolders;
+
     /// <summary>書庫ごと読めなかったことを記録する。</summary>
     public void Fail(string name, string reason) => _failed.Add((name, reason));
 
@@ -227,6 +293,7 @@ internal sealed class ExtractState(
     public ExtractResult ToResult()
         => new(_extracted, _skippedNames.Count, _rejected, _failed, Cancelled, _marks.Lost, _skippedNames)
         {
+            CreatedFolders = _createdFolders,
             NotReplaced = _notReplaced,
             Links = _collected,
             CreatedLinks = _createdLinks,
