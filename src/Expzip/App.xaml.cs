@@ -31,13 +31,18 @@ public partial class App : Application
         // 操作を続けられるようにするほうが実害が少ない。
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
+        // 設定は、メイン画面を組み立てている間に裏で読んでおく (#398)。
+        // JSON の読み取りの準備 (コードのコンパイル) に 30 ms ほどかかり、UI のスレッドで読むと
+        // そのぶん起動が遅れる。言語は画面を組み立て終えてから、読んだ結果で決める
+        var settings = Task.Run(SettingsStore.Load);
+
         // 意味を表す色を、背景色の明るさに合う組にする (#121、#122)。
         // **ウィンドウを作る前に。**最初のウィンドウが読み込まれる時点でキーが揃っている必要がある
         Theme.Start(Resources);
 
         base.OnStartup(e);
 
-        new MainWindow().Show();
+        new MainWindow(settings).Show();
     }
 
     /// <summary>コマンドラインの指定どおりに動かして、そのまま終わる (#316)。</summary>

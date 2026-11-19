@@ -36,4 +36,14 @@ foreach ($run in $runs) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
+# ReadyToRun に使う crossgen は lock ファイルに載らないので、指紋を別に控える (#398)。
+# 上の配布用の復元 (-p:PublishProfile=win-x64) で取ってきたものを、nuget.org の公開している指紋と比べてから書く
+. (Join-Path $PSScriptRoot 'Crossgen.ps1')
+$crossgen = Update-CrossgenPin $repo
+if ($crossgen) {
+    Write-Host $crossgen
+    Write-Host 'crossgen のパッケージの控えを作り直せませんでした。'
+    exit 1
+}
+
 Write-Host '作り直しました。git diff で、変わったのが上げたパッケージだけかを確かめてください。'

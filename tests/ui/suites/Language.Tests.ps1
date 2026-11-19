@@ -48,4 +48,38 @@ Stop-Expzip $app
 $json = Read-Settings
 Check '設定から言語の指定が消える' ($json -notmatch '"Language"\s*:\s*"(ja|en)"') $json
 
+# 設定は、画面の組み立てと並べて裏で読む (#398)。読み終わる前に画面へ文字を貼らないこと、
+# 読めなくても既定の値で起動することを確かめる。既定の言語は Windows の表示言語に合わせるので、
+# どちらの言語かは決めつけない
+Section '設定ファイルに en と書いてから起動する'
+Set-Settings @{ Language = 'en' }
+$app = Start-Expzip @($sample)
+Check '最初の画面から英語' ((ById $app.Window 'ExtractButton').Current.Name -eq 'Extract')
+Check '列見出しも英語' ((Texts $app.Window) -match 'Packed')
+Stop-Expzip $app
+
+Section '設定ファイルが壊れている'
+[System.IO.File]::WriteAllText($script:SettingsPath, '{ "Language": "en", ', (New-Object System.Text.UTF8Encoding($false)))
+$app = Start-Expzip @()
+Check '既定の値で起動する' ((ById $app.Window 'ExtractButton').Current.Name -in @('展開', 'Extract'))
+Stop-Expzip $app
+
+Section '設定ファイルを読めない'
+Set-Settings @{ Language = 'en' }
+$lock = [System.IO.File]::Open($script:SettingsPath, 'Open', 'ReadWrite', 'None')
+try {
+    $app = Start-Expzip @()
+    Check '既定の値で起動する' ((ById $app.Window 'ExtractButton').Current.Name -in @('展開', 'Extract'))
+    Stop-Expzip $app
+}
+finally {
+    $lock.Dispose()
+}
+
+Section '設定ファイルが無い'
+Remove-Item $script:SettingsPath -Force -ErrorAction SilentlyContinue
+$app = Start-Expzip @()
+Check '既定の値で起動する' ((ById $app.Window 'ExtractButton').Current.Name -in @('展開', 'Extract'))
+Stop-Expzip $app
+
 Complete-Suite

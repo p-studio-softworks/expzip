@@ -100,6 +100,8 @@ if ($Debug) {
 }
 else {
     Write-Host '配布用の Expzip.exe を作っています。数分かかることがあります…'
+    # ReadyToRun に使う crossgen のパッケージが控えと同じかは、発行の中で crossgen を動かす前に
+    # Expzip.csproj の CheckCrossgenPin が確かめる (#398)
     & dotnet publish (Join-Path $repo 'src\Expzip') -p:PublishProfile=win-x64 -nologo
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

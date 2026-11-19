@@ -203,7 +203,10 @@ public partial class MainWindow : Window
     /// <summary>タブをドラッグして並べ替えている最中 (#208)。</summary>
     private bool _tabDragging;
 
-    public MainWindow()
+    /// <param name="settings">
+    /// 裏で読み始めた設定 (#398)。<see cref="App"/> が画面の組み立てと並べて読む。
+    /// </param>
+    internal MainWindow(Task<AppSettings> settings)
     {
         InitializeComponent();
         UpdateTitle(null);
@@ -233,7 +236,9 @@ public partial class MainWindow : Window
         ArchiveTabs.ItemsSource = _tabs;
         _tabs.CollectionChanged += (_, _) => UpdateTabArea();
 
-        _settings = SettingsStore.Load();
+        // 読み終わるまで待つ。失敗は Load の中で既定の値になる。それ以外の例外は、
+        // 包まずに元の例外のまま出す (.Result だと AggregateException に包まれる)
+        _settings = settings.GetAwaiter().GetResult();
 
         // 画面に文字を貼る前に言語を決める (#23)。XAML には文言を書いていないため、
         // ApplyLanguage を呼ぶまでツールバーもステータスバーも空のまま

@@ -101,6 +101,53 @@
   </Target>
 
   <!--
+    ReadyToRun に使う crossgen のパッケージが、控え (build/crossgen.sha512) と同じかを確かめる (#398)。
+    crossgen は発行の途中で、ビルドする PC の上で動く。NuGet はこれを lock ファイルに書かない取り方
+    (PackageDownload) で取ってくるので、lock ファイルでは固定できない (#323)。
+
+    **SDK が使う crossgen を決めたあと、動かす前に確かめる。**build.ps1 の側で確かめると、
+    dotnet publish が決め直したものとずれうるうえ、直接 dotnet publish を呼ぶと確かめが抜ける。
+    比べるのは「名前 版 SHA512」の行全体で、大文字と小文字も区別する。
+    控えは build/Update-LockFiles.ps1 が作り直す
+  -->
+  <Target Name="CheckCrossgenPin" AfterTargets="ResolveReadyToRunCompilers"
+          Condition="'$(PublishReadyToRun)' == 'true'">
+    <PropertyGroup>
+      <CrossgenPinFile>$(MSBuildThisFileDirectory)..\..\build\crossgen.sha512</CrossgenPinFile>
+    </PropertyGroup>
+
+    <Error Condition="'@(ResolvedCrossgen2Pack)' == ''"
+           Text="Expzip: ReadyToRun に使う crossgen のパッケージが見つかりません。" />
+    <Error Condition="!Exists('$(CrossgenPinFile)')"
+           Text="Expzip: crossgen のパッケージの控えがありません: $(CrossgenPinFile)" />
+
+    <ItemGroup>
+      <!-- 置き場の名前は小文字だが、Windows のファイル名は大文字と小文字を区別しない -->
+      <_CrossgenNupkg Include="%(ResolvedCrossgen2Pack.PackageDirectory)\%(ResolvedCrossgen2Pack.NuGetPackageId).%(ResolvedCrossgen2Pack.NuGetPackageVersion).nupkg"
+                      PinName="%(ResolvedCrossgen2Pack.NuGetPackageId)" PinVersion="%(ResolvedCrossgen2Pack.NuGetPackageVersion)" />
+    </ItemGroup>
+
+    <Error Condition="!Exists('%(_CrossgenNupkg.Identity)')"
+           Text="Expzip: crossgen のパッケージがありません: %(_CrossgenNupkg.Identity)" />
+
+    <GetFileHash Files="@(_CrossgenNupkg)" Algorithm="SHA512" HashEncoding="base64">
+      <Output TaskParameter="Items" ItemName="_CrossgenHashed" />
+    </GetFileHash>
+
+    <ReadLinesFromFile File="$(CrossgenPinFile)">
+      <Output TaskParameter="Lines" ItemName="_CrossgenPinLine" />
+    </ReadLinesFromFile>
+
+    <PropertyGroup>
+      <!-- 行の区切りを ; にして、前後にも ; を付ける。行の一部だけが合うものを通さないため -->
+      <_CrossgenPins>;@(_CrossgenPinLine->'%(Identity)', ';');</_CrossgenPins>
+    </PropertyGroup>
+
+    <Error Condition="!$(_CrossgenPins.Contains(';%(_CrossgenHashed.PinName) %(_CrossgenHashed.PinVersion) %(_CrossgenHashed.FileHash);'))"
+           Text="Expzip: crossgen のパッケージが控えと違います。発行を止めました。届いたもの: %(_CrossgenHashed.PinName) %(_CrossgenHashed.PinVersion) %(_CrossgenHashed.FileHash)。.NET の SDK を上げたのなら、build\Update-LockFiles.ps1 で控えを作り直し、確かめてからコミットしてください。" />
+  </Target>
+
+  <!--
     発行設定は Properties/PublishProfiles/win-x64.pubxml にある。
     ここに RuntimeIdentifier を書くと通常のビルドまで RID 固有になり
     開発時のビルドが遅くなるため、発行プロファイル側に分離している。

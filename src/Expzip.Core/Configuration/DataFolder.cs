@@ -20,6 +20,14 @@ namespace Expzip.Configuration;
 /// </remarks>
 internal static class DataFolder
 {
+    /// <summary>
+    /// 下の 2 つを初めて決めるときの錠 (#398)。設定は起動のときに裏のスレッドで読むので、
+    /// UI のスレッドと同時に初めて呼ばれることがありうる。<c>bool?</c> は 1 回で読み書きできる
+    /// 値ではないため、守らないと「決めた」と「パッケージではない」を半分ずつ読み、
+    /// Store 版で exe のフォルダーを置き場所と取り違えるおそれがある
+    /// </summary>
+    private static readonly Lock Deciding = new();
+
     private static bool? _isPackaged;
     private static string? _path;
 
@@ -30,11 +38,28 @@ internal static class DataFolder
     internal static Func<string>? PathOverride { get; set; }
 
     /// <summary>MSIX として入れられて動いているか。</summary>
-    public static bool IsPackaged => _isPackaged ??= DetectPackaged();
+    public static bool IsPackaged
+    {
+        get
+        {
+            lock (Deciding)
+            {
+                return _isPackaged ??= DetectPackaged();
+            }
+        }
+    }
 
     /// <summary>ファイルを置くフォルダーのパス。</summary>
-    public static string Path =>
-        _path ??= PathOverride?.Invoke() ?? (IsPackaged ? AppDataDirectory() : ExeDirectory());
+    public static string Path
+    {
+        get
+        {
+            lock (Deciding)
+            {
+                return _path ??= PathOverride?.Invoke() ?? (IsPackaged ? AppDataDirectory() : ExeDirectory());
+            }
+        }
+    }
 
     /// <summary>
     /// パッケージに入っていないときは <c>APPMODEL_ERROR_NO_PACKAGE</c> が返る。
