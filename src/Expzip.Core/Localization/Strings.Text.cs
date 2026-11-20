@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.IO.Compression;
 using Expzip.Archives;
+using Expzip.Configuration;
 using Expzip.Inspection;
 using Expzip.Speed;
 
@@ -453,6 +454,40 @@ internal static partial class Strings
         + $"{Environment.NewLine}{Environment.NewLine}履歴から削除します。",
         $"The file was not found.{Environment.NewLine}{Environment.NewLine}{path}"
         + $"{Environment.NewLine}{Environment.NewLine}It will be removed from the history.");
+
+    // ------------------------------------------------------------------ 設定ファイル (#399)
+
+    /// <summary>起動したときに設定ファイルを読み込めなかった。</summary>
+    /// <param name="path">設定ファイル。</param>
+    /// <param name="kept">中身のコピーを残した場所。残していなければ null。</param>
+    /// <param name="failure">
+    /// 読めなかった理由。中身を開けなかったとき (壊れている以外) は、中身は無事かもしれないので、削除を勧めない。
+    /// </param>
+    public static string SettingsUnreadable(string path, string? kept, SettingsLoadFailure failure)
+    {
+        var n = Environment.NewLine;
+        return Pick(
+            $"設定ファイルを読み込めませんでした。今回は既定の設定で動作し、設定の変更は保存しません。{n}{n}{path}"
+            + (kept is null ? "" : $"{n}{n}元の設定ファイルのコピーを、次の場所に残しました。{n}{n}{kept}")
+            + $"{n}{n}"
+            + failure switch
+            {
+                SettingsLoadFailure.Damaged => "設定ファイルを直すか削除すると、次回の起動から設定を保存します。",
+                SettingsLoadFailure.InUse => "ほかのプログラムが設定ファイルを開いていると、読み込めないことがあります。"
+                                             + "そのプログラムを閉じてから、Expzip を起動し直してください。",
+                _ => "設定ファイルのアクセス権と、同じ名前のフォルダーが無いかを確認してください。",
+            },
+            $"The settings file could not be read. Expzip is using the default settings this time and will not save changes to the settings.{n}{n}{path}"
+            + (kept is null ? "" : $"{n}{n}A copy of the original settings file was kept here.{n}{n}{kept}")
+            + $"{n}{n}"
+            + failure switch
+            {
+                SettingsLoadFailure.Damaged => "If you fix or delete the settings file, settings will be saved again the next time Expzip starts.",
+                SettingsLoadFailure.InUse => "The settings file may not be readable while another program has it open. "
+                                             + "Close that program, then start Expzip again.",
+                _ => "Check the permissions of the settings file, and whether a folder with the same name exists.",
+            });
+    }
 
     // ------------------------------------------------------------------ 圧縮方式 (#11)
 
@@ -1038,6 +1073,14 @@ internal static partial class Strings
         + "Try again, or switch to a lighter model.");
 
     public static string AiSaved => Pick("AI連携の設定を保存しました", "Saved the AI settings");
+
+    /// <summary>設定ファイルに書き込めず、保存できなかったとき (#399)。</summary>
+    public static string AiNotSaved => Pick("AI連携の設定を保存できませんでした", "Could not save the AI settings");
+
+    /// <summary>起動したときに設定ファイルを読み込めず、このセッションでは保存しないとき (#399)。</summary>
+    public static string AiNotSavedUnreadable => Pick(
+        "設定ファイルを読み込めなかったため、AI連携の設定は保存していません",
+        "The settings file could not be read, so the AI settings were not saved");
 
     public static string AiKeyLost => Pick(
         "保存されているAPIキーが使用できませんでした。再度入力してください。",
@@ -3425,6 +3468,11 @@ internal static partial class Strings
     public static string CommandListUnreadable(string path, string reason) => Pick(
         $"一覧ファイル {path} を読み込めませんでした: {reason}",
         $"Could not read the list file {path}: {reason}");
+
+    /// <summary>コマンドラインで、設定ファイルを読み込めなかったとき (#399)。</summary>
+    public static string SettingsUnreadableCommand => Pick(
+        "設定ファイルを読み込めなかったため、既定の設定で実行します。",
+        "The settings file could not be read, so Expzip runs with the default settings.");
 
     public static string CommandListEmpty(string path) => Pick(
         $"一覧ファイル {path} には何も書かれていません。",

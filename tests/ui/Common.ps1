@@ -114,6 +114,7 @@ function Start-Suite([string]$Name) {
     $script:Work = Join-Path $env:TEMP "ExpzipUiTests\work\$Name"
     Stop-TestExpzip
     Remove-Item $script:SettingsPath, $script:RulesPath -Force -ErrorAction SilentlyContinue
+    Remove-SettingsCopies
     Remove-Item $script:Work -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $script:Work | Out-Null
 
@@ -123,6 +124,7 @@ function Start-Suite([string]$Name) {
 function Complete-Suite {
     Stop-TestExpzip
     Remove-Item $script:SettingsPath, $script:RulesPath -Force -ErrorAction SilentlyContinue
+    Remove-SettingsCopies
     Write-Host ''
     Write-Host ("結果: OK {0} / NG {1}" -f $script:Passed, $script:Failed)
     exit $script:Failed
@@ -195,6 +197,15 @@ function Set-Settings([hashtable]$Values = @{}) {
     foreach ($key in $Values.Keys) { $settings[$key] = $Values[$key] }
     $json = $settings | ConvertTo-Json -Depth 8
     [System.IO.File]::WriteAllText($script:SettingsPath, $json, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+# 読めなかった設定ファイルの写し (#399)。テストで設定ファイルを壊して起動するたびに、アプリのフォルダーに増える
+function Get-SettingsCopies {
+    return @(Get-ChildItem -LiteralPath $script:AppDir -Filter 'Expzip.settings.unreadable-*.json' -File -ErrorAction SilentlyContinue)
+}
+
+function Remove-SettingsCopies {
+    Get-SettingsCopies | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 function Read-Settings {

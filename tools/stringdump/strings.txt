@@ -130,6 +130,14 @@ AiNoModel
   ja  モデル名を入力してください。
   en  Enter the model name.
 
+AiNotSaved
+  ja  AI連携の設定を保存できませんでした
+  en  Could not save the AI settings
+
+AiNotSavedUnreadable
+  ja  設定ファイルを読み込めなかったため、AI連携の設定は保存していません
+  en  The settings file could not be read, so the AI settings were not saved
+
 AiPresetAnthropic
   ja  Anthropic (Claude)
   en  Anthropic (Claude)
@@ -3054,6 +3062,79 @@ SetPasswordPrompt (archiveName: 資料.zip)
   en  Enter the password to set on "⟦資料.zip⟧".
       | 
       | If you forget the password, the contents cannot be extracted.
+
+SettingsUnreadable (path: C:\Users\user\Desktop\資料.zip, kept: 見本, failure: Damaged)
+  ja  設定ファイルを読み込めませんでした。今回は既定の設定で動作し、設定の変更は保存しません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | 元の設定ファイルのコピーを、次の場所に残しました。
+      | 
+      | ⟦見本⟧
+      | 
+      | 設定ファイルを直すか削除すると、次回の起動から設定を保存します。
+  en  The settings file could not be read. Expzip is using the default settings this time and will not save changes to the settings.
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | A copy of the original settings file was kept here.
+      | 
+      | ⟦見本⟧
+      | 
+      | If you fix or delete the settings file, settings will be saved again the next time Expzip starts.
+SettingsUnreadable (path: C:\Users\user\Desktop\資料.zip, kept: (なし), failure: Damaged)
+  ja  設定ファイルを読み込めませんでした。今回は既定の設定で動作し、設定の変更は保存しません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | 設定ファイルを直すか削除すると、次回の起動から設定を保存します。
+  en  The settings file could not be read. Expzip is using the default settings this time and will not save changes to the settings.
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | If you fix or delete the settings file, settings will be saved again the next time Expzip starts.
+SettingsUnreadable (path: C:\Users\user\Desktop\資料.zip, kept: 見本, failure: InUse)
+  ja  設定ファイルを読み込めませんでした。今回は既定の設定で動作し、設定の変更は保存しません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | 元の設定ファイルのコピーを、次の場所に残しました。
+      | 
+      | ⟦見本⟧
+      | 
+      | ほかのプログラムが設定ファイルを開いていると、読み込めないことがあります。そのプログラムを閉じてから、Expzip を起動し直してください。
+  en  The settings file could not be read. Expzip is using the default settings this time and will not save changes to the settings.
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | A copy of the original settings file was kept here.
+      | 
+      | ⟦見本⟧
+      | 
+      | The settings file may not be readable while another program has it open. Close that program, then start Expzip again.
+SettingsUnreadable (path: C:\Users\user\Desktop\資料.zip, kept: 見本, failure: Inaccessible)
+  ja  設定ファイルを読み込めませんでした。今回は既定の設定で動作し、設定の変更は保存しません。
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | 元の設定ファイルのコピーを、次の場所に残しました。
+      | 
+      | ⟦見本⟧
+      | 
+      | 設定ファイルのアクセス権と、同じ名前のフォルダーが無いかを確認してください。
+  en  The settings file could not be read. Expzip is using the default settings this time and will not save changes to the settings.
+      | 
+      | ⟦C:\Users\user\Desktop\資料.zip⟧
+      | 
+      | A copy of the original settings file was kept here.
+      | 
+      | ⟦見本⟧
+      | 
+      | Check the permissions of the settings file, and whether a folder with the same name exists.
+
+SettingsUnreadableCommand
+  ja  設定ファイルを読み込めなかったため、既定の設定で実行します。
+  en  The settings file could not be read, so Expzip runs with the default settings.
 
 SeverityName (severity: Ok)
   ja  問題なし

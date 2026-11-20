@@ -53,7 +53,15 @@ public partial class App : Application
         int exitCode;
         try
         {
-            Strings.Language = Strings.Resolve(SettingsStore.Load().Language);
+            var settings = SettingsStore.LoadForCommand();
+            Strings.Language = Strings.Resolve(settings.Language);
+
+            // 読めなかったら、設定の言語が使われなかったことが分かるように 1 行知らせる (#399)
+            if (settings.LoadProblem is not null)
+            {
+                Console.Error.WriteLine(Strings.SettingsUnreadableCommand);
+            }
+
             exitCode = CommandRunner.Run(args, Console.Out, Console.Error);
         }
         catch (Exception ex)

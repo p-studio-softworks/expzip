@@ -242,6 +242,13 @@ internal sealed class AtomicFile : IDisposable
         => TemporaryPathOverride?.Invoke(target)
            ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(target))!, $"~{Guid.NewGuid():N}.tmp");
 
+    /// <summary>
+    /// 書いている一時ファイルに、別のファイルの個別のアクセス権を写す (#399)。
+    /// 新しく作るファイルは置き換える先が無く、フォルダーのアクセス権になるので、元のファイルの写しを作るときに使う。
+    /// 写せなければ例外を出す (アクセス権を読めない、書けないなど)。アクセス権の無いドライブでは何もしない。
+    /// </summary>
+    internal void CopyAccessRulesFrom(string source) => CopyAccessRules(source, _temporary);
+
     /// <summary>書き終えた。閉じて置き換える。</summary>
     /// <param name="lastWriteTime">付ける更新日時。</param>
     /// <returns>
@@ -1193,7 +1200,8 @@ internal sealed class AtomicFile : IDisposable
         }
     }
 
-    private static bool IsSharing(Exception ex)
+    /// <summary>ほかのプログラムが開いているために失敗したか (共有違反、ロック違反)。</summary>
+    internal static bool IsSharing(Exception ex)
         => ex is IOException { HResult: SharingViolation or LockViolation };
 
     /// <summary>

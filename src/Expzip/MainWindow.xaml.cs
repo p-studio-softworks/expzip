@@ -236,7 +236,7 @@ public partial class MainWindow : Window
         ArchiveTabs.ItemsSource = _tabs;
         _tabs.CollectionChanged += (_, _) => UpdateTabArea();
 
-        // 読み終わるまで待つ。失敗は Load の中で既定の値になる。それ以外の例外は、
+        // 読み終わるまで待つ。失敗は Load の中で既定の値になり、保存しないことを示す LoadProblem が付く (#399)。それ以外の例外は、
         // 包まずに元の例外のまま出す (.Result だと AggregateException に包まれる)
         _settings = settings.GetAwaiter().GetResult();
 
@@ -253,6 +253,16 @@ public partial class MainWindow : Window
 
         // 古いバージョンが取り出したアセンブリも片付ける (#305)。同じく裏で行う
         Task.Run(OldExtraction.CleanUp);
+
+        // 設定ファイルを読めなかったら、そのことと、今回は保存しないことを知らせる (#399)。
+        // 書庫を開くより先に出す。ウィンドウの親にするため Loaded で出す
+        if (_settings.LoadProblem is { } problem)
+        {
+            Loaded += (_, _) => MessageBox.Show(
+                this,
+                Strings.SettingsUnreadable(problem.FilePath, problem.KeptPath, problem.Failure),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
 
         // 引数で書庫を渡された場合はそれを開く。
         // ウィンドウが出来上がってからでないとエラー表示の親にできないため Loaded で行う。
@@ -571,8 +581,8 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 最近使った書庫
 
-    /// <summary>履歴に残す件数。</summary>
-    private const int RecentLimit = 10;
+    /// <summary>履歴に残す件数。設定を読むときも同じ数で切る (#399)。</summary>
+    private const int RecentLimit = SettingsStore.RecentLimit;
 
     private void RecentButton_Click(object sender, RoutedEventArgs e)
     {
@@ -9246,8 +9256,10 @@ public partial class MainWindow : Window
             ? string.Empty
             : DataProtection.Protect(entered.ApiKey) ?? string.Empty;
 
-        SettingsStore.TrySave(_settings);
-        StatusMessage.Text = Strings.AiSaved;
+        // 保存していないのに「保存しました」と出さない。次の起動で消えているため (#399)
+        StatusMessage.Text = SettingsStore.TrySave(_settings) ? Strings.AiSaved
+            : _settings.LoadProblem is not null ? Strings.AiNotSavedUnreadable
+            : Strings.AiNotSaved;
     }
 
     // ------------------------------------------------------------ お手本からのルール推定 (#25)

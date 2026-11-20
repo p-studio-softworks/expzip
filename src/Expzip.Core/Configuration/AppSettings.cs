@@ -1,4 +1,5 @@
-﻿using Expzip.Localization;
+﻿using System.Text.Json.Serialization;
+using Expzip.Localization;
 using Expzip.Speed;
 
 namespace Expzip.Configuration;
@@ -75,4 +76,37 @@ internal sealed class AppSettings
     /// </summary>
     /// <remarks>次に開いたときにも前の結果を見られるように残す。</remarks>
     public SpeedResult? SpeedResult { get; set; }
+
+    /// <summary>
+    /// 設定ファイルがあったのに読めず、既定の値で作ったもの (#399)。読めていれば null。設定ファイルには書かない。
+    /// </summary>
+    /// <remarks>
+    /// これが付いた設定は保存しない (<see cref="SettingsStore.TrySave(AppSettings)"/>)。
+    /// 保存すると、読めなかった設定ファイルが既定の値で上書きされる。
+    /// <see cref="LoadProblem"/> を読んだ設定そのものに持たせ、別の場所の状態に頼らない。
+    /// </remarks>
+    [JsonIgnore]
+    internal SettingsLoadProblem? LoadProblem { get; set; }
+}
+
+/// <summary>設定ファイルを読めなかったこと (#399)。</summary>
+/// <param name="FilePath">読めなかった設定ファイル。</param>
+/// <param name="KeptPath">中身を写して残したファイル。残せなかった、または中身を読めなかったなら null。</param>
+/// <param name="Failure">読めなかった理由。知らせる文を分ける。</param>
+internal sealed record SettingsLoadProblem(string FilePath, string? KeptPath, SettingsLoadFailure Failure);
+
+/// <summary>設定ファイルを読めなかった理由 (#399)。</summary>
+/// <remarks>
+/// 中身を開けなかったときは、中身は無事かもしれない。「削除すると」と勧めないよう、壊れているときと分ける。
+/// </remarks>
+internal enum SettingsLoadFailure
+{
+    /// <summary>中身が設定として読めない (壊れている、大きすぎる)。</summary>
+    Damaged,
+
+    /// <summary>ほかのプログラムが開いていて読めない。閉じれば次の起動で読める。</summary>
+    InUse,
+
+    /// <summary>アクセス権が無い、同じ名前のフォルダーがある、など。起動し直しても読めない。</summary>
+    Inaccessible,
 }
