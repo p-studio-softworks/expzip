@@ -47,14 +47,28 @@ internal static class ZipUpdate
     /// 書庫のコメントの読み方。別の書庫として作り直すときは、書き出す側にも同じものを渡す。
     /// 読んだときのバイト列のまま書き戻せる (#197)。
     /// </param>
+    /// <exception cref="SplitDirectoryException">
+    /// 索引が 2 つある書庫 (#396)。SharpZipLib は一覧と別の索引を読むので、書き換えると一覧の項目が消える。
+    /// </exception>
+    /// <exception cref="PrefixedZipEditException">
+    /// 先頭にずれのある書庫 (#396)。SharpZipLib には先頭を隠さずに渡すので、ZIP64 では一覧と別の索引を読む。
+    /// </exception>
+    /// <remarks>
+    /// 確かめてから SharpZipLib が開き直すまでのあいだに置き換わると、確かめは効かない。SharpZipLib の書き換えは
+    /// パスで開く作りで、確かめた流れを渡せない。
+    /// </remarks>
     public static SharpZipFile Open(string archivePath, string? password, VerbatimText comment)
-        => new(archivePath)
+    {
+        ZipPrefix.EnsureEditable(archivePath);
+
+        return new(archivePath)
         {
             Password = password,
             // 書き換えは、いつもの読み方の書庫だけ。選び直した書庫は書き換えない (#335)
             StringCodec = StringCodec.FromEncoding(NameReading.Default.Encoding)
                 .WithZipArchiveCommentEncoding(comment),
         };
+    }
 
     /// <summary>書き出す1件分のエントリを組み立てる。</summary>
     /// <param name="name">書庫内での名前。区切りは <c>/</c>。</param>

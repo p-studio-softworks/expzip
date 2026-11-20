@@ -57,6 +57,19 @@ internal static class SfxWriter
             return SfxRejection.Split;
         }
 
+        // 索引が 2 つある書庫を写すと、自己解凍のプログラムが一覧と別の中身を展開しうる (#396)
+        if (contents.HasSplitDirectory)
+        {
+            return SfxRejection.SplitDirectory;
+        }
+
+        // 自己解凍のプログラムは ZIP64 の記録を読まない。位置の記録のある書庫では、目録の場所を取り違え、
+        // 一覧に無い中身を展開しうる (#396)。正しく作られた書庫で位置の記録を持つものは、下の件数の上限にも当たる
+        if (ZipPrefix.HasZip64Locator(contents.FilePath))
+        {
+            return SfxRejection.Zip64;
+        }
+
         if (contents.RequiresPassword || contents.HasEncryptedEntries)
         {
             return SfxRejection.Encrypted;
@@ -98,6 +111,19 @@ internal static class SfxWriter
 
         using var source = File.OpenRead(archivePath);
 
+        // 断るかを決めたあと、保存先を尋ねている間に置き換わっていることがある。写す流れの上で確かめ直す (#396)
+        if (ZipPrefix.Agreement(source) == ZipDirectories.Split)
+        {
+            throw new SfxRejectedException(SfxRejection.SplitDirectory);
+        }
+
+        if (ZipPrefix.HasZip64Locator(source))
+        {
+            throw new SfxRejectedException(SfxRejection.Zip64);
+        }
+
+        source.Position = 0;
+
         // 途中で止められても、書きかけは残らず、同じ名前の既にあるファイルも消えない (#320)。
         // 書庫に付いていた MotW は、書き出したものにも引き継ぐ (#12 と同じ考え方)。
         // 出所の分からないものから作った実行ファイルを、素性の確かなものに見せない
@@ -108,6 +134,13 @@ internal static class SfxWriter
     }
 }
 
+/// <summary>作り始めてから、自己解凍書庫にできないと分かった (#396)。</summary>
+internal sealed class SfxRejectedException(SfxRejection reason)
+    : IOException($"The archive cannot be made self-extracting: {reason}.")
+{
+    public SfxRejection Reason { get; } = reason;
+}
+
 /// <summary>自己解凍書庫にできない理由 (#29)。</summary>
 internal enum SfxRejection
 {
@@ -116,6 +149,12 @@ internal enum SfxRejection
 
     /// <summary>分割された書庫。</summary>
     Split,
+
+    /// <summary>索引が 2 つあり、読むソフトによって別の中身が出る (#396)。</summary>
+    SplitDirectory,
+
+    /// <summary>ZIP64 の形で書かれている。自己解凍のプログラムは ZIP64 の記録を読まない (#396)。</summary>
+    Zip64,
 
     /// <summary>もう自己解凍書庫になっている。</summary>
     AlreadySelfExtracting,

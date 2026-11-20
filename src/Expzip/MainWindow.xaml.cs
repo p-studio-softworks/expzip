@@ -547,6 +547,15 @@ public partial class MainWindow : Window
                 AppName, MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        // 索引が 2 つある書庫は、開いた時点で知らせる (#396)。検査をせずにハッシュ値だけを見る人にも伝わるように
+        if (contents.HasSplitDirectory && !quiet)
+        {
+            MessageBox.Show(
+                this,
+                Strings.SplitDirectoryNotice,
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         // パスが通常ではない項目を含む書庫は、開いた時点で気付けるようにする (#36)。
         // 一覧から隠すのではなく警告を添える。隠すと書庫に何が入っているかを
         // 確認できなくなり、かえって危険なため。
@@ -2614,6 +2623,12 @@ public partial class MainWindow : Window
         if (contents.RequiresPassword)
         {
             parts.Add(contents.UsesAes ? Strings.LimitEncryptedAes : Strings.LimitEncrypted);
+        }
+
+        // 一覧の表示だけができる理由を添える (#396)
+        if (contents.HasSplitDirectory)
+        {
+            parts.Add(Strings.LimitSplitDirectory);
         }
 
         // 分割された書庫は、断片が何個あるかまで出す (#61)。揃っていないと

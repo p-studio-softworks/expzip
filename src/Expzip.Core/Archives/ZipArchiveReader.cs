@@ -48,7 +48,8 @@ internal static class ZipArchiveReader
         // 暗号化されているかを先に調べる (#20)。
         // 「開いてみて駄目なら暗号化」では旧方式 (ZipCrypto) を見逃す。あちらは
         // 圧縮方式が変わらないため開けてしまい、復号されない中身がそのまま出てくる。
-        // 中央ディレクトリをもう一度なめる費用を払ってでも、確実に見分ける
+        // 中央ディレクトリをもう一度なめる費用を払ってでも、確実に見分ける。
+        // 索引が 2 つある書庫では SharpZipLib が別の索引を読むので、暗号化されていないとして扱い、パスワードを求めない (#396)
         var encryption = ZipEncryption.Inspect(path);
 
         // どのエントリが保護されているかを名前で引き当てるのは、
@@ -61,8 +62,13 @@ internal static class ZipArchiveReader
         // もう 1 回読み直すと、#294 の守り (項目の数の上限など) の外で読むことになる
         var recorder = new NameBytesRecorder(names.Encoding);
 
-        // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)
-        using var stream = ZipPrefix.Open(path);
+        // 自己解凍書庫は先頭にプログラムが付いている。その分を隠して渡す (#32)。
+        // 索引が 2 つある書庫も一覧は見せる。一覧は展開と同じ .NET の部品で読む (#396)
+        using var stream = ZipPrefix.OpenForListing(path, out var split);
+
+        // 先頭にずれのある書庫は、先頭が局所ヘッダーの署名で始まっていても自己解凍書庫として扱い、書き換えない。
+        // 書き換えの部品は先頭を隠さずに読むので、ZIP64 では一覧と別の目録を読む (#396)
+        var prefixed = stream is OffsetStream;
         using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false, recorder);
 
         var entries = zip.Entries;
@@ -129,9 +135,10 @@ internal static class ZipArchiveReader
             hasEncryptedEntries: encryption.IsEncrypted,
             requiresPassword: encryption.IsEncrypted,
             usesAes: encryption.UsesAes,
-            isSelfExtracting: ZipPrefix.HasPrefix(path),
+            isSelfExtracting: prefixed || ZipPrefix.HasPrefix(path),
             comment: ZipComment.Read(path, names));
         contents.Names = names;
+        contents.HasSplitDirectory = split;
         contents.LegacyNameBytes = recorder.Recorded;
         contents.LinkCount = links;
         contents.Links = linkTable;

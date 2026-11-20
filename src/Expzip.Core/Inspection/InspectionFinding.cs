@@ -23,6 +23,11 @@ internal enum InspectionIssue
     /// <summary>書庫の末尾に、書庫ではないデータが続いている。</summary>
     TrailingData,
 
+    /// <summary>
+    /// 書庫の索引 (中央ディレクトリ) が 2 つあり、読む部品によって別の中身が出る (#396)。中身は検査しない。
+    /// </summary>
+    SplitDirectory,
+
     /// <summary>対応していない圧縮方式で、中身を取り出せない。</summary>
     UnsupportedMethod,
 
@@ -171,6 +176,7 @@ internal static class InspectionIssues
         InspectionIssue.CrcMismatch => InspectionSeverity.Danger,
         InspectionIssue.HeaderMismatch => InspectionSeverity.Danger,
         InspectionIssue.Truncated => InspectionSeverity.Danger,
+        InspectionIssue.SplitDirectory => InspectionSeverity.Danger,
         InspectionIssue.Unreadable => InspectionSeverity.Danger,
         InspectionIssue.EscapingPath => InspectionSeverity.Danger,
         InspectionIssue.BidiOverride => InspectionSeverity.Danger,

@@ -210,6 +210,13 @@ internal static class ContentInspector
         {
             zip = OpenZip(context);
         }
+        catch (SplitDirectoryException)
+        {
+            // 索引が 2 つある書庫は、中身を読まない。読むと、展開されないほうの中身を調べた結果が出る。
+            // ふつうは構造の検査が知らせている。構造の検査のあとで置き換わったときは、ここで知らせる (#396)
+            context.ReportSplitDirectory();
+            return;
+        }
         catch (Exception ex) when (ex is ZipException or IOException or InvalidDataException
                                    or UnauthorizedAccessException or NotSupportedException)
         {

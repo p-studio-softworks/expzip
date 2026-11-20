@@ -191,6 +191,11 @@ internal static class ZipComment
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read);
 
+        // 索引が 2 つある書庫では、部品が読まない終わりの記録を書き換えることがある。
+        // 書き換えると次に開いたときから一覧の中身が入れ替わるので、書かない (#396)。
+        // 書くために開いた流れの上で確かめ、そのあいだに置き換わらないようにする
+        ZipPrefix.EnsureAgreed(stream);
+
         if (Locate(stream) is not { } end)
         {
             throw new InvalidDataException("The end of central directory record was not found.");

@@ -40,6 +40,15 @@ internal static class ZipPrefix
     /// <summary>中央ディレクトリの署名。中身が空の書庫での答え合わせに使う。</summary>
     private const uint DirectorySignature = 0x02014b50;
 
+    /// <summary>ZIP64 の終わりの記録の位置の記録の署名。</summary>
+    private const uint Zip64LocatorSignature = 0x07064b50;
+
+    /// <summary>ZIP64 の終わりの記録の位置の記録の長さ。</summary>
+    private const int LocatorLength = 20;
+
+    /// <summary>ZIP64 の終わりの記録の固定部の長さ。</summary>
+    private const int Zip64EndLength = 56;
+
     /// <summary>終端レコードの固定部の長さ。</summary>
     private const int EndLength = 22;
 
@@ -69,14 +78,109 @@ internal static class ZipPrefix
 
     /// <summary>ZIP の中身だけを見せる流れを開く。</summary>
     /// <remarks>
-    /// ふつうの ZIP では、そのままのファイルを返す。
+    /// <para>ふつうの ZIP では、そのままのファイルを返す。</para>
+    /// <para>
+    /// 部品によって読む目録が違う書庫は開かない (#396)。一覧に出ていない中身を、検査、ハッシュ値、展開、書き換えで
+    /// 読まないように、中身を読む道はすべてここを通す。一覧を読むときだけ <see cref="OpenForListing"/> を使う。
+    /// </para>
     /// </remarks>
+    /// <exception cref="SplitDirectoryException">部品によって読む目録が違う場合。</exception>
     public static Stream Open(string path)
     {
-        var offset = Detect(path);
-        var stream = ArchiveFile.OpenRead(path);
+        var stream = OpenForListing(path, out var split);
+        if (split)
+        {
+            stream.Dispose();
+            throw new SplitDirectoryException();
+        }
 
-        return offset > 0 ? new OffsetStream(stream, offset) : stream;
+        return stream;
+    }
+
+    /// <summary>
+    /// 書き換えの部品 (SharpZipLib) にそのまま渡してよい ZIP かを確かめる (#396)。
+    /// </summary>
+    /// <remarks>
+    /// 書き換えの部品は <see cref="Open"/> を通らずにファイルを開き、先頭を隠さない。部品によって読む目録が違う書庫と、
+    /// 先頭にずれのある書庫は書き換えない。ずれのある ZIP64 の書庫では、SharpZipLib が一覧と別の目録を読む。
+    /// </remarks>
+    /// <exception cref="SplitDirectoryException">部品によって読む目録が違う場合。</exception>
+    /// <exception cref="PrefixedZipEditException">先頭にずれがある場合。</exception>
+    public static void EnsureEditable(string path)
+    {
+        using var stream = ArchiveFile.OpenRead(path);
+        var (shift, state) = TryExamine(stream);
+
+        if (state == ZipDirectories.Split)
+        {
+            throw new SplitDirectoryException();
+        }
+
+        if (shift != 0)
+        {
+            throw new PrefixedZipEditException();
+        }
+    }
+
+    /// <summary>部品によって読む目録が違う書庫なら、<see cref="SplitDirectoryException"/> を投げる (#396)。</summary>
+    /// <remarks>
+    /// 書くために開いた流れの上で確かめる。確かめてから開き直すと、そのあいだに置き換わったファイルに書いてしまう。
+    /// 流れの位置は動く。
+    /// </remarks>
+    public static void EnsureAgreed(Stream stream)
+    {
+        if (Agreement(stream) == ZipDirectories.Split)
+        {
+            throw new SplitDirectoryException();
+        }
+    }
+
+    /// <summary>部品がそろって同じ目録を読むか (#396)。流れの位置は動く。</summary>
+    public static ZipDirectories Agreement(Stream stream) => TryExamine(stream).State;
+
+    /// <summary>
+    /// 終わりの記録の直前に ZIP64 の位置の記録があるか (#396)。読めなければ <see langword="false"/>。
+    /// </summary>
+    /// <remarks>
+    /// 自己解凍のプログラムは ZIP64 の記録を読まない。位置の記録のある書庫では、ほかの部品と別の目録を読みうる。
+    /// </remarks>
+    public static bool HasZip64Locator(string path)
+    {
+        try
+        {
+            using var stream = ArchiveFile.OpenRead(path);
+            return HasZip64Locator(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>終わりの記録の直前に ZIP64 の位置の記録があるか (#396)。流れの位置は動く。</summary>
+    public static bool HasZip64Locator(Stream stream)
+    {
+        try
+        {
+            var length = stream.Length;
+            if (length < EndLength)
+            {
+                return false;
+            }
+
+            var window = (int)Math.Min(length, SearchLength);
+            var buffer = new byte[window];
+            stream.Position = length - window;
+            stream.ReadExactly(buffer);
+
+            var i = FindEnd(stream, buffer, length);
+            return i >= 0 && HasSignature(stream, length - window + i - LocatorLength, Zip64LocatorSignature);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException
+                                   or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -143,13 +247,86 @@ internal static class ZipPrefix
         }
     }
 
-    private static long Detect(Stream stream)
+    /// <summary>
+    /// 部品 (.NET、SharpZipLib、SharpCompress) がそろって同じ目録を読むかを確かめる (#396)。
+    /// </summary>
+    /// <remarks>読めないときは <see cref="ZipDirectories.Unknown"/>。</remarks>
+    public static ZipDirectories Examine(string path)
+    {
+        try
+        {
+            using var stream = ArchiveFile.OpenRead(path);
+            return TryExamine(stream).State;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                                   or NotSupportedException)
+        {
+            return ZipDirectories.Unknown;
+        }
+    }
+
+    /// <summary>
+    /// 一覧を読むために開く。目録が食い違っていても開き、そのことを <paramref name="split"/> で返す (#396)。
+    /// </summary>
+    /// <remarks>一覧と展開は .NET の部品で読み、どちらも同じ目録を読む。一覧だけは見せる。</remarks>
+    public static Stream OpenForListing(string path, out bool split)
+    {
+        var stream = ArchiveFile.OpenRead(path);
+        try
+        {
+            var (shift, state) = TryExamine(stream);
+            split = state == ZipDirectories.Split;
+            stream.Position = 0;
+            return shift > 0 ? new OffsetStream(stream, shift) : stream;
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>確かめる。末尾が読めないときは、いままでと同じく「ずれ無し、確かめられない」とする。</summary>
+    private static (long Shift, ZipDirectories State) TryExamine(Stream stream)
+    {
+        try
+        {
+            return Examine(stream);
+        }
+        catch (Exception ex) when (ex is EndOfStreamException or ArgumentException or NotSupportedException
+                                   or OverflowException)
+        {
+            return (0, ZipDirectories.Unknown);
+        }
+    }
+
+    private static long Detect(Stream stream) => TryExamine(stream).Shift;
+
+    /// <summary>
+    /// 先頭のずれを求め、部品がそろって同じ目録を読むかを確かめる (#396)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 書庫の作りが仕様に合っているかではなく、部品がどこを読むかで決める。部品ごとの読み方の違いは次のとおり。
+    /// </para>
+    /// <list type="bullet">
+    /// <item>終わりの記録: <see cref="FindEnd"/> はコメントの長さと辻褄の合うものを選ぶが、部品は後ろから最初の署名を使う</item>
+    /// <item>目録の位置: SharpZipLib は、ZIP64 として読まない書庫で目録が終わりの記録の直前で終わっていないと、
+    /// 直前で終わる位置に読み直す。.NET は書かれた位置を読む</item>
+    /// <item>ZIP64: SharpZipLib は位置の記録があれば ZIP64 の値を使い、.NET は 32 ビットの欄に目印の値があるときだけ使う</item>
+    /// </list>
+    /// <para>
+    /// そこで、終わりの記録の選び方がそろい、目録がちょうど直前 (ZIP64 なら ZIP64 の記録の直前) で終わり、
+    /// 32 ビットの欄が目印の値か ZIP64 の値と同じで、求めた先頭のずれをそのまま隠せるときだけ、そろうとする。
+    /// </para>
+    /// </remarks>
+    private static (long Shift, ZipDirectories State) Examine(Stream stream)
     {
         var length = stream.Length;
 
         if (length < EndLength)
         {
-            return 0;
+            return (0, ZipDirectories.Unknown);
         }
 
         var window = (int)Math.Min(length, SearchLength);
@@ -160,24 +337,93 @@ internal static class ZipPrefix
         var i = FindEnd(stream, buffer, length);
         if (i < 0)
         {
-            return 0;
+            return (0, ZipDirectories.Unknown);
         }
 
-        var end = length - window + i;
-        long directorySize = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i + 12));
-        long directoryOffset = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i + 16));
+        var layout = ReadLayout(stream, buffer.AsSpan(i), length - window + i);
+        var shift = Shift(stream, layout);
 
-        // ZIP64 の書庫はここに 0xFFFFFFFF が入り、本当の値は別のレコードにある
-        if (directorySize == uint.MaxValue || directoryOffset == uint.MaxValue)
+        // 部品は、コメントの長さを見ずに後ろから最初の署名を使う
+        if (LastEnd(buffer) != i)
         {
-            if (!TryReadZip64(stream, length, out directorySize, out directoryOffset))
+            return (shift, ZipDirectories.Split);
+        }
+
+        if (layout.State != ZipDirectories.Agree)
+        {
+            return (shift, layout.State);
+        }
+
+        // 求めた先頭のずれを隠せないと、SharpZipLib は自分で読む位置を直し、.NET は書かれた位置を読む
+        return layout.Start >= 0 && layout.Start == shift
+            ? (shift, ZipDirectories.Agree)
+            : (shift, ZipDirectories.Split);
+    }
+
+    /// <summary>後ろから最初に見つかる終わりの記録の署名の位置。部品はこれを使う。無ければ -1。</summary>
+    private static int LastEnd(ReadOnlySpan<byte> buffer)
+    {
+        for (var i = buffer.Length - EndLength; i >= 0; i--)
+        {
+            if (BinaryPrimitives.ReadUInt32LittleEndian(buffer[i..]) == EndSignature)
             {
-                return 0;
+                return i;
             }
         }
 
-        return Shift(stream, end, directorySize, directoryOffset);
+        return -1;
     }
+
+    /// <summary>終わりの記録から辿った目録の場所。</summary>
+    /// <param name="DirectoryEnd">目録が終わっているはずの位置 (ファイルの先頭から)。ZIP64 では ZIP64 の記録の位置、そうでなければ終わりの記録の位置。</param>
+    /// <param name="Size">目録の大きさ。</param>
+    /// <param name="Offset">書かれた目録の位置 (ZIP の始まりから)。</param>
+    /// <param name="State">終わりの記録の欄どうしが同じ目録を指すか。</param>
+    private readonly record struct Layout(long DirectoryEnd, long Size, long Offset, ZipDirectories State)
+    {
+        /// <summary>目録がちょうど <see cref="DirectoryEnd"/> で終わるとしたときの、先頭のずれ。</summary>
+        public long Start => DirectoryEnd - Size - Offset;
+    }
+
+    /// <summary>終わりの記録 (<paramref name="end"/> の位置、中身は <paramref name="record"/>) から、目録の場所を読む。</summary>
+    private static Layout ReadLayout(Stream stream, ReadOnlySpan<byte> record, long end)
+    {
+        var disk = BinaryPrimitives.ReadUInt16LittleEndian(record[4..]);
+        var directoryDisk = BinaryPrimitives.ReadUInt16LittleEndian(record[6..]);
+        var diskEntries = BinaryPrimitives.ReadUInt16LittleEndian(record[8..]);
+        var entries = BinaryPrimitives.ReadUInt16LittleEndian(record[10..]);
+        var size = BinaryPrimitives.ReadUInt32LittleEndian(record[12..]);
+        var offset = BinaryPrimitives.ReadUInt32LittleEndian(record[16..]);
+
+        switch (ReadZip64(stream, end, out var zip64))
+        {
+            case Zip64Found.Yes:
+                // 32 ビットの欄は目印の値か、ZIP64 の記録と同じ値。どの部品がどちらの値を採っても同じ目録を読む。
+                // 目録は ZIP64 の記録のちょうど直前で終わる
+                var agree = Same(disk, zip64.Disk) && Same(directoryDisk, zip64.DirectoryDisk)
+                            && Same(diskEntries, zip64.DiskEntries) && Same(entries, zip64.Entries)
+                            && Same(size, zip64.Size) && Same(offset, zip64.Offset)
+                            && zip64.Offset + zip64.Size == zip64.Recorded;
+                return new Layout(zip64.Position, zip64.Size, zip64.Offset,
+                    agree ? ZipDirectories.Agree : ZipDirectories.Split);
+
+            case Zip64Found.Broken:
+                // 位置の記録はあるのに、ZIP64 の記録が辿れない。SharpZipLib と .NET で読み方が分かれる
+                return new Layout(end, size, offset, ZipDirectories.Split);
+
+            default:
+                // 目印の値があるのに ZIP64 の記録が無い。どの部品も開けない
+                var marked = diskEntries == ushort.MaxValue || entries == ushort.MaxValue
+                             || size == uint.MaxValue || offset == uint.MaxValue;
+                return new Layout(end, size, offset, marked ? ZipDirectories.Unknown : ZipDirectories.Agree);
+        }
+    }
+
+    /// <summary>16 ビットの欄が、目印の値か ZIP64 の記録と同じ値か。</summary>
+    private static bool Same(ushort value, long full) => value == ushort.MaxValue || value == full;
+
+    /// <summary>32 ビットの欄が、目印の値か ZIP64 の記録と同じ値か。</summary>
+    private static bool Same(uint value, long full) => value == uint.MaxValue || value == full;
 
     /// <summary>
     /// 末尾を読んだ <paramref name="buffer"/> の中から、終端レコードの位置を探す。無ければ -1。
@@ -241,55 +487,105 @@ internal static class ZipPrefix
         return exact >= 0 ? exact : fallback;
     }
 
-    /// <summary>ZIP64 の終端レコードから、中央ディレクトリの大きさと位置を読む。</summary>
-    private static bool TryReadZip64(Stream stream, long length, out long size, out long offset)
+    private enum Zip64Found
     {
-        size = 0;
-        offset = 0;
+        /// <summary>位置の記録が無い。ZIP64 の書庫ではない。</summary>
+        No,
 
-        // 終端レコードの手前あたりを後ろから探す。位置を辿る道もあるが、
-        // その位置自体がずれている可能性があるため、署名で探すほうが確実
-        var window = (int)Math.Min(length, SearchLength + 4096);
+        /// <summary>位置の記録が指す ZIP64 の記録を読めた。</summary>
+        Yes,
+
+        /// <summary>位置の記録はあるが、ZIP64 の記録が位置の記録の直前に無い。</summary>
+        Broken,
+    }
+
+    /// <summary>ZIP64 の終わりの記録の中身。</summary>
+    /// <param name="Position">ZIP64 の記録の位置 (ファイルの先頭から)。</param>
+    /// <param name="Recorded">位置の記録に書かれた ZIP64 の記録の位置 (ZIP の始まりから)。</param>
+    private readonly record struct Zip64Record(
+        long Position, long Recorded, long Disk, long DirectoryDisk, long DiskEntries, long Entries, long Size, long Offset);
+
+    /// <summary>
+    /// 終わりの記録の直前にある位置の記録と、その直前にある ZIP64 の終わりの記録を読む。
+    /// </summary>
+    /// <remarks>
+    /// 部品は終わりの記録のちょうど 20 バイト前に位置の記録を探す。ZIP64 の記録は長さが変わるので、
+    /// 長さの欄の値で終わりがちょうど位置の記録に合うものを、後ろから探す。以前は署名だけで探しており、
+    /// ZIP64 の記録が 2 つあると部品と別のものを読んでいた (#396)。
+    /// </remarks>
+    private static Zip64Found ReadZip64(Stream stream, long end, out Zip64Record record)
+    {
+        record = default;
+        var locator = end - LocatorLength;
+
+        if (!HasSignature(stream, locator, Zip64LocatorSignature))
+        {
+            return Zip64Found.No;
+        }
+
+        Span<byte> head = stackalloc byte[LocatorLength];
+        stream.Position = locator;
+        stream.ReadExactly(head);
+        var recorded = BinaryPrimitives.ReadInt64LittleEndian(head[8..]);
+
+        var window = (int)Math.Min(locator, SearchLength);
         var buffer = new byte[window];
-        stream.Position = length - window;
+        stream.Position = locator - window;
         stream.ReadExactly(buffer);
 
-        for (var i = window - 56; i >= 0; i--)
+        for (var i = window - Zip64EndLength; i >= 0; i--)
         {
-            if (BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i)) != Zip64EndSignature)
+            if (BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(i)) != Zip64EndSignature
+                || BinaryPrimitives.ReadUInt64LittleEndian(buffer.AsSpan(i + 4)) != (ulong)(window - i - 12))
             {
                 continue;
             }
 
-            size = BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(i + 40));
-            offset = BinaryPrimitives.ReadInt64LittleEndian(buffer.AsSpan(i + 48));
-            return size >= 0 && offset >= 0;
+            var r = buffer.AsSpan(i);
+            record = new Zip64Record(
+                locator - window + i,
+                recorded,
+                BinaryPrimitives.ReadUInt32LittleEndian(r[16..]),
+                BinaryPrimitives.ReadUInt32LittleEndian(r[20..]),
+                BinaryPrimitives.ReadInt64LittleEndian(r[24..]),
+                BinaryPrimitives.ReadInt64LittleEndian(r[32..]),
+                BinaryPrimitives.ReadInt64LittleEndian(r[40..]),
+                BinaryPrimitives.ReadInt64LittleEndian(r[48..]));
+
+            return record.Size >= 0 && record.Offset >= 0 && record.Recorded >= 0
+                ? Zip64Found.Yes
+                : Zip64Found.Broken;
         }
 
-        return false;
+        return Zip64Found.Broken;
     }
 
     /// <summary>ずれ幅を求め、そこが本当に ZIP の始まりかを確かめる。</summary>
-    private static long Shift(Stream stream, long endPosition, long size, long offset)
+    /// <remarks>
+    /// 目録は <see cref="Layout.DirectoryEnd"/> のちょうど直前で終わっているはず。ZIP64 では ZIP64 の記録の直前で、
+    /// 以前は終わりの記録の直前として計算しており、ずれを ZIP64 の記録の分だけ多く見積もっていた (#396)。
+    /// </remarks>
+    private static long Shift(Stream stream, Layout layout)
     {
-        var actual = endPosition - size;
-        var shift = actual - offset;
+        var actual = layout.DirectoryEnd - layout.Size;
+        var shift = actual - layout.Offset;
 
         if (shift <= 0 || actual < 0 || shift >= stream.Length)
         {
             return 0;
         }
 
-        // 求めた位置に中央ディレクトリが、ずらした先頭に局所ヘッダがあるか。
-        // どちらも合って初めて、ずれ幅を信じる
-        if (!HasSignature(stream, actual, DirectorySignature)
-            && !HasSignature(stream, endPosition, EndSignature))
+        // 中身が空の書庫では目録も局所ヘッダーも無い。終わりの記録の照合で十分
+        if (layout.Size == 0)
         {
-            return 0;
+            return shift;
         }
 
-        // 中身が空の書庫では局所ヘッダが無い。その場合はここまでの照合で十分
-        return size == 0 || HasSignature(stream, shift, LocalSignature) ? shift : 0;
+        // 求めた位置に目録が、ずらした先頭に局所ヘッダーがあるか。どちらも合って初めて、ずれ幅を信じる。
+        // 以前は目録の照合を「または」で書いていて、いつも通っていた (#396)
+        return HasSignature(stream, actual, DirectorySignature) && HasSignature(stream, shift, LocalSignature)
+            ? shift
+            : 0;
     }
 
     private static bool HasSignature(Stream stream, long position, uint signature)

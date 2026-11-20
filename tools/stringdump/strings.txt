@@ -1510,6 +1510,9 @@ InspectionMessage (issue: Truncated, detail: 画像/2024/写真.jpg)
 InspectionMessage (issue: TrailingData, detail: 画像/2024/写真.jpg)
   ja  書庫の末尾のあとに、書庫ではないデータが ⟦画像/2024/写真.jpg⟧ バイトあります
   en  ⟦画像/2024/写真.jpg⟧ bytes that are not part of the archive follow its end
+InspectionMessage (issue: SplitDirectory, detail: 画像/2024/写真.jpg)
+  ja  書庫に索引が 2 つあり、読むソフトによって別の中身が出ます。中身は検査していません
+  en  The archive has two indexes, and different programs show different contents from it. The contents were not checked
 InspectionMessage (issue: UnsupportedMethod, detail: 画像/2024/写真.jpg)
   ja  対応していない圧縮方式のため展開できません (⟦画像/2024/写真.jpg⟧)
   en  Stored with a compression method Expzip cannot read (⟦画像/2024/写真.jpg⟧)
@@ -1655,6 +1658,10 @@ LimitSelfExtracting (format: 7z)
 LimitSplit (count: 3)
   ja  分割された書庫 / 3 個の分割ファイル
   en  split archive / 3 volumes
+
+LimitSplitDirectory
+  ja  索引が 2 つある書庫
+  en  archive with two indexes
 
 LimitTailUnopened
   ja  後ろのデータは開けません
@@ -3096,6 +3103,12 @@ SfxRejected (reason: NotZip)
 SfxRejected (reason: Split)
   ja  分割された書庫は自己解凍書庫にできません。
   en  A split archive cannot be made self-extracting.
+SfxRejected (reason: SplitDirectory)
+  ja  この書庫には索引が 2 つあり、読むソフトによって別の中身が出ます。安全のため、一覧の表示だけができます。
+  en  This archive has two indexes, and different programs show different contents from it. For safety, you can only view its list.
+SfxRejected (reason: Zip64)
+  ja  この書庫は ZIP64 の形で書かれているため、自己解凍書庫にできません。
+  en  This archive is written in the ZIP64 form, so it cannot be made self-extracting.
 SfxRejected (reason: AlreadySelfExtracting)
   ja  この書庫は既に自己解凍書庫です。
   en  This archive is already self-extracting.
@@ -3411,6 +3424,18 @@ SplitDestinationMissing
 SplitDestinationTitle
   ja  分割ファイルの保存先を選択
   en  Choose where to put the pieces
+
+SplitDirectoryNotice
+  ja  この書庫には索引が 2 つあり、読むソフトによって別の中身が出ます。わざと作られた書庫のおそれがあります。
+      | 
+      | 安全のため、この書庫は一覧の表示だけができます。中のファイルを開くこと、展開すること、ハッシュ値を計算することと、書庫の書き換えはできません。
+  en  This archive has two indexes, and different programs show different contents from it. It may have been made this way on purpose.
+      | 
+      | For safety, you can only view the list of this archive. You cannot open or extract the files in it, calculate their hash values or change the archive.
+
+SplitDirectoryReason
+  ja  この書庫には索引が 2 つあり、読むソフトによって別の中身が出ます。安全のため、一覧の表示だけができます。
+  en  This archive has two indexes, and different programs show different contents from it. For safety, you can only view its list.
 
 SplitDone (parts: 4, joiner: 資料.zip.exe, destination: C:\Users\user\Desktop\資料)
   ja  4 個に分割しました。

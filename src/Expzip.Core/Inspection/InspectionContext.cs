@@ -92,6 +92,25 @@ internal sealed class InspectionContext(
     public FindingCollector Findings { get; } = new();
 
     /// <summary>
+    /// 索引が 2 つある書庫だと知らせたか (#396)。構造の検査と中身の検査はファイルを別々に開くので、
+    /// あいだに置き換わったときは中身の検査が知らせる。2 回は出さない。
+    /// </summary>
+    public bool SplitDirectoryReported { get; set; }
+
+    /// <summary>索引が 2 つある書庫だと、まだ知らせていなければ知らせる (#396)。</summary>
+    public void ReportSplitDirectory()
+    {
+        lock (Findings)
+        {
+            if (!SplitDirectoryReported)
+            {
+                SplitDirectoryReported = true;
+                Findings.Add(InspectionIssue.SplitDirectory, string.Empty);
+            }
+        }
+    }
+
+    /// <summary>
     /// 中身から読んだリンクの指す先 (#391)。項目の番号 (<see cref="SequenceItem.Index"/>) から引く。
     /// 中身の検査が読み通すついでに入れ、<see cref="LinkInspector"/> が使う。書庫を 2 回読まないため。
     /// </summary>

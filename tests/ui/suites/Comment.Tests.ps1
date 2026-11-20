@@ -154,22 +154,29 @@ Check 'ASCII はそのまま' (Same (Get-RawComment $plain).Bytes $utf8.GetBytes
 Stop-Expzip $app
 
 Section 'コメントの中に終端レコードと同じ並びがある'
-# ほかのツールが書いたバイナリのコメント。中の並びを終端レコードと取り違えない (#263)
+# 中の並びを終端レコードと取り違えずに、コメント全体を読む (#263)。
+# ただし、ほかの部品は偽のほうを読むので、読む部品によって中身が分かれる。見るだけにする (#396)
 $tricky = New-TestZip (Join-Path $script:Work 'tricky.zip') ([ordered]@{ 'a.txt' = 'a' })
 $fake = [byte[]](0x50, 0x4B, 0x05, 0x06) + (New-Object byte[] 18)
-Set-RawComment $tricky ($utf8.GetBytes('ABCDE') + $fake + $utf8.GetBytes('tail'))
+$trickyComment = $utf8.GetBytes('ABCDE') + $fake + $utf8.GetBytes('tail')
+Set-RawComment $tricky $trickyComment
+$trickyBefore = [IO.File]::ReadAllBytes($tricky)
 $app = Start-Expzip @($tricky)
+$box = Find-MessageBox $app
+Check '開くと知らせる' ($null -ne $box -and $box.Text -match '索引が 2 つあり') $(if ($box) { $box.Text })
+if ($box) { Close-MessageBox $box 'OK' }
 $window = Open-Comment $app 'tricky.zip'
+Check 'コメントは開く' ($null -ne $window)
 if ($window) {
     $text = ValueOf (ById $window 'CommentBox')
     Check 'コメント全体を読む' ($text.StartsWith('ABCDEPK') -and $text.EndsWith('tail')) $text
-    Set-Text (ById $window 'CommentBox') 'fixed'
-    Push (ById $window 'SaveButton')
+    Check '書き換えられない' (IsReadOnly (ById $window 'CommentBox'))
+    $save = ById $window 'SaveButton'
+    Check '保存は出ない' ($null -eq $save -or $save.Current.IsOffscreen)
+    Push (ById $window 'CancelButton')
 }
 Wait-Idle $app
-$raw = Get-RawComment $tricky
-Check '本当のコメントの位置に書く' ((Same $raw.Bytes $utf8.GetBytes('fixed')) -and $raw.Trailing -eq 0) "$([BitConverter]::ToString($raw.Bytes)) / $($raw.Trailing)"
-Check '中のファイルはそのまま' (((Get-ZipNames $tricky) -join ', ') -eq 'a.txt') ((Get-ZipNames $tricky) -join ', ')
+Check '書庫はそのまま' (Same ([IO.File]::ReadAllBytes($tricky)) $trickyBefore)
 Stop-Expzip $app
 
 Section 'パスワード付きの書庫'

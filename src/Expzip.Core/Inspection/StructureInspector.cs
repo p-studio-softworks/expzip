@@ -27,6 +27,15 @@ internal static class StructureInspector
         if (ArchiveFormats.IsZipBased(context.Contents.Format))
         {
             CheckTail(context);
+
+            // 索引が 2 つある書庫は、照合の部品 (SharpZipLib) が一覧と別の索引を読む。照合の結果は
+            // 展開されるものを表さないので、照合せずに知らせる (#396)。開いたときと同じく、今のファイルで確かめる
+            if (ZipPrefix.Examine(context.ArchivePath) == ZipDirectories.Split)
+            {
+                context.ReportSplitDirectory();
+                return;
+            }
+
             CheckHeaders(context);
         }
     }

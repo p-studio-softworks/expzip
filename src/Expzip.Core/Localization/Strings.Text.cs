@@ -324,6 +324,27 @@ internal static partial class Strings
         $"分割された書庫 / {count:N0} 個の分割ファイル",
         $"split archive / {count:N0} volumes");
 
+    /// <summary>
+    /// 書庫の索引 (中央ディレクトリ) が 2 つあり、読むソフトによって別の中身が出ることの断り書き (#396)。
+    /// 「分割された書庫」とは別のもの。
+    /// </summary>
+    public static string LimitSplitDirectory => Pick("索引が 2 つある書庫", "archive with two indexes");
+
+    /// <summary>索引が 2 つある書庫を開いたときの知らせ (#396)。</summary>
+    public static string SplitDirectoryNotice => Pick(
+        $"この書庫には索引が 2 つあり、読むソフトによって別の中身が出ます。わざと作られた書庫のおそれがあります。"
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + "安全のため、この書庫は一覧の表示だけができます。中のファイルを開くこと、展開すること、ハッシュ値を計算することと、書庫の書き換えはできません。",
+        $"This archive has two indexes, and different programs show different contents from it. "
+        + "It may have been made this way on purpose."
+        + $"{Environment.NewLine}{Environment.NewLine}"
+        + "For safety, you can only view the list of this archive. You cannot open or extract the files in it, calculate their hash values or change the archive.");
+
+    /// <summary>索引が 2 つある書庫の中身を読もうとしたときの理由 (#396)。</summary>
+    public static string SplitDirectoryReason => Pick(
+        "この書庫には索引が 2 つあり、読むソフトによって別の中身が出ます。安全のため、一覧の表示だけができます。",
+        "This archive has two indexes, and different programs show different contents from it. For safety, you can only view its list.");
+
     /// <summary>断片が揃っていない場合 (#61)。</summary>
     public static string SplitVolumeMissing(string name) => Pick(
         $"分割ファイルが揃っていません。{name} が見つかりません。",
@@ -522,6 +543,7 @@ internal static partial class Strings
         SfxRejection.Split => Pick(
             "分割された書庫は自己解凍書庫にできません。",
             "A split archive cannot be made self-extracting."),
+        SfxRejection.SplitDirectory => SplitDirectoryReason,
         SfxRejection.AlreadySelfExtracting => Pick(
             "この書庫は既に自己解凍書庫です。",
             "This archive is already self-extracting."),
@@ -531,6 +553,11 @@ internal static partial class Strings
         SfxRejection.TooMany => Pick(
             "この書庫は項目が多すぎるため、自己解凍書庫にできません。",
             "This archive has too many entries to be made self-extracting."),
+
+        // 自己解凍のプログラムは ZIP64 の記録を読まないので、別の中央ディレクトリを読みうる (#396)
+        SfxRejection.Zip64 => Pick(
+            "この書庫は ZIP64 の形で書かれているため、自己解凍書庫にできません。",
+            "This archive is written in the ZIP64 form, so it cannot be made self-extracting."),
         _ => Pick(
             "この書庫は大きすぎるため、自己解凍書庫にできません。",
             "This archive is too large to be made self-extracting."),
@@ -2456,6 +2483,11 @@ internal static partial class Strings
             "書庫が途中で切れています",
             "The archive is cut short: it ends before the point its own index refers to"),
 
+        // 中身は読まない。一覧と展開されないほうの中身を調べた結果を出さないため (#396)
+        InspectionIssue.SplitDirectory => Pick(
+            "書庫に索引が 2 つあり、読むソフトによって別の中身が出ます。中身は検査していません",
+            "The archive has two indexes, and different programs show different contents from it. The contents were not checked"),
+
         InspectionIssue.TrailingData => Pick(
             $"書庫の末尾のあとに、書庫ではないデータが {detail} バイトあります",
             $"{detail} bytes that are not part of the archive follow its end"),
@@ -3245,6 +3277,17 @@ internal static partial class Strings
 
             Expzip.Archives.ArchiveTooLargeException => Pick(
                 "書庫の項目が多すぎます。", "The archive has too many items."),
+
+            // 壊れているのではなく、わざと作られた書庫 (#396)。「壊れています」より前に置く
+            Expzip.Archives.SplitDirectoryException => SplitDirectoryReason,
+
+            // 断るかを決めたあとで書庫が置き換わっていた (#396)
+            Expzip.Archives.SfxRejectedException rejected => SfxRejected(rejected.Reason),
+
+            // 画面からは書き換えられないので、ふつうは出ない (#396)
+            Expzip.Archives.PrefixedZipEditException => Pick(
+                "先頭にプログラムなどのデータが付いた書庫は書き換えられません。",
+                "An archive with a program or other data in front of it cannot be changed."),
 
             Expzip.Archives.EncryptedHeaderException => Pick(
                 "ファイル名まで暗号化された書庫は開けません。", "Archives with encrypted file names cannot be opened."),

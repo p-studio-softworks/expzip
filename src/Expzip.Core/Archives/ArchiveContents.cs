@@ -102,6 +102,16 @@ internal sealed class ArchiveContents
     /// </remarks>
     public IReadOnlyList<SequenceItem>? Sequence { get; set; }
 
+    /// <summary>
+    /// 索引 (中央ディレクトリ) が 2 つあり、読む部品によって別の中身が出る ZIP か (#396)。
+    /// </summary>
+    /// <remarks>
+    /// 一覧だけを見せる。展開、ハッシュ値、中身の検査、書き換えはしない。中身を読む道は
+    /// <see cref="ZipPrefix.Open"/> がそれぞれ部品がそろうかを確かめ直すので、開いたあとで索引が 2 つある書庫に
+    /// 置き換わっても、その中身は読まない。
+    /// </remarks>
+    public bool HasSplitDirectory { get; set; }
+
     /// <summary>名前をどの読み方で読んだか (#335)。この書庫を読む処理には、これを渡す。</summary>
     public NameReading Names { get; set; } = NameReading.Default;
 
@@ -125,7 +135,11 @@ internal sealed class ArchiveContents
     /// 名前の読み方を選び直した書庫も読み取りのみ (#335)。選び直した読み方で書き換えると、
     /// 名前が元のバイト列に戻せなくなる。
     /// </para>
+    /// <para>
+    /// 索引が 2 つある書庫も読み取りのみ (#396)。書き換えの部品は一覧と別の索引を読むので、
+    /// 一覧に出ていた項目が消え、隠れていた項目が残る書庫で置き換えてしまう。
+    /// </para>
     /// </remarks>
     public bool IsEditable
-        => ArchiveFormats.IsEditable(Format) && !IsSelfExtracting && !IsSplit && Names.IsDefault;
+        => ArchiveFormats.IsEditable(Format) && !IsSelfExtracting && !IsSplit && Names.IsDefault && !HasSplitDirectory;
 }
