@@ -62,6 +62,109 @@ internal static class DataFolder
     }
 
     /// <summary>
+    /// 知らせに出す場所 (#406)。エクスプローラーで開ける、実際の場所にする。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Store 版では、アプリから見た <c>%LOCALAPPDATA%\Expzip</c> の中身は、Windows が
+    /// <c>%LOCALAPPDATA%\Packages\パッケージファミリー名\LocalCache\Local\Expzip</c> に振り替えている。
+    /// アプリから見た場所をそのまま出すと、エクスプローラーでは見つからない。
+    /// </para>
+    /// <para>
+    /// 振り替え先に同じ名前のファイルかフォルダーがあり、それがアプリから見た場所と同じもの
+    /// (ボリュームとファイルの番号が同じ) のときだけ、振り替え先を出す。違うものだったときは、アプリから見た場所を出す。
+    /// アプリから見た場所と振り替え先の両方に同じ名前のものがあると、使われていないほうを出して、
+    /// そちらを直させたり削除させたりしかねないため。開けなくて比べられないときは、振り替え先を出す。
+    /// </para>
+    /// <para>
+    /// 読み書きに使う場所は変えない。出すだけ。
+    /// </para>
+    /// </remarks>
+    [return: System.Diagnostics.CodeAnalysis.NotNullIfNotNull(nameof(path))]
+    public static string? ForDisplay(string? path)
+    {
+        if (path is null || !IsPackaged || PackageFamilyName() is not { } family)
+        {
+            return path;
+        }
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var redirected = System.IO.Path.Combine(localAppData, "Packages", family, "LocalCache", "Local");
+        return ForDisplay(path, localAppData, redirected, System.IO.Path.Exists, SameFile);
+    }
+
+    /// <summary>知らせに出す場所を求める。テストは場所と、確かめ方を渡して呼ぶ。</summary>
+    /// <param name="path">アプリから見た場所。</param>
+    /// <param name="localAppData">アプリから見た <c>%LOCALAPPDATA%</c>。</param>
+    /// <param name="redirected">振り替え先 (<c>…\LocalCache\Local</c>)。</param>
+    /// <param name="exists">ファイルかフォルダーがあるか。</param>
+    /// <param name="sameFile">2 つの場所が同じものか。比べられなければ null。</param>
+    internal static string ForDisplay(
+        string path, string localAppData, string redirected, Func<string, bool> exists, Func<string, string, bool?> sameFile)
+    {
+        try
+        {
+            var full = System.IO.Path.GetFullPath(path);
+            var root = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(localAppData))
+                       + System.IO.Path.DirectorySeparatorChar;
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                return path;
+            }
+
+            var candidate = System.IO.Path.Combine(redirected, full[root.Length..]);
+            if (!exists(candidate))
+            {
+                return path;
+            }
+
+            return sameFile(full, candidate) == false ? path : candidate;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException
+                                   or PathTooLongException or IOException or UnauthorizedAccessException)
+        {
+            // 求められなければ、アプリから見た場所のまま出す。知らせを出せなくするよりよい
+            return path;
+        }
+    }
+
+    /// <summary>2 つの場所が同じファイルかフォルダーか。ボリュームとファイルの番号で比べる。開けなければ null。</summary>
+    internal static bool? SameFile(string a, string b)
+        => FileId(a) is { } first && FileId(b) is { } second ? first == second : null;
+
+    /// <summary>
+    /// ボリュームとファイルの番号。属性を読む権限だけで開くので、ほかのプログラムが共有なしで開いていても読める。
+    /// フォルダーも開ける。開けなければ null。
+    /// </summary>
+    private static (uint Volume, uint High, uint Low)? FileId(string path)
+    {
+        using var handle = CreateFileW(
+            path, FileReadAttributes, FileShare.ReadWrite | FileShare.Delete, IntPtr.Zero,
+            FileMode.Open, FileFlagBackupSemantics, IntPtr.Zero);
+        if (handle.IsInvalid || !GetFileInformationByHandle(handle, out var info))
+        {
+            return null;
+        }
+
+        return (info.VolumeSerialNumber, info.FileIndexHigh, info.FileIndexLow);
+    }
+
+    /// <summary>パッケージファミリー名。パッケージに入っていないか、求められなければ null。</summary>
+    private static string? PackageFamilyName()
+    {
+        uint length = 0;
+        if (GetCurrentPackageFamilyName(ref length, null) != ErrorInsufficientBuffer || length == 0)
+        {
+            return null;
+        }
+
+        var name = new char[length];
+        return GetCurrentPackageFamilyName(ref length, name) == 0
+            ? new string(name, 0, (int)length - 1)
+            : null;
+    }
+
+    /// <summary>
     /// パッケージに入っていないときは <c>APPMODEL_ERROR_NO_PACKAGE</c> が返る。
     /// 入っているときは、名前を受ける領域が 0 文字なので足りないと返る。
     /// </summary>
@@ -112,6 +215,46 @@ internal static class DataFolder
 
     private const int AppModelErrorNoPackage = 15700;
 
+    private const int ErrorInsufficientBuffer = 122;
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetCurrentPackageFullName(ref uint packageFullNameLength, char[]? packageFullName);
+
+    private const uint FileReadAttributes = 0x80;
+
+    /// <summary>フォルダーを開くのに要る。</summary>
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(
+        string fileName, uint desiredAccess, FileShare shareMode, IntPtr securityAttributes,
+        FileMode creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(
+        Microsoft.Win32.SafeHandles.SafeFileHandle file, out ByHandleFileInformation information);
+
+    /// <summary>BY_HANDLE_FILE_INFORMATION。日時 (FILETIME) は 4 バイトずつの 2 つとして並べる。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public uint CreationTimeLow;
+        public uint CreationTimeHigh;
+        public uint LastAccessTimeLow;
+        public uint LastAccessTimeHigh;
+        public uint LastWriteTimeLow;
+        public uint LastWriteTimeHigh;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    /// <summary>長さは終わりの NUL を含む。</summary>
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetCurrentPackageFamilyName(ref uint packageFamilyNameLength, char[]? packageFamilyName);
 }

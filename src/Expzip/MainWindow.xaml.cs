@@ -260,7 +260,7 @@ public partial class MainWindow : Window
         {
             Loaded += (_, _) => MessageBox.Show(
                 this,
-                Strings.SettingsUnreadable(problem.FilePath, problem.KeptPath, problem.Failure),
+                Strings.SettingsUnreadable(DataFolder.ForDisplay(problem.FilePath), DataFolder.ForDisplay(problem.KeptPath), problem.Failure),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
@@ -9546,7 +9546,7 @@ public partial class MainWindow : Window
         if (problem is not null)
         {
             MessageBox.Show(
-                this, Strings.RuleFileUnreadable(problem.FilePath, problem.KeptPath, problem.Failure, forApply: false),
+                this, Strings.RuleFileUnreadable(DataFolder.ForDisplay(problem.FilePath), DataFolder.ForDisplay(problem.KeptPath), problem.Failure, forApply: false),
                 AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }

@@ -89,7 +89,7 @@ public partial class RuleLearnDialog : Window
             if (_loaded.Problem is { } problem)
             {
                 MessageBox.Show(
-                    this, Strings.RuleFileUnreadable(problem.FilePath, problem.KeptPath, problem.Failure, forApply: true),
+                    this, Strings.RuleFileUnreadable(DataFolder.ForDisplay(problem.FilePath), DataFolder.ForDisplay(problem.KeptPath), problem.Failure, forApply: true),
                     "Expzip", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         };
@@ -165,7 +165,7 @@ public partial class RuleLearnDialog : Window
         // 落とした行は、適用するとファイルから消える。写しを残したことと一緒に知らせる (#406)
         if (_loaded.Dropped > 0)
         {
-            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, _loaded.DroppedKeptPath));
+            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, DataFolder.ForDisplay(_loaded.DroppedKeptPath)));
         }
 
         ResultText.Text = string.Join(Environment.NewLine, lines);
@@ -272,7 +272,7 @@ public partial class RuleLearnDialog : Window
         // ファイルの読めない行のことは、推定の結果で消さない。適用すると、その行がファイルから消える (#406)
         if (_loaded.Dropped > 0)
         {
-            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, _loaded.DroppedKeptPath));
+            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, DataFolder.ForDisplay(_loaded.DroppedKeptPath)));
         }
 
         ResultText.Text = string.Join(Environment.NewLine, lines);
@@ -409,7 +409,7 @@ public partial class RuleLearnDialog : Window
             RuleWriteResult.Changed => Strings.RuleChangedOutside,
             RuleWriteResult.Busy => Strings.RuleApplyBusy,
             RuleWriteResult.Unreadable => Strings.RuleNotAppliedUnreadable,
-            _ => Strings.RuleApplyFailed(DataFolder.Path),
+            _ => Strings.RuleApplyFailed(DataFolder.ForDisplay(DataFolder.Path)),
         };
 
         return result == RuleWriteResult.Done;
