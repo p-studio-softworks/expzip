@@ -405,6 +405,69 @@ try {
         Push (ById $dialog 'CloseButton')
     }
     Stop-Expzip $app
+
+    # ルールのファイルを読めなかったときは、ルールの推定のウィンドウで適用せず、AI にも送らない (#406)。
+    # 読めた中身は写しに残す。以前は空の一覧で開き、「適用する」で黙ってファイルを消していた
+    function Get-RuleCopies { @(Get-ChildItem $script:AppDir -Filter 'Expzip.rules.unreadable-*.json' -ErrorAction SilentlyContinue) }
+    Section 'ルールのファイルを読めないとき'
+    Set-Settings @{ AiEndpoint = $stub.Endpoint; AiModel = 'nise-model' }
+    Get-RuleCopies | Remove-Item -Force
+    $broken = '{ "Version": 2, "Rules": [ broken'
+    [System.IO.File]::WriteAllText($script:RulesPath, $broken)
+    $requests = (Get-AiRequests $stub).Count
+    $app = Start-Expzip @($libs)
+    Open-AiItem $app '書庫のルールを推定…' | Out-Null
+    $box = Find-MessageBox $app
+    $copies = Get-RuleCopies
+    Check '開くと知らせる' ($box -and $box.Text -match '^ルールのファイルを読み込めませんでした。このウィンドウでは、ルールを適用しません。' -and $box.Text.Contains($script:RulesPath)) $(if ($box) { $box.Text })
+    Check '写しを残す' ($copies.Count -eq 1 -and [System.IO.File]::ReadAllText($copies[0].FullName) -eq $broken) (($copies | ForEach-Object Name) -join ', ')
+    Check '写しの場所を知らせる' ($box -and $copies.Count -eq 1 -and $box.Text.Contains($copies[0].FullName))
+    Check '直し方を知らせる' ($box -and $box.Text -match 'ルールのファイルを直すか削除すると、ルールを使えるようになります。$')
+    if ($box) { Close-MessageBox $box 'OK' }
+    $dialog = Find-Window $app '書庫のルールを推定'
+    Check 'ウィンドウは開く' ($null -ne $dialog)
+    if ($dialog) {
+        $apply = ById $dialog 'ApplyButton'
+        Check '適用は押せない' (-not $apply.Current.IsEnabled)
+        Check '適用を押せない理由' ($apply.Current.HelpText -eq 'ルールのファイルを読み込めなかったため、適用できません') $apply.Current.HelpText
+        $send = ById $dialog 'SendButton'
+        Check '推定も押せない' (-not $send.Current.IsEnabled)
+        Check '推定を押せない理由' ($send.Current.HelpText -eq 'ルールのファイルを読み込めなかったため、推定できません') $send.Current.HelpText
+        Push (ById $dialog 'CloseButton')
+        Check '尋ねずに閉じる' (Test-WindowGone $app '書庫のルールを推定')
+    }
+    Check 'AI に送らない' ((Get-AiRequests $stub).Count -eq $requests)
+    Check 'ファイルは元のまま' ([System.IO.File]::ReadAllText($script:RulesPath) -eq $broken)
+
+    Section '読めないときは検査でも知らせる'
+    Open-AiItem $app 'ルールに合っているか検査…' | Out-Null
+    $box = Find-MessageBox $app
+    Check '検査で知らせる' ($box -and $box.Text -match '^ルールのファイルを読み込めませんでした。ルールに合っているかを検査できません。') $(if ($box) { $box.Text })
+    if ($box) { Close-MessageBox $box 'OK' }
+    # 検査はファイルに書かないので、写しは作らない
+    Check '検査では写しを増やさない' ((Get-RuleCopies).Count -eq 1)
+    Check '検査でもファイルは元のまま' ([System.IO.File]::ReadAllText($script:RulesPath) -eq $broken)
+    Stop-Expzip $app
+
+    # 読めない行は 1 行だけ落とすが、適用するとファイルから消えるので、写しを残して知らせる (#406)
+    Section '読めない行があるとき'
+    Get-RuleCopies | Remove-Item -Force
+    $partial = '{ "Version": 2, "Rules": [ { "Kind": "required_entry", "Scope": "root", "Value": "README.md", "Description": "d", "Evidence": "e", "Source": "hand", "Enabled": true }, { "Kind": "banana", "Value": "x" } ] }'
+    [System.IO.File]::WriteAllText($script:RulesPath, $partial)
+    $app = Start-Expzip @($libs)
+    $dialog = Open-Learn
+    Check 'ウィンドウが開く' ($null -ne $dialog)
+    if ($dialog) {
+        $copies = Get-RuleCopies
+        $text = (ById $dialog 'ResultText').Current.Name
+        Check '読めない行を知らせる' ($text -match 'ルールのファイルに、読み込めないルールが 1 件ありました。適用すると、それらはファイルから消えます。') $text
+        Check '写しの場所を知らせる' ($copies.Count -eq 1 -and $text.Contains($copies[0].FullName)) $text
+        Check '写しは元の中身' ($copies.Count -eq 1 -and [System.IO.File]::ReadAllText($copies[0].FullName) -eq $partial)
+        Check '適用はできる' ((ById $dialog 'ApplyButton').Current.IsEnabled)
+        Push (ById $dialog 'CloseButton')
+    }
+    Stop-Expzip $app
+    Get-RuleCopies | Remove-Item -Force
 }
 finally {
     Stop-AiStub $stub

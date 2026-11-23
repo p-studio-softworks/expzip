@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.IO.Compression;
+using Expzip.Ai;
 using Expzip.Archives;
 using Expzip.Configuration;
 using Expzip.Inspection;
@@ -1340,6 +1341,103 @@ internal static partial class Strings
     public static string RuleApplyFailed(string folder) => Pick(
         $"ルールを適用できませんでした。{folder} に書き込めないようです。",
         $"Could not apply the rules. {folder} appears not to be writable.");
+
+    /// <summary>ルールのファイルを読み込めなかった (#406)。ルールの推定のウィンドウを開いたときと、検査を求められたときに出す。</summary>
+    /// <param name="path">ルールのファイル。</param>
+    /// <param name="kept">中身のコピーを残した場所。残していなければ null。</param>
+    /// <param name="failure">
+    /// 読めなかった理由。中身が無事かもしれないとき (新しいバージョンで作られた、開けなかった) は、削除を勧めない。
+    /// </param>
+    /// <param name="forApply">ルールの推定のウィンドウで出すなら true。検査で出すなら false。</param>
+    /// <remarks>
+    /// ルールの推定のウィンドウは開いたときにだけ読むので、ほかのプログラムが開いていたときは開き直すよう案内する。
+    /// 検査はメニューから選ぶたびに読み直すので、もう一度試すよう案内する。
+    /// </remarks>
+    public static string RuleFileUnreadable(string path, string? kept, RuleLoadFailure failure, bool forApply)
+    {
+        var n = Environment.NewLine;
+        return Pick(
+            (forApply
+                ? "ルールのファイルを読み込めませんでした。このウィンドウでは、ルールを適用しません。"
+                : "ルールのファイルを読み込めませんでした。ルールに合っているかを検査できません。")
+            + $"{n}{n}{path}"
+            + (kept is null ? "" : $"{n}{n}元のルールのファイルのコピーを、次の場所に残しました。{n}{n}{kept}")
+            + $"{n}{n}"
+            + failure switch
+            {
+                RuleLoadFailure.Damaged => "ルールのファイルを直すか削除すると、ルールを使えるようになります。",
+                RuleLoadFailure.Newer => "新しいバージョンの Expzip で作られたルールのファイルのため、このバージョンでは使えません。"
+                                         + "新しいバージョンの Expzip を使用してください。",
+                RuleLoadFailure.InUse => "ほかのプログラムがルールのファイルを開いていると、読み込めないことがあります。"
+                                         + (forApply
+                                             ? "そのプログラムを閉じてから、このウィンドウを開き直してください。"
+                                             : "そのプログラムを閉じてから、もう一度試してください。"),
+                _ => "ルールのファイルのアクセス権と、同じ名前のフォルダーが無いかを確認してください。",
+            },
+            (forApply
+                ? "The rules file could not be read. Rules will not be applied from this window."
+                : "The rules file could not be read, so the archive cannot be checked against the rules.")
+            + $"{n}{n}{path}"
+            + (kept is null ? "" : $"{n}{n}A copy of the original rules file was kept here.{n}{n}{kept}")
+            + $"{n}{n}"
+            + failure switch
+            {
+                RuleLoadFailure.Damaged => "If you fix or delete the rules file, the rules can be used again.",
+                RuleLoadFailure.Newer => "The rules file was made by a newer version of Expzip, so it cannot be used with this version. "
+                                         + "Use a newer version of Expzip.",
+                RuleLoadFailure.InUse => "The rules file may not be readable while another program has it open. "
+                                         + (forApply
+                                             ? "Close that program, then open this window again."
+                                             : "Close that program, then try again."),
+                _ => "Check the permissions of the rules file, and whether a folder with the same name exists.",
+            });
+    }
+
+    /// <summary>ルールのファイルを読み込めなかったときの、「適用する」の押せない訳 (#406)。</summary>
+    public static string RuleApplyUnreadable => Pick(
+        "ルールのファイルを読み込めなかったため、適用できません",
+        "The rules file could not be read, so the rules cannot be applied");
+
+    /// <summary>ルールのファイルを読み込めなかったため、適用しなかった (#406)。ボタンは押せないので、ふつうは出ない。</summary>
+    public static string RuleNotAppliedUnreadable => Pick(
+        "ルールのファイルを読み込めなかったため、適用しませんでした。",
+        "The rules file could not be read, so the rules were not applied.");
+
+    /// <summary>ルールのファイルを読み込めなかったときの、「推定する」の押せない訳 (#406)。適用できないのに AI に送らない。</summary>
+    public static string RuleSendUnreadable => Pick(
+        "ルールのファイルを読み込めなかったため、推定できません",
+        "The rules file could not be read, so the rules cannot be worked out");
+
+    /// <summary>
+    /// ルールのファイルに読み込めない行があった (#406)。適用すると、その行はファイルから消える。
+    /// </summary>
+    /// <param name="count">読み込めなかった行の数。</param>
+    /// <param name="kept">元のファイルのコピーを残した場所。残せなければ null。</param>
+    public static string RuleRowsDropped(int count, string? kept) => Pick(
+        $"ルールのファイルに、読み込めないルールが {count:N0} 件ありました。適用すると、それらはファイルから消えます。"
+        + Environment.NewLine
+        + (kept is null ? "元のルールのファイルのコピーを残せませんでした。" : $"元のルールのファイルのコピーを、次の場所に残しました: {kept}"),
+        $"{count:N0} rule(s) in the rules file could not be read. Applying will remove them from the file."
+        + Environment.NewLine
+        + (kept is null ? "A copy of the original rules file could not be kept." : $"A copy of the original rules file was kept here: {kept}"));
+
+    /// <summary>ルールの推定のウィンドウを開いたあとに、ルールのファイルが変わっていた (#406)。上書きしない。</summary>
+    public static string RuleChangedOutside => Pick(
+        "このウィンドウを開いたあとに、ルールのファイルが変わったため、適用しませんでした。"
+        + "このウィンドウで変えた内容は、適用していません。"
+        + "このウィンドウを閉じてから、もう一度開いてください。",
+        "The rules file changed after this window was opened, so the rules were not applied. "
+        + "The changes made in this window have not been applied. "
+        + "Close this window and open it again.");
+
+    /// <summary>
+    /// 適用する直前に、ルールのファイルを読み直せなかった (#406)。中身は変わっていないかもしれないので、開き直させない。
+    /// </summary>
+    public static string RuleApplyBusy => Pick(
+        "ルールのファイルを読み直せなかったため、適用しませんでした。ほかのプログラムが開いていることがあります。"
+        + "少し待ってから、もう一度「適用する」を押してください。",
+        "The rules file could not be read again, so the rules were not applied. Another program may have it open. "
+        + "Wait a moment, then press Apply again.");
 
     /// <summary>
     /// 適用せずに閉じようとしたとき (#145)。押すまではファイルに書かないので、

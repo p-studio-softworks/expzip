@@ -73,10 +73,15 @@ internal sealed class RuleAudit
     /// <summary>合っていないものが1つも無いか。</summary>
     public bool Clean => Broken.Count == 0 && Unmet.Count == 0;
 
-    /// <summary>保存された決まりを読んで当てる。決まりが無ければ <see langword="null"/>。</summary>
-    public static RuleAudit? FromStore(ArchiveContents contents)
+    /// <summary>保存された決まりを読んで当てる。決まりが無いか、読めなければ <see langword="null"/>。</summary>
+    /// <param name="contents">当てる書庫。</param>
+    /// <param name="problem">ルールのファイルを読めなかったときの理由 (#406)。</param>
+    /// <remarks>当てはめはファイルに書かないので、読めなかった中身の写しは残さない (#406)。</remarks>
+    public static RuleAudit? FromStore(ArchiveContents contents, out RuleLoadProblem? problem)
     {
-        if (RuleStore.Load() is not { } book)
+        var load = RuleStore.Load(keepCopy: false);
+        problem = load.Problem;
+        if (load.Book is not { } book)
         {
             return null;
         }

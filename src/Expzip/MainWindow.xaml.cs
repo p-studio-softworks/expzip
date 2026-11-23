@@ -9309,18 +9309,20 @@ public partial class MainWindow : Window
     /// 保存し直すまでは結果が変わらないため。切り替えのたびに数千件へ当て直さない。
     /// </para>
     /// </remarks>
-    private static void EnsureAudit(ArchiveTab tab)
+    /// <returns>ルールのファイルを読めなかったときは、その理由 (#406)。当てなかったときと、読めたときは null。</returns>
+    private static RuleLoadProblem? EnsureAudit(ArchiveTab tab)
     {
         if (!tab.AuditWanted || tab.AuditDone)
         {
-            return;
+            return null;
         }
 
-        tab.Audit = RuleAudit.FromStore(tab.Contents);
+        tab.Audit = RuleAudit.FromStore(tab.Contents, out var problem);
         tab.AuditDone = true;
 
         // ツリーにも印を付ける (#87)。絞られていればその項目だけ (#88)
         MarkTree(tab.Contents.Root, tab.Audit, tab.RuleMarks);
+        return problem;
     }
 
     /// <summary>
@@ -9536,8 +9538,18 @@ public partial class MainWindow : Window
 
         // 絞った印はそのまま残す。「閉じる」は何も反映しない (#166) ので、
         // 開いただけで印が変わってはいけない。ウィンドウのチェックもこれに揃える
-        EnsureAudit(tab);
+        var problem = EnsureAudit(tab);
         Navigate(tab.CurrentFolder);
+
+        // 読めなかったときに「ルールが保存されていません」と出さない (#406)。
+        // 知らせるのはメニューから求められたときだけ。タブの切り替えで当て直すたびには出さない
+        if (problem is not null)
+        {
+            MessageBox.Show(
+                this, Strings.RuleFileUnreadable(problem.FilePath, problem.KeptPath, problem.Failure, forApply: false),
+                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         if (tab.Audit is not { } audit)
         {

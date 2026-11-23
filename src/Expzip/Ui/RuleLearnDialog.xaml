@@ -232,6 +232,7 @@
                 </Style>
             </StackPanel.Resources>
             <Button x:Name="SendButton"
+                    ToolTipService.ShowOnDisabled="True"
                     IsDefault="True" Click="SendButton_Click" />
             <!--
                 選んだものを一覧から消す (#98)。推定するたびに増える一方だった。
@@ -251,6 +252,7 @@
                 Windows の設定画面の「適用」と同じ働きなので、その名前にする (#145)
             -->
             <Button x:Name="ApplyButton"
+                    ToolTipService.ShowOnDisabled="True"
                     Click="ApplyButton_Click" />
             <!--
                 閉じるのは IsCancel に任せる。モーダルのウィンドウでは、押すと WPF が閉じる。

@@ -51,6 +51,18 @@ public partial class RuleLearnDialog : Window
     /// <summary>最後に適用した (または開いたときに読み込んだ) 一覧の中身。</summary>
     private HashSet<(ArchiveRule Rule, bool Enabled)> _applied = [];
 
+    /// <summary>
+    /// 開いたときにルールのファイルを読んだ結果 (#406)。適用するときに渡し、読めなかったファイルや、
+    /// 開いたあとに変わったファイルには書かない。
+    /// </summary>
+    private RuleLoad _loaded = null!;
+
+    /// <summary>ルールのファイルを読めなかったか (#406)。このウィンドウでは適用せず、AI にも送らない。</summary>
+    private bool Unreadable => _loaded.Problem is not null;
+
+    /// <summary>適用しようとしたら、開いたあとにルールのファイルが変わっていたか (#406)。閉じるときに尋ねない。</summary>
+    private bool _stale;
+
     internal RuleLearnDialog(Window owner, AiOptions options, ArchiveContents sample)
     {
         InitializeComponent();
@@ -69,7 +81,18 @@ public partial class RuleLearnDialog : Window
         ShowRows();
 
         Closing += Dialog_Closing;
-        Loaded += (_, _) => SendButton.Focus();
+        Loaded += (_, _) =>
+        {
+            SendButton.Focus();
+
+            // 読めなかったことは、画面が出てから知らせる (#406)。黙って空の一覧で開くと、ルールが無いように見える
+            if (_loaded.Problem is { } problem)
+            {
+                MessageBox.Show(
+                    this, Strings.RuleFileUnreadable(problem.FilePath, problem.KeptPath, problem.Failure, forApply: true),
+                    "Expzip", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
     }
 
     /// <summary>適用した決まりのうち使うものの数。適用していなければ 0。</summary>
@@ -112,26 +135,48 @@ public partial class RuleLearnDialog : Window
     }
 
     /// <summary>すでに保存されている決まりがあれば読み込む。</summary>
+    /// <remarks>
+    /// 読めなかったときは、このウィンドウでは適用しない (#406)。開くたびに読み直すので、次に開いたときに読めれば、
+    /// 読めた中身で適用できる。
+    /// </remarks>
     private void LoadSaved()
     {
-        if (RuleStore.Load() is not { } book || book.Rules.Count == 0)
+        _loaded = RuleStore.Load(keepCopy: true);
+
+        if (Unreadable)
         {
+            SendButton.IsEnabled = false;
+            SendButton.ToolTip = Strings.RuleSendUnreadable;
+            ApplyButton.ToolTip = Strings.RuleApplyUnreadable;
             return;
         }
 
-        foreach (var entry in book.Rules)
+        var lines = new List<string>();
+        if (_loaded.Book is { Rules.Count: > 0 } book)
         {
-            _rows.Add(new RuleRow(entry.Rule, entry.Enabled, _sample));
+            foreach (var entry in book.Rules)
+            {
+                _rows.Add(new RuleRow(entry.Rule, entry.Enabled, _sample));
+            }
+
+            lines.Add(Strings.RuleLoaded(book.Rules.Count, book.LearnedFrom));
         }
 
-        ResultText.Text = Strings.RuleLoaded(book.Rules.Count, book.LearnedFrom);
+        // 落とした行は、適用するとファイルから消える。写しを残したことと一緒に知らせる (#406)
+        if (_loaded.Dropped > 0)
+        {
+            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, _loaded.DroppedKeptPath));
+        }
+
+        ResultText.Text = string.Join(Environment.NewLine, lines);
     }
 
     // ------------------------------------------------------------------ 尋ねる (#25)
 
     private async void SendButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_asking is not null)
+        // 適用できないのに、書庫の中の名前を送って料金をかけない (#406)
+        if (_asking is not null || Unreadable)
         {
             return;
         }
@@ -224,6 +269,12 @@ public partial class RuleLearnDialog : Window
             lines.Add(dropped);
         }
 
+        // ファイルの読めない行のことは、推定の結果で消さない。適用すると、その行がファイルから消える (#406)
+        if (_loaded.Dropped > 0)
+        {
+            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, _loaded.DroppedKeptPath));
+        }
+
         ResultText.Text = string.Join(Environment.NewLine, lines);
         ShowRows();
     }
@@ -286,8 +337,9 @@ public partial class RuleLearnDialog : Window
         RuleList.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         NoticeText.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
 
-        // 採らなかった候補しか無いなら、適用するものは無い (#80)
-        ApplyButton.IsEnabled = _rows.Any(static row => row.CanUse) || RuleStore.Exists;
+        // 採らなかった候補しか無いなら、適用するものは無い (#80)。
+        // ルールのファイルを読めなかったときは、何があっても押せない (#406)。読み取りや削除のたびにここを通るので、ここで決める
+        ApplyButton.IsEnabled = !Unreadable && (_rows.Any(static row => row.CanUse) || RuleStore.Exists);
 
         // 一覧の行は Collapsed でも * のままでは場所を取り続ける。高さも入れ替える。
         // 読み取った後は一覧のほうが主役になるので、書庫詳細より広く取る (#75)
@@ -314,10 +366,10 @@ public partial class RuleLearnDialog : Window
 
         if (usable.Count == 0)
         {
-            // 1件も無い状態で適用するのは「ルールを無くす」ということ
-            if (!RuleStore.TryDelete())
+            // 1件も無い状態で適用するのは「ルールを無くす」ということ。
+            // 読めなかったファイルや、開いたあとに変わったファイルは消さない (#406)
+            if (!Written(RuleStore.TryDelete(_loaded)))
             {
-                ResultText.Text = Strings.RuleApplyFailed(DataFolder.Path);
                 return false;
             }
 
@@ -331,9 +383,8 @@ public partial class RuleLearnDialog : Window
             Path.GetFileName(_sample.FilePath), DateTimeOffset.Now,
             [.. usable.Select(static row => new RuleEntry(row.Rule, row.Enabled))]);
 
-        if (!RuleStore.TrySave(book))
+        if (!Written(RuleStore.TrySave(book, _loaded)))
         {
-            ResultText.Text = Strings.RuleApplyFailed(DataFolder.Path);
             return false;
         }
 
@@ -341,6 +392,27 @@ public partial class RuleLearnDialog : Window
         _applied = Snapshot();
         ResultText.Text = Strings.RuleApplied(usable.Count, SavedCount);
         return true;
+    }
+
+    /// <summary>書けたか。書けなかったときは、その訳を結果の欄に出す。</summary>
+    private bool Written(RuleWriteResult result)
+    {
+        // ほかで変わっていたら、もう適用できない。閉じるときに尋ねると、「はい」で適用できずに閉じられなくなる (#406)
+        if (result == RuleWriteResult.Changed)
+        {
+            _stale = true;
+        }
+
+        ResultText.Text = result switch
+        {
+            RuleWriteResult.Done => ResultText.Text,
+            RuleWriteResult.Changed => Strings.RuleChangedOutside,
+            RuleWriteResult.Busy => Strings.RuleApplyBusy,
+            RuleWriteResult.Unreadable => Strings.RuleNotAppliedUnreadable,
+            _ => Strings.RuleApplyFailed(DataFolder.Path),
+        };
+
+        return result == RuleWriteResult.Done;
     }
 
     /// <summary>
@@ -359,7 +431,9 @@ public partial class RuleLearnDialog : Window
     /// </remarks>
     private void Dialog_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (!Snapshot().SetEquals(_applied))
+        // ルールのファイルを読めなかったときと、開いたあとにほかで変わっていたときは適用できないので、尋ねない (#406)。
+        // 尋ねて「はい」を選ぶと、適用できずに閉じられなくなる
+        if (!Unreadable && !_stale && !Snapshot().SetEquals(_applied))
         {
             var answer = MessageBox.Show(
                 this, Strings.RuleConfirmClose, "Expzip",

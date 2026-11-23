@@ -1,4 +1,6 @@
 ﻿using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -50,6 +52,10 @@ internal static class RuleStore
         WriteIndented = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+
+        // 同じ項目が 2 つあるファイルは読まない (#406)。あとの "Rules": [] だけを読むと、0 件として読めてしまい、
+        // 写しも残さずに次の「適用」でファイルごと消す
+        AllowDuplicateProperties = false,
     };
 
     /// <summary>決まりを書いたファイルのパス。</summary>
@@ -58,67 +64,157 @@ internal static class RuleStore
     /// <summary>決まりが保存されているか。</summary>
     public static bool Exists => File.Exists(FilePath);
 
-    /// <summary>保存された決まりを読む。無い・読めないときは <see langword="null"/>。</summary>
-    public static RuleBook? Load()
+    /// <summary>保存された決まりを読む。</summary>
+    /// <param name="keepCopy">
+    /// 読めなかった中身や、落とした行のあるファイルの写しを残すか (#406)。書く道のあるルールの推定のウィンドウでは残す。
+    /// 当てはめは読むだけで書かないので、残さない。タブを切り替えるたびに写しを読み比べないように。
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// 読めなかったとき (壊れている、ほかのプログラムが開いている、アクセス権が無い、新しいバージョンの形式) は
+    /// <see cref="RuleLoad.Problem"/> が付き、<see cref="TrySave"/> と <see cref="TryDelete"/> はそのファイルに書かない (#406)。
+    /// 読めなかったまま「適用」すると、0 件として消すか、新しいルールだけで置き換えてしまう。
+    /// </para>
+    /// <para>
+    /// 読めない行はその行だけ落とす (1 行の書き損じで全部消さない)。落とした行は次の「適用」でファイルから消えるので、
+    /// 1 行でも落としたら、読んだ中身の写しを残す (#406)。新しいバージョンで足された種類の行は、形式の番号を
+    /// 上げないことがある (#172) ので、ここで守る。
+    /// </para>
+    /// </remarks>
+    public static RuleLoad Load(bool keepCopy) => Load(FilePath, keepCopy);
+
+    /// <summary>決まりを読む。テストは置き場所を渡して呼ぶ。</summary>
+    internal static RuleLoad Load(string path, bool keepCopy)
+    {
+        var read = GuardedFile.Read(path);
+        switch (read.Status)
+        {
+            case GuardedReadStatus.Missing:
+                return new RuleLoad(path, fingerprint: null);
+
+            // 大きすぎるものは中身を読まないので、写しは残さない
+            case GuardedReadStatus.TooLarge:
+                return Unreadable(path, keptPath: null, RuleLoadFailure.Damaged);
+            case GuardedReadStatus.InUse:
+                return Unreadable(path, keptPath: null, RuleLoadFailure.InUse);
+            case GuardedReadStatus.Inaccessible:
+                return Unreadable(path, keptPath: null, RuleLoadFailure.Inaccessible);
+        }
+
+        var bytes = read.Bytes!;
+        var text = GuardedFile.Decode(bytes);
+
+        // 新しいバージョンの Expzip で作られたもの。中身は正しいかもしれないので、壊れているとは知らせない。
+        // 番号を上げるのは古い版が読めない形に変えたときなので、全体を読む前に番号だけを読む。
+        // 全体を読んでから比べると、形が変わったファイルは「壊れている」になり、削除を勧めてしまう
+        if (ReadVersion(text) > Version)
+        {
+            return Unreadable(path, keepCopy ? GuardedFile.TryKeepCopy(path, bytes) : null, RuleLoadFailure.Newer);
+        }
+
+        if (Parse(text) is not { } document)
+        {
+            return Unreadable(path, keepCopy ? GuardedFile.TryKeepCopy(path, bytes) : null, RuleLoadFailure.Damaged);
+        }
+
+        var book = ToBook(document, out var dropped);
+        return new RuleLoad(path, SHA256.HashData(bytes))
+        {
+            Book = book,
+            Dropped = dropped,
+            DroppedKeptPath = dropped > 0 && keepCopy ? GuardedFile.TryKeepCopy(path, bytes) : null,
+        };
+    }
+
+    private static RuleLoad Unreadable(string path, string? keptPath, RuleLoadFailure failure)
+        => new(path, fingerprint: null) { Problem = new RuleLoadProblem(path, keptPath, failure) };
+
+    /// <summary>ルールのファイルとして読む。読めなければ null。</summary>
+    /// <remarks>
+    /// <c>Rules</c> の項目が無いものは、ルールのファイルとして読まない。Expzip が書くファイルには必ずあり、
+    /// 0 件として扱うと、次の「適用」で中身ごと消してしまう。
+    /// </remarks>
+    private static Document? Parse(string text)
     {
         try
         {
-            if (!File.Exists(FilePath))
-            {
-                return null;
-            }
-
-            var document = JsonSerializer.Deserialize<Document>(
-                File.ReadAllText(FilePath), Options);
-
-            if (document is null || document.Version > Version)
-            {
-                return null;
-            }
-
-            var entries = new List<RuleEntry>();
-
-            foreach (var row in document.Rules ?? [])
-            {
-                // 読めない行はその行だけ落とす。1行の書き損じで全部消さない
-                if (RuleWords.ToKind(row.Kind) is not { } kind)
-                {
-                    continue;
-                }
-
-                var rule = ArchiveRule.TryCreate(
-                    kind, RuleWords.ToScope(row.Scope), row.Value ?? string.Empty,
-                    row.Description ?? string.Empty, row.Evidence ?? string.Empty,
-                    row.Source switch
-                    {
-                        "hand" => RuleSource.Hand,
-                        "filled" => RuleSource.Filled,
-                        _ => RuleSource.Ai,
-                    },
-                    row.Where ?? string.Empty);
-
-                if (rule is not null)
-                {
-                    // 数え上げた場所の数。無い古いファイルは 0 のまま (#172)
-                    entries.Add(new RuleEntry(
-                        rule with { Places = row.Places ?? 0 }, row.Enabled));
-                }
-            }
-
-            return new RuleBook(
-                document.LearnedFrom ?? string.Empty, document.LearnedAt, entries);
+            return JsonSerializer.Deserialize<Document>(text, Options) is { Rules: not null } document
+                ? document
+                : null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
-                                   or JsonException or NotSupportedException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException
+                                   or InvalidOperationException or ArgumentException)
         {
             return null;
         }
     }
 
-    /// <summary>決まりを保存する。</summary>
-    /// <returns>保存できたら true。書き込めない場所に置かれている場合は false。</returns>
-    public static bool TrySave(RuleBook book)
+    /// <summary>形式の番号だけを読む。ほかの項目の形は見ない。読めなければ null。</summary>
+    private static int? ReadVersion(string text)
     {
+        try
+        {
+            return JsonSerializer.Deserialize<VersionOnly>(text, Options)?.Version;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException
+                                   or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>読んだ形から決まりを組み立てる。読めない行は落とし、その数を返す。</summary>
+    private static RuleBook ToBook(Document document, out int dropped)
+    {
+        dropped = 0;
+        var entries = new List<RuleEntry>();
+
+        foreach (var row in document.Rules!)
+        {
+            // 読めない行はその行だけ落とす。1行の書き損じで全部消さない。中身の無い行 (null) も同じ
+            if (row is null || RuleWords.ToKind(row.Kind) is not { } kind)
+            {
+                dropped++;
+                continue;
+            }
+
+            var rule = ArchiveRule.TryCreate(
+                kind, RuleWords.ToScope(row.Scope), row.Value ?? string.Empty,
+                row.Description ?? string.Empty, row.Evidence ?? string.Empty,
+                row.Source switch
+                {
+                    "hand" => RuleSource.Hand,
+                    "filled" => RuleSource.Filled,
+                    _ => RuleSource.Ai,
+                },
+                row.Where ?? string.Empty);
+
+            if (rule is null)
+            {
+                dropped++;
+                continue;
+            }
+
+            // 数え上げた場所の数。無い古いファイルは 0 のまま (#172)
+            entries.Add(new RuleEntry(rule with { Places = row.Places ?? 0 }, row.Enabled));
+        }
+
+        return new RuleBook(document.LearnedFrom ?? string.Empty, document.LearnedAt, entries);
+    }
+
+    /// <summary>決まりを保存する。</summary>
+    /// <param name="book">保存する決まり。</param>
+    /// <param name="basis">
+    /// ルールの推定のウィンドウを開いたときに読んだ結果。読めなかったファイルにも、読んだあとに変わったファイルにも書かない (#406)。
+    /// 保存できたら、書いた中身で覚え直す。
+    /// </param>
+    public static RuleWriteResult TrySave(RuleBook book, RuleLoad basis)
+    {
+        if (Check(basis) is { } refused)
+        {
+            return refused;
+        }
+
         var document = new Document
         {
             Version = Version,
@@ -146,31 +242,77 @@ internal static class RuleStore
             })],
         };
 
+        // 書くバイト列を 1 度だけ作り、同じ配列で覚え直す。書き方が変わっても、次の適用で「変わった」と誤らない
+        var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(JsonSerializer.Serialize(document, Options));
         try
         {
             // 途中で止まっても、前の決まりが残る (#320)
-            AtomicFile.WriteAllText(FilePath, JsonSerializer.Serialize(document, Options));
-            return true;
+            using var file = AtomicFile.Create(basis.FilePath);
+            file.Stream.Write(bytes);
+            file.Commit();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or NotSupportedException)
         {
-            return false;
+            return RuleWriteResult.Failed;
         }
+
+        basis.Fingerprint = SHA256.HashData(bytes);
+        return RuleWriteResult.Done;
     }
 
     /// <summary>保存された決まりを消す。</summary>
-    public static bool TryDelete()
+    /// <param name="basis">ルールの推定のウィンドウを開いたときに読んだ結果。<see cref="TrySave"/> と同じく確かめる (#406)。</param>
+    public static RuleWriteResult TryDelete(RuleLoad basis)
     {
+        if (Check(basis) is { } refused)
+        {
+            return refused;
+        }
+
         try
         {
-            File.Delete(FilePath);
-            return true;
+            File.Delete(basis.FilePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return false;
+            return RuleWriteResult.Failed;
         }
+
+        basis.Fingerprint = null;
+        return RuleWriteResult.Done;
+    }
+
+    /// <summary>書いてよいかを確かめる。書いてはいけなければ、その理由を返す。</summary>
+    /// <remarks>
+    /// 書く直前に読み直し、読んだときと中身が同じかを比べる (#406)。ルールの推定のウィンドウを開いている間に、
+    /// 別の Expzip で適用された、手でファイルが置かれた、などで変わっていたら書かない。
+    /// 開いたときに無かったファイルが置かれたときも同じ。読み直してから書くまでの短い間に変わったものは防げない。
+    /// </remarks>
+    private static RuleWriteResult? Check(RuleLoad basis)
+    {
+        if (basis.Problem is not null)
+        {
+            return RuleWriteResult.Unreadable;
+        }
+
+        var now = GuardedFile.Read(basis.FilePath);
+        return now.Status switch
+        {
+            GuardedReadStatus.Missing when basis.Fingerprint is null => null,
+            GuardedReadStatus.Read when basis.Fingerprint is { } had
+                                        && SHA256.HashData(now.Bytes!).AsSpan().SequenceEqual(had) => null,
+
+            // 開けなかっただけなら、中身は変わっていないかもしれない。開き直させずに、もう一度押してもらう
+            GuardedReadStatus.InUse or GuardedReadStatus.Inaccessible => RuleWriteResult.Busy,
+            _ => RuleWriteResult.Changed,
+        };
+    }
+
+    /// <summary>形式の番号だけを読む形 (#406)。ほかの項目は読み飛ばす。</summary>
+    private sealed class VersionOnly
+    {
+        public int? Version { get; set; }
     }
 
     /// <summary>ファイルに書く形。人が開いて直せるように、素直な名前で並べる。</summary>
@@ -182,7 +324,8 @@ internal static class RuleStore
 
         public DateTimeOffset LearnedAt { get; set; }
 
-        public List<Row>? Rules { get; set; }
+        /// <summary>決まりの並び。手で書かれたファイルでは、中に null の行があることもある。</summary>
+        public List<Row?>? Rules { get; set; }
     }
 
     private sealed class Row
@@ -207,6 +350,75 @@ internal static class RuleStore
 
         public bool Enabled { get; set; } = true;
     }
+}
+
+/// <summary>ルールのファイルを読んだ結果 (#406)。</summary>
+internal sealed class RuleLoad
+{
+    internal RuleLoad(string filePath, byte[]? fingerprint)
+    {
+        FilePath = filePath;
+        Fingerprint = fingerprint;
+    }
+
+    /// <summary>読んだファイル。</summary>
+    public string FilePath { get; }
+
+    /// <summary>読めた決まり。ファイルが無いときと、読めなかったときは <see langword="null"/>。</summary>
+    public RuleBook? Book { get; init; }
+
+    /// <summary>ファイルがあるのに読めなかったときの理由。付いていれば、このファイルには書かない。</summary>
+    public RuleLoadProblem? Problem { get; init; }
+
+    /// <summary>読めずに落とした行の数。</summary>
+    public int Dropped { get; init; }
+
+    /// <summary>落とした行があったときに、元のファイルの写しを残した場所。残していなければ <see langword="null"/>。</summary>
+    public string? DroppedKeptPath { get; init; }
+
+    /// <summary>読んだ (または最後に書いた) 中身の SHA-256。ファイルが無かったときは <see langword="null"/>。</summary>
+    internal byte[]? Fingerprint { get; set; }
+}
+
+/// <summary>ルールのファイルを読めなかったこと (#406)。</summary>
+/// <param name="FilePath">ルールのファイル。</param>
+/// <param name="KeptPath">中身の写しを残した場所。残していなければ <see langword="null"/>。</param>
+/// <param name="Failure">読めなかった理由。</param>
+internal sealed record RuleLoadProblem(string FilePath, string? KeptPath, RuleLoadFailure Failure);
+
+/// <summary>ルールのファイルを読めなかった理由 (#406)。知らせる文の案内を分ける。</summary>
+internal enum RuleLoadFailure
+{
+    /// <summary>中身を読めたが、ルールのファイルとして読めない。大きすぎて読まなかったときも。</summary>
+    Damaged,
+
+    /// <summary>新しいバージョンの Expzip で作られた形式。中身は正しいかもしれないので、削除を勧めない。</summary>
+    Newer,
+
+    /// <summary>ほかのプログラムが開いたままにしている。</summary>
+    InUse,
+
+    /// <summary>アクセス権が無い、同じ名前のフォルダーがある、など。</summary>
+    Inaccessible,
+}
+
+/// <summary>ルールを保存した・消した結果 (#406)。</summary>
+internal enum RuleWriteResult
+{
+    /// <summary>書いた (または消した)。</summary>
+    Done,
+
+    /// <summary>書き込めなかった。書き込めない場所に置かれている、など。</summary>
+    Failed,
+
+    /// <summary>読めなかったファイルなので、書かなかった。</summary>
+    Unreadable,
+
+    /// <summary>読んだあとにファイルが変わっていたので、書かなかった。</summary>
+    Changed,
+
+    /// <summary>書く前に読み直せなかった (ほかのプログラムが開いている、など) ので、書かなかった。</summary>
+    Busy,
 }
 
 /// <summary>確かめた決まりのひとまとまり (#26)。</summary>
