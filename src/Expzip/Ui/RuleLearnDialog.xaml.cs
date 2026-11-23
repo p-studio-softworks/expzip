@@ -81,18 +81,23 @@ public partial class RuleLearnDialog : Window
         ShowRows();
 
         Closing += Dialog_Closing;
-        Loaded += (_, _) =>
-        {
-            SendButton.Focus();
+        Loaded += (_, _) => SendButton.Focus();
 
-            // 読めなかったことは、画面が出てから知らせる (#406)。黙って空の一覧で開くと、ルールが無いように見える
-            if (_loaded.Problem is { } problem)
+        // 読めなかったことは、ウィンドウが見えてから知らせる (#406)。黙って空の一覧で開くと、ルールが無いように見える。
+        // Loaded でなく ContentRendered で出す。Loaded はウィンドウがまだ見えていないうちに起きるので、
+        // 警告が見えないウィンドウの持ち物になる (設定ファイルの警告と同じ)
+        if (_loaded.Problem is { } problem)
+        {
+            EventHandler? shown = null;
+            shown = (_, _) =>
             {
+                ContentRendered -= shown;
                 MessageBox.Show(
                     this, Strings.RuleFileUnreadable(DataFolder.ForDisplay(problem.FilePath), DataFolder.ForDisplay(problem.KeptPath), problem.Failure, forApply: true),
                     "Expzip", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        };
+            };
+            ContentRendered += shown;
+        }
     }
 
     /// <summary>適用した決まりのうち使うものの数。適用していなければ 0。</summary>

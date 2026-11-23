@@ -254,23 +254,38 @@ public partial class MainWindow : Window
         // 古いバージョンが取り出したアセンブリも片付ける (#305)。同じく裏で行う
         Task.Run(OldExtraction.CleanUp);
 
-        // 設定ファイルを読めなかったら、そのことと、今回は保存しないことを知らせる (#399)。
-        // 書庫を開くより先に出す。ウィンドウの親にするため Loaded で出す
-        if (_settings.LoadProblem is { } problem)
-        {
-            Loaded += (_, _) => MessageBox.Show(
-                this,
-                Strings.SettingsUnreadable(DataFolder.ForDisplay(problem.FilePath), DataFolder.ForDisplay(problem.KeptPath), problem.Failure),
-                AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-
         // 引数で書庫を渡された場合はそれを開く。
         // ウィンドウが出来上がってからでないとエラー表示の親にできないため Loaded で行う。
         var args = Environment.GetCommandLineArgs();
-        if (args.Length > 1 && File.Exists(args[1]))
+        var argument = args.Length > 1 && File.Exists(args[1]) ? args[1] : null;
+
+        // 設定ファイルを読めなかったら、そのことと、今回は保存しないことを知らせる (#399)。書庫を開くより先に出す。
+        // Loaded でなく ContentRendered で出す (#406)。Loaded はウィンドウの枠を作る途中で起き、本体がまだ見えていない。
+        // そこで出すと、警告は隠れた本体の持ち物になってタスクバーにボタンが無く、ほかのウィンドウの後ろに回ると
+        // 見つけられない。その間は本体も出ないので、ウィンドウの無いプロセスが残ったように見える
+        if (_settings.LoadProblem is { } problem)
         {
-            var path = args[1];
-            Loaded += async (_, _) => await OpenArchiveAsync(path);
+            EventHandler? shown = null;
+            shown = async (_, _) =>
+            {
+                ContentRendered -= shown;
+                MessageBox.Show(
+                    this,
+                    Strings.SettingsUnreadable(DataFolder.ForDisplay(problem.FilePath), DataFolder.ForDisplay(problem.KeptPath), problem.Failure),
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                // 警告の間に、ほかのアプリからのドロップで書庫が開いていることがある。そのタブを置き換えないよう、新しいタブで開く。
+                // タブが無ければ今までと同じ動きで、同じ書庫が既に開いていればそのタブに移る
+                if (argument is not null)
+                {
+                    await OpenInTabAsync(argument);
+                }
+            };
+            ContentRendered += shown;
+        }
+        else if (argument is not null)
+        {
+            Loaded += async (_, _) => await OpenArchiveAsync(argument);
         }
     }
 

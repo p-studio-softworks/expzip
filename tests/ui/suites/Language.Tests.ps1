@@ -65,7 +65,21 @@ function Start-ExpzipAfterWarning([string[]]$Arguments) {
     $process = if ($quoted.Count -gt 0) { Start-Process $script:Exe -ArgumentList $quoted -PassThru }
     else { Start-Process $script:Exe -PassThru }
     $box = Find-MessageBox ([pscustomobject]@{ Process = $process }) 30000
-    if ($null -ne $box) { Close-MessageBox $box 'OK' }
+
+    # 警告が出ている間に、本体が見えていること (#406)。本体の枠を作る途中 (Loaded) で出していたときは、
+    # 本体が隠れたままで、警告にタスクバーのボタンが無く、ほかのウィンドウの後ろに回ると見つけられなかった。
+    # MainWindowHandle は、見えていて持ち主の無いウィンドウを指す。本体が隠れていると 0 になる
+    # 渡した書庫は、警告を閉じてから開く。警告の間はタブが無いこと
+    $mainShown = $false
+    $tabsDuringWarning = $null
+    if ($null -ne $box) {
+        $process.Refresh()
+        $mainShown = $process.MainWindowHandle -ne [IntPtr]::Zero
+        if ($mainShown) {
+            $tabsDuringWarning = @(Get-Tabs ([pscustomobject]@{ Window = $script:Automation::FromHandle($process.MainWindowHandle) })).Count
+        }
+        Close-MessageBox $box 'OK'
+    }
 
     $window = $null
     $deadline = [DateTime]::Now.AddSeconds(30)
@@ -80,7 +94,7 @@ function Start-ExpzipAfterWarning([string[]]$Arguments) {
 
     $app = [pscustomobject]@{ Process = $process; Window = $window }
     Wait-Idle $app
-    return [pscustomobject]@{ App = $app; Box = $box }
+    return [pscustomobject]@{ App = $app; Box = $box; MainShown = $mainShown; TabsDuringWarning = $tabsDuringWarning }
 }
 
 Section '設定ファイルが壊れている'
@@ -92,7 +106,11 @@ $app = $started.App
 $copies = Get-SettingsCopies
 Check '読めなかったことを知らせる' ($null -ne $started.Box -and $started.Box.Text.Contains($script:SettingsPath)) $started.Box.Text
 Check '写しの場所を知らせる' ($copies.Count -eq 1 -and $started.Box.Text.Contains($copies[0].FullName)) $started.Box.Text
+Check '知らせている間も本体が見える' $started.MainShown
 Check '既定の値で起動する' ((ById $app.Window 'ExtractButton').Current.Name -in @('展開', 'Extract'))
+# 知らせのあとに、渡した書庫を開く
+Check '知らせている間は書庫をまだ開かない' ($started.TabsDuringWarning -eq 0) "$($started.TabsDuringWarning) 個"
+Check '渡した書庫を開く' ((Get-Tabs $app).Count -eq 1) "$((Get-Tabs $app).Count) 個"
 Stop-Expzip $app
 Check '元のファイルは置き換わらない' ((Read-Settings) -eq $broken) (Read-Settings)
 Check '写しは元の中身' ($copies.Count -eq 1 -and [System.IO.File]::ReadAllText($copies[0].FullName) -eq $broken)
@@ -112,6 +130,7 @@ try {
     $app = $started.App
     Check '読めなかったことを知らせる' ($null -ne $started.Box -and $started.Box.Text.Contains($script:SettingsPath)) $started.Box.Text
     Check '中身は無事かもしれないので削除を勧めない' ($null -ne $started.Box -and $started.Box.Text -notmatch '削除|delete') $started.Box.Text
+    Check '知らせている間も本体が見える' $started.MainShown
     Check '既定の値で起動する' ((ById $app.Window 'ExtractButton').Current.Name -in @('展開', 'Extract'))
 }
 finally {
