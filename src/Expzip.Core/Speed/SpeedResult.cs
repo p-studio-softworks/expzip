@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Expzip.Speed;
 
@@ -127,6 +128,10 @@ internal sealed class SpeedKindResult
 
     /// <summary>展開にかかった秒数。</summary>
     public double ExtractSeconds { get; set; }
+
+    /// <summary>このバージョンが知らない項目 (#409)。設定ファイルに書き戻すために持つ (<see cref="Configuration.AppSettings.Unknown"/>)。</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
 }
 
 /// <summary>
@@ -164,6 +169,13 @@ internal sealed class SpeedResult
     public double DiskWriteBytesPerSecond { get; set; }
 
     public List<SpeedKindResult> Kinds { get; set; } = [];
+
+    /// <summary>
+    /// このバージョンが知らない項目 (#409)。設定ファイルに書き戻すために持つ (<see cref="Configuration.AppSettings.Unknown"/>)。
+    /// 測り直したときは結果ごと作り直すので、前の測定の知らない項目は残らない。
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
 
     /// <summary>
     /// 中身が <paramref name="contentBytes"/> の書庫を圧縮・展開する時間を見積もる。

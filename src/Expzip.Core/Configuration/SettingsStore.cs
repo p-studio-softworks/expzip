@@ -1,6 +1,10 @@
-﻿using System.IO;
+﻿using System.Collections.Concurrent;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using Expzip.Archives;
+using Expzip.Speed;
 
 namespace Expzip.Configuration;
 
@@ -31,6 +35,20 @@ internal static class SettingsStore
 
     /// <summary>最近開いた書庫を覚える数 (#10)。手で書き足されていても、読んだときにここまで切る。</summary>
     internal const int RecentLimit = 10;
+
+    /// <summary>
+    /// 書き戻す知らない項目 (#409) の数の上限。測った結果の中のものも合わせて数える。超えたら知らない項目をすべて捨てる。
+    /// </summary>
+    /// <remarks>ふつうの設定ファイルは数 KB で、新しいバージョンが足す項目も数個のはず。</remarks>
+    internal const int UnknownMaxCount = 1000;
+
+    /// <summary>
+    /// 書き戻す知らない項目 (#409) の、読んだときの大きさ (名前と値の UTF-8 のバイト数) の合計の上限。超えたら知らない項目をすべて捨てる。
+    /// </summary>
+    /// <remarks>
+    /// 書き出すときの字下げで、深い入れ子の小さな値は 60 倍ほどに膨らむ。256 KB なら、膨らんでも 16 MB 前後で済む。
+    /// </remarks>
+    internal const int UnknownMaxBytes = 256 * 1024;
 
     /// <summary>設定ファイルのパス。</summary>
     public static string FilePath { get; } = Path.Combine(DataFolder.Path, FileName);
@@ -79,6 +97,9 @@ internal static class SettingsStore
             return Unreadable(path, keepCopy ? GuardedFile.TryKeepCopy(path, bytes) : null, SettingsLoadFailure.Damaged);
         }
 
+        // 知らない項目は保存で書き戻すので、書き戻せる形に整える (#409)
+        TidyUnknown(settings);
+
         // 古い設定ファイルや手で編集されたものには項目が無いことがある
         settings.RecentArchives ??= [];
         settings.RecentArchives.RemoveAll(p => p is null);
@@ -92,7 +113,8 @@ internal static class SettingsStore
 
     /// <summary>設定を保存する。</summary>
     /// <returns>
-    /// 保存できたら true。書き込めない場所に置かれている場合と、設定ファイルを読めなかったセッション (#399) では false。
+    /// 保存できたら true。書き込めない場所に置かれている場合、設定ファイルを読めなかったセッション (#399)、
+    /// 中身を書き出せないか次に読めない大きさになる場合 (#409) は false。
     /// </returns>
     public static bool TrySave(AppSettings settings) => TrySave(settings, FilePath);
 
@@ -105,14 +127,195 @@ internal static class SettingsStore
             return false;
         }
 
+        // 書き出せない、または次に読めない大きさなら、前の設定ファイルを残す (#409)
+        var json = ToJson(settings);
+        if (json is null)
+        {
+            return false;
+        }
+
         try
         {
             // 途中で止まっても、前の設定が残る (#320)
-            AtomicFile.WriteAllText(path, JsonSerializer.Serialize(settings, Options));
+            AtomicFile.WriteAllText(path, json);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 保存する中身を作る。作れないか、次に読めない大きさ (<see cref="MaxBytes"/> を超える) なら null。
+    /// </summary>
+    /// <remarks>
+    /// 読めたものでも書き出せないことがある。知らない項目 (#409) の中の、対になっていないサロゲート (<c>"\uD800"</c>) など。
+    /// 整形と <c>\uXXXX</c> への置き換えで、読んだときより大きくなることもある。
+    /// </remarks>
+    private static string? ToJson(AppSettings settings)
+    {
+        // 文字列にせず、上限を超えたところで止まる書き先に書く。測った結果の種類が大量にあるものなどを、
+        // 何 GB も使って書き終えてから捨てないように
+        using var stream = new LimitedStream(MaxBytes);
+        try
+        {
+            JsonSerializer.Serialize(stream, settings, Options);
+            return Encoding.UTF8.GetString(stream.GetBuffer(), 0, (int)stream.Length);
+        }
+        catch (Exception ex) when (ex is LimitExceededException or JsonException or NotSupportedException
+                                   or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>上限を超えて書こうとすると <see cref="LimitExceededException"/> を出す書き先。</summary>
+    private sealed class LimitedStream(int limit) : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            Check(count);
+            base.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            Check(buffer.Length);
+            base.Write(buffer);
+        }
+
+        public override void WriteByte(byte value)
+        {
+            Check(1);
+            base.WriteByte(value);
+        }
+
+        private void Check(int count)
+        {
+            if (Length + count > limit)
+            {
+                throw new LimitExceededException();
+            }
+        }
+    }
+
+    private sealed class LimitExceededException : Exception;
+
+    /// <summary>
+    /// 知らない項目 (#409) のうち、書き戻せないものと、知っている項目と大文字・小文字だけ違う名前のものを捨てる。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 書き戻せないものを持っていると、保存のたびに失敗して、知っている項目も保存できなくなる。
+    /// 多すぎる・大きすぎるとき (<see cref="UnknownMaxCount"/>、<see cref="UnknownMaxBytes"/>) と、
+    /// 1 つずつは書き戻せても、全体で書き出せないか大きすぎるときは、知らない項目をすべて捨てる。
+    /// 捨てたものは、#409 より前と同じく、次の保存でファイルから消える。
+    /// </para>
+    /// <para>
+    /// 大文字・小文字だけ違う名前 (<c>language</c>) は、この読み方では知らない項目に入る。
+    /// 書き戻すと知っている項目の後ろに残り続け、大文字・小文字を区別しない読み手は後ろの値を使うか、読めなくなる。
+    /// </para>
+    /// </remarks>
+    private static void TidyUnknown(AppSettings settings)
+    {
+        var speed = settings.SpeedResult;
+        var kinds = speed?.Kinds?.Where(k => k is not null).ToList() ?? [];
+
+        // 知らない項目が無い、ふつうのファイルでは何もしない
+        var count = 0;
+        long bytes = 0;
+        void Measure(Dictionary<string, JsonElement>? unknown)
+        {
+            foreach (var (name, value) in unknown ?? [])
+            {
+                count++;
+                bytes += Encoding.UTF8.GetByteCount(name) + JsonMarshal.GetRawUtf8Value(value).Length;
+            }
+        }
+
+        Measure(settings.Unknown);
+        Measure(speed?.Unknown);
+        kinds.ForEach(k => Measure(k.Unknown));
+        if (count == 0)
+        {
+            return;
+        }
+
+        // 多すぎる・大きすぎるものは、書き出してみる前に捨てる。字下げで何十倍にも膨らむ形 (深い入れ子に小さな値を並べたもの) は、
+        // 書き出すと文字列の長さの上限を超えて、メモリー不足で起動できなくなる
+        if (count > UnknownMaxCount || bytes > UnknownMaxBytes)
+        {
+            DropUnknown(settings, kinds);
+            return;
+        }
+
+        settings.Unknown = TidyUnknown(settings.Unknown, KnownNames(typeof(AppSettings)));
+        if (speed is not null)
+        {
+            speed.Unknown = TidyUnknown(speed.Unknown, KnownNames(typeof(SpeedResult)));
+        }
+
+        var kindNames = KnownNames(typeof(SpeedKindResult));
+        kinds.ForEach(k => k.Unknown = TidyUnknown(k.Unknown, kindNames));
+
+        var remains = settings.Unknown is not null || speed?.Unknown is not null || kinds.Exists(k => k.Unknown is not null);
+        if (remains && ToJson(settings) is null)
+        {
+            DropUnknown(settings, kinds);
+        }
+    }
+
+    private static void DropUnknown(AppSettings settings, List<SpeedKindResult> kinds)
+    {
+        settings.Unknown = null;
+        if (settings.SpeedResult is { } speed)
+        {
+            speed.Unknown = null;
+        }
+
+        kinds.ForEach(k => k.Unknown = null);
+    }
+
+    private static readonly ConcurrentDictionary<Type, HashSet<string>> KnownNameCache = new();
+
+    /// <summary>その型の知っている項目の名前。大文字・小文字を区別せずに比べる。</summary>
+    private static HashSet<string> KnownNames(Type type) => KnownNameCache.GetOrAdd(type, t => Options.GetTypeInfo(t).Properties
+        .Where(p => !p.IsExtensionData)
+        .Select(p => p.Name)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>1 つの型の知らない項目を整える。残すものが無ければ null。</summary>
+    private static Dictionary<string, JsonElement>? TidyUnknown(Dictionary<string, JsonElement>? unknown, HashSet<string> known)
+    {
+        if (unknown is null || unknown.Count == 0)
+        {
+            return null;
+        }
+
+        var kept = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var (name, value) in unknown)
+        {
+            if (!known.Contains(name) && CanWrite(name, value))
+            {
+                kept[name] = value;
+            }
+        }
+
+        return kept.Count == 0 ? null : kept;
+    }
+
+    /// <summary>知らない項目を 1 つ、名前ごと書き出せるか。</summary>
+    private static bool CanWrite(string name, JsonElement value)
+    {
+        try
+        {
+            JsonSerializer.Serialize(new Dictionary<string, JsonElement> { [name] = value }, Options);
+            return true;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException
+                                   or InvalidOperationException or ArgumentException)
         {
             return false;
         }

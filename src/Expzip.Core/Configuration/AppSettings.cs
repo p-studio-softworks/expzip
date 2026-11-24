@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 using Expzip.Localization;
 using Expzip.Speed;
 
@@ -76,6 +77,17 @@ internal sealed class AppSettings
     /// </summary>
     /// <remarks>次に開いたときにも前の結果を見られるように残す。</remarks>
     public SpeedResult? SpeedResult { get; set; }
+
+    /// <summary>
+    /// このバージョンが知らない項目 (#409)。新しいバージョンの Expzip が足したものなど。無ければ null。
+    /// </summary>
+    /// <remarks>
+    /// 読んだまま持っておき、保存のときにそのまま書き戻す。持たないと、古いバージョンで保存したときに消える。
+    /// 中身は使わない。書き戻せないものと、知っている項目と大文字・小文字だけ違う名前のものは、
+    /// 読んだときに捨てる (<see cref="SettingsStore"/> の <c>TidyUnknown</c>)。
+    /// </remarks>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
 
     /// <summary>
     /// 設定ファイルがあったのに読めず、既定の値で作ったもの (#399)。読めていれば null。設定ファイルには書かない。
