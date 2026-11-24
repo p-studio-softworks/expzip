@@ -63,6 +63,13 @@ internal static class RuleStore
     /// <summary>決まりが保存されているか。</summary>
     public static bool Exists => File.Exists(FilePath);
 
+    /// <summary>決まりのファイルが無いことを確かめられたか (#421)。確かめられないとき (アクセス権が無い、など) は false。</summary>
+    /// <remarks>
+    /// 「ルールに合っているか検査…」を押せるかに使う。<see cref="Exists"/> (<c>File.Exists</c>) は確かめられないときも「無い」と返すので、
+    /// 押せず「ルールが保存されていません」と出て、読めなかったことを知らせる警告 (#406) に届かない。
+    /// </remarks>
+    public static bool ConfirmedMissing => GuardedFile.ConfirmedMissing(FilePath);
+
     /// <summary>保存された決まりを読む。</summary>
     /// <param name="keepCopy">
     /// 読めなかった中身や、落とした行のあるファイルの写しを残すか (#406)。書く道のあるルールの推定のウィンドウでは残す。

@@ -630,6 +630,82 @@ public sealed class RuleStoreTests : IDisposable
         Assert.Empty(Copies());
     }
 
+    // ------------------------------------------------------------------ 検査のメニューを押せるか (#421)
+
+    private static bool ConfirmedMissing(string path) => Expzip.Configuration.GuardedFile.ConfirmedMissing(path);
+
+    [Fact]
+    public void 無いと確かめられるのはファイルかフォルダーが無いときと0バイトのときだけ()
+    {
+        Assert.True(ConfirmedMissing(Rules));
+        Assert.True(ConfirmedMissing(Path.Combine(_folder, "none", "Expzip.rules.json")));
+
+        File.WriteAllBytes(Rules, []);
+        Assert.True(ConfirmedMissing(Rules));
+
+        File.WriteAllText(Rules, Valid);
+        Assert.False(ConfirmedMissing(Rules));
+    }
+
+    [Fact]
+    public void 同じ名前のフォルダーがあれば無いとは言わない()
+    {
+        Directory.CreateDirectory(Rules);
+        Assert.False(ConfirmedMissing(Rules));
+    }
+
+    [Fact]
+    public void ほかのプログラムが開いていても無いとは言わない()
+    {
+        File.WriteAllText(Rules, Valid);
+        using (new FileStream(Rules, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.False(ConfirmedMissing(Rules));
+        }
+
+        // ほかのプログラムが書き込みのために開いていても、開いて確かめられる (共有を許して開くので、妨げない)
+        using var writer = new FileStream(Rules, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
+        Assert.False(ConfirmedMissing(Rules));
+        writer.SetLength(0);
+        writer.Flush();
+        Assert.True(ConfirmedMissing(Rules));
+    }
+
+    [Fact]
+    public void アクセス権で確かめられなければ無いとは言わない()
+    {
+        // File.Exists は、フォルダーの中を見られず、ファイルの属性も読めないと「無い」と返す。それで「ルールに合っているか検査…」を押せなくすると、読めなかったことを知らせる警告に届かない
+        var folder = Directory.CreateDirectory(Path.Combine(_folder, "locked"));
+        var rules = Path.Combine(folder.FullName, "Expzip.rules.json");
+        File.WriteAllText(rules, Valid);
+
+        var me = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+        var fileRule = new System.Security.AccessControl.FileSystemAccessRule(
+            me, System.Security.AccessControl.FileSystemRights.ReadData | System.Security.AccessControl.FileSystemRights.ReadAttributes,
+            System.Security.AccessControl.AccessControlType.Deny);
+        var folderRule = new System.Security.AccessControl.FileSystemAccessRule(
+            me, System.Security.AccessControl.FileSystemRights.ListDirectory, System.Security.AccessControl.AccessControlType.Deny);
+        var fileSecurity = new FileInfo(rules).GetAccessControl();
+        fileSecurity.AddAccessRule(fileRule);
+        new FileInfo(rules).SetAccessControl(fileSecurity);
+        var folderSecurity = folder.GetAccessControl();
+        folderSecurity.AddAccessRule(folderRule);
+        folder.SetAccessControl(folderSecurity);
+
+        try
+        {
+            Assert.False(File.Exists(rules));
+            Assert.False(ConfirmedMissing(rules));
+        }
+        finally
+        {
+            folderSecurity.RemoveAccessRule(folderRule);
+            folder.SetAccessControl(folderSecurity);
+            fileSecurity.RemoveAccessRule(fileRule);
+            new FileInfo(rules).SetAccessControl(fileSecurity);
+        }
+    }
+
     // ------------------------------------------------------------------ 書く中身の大きさ (#421)
 
     [Fact]

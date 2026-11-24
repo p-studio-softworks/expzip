@@ -9180,11 +9180,14 @@ public partial class MainWindow : Window
             ? Tab is null ? Strings.NoArchiveOpen : null
             : Strings.RuleNeedsAi;
 
-        // 当てはめるほうは AI を使わない。決まりと書庫があれば押せる (#27)
-        RuleAuditItem.IsEnabled = Tab is not null && RuleStore.Exists;
-        RuleAuditItem.ToolTip = RuleStore.Exists
-            ? Tab is null ? Strings.NoArchiveOpen : null
-            : Strings.RuleNoneSaved;
+        // 当てはめるほうは AI を使わない。決まりと書庫があれば押せる (#27)。
+        // 押せなくするのは、決まりのファイルが無いと確かめられたときだけ (#421)。アクセス権などで確かめられないときは押せるようにし、
+        // 押したときに読めなかったことを知らせる (#406)。「保存されていません」と出すと、ファイルがあるのに無いと思わせる
+        var none = RuleStore.ConfirmedMissing;
+        RuleAuditItem.IsEnabled = Tab is not null && !none;
+        RuleAuditItem.ToolTip = none
+            ? Strings.RuleNoneSaved
+            : Tab is null ? Strings.NoArchiveOpen : null;
 
         DropDown(AiButton);
     }

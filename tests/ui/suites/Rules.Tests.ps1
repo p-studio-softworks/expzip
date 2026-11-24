@@ -520,6 +520,28 @@ try {
     }
     Stop-Expzip $app
     Get-RuleCopies | Remove-Item -Force
+
+    # 検査のメニューを押せなくするのは、ルールのファイルが無いと確かめられたときだけ (#421)。
+    # 確かめられないとき (ここでは同じ名前のフォルダー) は押せて、押すと読めなかったことを知らせる
+    Section '検査のメニューを押せるか'
+    [System.IO.File]::Delete($script:RulesPath)
+    $app = Start-Expzip @($libs)
+    $item = Open-AiItem $app 'ルールに合っているか検査…'
+    Check 'ルールのファイルが無ければ押せない' ($item -and -not $item.Current.IsEnabled)
+    Stop-Expzip $app
+    [System.IO.Directory]::CreateDirectory($script:RulesPath) | Out-Null
+    try {
+        $app = Start-Expzip @($libs)
+        $item = Open-AiItem $app 'ルールに合っているか検査…'
+        Check '確かめられなければ押せる' ($item -and $item.Current.IsEnabled)
+        $box = Find-MessageBox $app
+        Check '押すと読めなかったことを知らせる' ($box -and $box.Text -match '^ルールのファイルを読み込めませんでした。ルールに合っているかを検査できません。') $(if ($box) { $box.Text })
+        if ($box) { Close-MessageBox $box 'OK' }
+        Stop-Expzip $app
+    }
+    finally {
+        [System.IO.Directory]::Delete($script:RulesPath)
+    }
 }
 finally {
     Stop-AiStub $stub

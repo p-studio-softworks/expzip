@@ -96,6 +96,39 @@ internal static class GuardedFile
         }
     }
 
+    /// <summary>
+    /// 無いことを確かめられたか (#421)。中身は読まない。<see cref="Read"/> が <see cref="GuardedReadStatus.Missing"/> を返すのと同じ決め方で、
+    /// 開いて FileNotFound / DirectoryNotFound になったときと、0 バイトのときだけ true。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>File.Exists</c> は、フォルダーのアクセス権などで確かめられないときにも「無い」と返す。それで「ルールに合っているか検査…」を押せなくすると、
+    /// 読めなかったことを知らせる道に届かない。確かめられないとき (アクセス権が無い、ほかのプログラムが開いている、
+    /// 同じ名前のフォルダーがある) は false にして、読む側に知らせを任せる。
+    /// </para>
+    /// <para>
+    /// 開くだけですぐ閉じる。ほかのプログラムの読み書きと削除を妨げないように、共有はすべて許す。ただし、開いている一瞬に
+    /// ほかの Expzip の保存 (置き換え) が重なると、そちらの保存が失敗する (やり直しの間に閉じれば通る)。<see cref="ReadLimited"/> と同じ。
+    /// </para>
+    /// </remarks>
+    public static bool ConfirmedMissing(string path)
+    {
+        try
+        {
+            using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return RandomAccess.GetLength(handle) == 0;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                   or NotSupportedException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>読んだバイト列を文字にする。</summary>
     /// <remarks>
     /// 前の作り (<c>File.ReadAllText</c>) と同じ読み方にする。BOM を見て UTF-8 の BOM を除き、
