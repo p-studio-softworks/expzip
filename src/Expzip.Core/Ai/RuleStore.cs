@@ -1,6 +1,5 @@
 ﻿using System.IO;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -78,7 +77,7 @@ internal static class RuleStore
     /// <para>
     /// 読めない行はその行だけ落とす (1 行の書き損じで全部消さない)。落とした行は次の「適用」でファイルから消えるので、
     /// 1 行でも落としたら、読んだ中身の写しを残す (#406)。新しいバージョンで足された種類の行は、形式の番号を
-    /// 上げないことがある (#172) ので、ここで守る。
+    /// 上げないことがある (#172) ので、ここで守る。当てる先と出所が知らない言葉の行も、同じく落とす (#421)。
     /// </para>
     /// </remarks>
     public static RuleLoad Load(bool keepCopy) => Load(FilePath, keepCopy);
@@ -118,13 +117,83 @@ internal static class RuleStore
         }
 
         var book = ToBook(document, out var dropped);
+
+        // 知らない項目は、書く道のあるルールの推定のウィンドウでだけ持ち、適用で書き戻す (#421)。
+        // 当てはめは書かないので持たない。整えるために全体を書き出してみる手間も、タブを切り替えるたびにかけない
+        var discarded = false;
+        book = keepCopy ? TidyUnknown(book, ref discarded) : WithoutUnknown(book);
+
+        // 落とした行と捨てた知らない項目は、次の「適用」でファイルから消える。写しを残して知らせる (#406、#421)
         return new RuleLoad(path, SHA256.HashData(bytes))
         {
             Book = book,
             Dropped = dropped,
-            DroppedKeptPath = dropped > 0 && keepCopy ? GuardedFile.TryKeepCopy(path, bytes) : null,
+            UnknownDiscarded = discarded,
+            DroppedKeptPath = (dropped > 0 || discarded) && keepCopy ? GuardedFile.TryKeepCopy(path, bytes) : null,
         };
     }
+
+    /// <summary>
+    /// 知らない項目 (#421) を、書き戻せる形に整える。整え方は設定ファイル (#409) と同じ (<see cref="UnknownItems"/>)。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ファイルの頭と全部の行を合わせて数え、多すぎる・大きすぎるときは、1 つずつ確かめずにすべて捨てる。
+    /// 1 つずつは、書き出せないものと、知っている項目と大文字・小文字だけ違う名前のもの (ファイルの頭だけ。行のものは、その行を落としてある) を捨てる。
+    /// 残ったものがあれば全体を書き出してみて、書き出せないか大きすぎるときは、知らない項目を除いて書き出せるときだけ、すべて捨てる。
+    /// 除いても書き出せないなら、知っている項目だけで大きすぎるので、捨てずに持つ (適用で大きすぎると知らせる)。
+    /// </para>
+    /// <para>
+    /// 設定ファイルと違い、捨てたものがあれば知らせる (<paramref name="discarded"/>)。ルールのファイルには写しを残す仕組みがあり、配られたファイルを使うこともあるため。
+    /// </para>
+    /// </remarks>
+    private static RuleBook TidyUnknown(RuleBook book, ref bool discarded)
+    {
+        var measured = UnknownItems.Measure([book.Unknown, .. book.Rules.Select(static entry => entry.Unknown)]);
+        if (measured.Count == 0)
+        {
+            return book;
+        }
+
+        if (UnknownItems.TooMany(measured))
+        {
+            discarded = true;
+            return WithoutUnknown(book);
+        }
+
+        var documentNames = UnknownItems.KnownNames(Options, typeof(Document));
+        var rowNames = UnknownItems.KnownNames(Options, typeof(Row));
+        var head = UnknownItems.Tidy(book.Unknown, documentNames, Options, ref discarded);
+        var entries = new List<RuleEntry>(book.Rules.Count);
+        foreach (var entry in book.Rules)
+        {
+            entries.Add(entry with { Unknown = UnknownItems.Tidy(entry.Unknown, rowNames, Options, ref discarded) });
+        }
+
+        var tidied = book with { Unknown = head, Rules = entries };
+        var remains = head is not null || entries.Exists(static entry => entry.Unknown is not null);
+        if (!remains || GuardedFile.Serialize(ToDocument(tidied), Options) is not null)
+        {
+            return tidied;
+        }
+
+        // 知らない項目を除けば書き出せるときだけ、知らない項目のせいとして捨てる。除いても書き出せないなら、知っている項目だけで
+        // 大きすぎる。捨てずに持ち、「適用」で大きすぎると知らせる (ルールを減らせば、知らない項目ごと書ける)
+        var without = WithoutUnknown(tidied);
+        if (GuardedFile.Serialize(ToDocument(without), Options) is null)
+        {
+            return tidied;
+        }
+
+        discarded = true;
+        return without;
+    }
+
+    /// <summary>知らない項目を持たない決まり。</summary>
+    private static RuleBook WithoutUnknown(RuleBook book)
+        => book.Unknown is null && book.Rules.All(static entry => entry.Unknown is null)
+            ? book
+            : book with { Unknown = null, Rules = [.. book.Rules.Select(static entry => entry with { Unknown = null })] };
 
     private static RuleLoad Unreadable(string path, string? keptPath, RuleLoadFailure failure)
         => new(path, fingerprint: null) { Problem = new RuleLoadProblem(path, keptPath, failure) };
@@ -169,25 +238,28 @@ internal static class RuleStore
         dropped = 0;
         var entries = new List<RuleEntry>();
 
+        var rowNames = UnknownItems.KnownNames(Options, typeof(Row));
+
         foreach (var row in document.Rules!)
         {
-            // 読めない行はその行だけ落とす。1行の書き損じで全部消さない。中身の無い行 (null) も同じ
-            if (row is null || RuleWords.ToKind(row.Kind) is not { } kind)
+            // 読めない行はその行だけ落とす。1 行の書き損じで全部消さない。中身の無い行 (null) も同じ。
+            // 当てる先と出所が知らない言葉の行も落とす (#421)。書庫全体・AI として読むと、「適用」で書き直されて意味が変わる。
+            // 知っている項目と大文字・小文字だけ違う名前 ("scope") がある行も落とす。項目名は区別して読むので、当てる先が無い扱いで
+            // 書庫全体になり、適用で "Scope": "all" と書き直されてしまう
+            if (row is null
+                || (row.Unknown?.Keys.Any(rowNames.Contains) ?? false)
+                || RuleWords.ToKind(row.Kind) is not { } kind
+                || RuleWords.TryScope(row.Scope) is not { } scope
+                || RuleWords.TrySource(row.Source) is not { } source)
             {
                 dropped++;
                 continue;
             }
 
             var rule = ArchiveRule.TryCreate(
-                kind, RuleWords.ToScope(row.Scope), row.Value ?? string.Empty,
+                kind, scope, row.Value ?? string.Empty,
                 row.Description ?? string.Empty, row.Evidence ?? string.Empty,
-                row.Source switch
-                {
-                    "hand" => RuleSource.Hand,
-                    "filled" => RuleSource.Filled,
-                    _ => RuleSource.Ai,
-                },
-                row.Where ?? string.Empty);
+                source, row.Where ?? string.Empty);
 
             if (rule is null)
             {
@@ -195,12 +267,37 @@ internal static class RuleStore
                 continue;
             }
 
-            // 数え上げた場所の数。無い古いファイルは 0 のまま (#172)
-            entries.Add(new RuleEntry(rule with { Places = row.Places ?? 0 }, row.Enabled));
+            // 数え上げた場所の数。無い古いファイルは 0 のまま (#172)。知らない項目はその行と一緒に持つ (#421)
+            entries.Add(new RuleEntry(rule with { Places = row.Places ?? 0 }, row.Enabled) { Unknown = row.Unknown });
         }
 
-        return new RuleBook(document.LearnedFrom ?? string.Empty, document.LearnedAt, entries);
+        return new RuleBook(document.LearnedFrom ?? string.Empty, document.LearnedAt, entries) { Unknown = document.Unknown };
     }
+
+    /// <summary>ファイルに書く形にする。知らない項目 (#421) は、ファイルの頭とその行に書き戻す。</summary>
+    private static Document ToDocument(RuleBook book) => new()
+    {
+        Version = Version,
+        LearnedFrom = book.LearnedFrom,
+        LearnedAt = book.LearnedAt,
+        Rules = [.. book.Rules.Select(static entry => new Row
+        {
+            Kind = RuleWords.FromKind(entry.Rule.Kind),
+            Scope = RuleWords.FromScope(entry.Rule.Scope),
+            Value = entry.Rule.Value,
+
+            // 画面に出るのと同じ文を書く。補った分は組み立てたもの (#172)。
+            // 読むときは Places から組み立て直すので、言語を切り替えても付いてくる
+            Description = entry.Rule.DescriptionText,
+            Evidence = entry.Rule.EvidenceText,
+            Where = entry.Rule.Where.Length == 0 ? null : entry.Rule.Where,
+            Places = entry.Rule.Places == 0 ? null : entry.Rule.Places,
+            Source = RuleWords.FromSource(entry.Rule.Source),
+            Enabled = entry.Enabled,
+            Unknown = entry.Unknown,
+        })],
+        Unknown = book.Unknown,
+    };
 
     /// <summary>決まりを保存する。</summary>
     /// <param name="book">保存する決まり。</param>
@@ -215,35 +312,13 @@ internal static class RuleStore
             return refused;
         }
 
-        var document = new Document
+        // 書くバイト列を 1 度だけ作り、同じ配列で覚え直す。書き方が変わっても、次の適用で「変わった」と誤らない。
+        // 書き出せないか、次に読めない大きさになるなら、書かずに前のファイルを残す (#421)。字下げで、読んだときより大きくなることがある
+        if (GuardedFile.Serialize(ToDocument(book), Options) is not { } bytes)
         {
-            Version = Version,
-            LearnedFrom = book.LearnedFrom,
-            LearnedAt = book.LearnedAt,
-            Rules = [.. book.Rules.Select(static entry => new Row
-            {
-                Kind = RuleWords.FromKind(entry.Rule.Kind),
-                Scope = RuleWords.FromScope(entry.Rule.Scope),
-                Value = entry.Rule.Value,
+            return RuleWriteResult.TooLarge;
+        }
 
-                // 画面に出るのと同じ文を書く。補った分は組み立てたもの (#172)。
-                // 読むときは Places から組み立て直すので、言語を切り替えても付いてくる
-                Description = entry.Rule.DescriptionText,
-                Evidence = entry.Rule.EvidenceText,
-                Where = entry.Rule.Where.Length == 0 ? null : entry.Rule.Where,
-                Places = entry.Rule.Places == 0 ? null : entry.Rule.Places,
-                Source = entry.Rule.Source switch
-                {
-                    RuleSource.Hand => "hand",
-                    RuleSource.Filled => "filled",
-                    _ => "ai",
-                },
-                Enabled = entry.Enabled,
-            })],
-        };
-
-        // 書くバイト列を 1 度だけ作り、同じ配列で覚え直す。書き方が変わっても、次の適用で「変わった」と誤らない
-        var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(JsonSerializer.Serialize(document, Options));
         try
         {
             // 途中で止まっても、前の決まりが残る (#320)
@@ -326,6 +401,10 @@ internal static class RuleStore
 
         /// <summary>決まりの並び。手で書かれたファイルでは、中に null の行があることもある。</summary>
         public List<Row?>? Rules { get; set; }
+
+        /// <summary>このバージョンが知らない項目 (#421)。読んだまま持ち、適用で書き戻す。</summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? Unknown { get; set; }
     }
 
     private sealed class Row
@@ -349,6 +428,10 @@ internal static class RuleStore
         public string? Source { get; set; }
 
         public bool Enabled { get; set; } = true;
+
+        /// <summary>この行の、このバージョンが知らない項目 (#421)。行と一緒に持ち、適用で書き戻す。</summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? Unknown { get; set; }
     }
 }
 
@@ -373,7 +456,14 @@ internal sealed class RuleLoad
     /// <summary>読めずに落とした行の数。</summary>
     public int Dropped { get; init; }
 
-    /// <summary>落とした行があったときに、元のファイルの写しを残した場所。残していなければ <see langword="null"/>。</summary>
+    /// <summary>
+    /// このバージョンが知らない項目のうち、書き戻せないものを捨てたか (#421)。捨てたものは、次の「適用」でファイルから消える。
+    /// </summary>
+    public bool UnknownDiscarded { get; init; }
+
+    /// <summary>
+    /// 落とした行か、捨てた知らない項目があったときに、元のファイルの写しを残した場所。残していなければ <see langword="null"/>。
+    /// </summary>
     public string? DroppedKeptPath { get; init; }
 
     /// <summary>読んだ (または最後に書いた) 中身の SHA-256。ファイルが無かったときは <see langword="null"/>。</summary>
@@ -419,6 +509,9 @@ internal enum RuleWriteResult
 
     /// <summary>書く前に読み直せなかった (ほかのプログラムが開いている、など) ので、書かなかった。</summary>
     Busy,
+
+    /// <summary>書く中身が、次に読めない大きさになる (または書き出せない) ので、書かなかった (#421)。</summary>
+    TooLarge,
 }
 
 /// <summary>確かめた決まりのひとまとまり (#26)。</summary>
@@ -426,7 +519,21 @@ internal enum RuleWriteResult
 /// <param name="LearnedAt">最後に保存した日時。</param>
 /// <param name="Rules">決まりと、それを使うかどうか。</param>
 internal sealed record RuleBook(
-    string LearnedFrom, DateTimeOffset LearnedAt, IReadOnlyList<RuleEntry> Rules);
+    string LearnedFrom, DateTimeOffset LearnedAt, IReadOnlyList<RuleEntry> Rules)
+{
+    /// <summary>
+    /// ファイルの頭の、このバージョンが知らない項目 (#421)。新しいバージョンの Expzip が足したものなど。無ければ null。
+    /// </summary>
+    /// <remarks>中身は使わない。適用でそのまま書き戻す。持たないと、古いバージョンで適用したときに消える。</remarks>
+    public Dictionary<string, JsonElement>? Unknown { get; init; }
+}
 
 /// <summary>決まり1つと、それを使うかどうか (#26)。</summary>
-internal readonly record struct RuleEntry(ArchiveRule Rule, bool Enabled);
+/// <remarks>
+/// <see cref="Unknown"/> は、その行の、このバージョンが知らない項目 (#421)。行と一緒に持ち、行を消せば一緒に消える。
+/// </remarks>
+internal readonly record struct RuleEntry(ArchiveRule Rule, bool Enabled)
+{
+    /// <summary>その行の、このバージョンが知らない項目 (#421)。無ければ null。</summary>
+    public Dictionary<string, JsonElement>? Unknown { get; init; }
+}

@@ -342,7 +342,8 @@ internal enum RuleScope
 internal static class RuleWords
 {
     /// <summary>言葉から種類へ。知らない言葉なら <see langword="null"/>。</summary>
-    public static RuleKind? ToKind(string? text) => text?.Trim().ToLowerInvariant() switch
+    /// <remarks>ASCII だけで比べる (<see cref="Word"/>、#421)。</remarks>
+    public static RuleKind? ToKind(string? text) => Word(text) switch
     {
         "required_entry" => RuleKind.RequiredEntry,
         "required_folder" => RuleKind.RequiredFolder,
@@ -381,4 +382,56 @@ internal static class RuleWords
         RuleScope.Files => "files",
         _ => "all",
     };
+
+    /// <summary>ルールのファイルの言葉から当てる先へ (#421)。知らない言葉なら <see langword="null"/>。</summary>
+    /// <remarks>
+    /// <para>
+    /// AI の答えを読む <see cref="ToScope"/> と違い、知らない言葉を書庫全体として読まない。新しいバージョンで足された言葉や
+    /// 書き損じた言葉を書庫全体として読むと、「適用」で <c>all</c> と書き直されて、ルールの意味が変わる。読めない行として落とす。
+    /// </para>
+    /// <para>
+    /// 項目が無いか空白だけなら、書庫全体。手で書いたファイルで省いたものとして読む。Expzip が書くファイルには必ずある。
+    /// </para>
+    /// </remarks>
+    public static RuleScope? TryScope(string? text) => string.IsNullOrWhiteSpace(text)
+        ? RuleScope.All
+        : Word(text) switch
+        {
+            "root" => RuleScope.Root,
+            "folders" => RuleScope.Folders,
+            "files" => RuleScope.Files,
+            "all" => RuleScope.All,
+            _ => null,
+        };
+
+    /// <summary>ルールのファイルの言葉から出所へ (#421)。知らない言葉なら <see langword="null"/>。</summary>
+    /// <remarks>
+    /// 知らない言葉を AI として読まない。AI が言っていないことを AI 名義にしない (#84)。項目が無いか空白だけなら AI。
+    /// 種類や当てる先と同じく、大文字・小文字と前後の空白は区別しない。
+    /// </remarks>
+    public static RuleSource? TrySource(string? text) => string.IsNullOrWhiteSpace(text)
+        ? RuleSource.Ai
+        : Word(text) switch
+        {
+            "ai" => RuleSource.Ai,
+            "hand" => RuleSource.Hand,
+            "filled" => RuleSource.Filled,
+            _ => null,
+        };
+
+    /// <summary>出所から、ルールのファイルの言葉へ。</summary>
+    public static string FromSource(RuleSource source) => source switch
+    {
+        RuleSource.Hand => "hand",
+        RuleSource.Filled => "filled",
+        _ => "ai",
+    };
+
+    /// <summary>比べるための形にする。前後の空白を取り、小文字にする。ASCII でない文字があれば <see langword="null"/>。</summary>
+    /// <remarks>
+    /// 言葉はどれも ASCII なので、ASCII でない文字があれば知らない言葉 (#421)。言語によらない小文字化でも、
+    /// ケルビンの記号 (U+212A) は <c>k</c> になり、知らない言葉が知っている言葉に化けることがある。
+    /// </remarks>
+    private static string? Word(string? text)
+        => text?.Trim() is { } trimmed && System.Text.Ascii.IsValid(trimmed) ? trimmed.ToLowerInvariant() : null;
 }

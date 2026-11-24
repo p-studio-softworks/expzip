@@ -52,6 +52,12 @@ internal sealed class RuleRow : INotifyPropertyChanged
     /// <summary>この行の決まり。</summary>
     public ArchiveRule Rule { get; private set; }
 
+    /// <summary>
+    /// ファイルから読んだ行の、このバージョンが知らない項目 (#421)。適用でその行に書き戻す。
+    /// 言い方を入れ替えても (<see cref="Replace"/>) 持ち続け、行を消せば一緒に消える。
+    /// </summary>
+    public Dictionary<string, System.Text.Json.JsonElement>? Unknown { get; init; }
+
     /// <summary>このルールを使うか。外したものは保存しても当てない。</summary>
     public bool Enabled
     {

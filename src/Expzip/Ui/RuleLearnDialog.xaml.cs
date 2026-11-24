@@ -159,21 +159,36 @@ public partial class RuleLearnDialog : Window
         var lines = new List<string>();
         if (_loaded.Book is { Rules.Count: > 0 } book)
         {
+            // 知らない項目は行と一緒に持ち、適用で書き戻す (#421)
             foreach (var entry in book.Rules)
             {
-                _rows.Add(new RuleRow(entry.Rule, entry.Enabled, _sample));
+                _rows.Add(new RuleRow(entry.Rule, entry.Enabled, _sample) { Unknown = entry.Unknown });
             }
 
             lines.Add(Strings.RuleLoaded(book.Rules.Count, book.LearnedFrom));
         }
 
-        // 落とした行は、適用するとファイルから消える。写しを残したことと一緒に知らせる (#406)
+        lines.AddRange(LoadNotices());
+        ResultText.Text = string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// 読み込みで落とした行と、捨てた知らない項目の知らせ (#406、#421)。どちらも適用するとファイルから消えるので、
+    /// 写しを残したことと一緒に知らせる。推定の結果で消さないように、推定のあとにも続けて出す。
+    /// </summary>
+    private IEnumerable<string> LoadNotices()
+    {
         if (_loaded.Dropped > 0)
         {
-            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, DataFolder.ForDisplay(_loaded.DroppedKeptPath)));
+            yield return Strings.RuleRowsDropped(_loaded.Dropped, DataFolder.ForDisplay(_loaded.DroppedKeptPath));
         }
 
-        ResultText.Text = string.Join(Environment.NewLine, lines);
+        // 写しの場所は、落とした行の知らせで出していれば繰り返さない
+        if (_loaded.UnknownDiscarded)
+        {
+            yield return Strings.RuleUnknownDiscarded(
+                DataFolder.ForDisplay(_loaded.DroppedKeptPath), withCopyLine: _loaded.Dropped == 0);
+        }
     }
 
     // ------------------------------------------------------------------ 尋ねる (#25)
@@ -274,11 +289,8 @@ public partial class RuleLearnDialog : Window
             lines.Add(dropped);
         }
 
-        // ファイルの読めない行のことは、推定の結果で消さない。適用すると、その行がファイルから消える (#406)
-        if (_loaded.Dropped > 0)
-        {
-            lines.Add(Strings.RuleRowsDropped(_loaded.Dropped, DataFolder.ForDisplay(_loaded.DroppedKeptPath)));
-        }
+        // ファイルの読めない行と、書き戻せない知らない項目のことは、推定の結果で消さない。適用すると、ファイルから消える (#406、#421)
+        lines.AddRange(LoadNotices());
 
         ResultText.Text = string.Join(Environment.NewLine, lines);
         ShowRows();
@@ -384,9 +396,13 @@ public partial class RuleLearnDialog : Window
             return true;
         }
 
+        // 知らない項目は、ファイルの頭のものも行のものも書き戻す (#421)。消した行のものは一緒に消える
         var book = new RuleBook(
             Path.GetFileName(_sample.FilePath), DateTimeOffset.Now,
-            [.. usable.Select(static row => new RuleEntry(row.Rule, row.Enabled))]);
+            [.. usable.Select(static row => new RuleEntry(row.Rule, row.Enabled) { Unknown = row.Unknown })])
+        {
+            Unknown = _loaded.Book?.Unknown,
+        };
 
         if (!Written(RuleStore.TrySave(book, _loaded)))
         {
@@ -413,6 +429,7 @@ public partial class RuleLearnDialog : Window
             RuleWriteResult.Done => ResultText.Text,
             RuleWriteResult.Changed => Strings.RuleChangedOutside,
             RuleWriteResult.Busy => Strings.RuleApplyBusy,
+            RuleWriteResult.TooLarge => Strings.RuleApplyTooLarge,
             RuleWriteResult.Unreadable => Strings.RuleNotAppliedUnreadable,
             _ => Strings.RuleApplyFailed(DataFolder.ForDisplay(DataFolder.Path)),
         };

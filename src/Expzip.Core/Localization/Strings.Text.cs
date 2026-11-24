@@ -1421,6 +1421,22 @@ internal static partial class Strings
         + Environment.NewLine
         + (kept is null ? "A copy of the original rules file could not be kept." : $"A copy of the original rules file was kept here: {kept}"));
 
+    /// <summary>
+    /// ルールのファイルの、このバージョンが知らない項目のうち、書き戻せないものを捨てた (#421)。適用するとファイルから消える。
+    /// 多すぎる・大きすぎる・書き出せないもの。
+    /// </summary>
+    /// <param name="kept">元のファイルの写しを残した場所。残せなければ null。</param>
+    /// <param name="withCopyLine">写しの行を付けるか。読み込めないルールの知らせ (<see cref="RuleRowsDropped"/>) で出していれば付けない。</param>
+    public static string RuleUnknownDiscarded(string? kept, bool withCopyLine) => Pick(
+        "ルールのファイルに、このバージョンでは残せない項目がありました。適用すると、それらはファイルから消えます。"
+        + (withCopyLine
+            ? Environment.NewLine + (kept is null ? "元のルールのファイルのコピーを残せませんでした。" : $"元のルールのファイルのコピーを、次の場所に残しました: {kept}")
+            : string.Empty),
+        "The rules file has items that this version cannot keep. Applying will remove them from the file."
+        + (withCopyLine
+            ? Environment.NewLine + (kept is null ? "A copy of the original rules file could not be kept." : $"A copy of the original rules file was kept here: {kept}")
+            : string.Empty));
+
     /// <summary>ルールの推定のウィンドウを開いたあとに、ルールのファイルが変わっていた (#406)。上書きしない。</summary>
     public static string RuleChangedOutside => Pick(
         "このウィンドウを開いたあとに、ルールのファイルが変わったため、適用しませんでした。"
@@ -1438,6 +1454,12 @@ internal static partial class Strings
         + "少し待ってから、もう一度「適用する」を押してください。",
         "The rules file could not be read again, so the rules were not applied. Another program may have it open. "
         + "Wait a moment, then press Apply again.");
+
+    /// <summary>書く中身が大きすぎて、次に読めなくなるので書かなかった (#421)。前のファイルは残る。</summary>
+    public static string RuleApplyTooLarge => Pick(
+        "ルールのファイルが大きくなりすぎるため、適用しませんでした。ルールの数を減らしてから、もう一度「適用する」を押してください。",
+        "The rules file would become too large, so the rules were not applied. "
+        + "Remove some rules, then press Apply again.");
 
     /// <summary>
     /// 適用せずに閉じようとしたとき (#145)。押すまではファイルに書かないので、
@@ -1529,6 +1551,23 @@ internal static partial class Strings
     public static string RuleAuditSkippedShort(int skipped, int rules) => Pick(
         $"{rules:N0} 件のルールのうち {skipped:N0} 件は調べられませんでした",
         $"{skipped:N0} of {rules:N0} rules could not be checked");
+
+    /// <summary>
+    /// ルールのファイルの読み込めないルールの数。メニューから検査したときにステータスバーに出す (#421)。
+    /// その行は当てていないので、残りのルールで違反が無くても、全部を確かめたと思わせない。
+    /// </summary>
+    public static string RuleAuditDroppedShort(int dropped) => Pick(
+        $"読み込めないルール {dropped:N0} 件は検査に使っていません",
+        $"{dropped:N0} rule(s) that could not be read were not used in the check");
+
+    /// <summary>
+    /// ルールのファイルに読み込めないルールしか無く、検査に使えるルールが無い (#421)。「ルールが保存されていません」の代わりに出す。
+    /// </summary>
+    public static string RuleAuditAllDropped(int dropped) => Pick(
+        $"ルールのファイルに、読み込めないルールが {dropped:N0} 件あり、検査に使えるルールがありません。"
+        + "「書庫のルールを推定…」で確かめてください。",
+        $"The rules file has {dropped:N0} rule(s) that could not be read, and no rules to check with. "
+        + "Check them under \"Work out the rules of this archive...\".");
 
     /// <summary>調べられなかったルールの行に出す種類 (#178)。</summary>
     public static string RuleNoPlace => Pick("当てはまる場所が無い", "No place to check");

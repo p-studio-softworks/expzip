@@ -9324,20 +9324,23 @@ public partial class MainWindow : Window
     /// 保存し直すまでは結果が変わらないため。切り替えのたびに数千件へ当て直さない。
     /// </para>
     /// </remarks>
-    /// <returns>ルールのファイルを読めなかったときは、その理由 (#406)。当てなかったときと、読めたときは null。</returns>
-    private static RuleLoadProblem? EnsureAudit(ArchiveTab tab)
+    /// <returns>
+    /// ルールのファイルを読めなかったときは、その理由 (#406)。当てなかったときと、読めたときは null。
+    /// 読めずに落とした行の数 (#421)。当てなかったときは 0。
+    /// </returns>
+    private static (RuleLoadProblem? Problem, int Dropped) EnsureAudit(ArchiveTab tab)
     {
         if (!tab.AuditWanted || tab.AuditDone)
         {
-            return null;
+            return (null, 0);
         }
 
-        tab.Audit = RuleAudit.FromStore(tab.Contents, out var problem);
+        tab.Audit = RuleAudit.FromStore(tab.Contents, out var problem, out var dropped);
         tab.AuditDone = true;
 
         // ツリーにも印を付ける (#87)。絞られていればその項目だけ (#88)
         MarkTree(tab.Contents.Root, tab.Audit, tab.RuleMarks);
-        return problem;
+        return (problem, dropped);
     }
 
     /// <summary>
@@ -9553,7 +9556,7 @@ public partial class MainWindow : Window
 
         // 絞った印はそのまま残す。「閉じる」は何も反映しない (#166) ので、
         // 開いただけで印が変わってはいけない。ウィンドウのチェックもこれに揃える
-        var problem = EnsureAudit(tab);
+        var (problem, dropped) = EnsureAudit(tab);
         Navigate(tab.CurrentFolder);
 
         // 読めなかったときに「ルールが保存されていません」と出さない (#406)。
@@ -9566,16 +9569,19 @@ public partial class MainWindow : Window
             return;
         }
 
+        // 読み込めない行しか無いときも「保存されていません」と出さない (#421)。ファイルにはルールがある
         if (tab.Audit is not { } audit)
         {
-            StatusMessage.Text = Strings.RuleNoneSaved;
+            StatusMessage.Text = dropped > 0 ? Strings.RuleAuditAllDropped(dropped) : Strings.RuleNoneSaved;
             return;
         }
 
-        // 開いた時点では言っていないので、ここで言う (#91)
+        // 開いた時点では言っていないので、ここで言う (#91)。
+        // 読み込めない行は当てていないので、違反が無くても全部を確かめたと思わせない (#421)
         if (_cancellation is null)
         {
-            StatusMessage.Text = DescribeArchive(tab.Contents, audit);
+            StatusMessage.Text = DescribeArchive(tab.Contents, audit)
+                + (dropped > 0 ? " / " + Strings.RuleAuditDroppedShort(dropped) : string.Empty);
         }
 
         if (_ruleAudit is { } opened)

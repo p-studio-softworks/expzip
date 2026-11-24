@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text;
+using System.Text.Json;
 using Expzip.Archives;
 
 namespace Expzip.Configuration;
@@ -232,4 +233,64 @@ internal static class GuardedFile
 
         return null;
     }
+
+    /// <summary>
+    /// 書く中身を UTF-8 (BOM なし) のバイト列で作る。作れないか、次に読めない大きさ (<see cref="MaxBytes"/> を超える) なら null。
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 読めたものでも書き出せないことがある。知らない項目 (#409) の中の、対になっていないサロゲート (<c>"\uD800"</c>) など。
+    /// 字下げと <c>\uXXXX</c> への置き換えで、読んだときより大きくなることもある。そのまま書くと、次に読むときに
+    /// 大きすぎて読めなくなる (#421)。
+    /// </para>
+    /// <para>
+    /// 文字列にせず、上限を超えたところで止まる書き先に書く。大量の項目があるものを、何 GB も使って書き終えてから捨てないように。
+    /// </para>
+    /// </remarks>
+    public static byte[]? Serialize<T>(T value, JsonSerializerOptions options)
+    {
+        using var stream = new LimitedStream(MaxBytes);
+        try
+        {
+            JsonSerializer.Serialize(stream, value, options);
+            return stream.ToArray();
+        }
+        catch (Exception ex) when (ex is LimitExceededException or JsonException or NotSupportedException
+                                   or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>上限を超えて書こうとすると <see cref="LimitExceededException"/> を出す書き先。</summary>
+    private sealed class LimitedStream(int limit) : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            Check(count);
+            base.Write(buffer, offset, count);
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            Check(buffer.Length);
+            base.Write(buffer);
+        }
+
+        public override void WriteByte(byte value)
+        {
+            Check(1);
+            base.WriteByte(value);
+        }
+
+        private void Check(int count)
+        {
+            if (Length + count > limit)
+            {
+                throw new LimitExceededException();
+            }
+        }
+    }
+
+    private sealed class LimitExceededException : Exception;
 }

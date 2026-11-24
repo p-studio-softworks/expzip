@@ -2350,9 +2350,17 @@ RuleApplyFailed (folder: 見本)
   ja  ルールを適用できませんでした。⟦見本⟧ に書き込めないようです。
   en  Could not apply the rules. ⟦見本⟧ appears not to be writable.
 
+RuleApplyTooLarge
+  ja  ルールのファイルが大きくなりすぎるため、適用しませんでした。ルールの数を減らしてから、もう一度「適用する」を押してください。
+  en  The rules file would become too large, so the rules were not applied. Remove some rules, then press Apply again.
+
 RuleApplyUnreadable
   ja  ルールのファイルを読み込めなかったため、適用できません
   en  The rules file could not be read, so the rules cannot be applied
+
+RuleAuditAllDropped (dropped: 3)
+  ja  ルールのファイルに、読み込めないルールが 3 件あり、検査に使えるルールがありません。「書庫のルールを推定…」で確かめてください。
+  en  The rules file has 3 rule(s) that could not be read, and no rules to check with. Check them under "Work out the rules of this archive...".
 
 RuleAuditAppliedMarks (count: 3)
   ja  「修正する」に印を付けた 3 個に、ツリーで印を付けました。
@@ -2380,6 +2388,10 @@ RuleAuditColumnRule
 RuleAuditColumnTarget
   ja  対象
   en  Item
+
+RuleAuditDroppedShort (dropped: 3)
+  ja  読み込めないルール 3 件は検査に使っていません
+  en  3 rule(s) that could not be read were not used in the check
 
 RuleAuditFound (broken: 1, missing: 2)
   ja  ルールに合っていない項目が 1 個あります。あるはずの項目が 2 個ありません
@@ -3049,6 +3061,15 @@ RuleTreeBreakMore (count: 3)
 RuleTreeBreakTooltip
   ja  このフォルダー以下にルールに合っていない項目があります。
   en  Something in or below this folder does not match the rules.
+
+RuleUnknownDiscarded (kept: 見本, withCopyLine: False)
+  ja  ルールのファイルに、このバージョンでは残せない項目がありました。適用すると、それらはファイルから消えます。
+  en  The rules file has items that this version cannot keep. Applying will remove them from the file.
+RuleUnknownDiscarded (kept: 見本, withCopyLine: True)
+  ja  ルールのファイルに、このバージョンでは残せない項目がありました。適用すると、それらはファイルから消えます。
+      | 元のルールのファイルのコピーを、次の場所に残しました: ⟦見本⟧
+  en  The rules file has items that this version cannot keep. Applying will remove them from the file.
+      | A copy of the original rules file was kept here: ⟦見本⟧
 
 RuleUnreadable
   ja  AI の回答をルールとして解釈できませんでした。モデルを変更するか、もう一度試してください。

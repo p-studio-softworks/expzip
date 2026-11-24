@@ -76,11 +76,15 @@ internal sealed class RuleAudit
     /// <summary>保存された決まりを読んで当てる。決まりが無いか、読めなければ <see langword="null"/>。</summary>
     /// <param name="contents">当てる書庫。</param>
     /// <param name="problem">ルールのファイルを読めなかったときの理由 (#406)。</param>
+    /// <param name="dropped">
+    /// 読めずに落とした行の数 (#421)。その行は当てていない。使えるルールが残っていても、検査で全部を確かめたと思わせないように知らせる。
+    /// </param>
     /// <remarks>当てはめはファイルに書かないので、読めなかった中身の写しは残さない (#406)。</remarks>
-    public static RuleAudit? FromStore(ArchiveContents contents, out RuleLoadProblem? problem)
+    public static RuleAudit? FromStore(ArchiveContents contents, out RuleLoadProblem? problem, out int dropped)
     {
         var load = RuleStore.Load(keepCopy: false);
         problem = load.Problem;
+        dropped = load.Dropped;
         if (load.Book is not { } book)
         {
             return null;

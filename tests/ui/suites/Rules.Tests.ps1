@@ -466,6 +466,58 @@ try {
         Check '適用はできる' ((ById $dialog 'ApplyButton').Current.IsEnabled)
         Push (ById $dialog 'CloseButton')
     }
+
+    # 読めない行は当てていないので、違反が無くても全部を確かめたと思わせない (#421)
+    Section '読めない行があるときの検査'
+    Open-AiItem $app 'ルールに合っているか検査…' | Out-Null
+    $audit = Find-Window $app 'ルールの検査結果 - libs.zip'
+    Check '検査のウィンドウが開く' ($null -ne $audit)
+    $status = Get-Status $app
+    Check '使っていない数をステータスバーで言う' ($status -match ' / 読み込めないルール 1 件は検査に使っていません$') $status
+    if ($audit) { Push (ById $audit 'CloseButton') }
+    Stop-Expzip $app
+    Get-RuleCopies | Remove-Item -Force
+
+    # 当てる先が知らない言葉の行は、書庫全体として読まずに落とす (#421)。適用で all と書き直されて意味が変わるため
+    Section '当てる先が知らない言葉の行だけのとき'
+    $unknown = '{ "Version": 2, "Rules": [ { "Kind": "required_entry", "Scope": "everything", "Value": "README.md", "Description": "d", "Evidence": "e", "Source": "hand", "Enabled": true } ] }'
+    [System.IO.File]::WriteAllText($script:RulesPath, $unknown)
+    $app = Start-Expzip @($libs)
+    Open-AiItem $app 'ルールに合っているか検査…' | Out-Null
+    $status = Get-Status $app
+    Check '保存されていないとは言わない' ($status -eq 'ルールのファイルに、読み込めないルールが 1 件あり、検査に使えるルールがありません。「書庫のルールを推定…」で確かめてください。') $status
+    Check '検査では写しを作らない' ((Get-RuleCopies).Count -eq 0)
+    $dialog = Open-Learn
+    Check 'ウィンドウが開く' ($null -ne $dialog)
+    if ($dialog) {
+        $text = (ById $dialog 'ResultText').Current.Name
+        Check '読めない行として知らせる' ($text -match 'ルールのファイルに、読み込めないルールが 1 件ありました。') $text
+        $copies = Get-RuleCopies
+        Check '写しは元の中身' ($copies.Count -eq 1 -and [System.IO.File]::ReadAllText($copies[0].FullName) -eq $unknown)
+        Push (ById $dialog 'CloseButton')
+    }
+    Check 'ファイルは元のまま' ([System.IO.File]::ReadAllText($script:RulesPath) -eq $unknown)
+    Stop-Expzip $app
+    Get-RuleCopies | Remove-Item -Force
+
+    # 新しいバージョンが足した項目は、古いバージョンで適用しても消さない (#421)
+    Section '知らない項目は適用で書き戻す'
+    $newer = '{ "Version": 2, "Team": "設計", "Rules": [ { "Kind": "required_entry", "Scope": "root", "Value": "README.md", "Description": "d", "Evidence": "e", "Source": "hand", "Enabled": true, "Priority": 3 } ] }'
+    [System.IO.File]::WriteAllText($script:RulesPath, $newer)
+    $app = Start-Expzip @($libs)
+    $dialog = Open-Learn
+    Check 'ウィンドウが開く' ($null -ne $dialog)
+    if ($dialog) {
+        $text = (ById $dialog 'ResultText').Current.Name
+        Check '残せるものは知らせない' ($text -notmatch '残せない項目|読み込めない') $text
+        Push (ById $dialog 'ApplyButton')
+        Wait-Until { [System.IO.File]::ReadAllText($script:RulesPath) -ne $newer } | Out-Null
+        $saved = [System.IO.File]::ReadAllText($script:RulesPath)
+        Check '頭の項目が残る' ($saved -match '"Team": "設計"') $saved
+        Check '行の項目が残る' ($saved -match '"Priority": 3') $saved
+        Check '写しは作らない' ((Get-RuleCopies).Count -eq 0)
+        Push (ById $dialog 'CloseButton')
+    }
     Stop-Expzip $app
     Get-RuleCopies | Remove-Item -Force
 }

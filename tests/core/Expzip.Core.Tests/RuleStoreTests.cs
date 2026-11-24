@@ -340,4 +340,314 @@ public sealed class RuleStoreTests : IDisposable
         Assert.Equal(RuleWriteResult.Changed, RuleStore.TrySave(NewBook(), load));
         Assert.False(File.Exists(Rules));
     }
+
+    // ------------------------------------------------------------------ 知らない言葉 (#421)
+
+    /// <summary>種類が required_entry の行を 1 つ作る。当てる先と出所は渡したまま (null なら項目を書かない)。</summary>
+    private static string RowWith(string? scope, string? source, string value = "x")
+    {
+        var row = new Dictionary<string, object?> { ["Kind"] = "required_entry", ["Value"] = value };
+        if (scope is not null)
+        {
+            row["Scope"] = scope;
+        }
+
+        if (source is not null)
+        {
+            row["Source"] = source;
+        }
+
+        return System.Text.Json.JsonSerializer.Serialize(row);
+    }
+
+    [Fact]
+    public void 知らない当てる先と出所の行は落として写しを残し適用で書き戻さない()
+    {
+        // 書庫全体・AI として読むと、「適用」で all / ai と書き直されて意味が変わる
+        var text = $$"""{ "Version": 2, "Rules": [ {{Row}}, {{RowWith("everything", "hand", "SCOPE.md")}}, {{RowWith("files", "import", "SOURCE.md")}} ] }""";
+        File.WriteAllText(Rules, text);
+        var load = Load();
+
+        Assert.Null(load.Problem);
+        Assert.Equal("README.md", Assert.Single(load.Book!.Rules).Rule.Value);
+        Assert.Equal(2, load.Dropped);
+        Assert.Equal(text, File.ReadAllText(load.DroppedKeptPath!));
+
+        // 適用すると、落とした行はファイルに無く、写しにだけ残る
+        Assert.Equal(RuleWriteResult.Done, RuleStore.TrySave(load.Book!, load));
+        var saved = File.ReadAllText(Rules);
+        Assert.DoesNotContain("SCOPE.md", saved);
+        Assert.DoesNotContain("SOURCE.md", saved);
+        Assert.DoesNotContain("everything", saved);
+        Assert.Contains("SCOPE.md", File.ReadAllText(load.DroppedKeptPath!));
+    }
+
+    [Fact]
+    public void 似た文字の当てる先と出所は知っている言葉として読まない()
+    {
+        // 小文字にしたり幅を詰めたりすると知っている言葉に見えるもの。ASCII だけで比べる
+        string[] lookAlikes =
+        [
+            "ＦＩＬＥＳ",                                  // 全角
+            "fi" + (char)0x200B + "les",                  // 幅の無い文字
+            "files" + (char)0x0000,                       // NUL
+            "F" + (char)0x0130 + "LES",                   // トルコ語の大きな İ
+            "r" + (char)0x043E + "ot",                    // キリル文字の о
+        ];
+
+        foreach (var word in lookAlikes)
+        {
+            var text = $$"""{ "Version": 2, "Rules": [ {{Row}}, {{RowWith(word, null)}}, {{RowWith("files", word.Replace("files", "hand", StringComparison.Ordinal))}} ] }""";
+            File.WriteAllText(Rules, text);
+            var load = Load(keepCopy: false);
+
+            Assert.Null(load.Problem);
+            Assert.Single(load.Book!.Rules);
+            Assert.Equal(2, load.Dropped);
+        }
+
+        // ケルビンの記号は、言語によらない小文字化で k になる。ASCII でなければ知らない言葉
+        Assert.Null(RuleWords.TrySource("ha" + (char)0x212A));
+        Assert.Null(RuleWords.ToKind("forbidden_name" + (char)0x212A));
+    }
+
+    [Fact]
+    public void 当てる先と出所は大文字小文字と前後の空白を区別しない()
+    {
+        var text = $$"""{ "Version": 2, "Rules": [ {{RowWith(" Files ", "Hand", "a")}}, {{RowWith("ROOT", " hand ", "b")}}, {{RowWith("folders", "FILLED", "c")}} ] }""";
+        File.WriteAllText(Rules, text);
+        var load = Load();
+
+        Assert.Equal(0, load.Dropped);
+        var rules = load.Book!.Rules.Select(static entry => entry.Rule).ToList();
+        Assert.Equal(new[] { RuleScope.Files, RuleScope.Root, RuleScope.Folders }, rules.Select(static r => r.Scope));
+        Assert.Equal(new[] { RuleSource.Hand, RuleSource.Hand, RuleSource.Filled }, rules.Select(static r => r.Source));
+    }
+
+    [Fact]
+    public void 当てる先と出所が無いか空なら書庫全体とAIとして読む()
+    {
+        // 手で書いたファイルで省いたもの。0.6.0 までと同じ読み方
+        var text = $$"""{ "Version": 2, "Rules": [ {{RowWith(null, null, "a")}}, {{RowWith("", "", "b")}}, {{RowWith("  ", "  ", "c")}} ] }""";
+        File.WriteAllText(Rules, text);
+        var load = Load();
+
+        Assert.Equal(0, load.Dropped);
+        Assert.Equal(3, load.Book!.Rules.Count);
+        Assert.All(load.Book.Rules, static entry => Assert.Equal(RuleScope.All, entry.Rule.Scope));
+        Assert.All(load.Book.Rules, static entry => Assert.Equal(RuleSource.Ai, entry.Rule.Source));
+        Assert.Empty(Copies());
+    }
+
+    [Fact]
+    public void 当てる先が文字列でなければ壊れている扱い()
+    {
+        File.WriteAllText(Rules, """{ "Version": 2, "Rules": [ { "Kind": "required_entry", "Scope": 1, "Value": "x" } ] }""");
+        var load = Load();
+
+        Assert.Equal(RuleLoadFailure.Damaged, load.Problem?.Failure);
+        AssertNotWritten(load, RuleWriteResult.Unreadable);
+    }
+
+    [Fact]
+    public void 当てはめでは知らない言葉の行を落としても写しを作らない()
+    {
+        File.WriteAllText(Rules, $$"""{ "Version": 2, "Rules": [ {{RowWith("everything", null)}} ] }""");
+        var load = Load(keepCopy: false);
+
+        Assert.Null(load.Problem);
+        Assert.Empty(load.Book!.Rules);
+        Assert.Equal(1, load.Dropped);
+        Assert.Null(load.DroppedKeptPath);
+        Assert.Empty(Copies());
+    }
+
+    [Fact]
+    public void AIの答えの知らない当てる先は今までどおり書庫全体()
+    {
+        // AI の答えはお手本に当て直して確かめる (#80) ので、ファイルとは読み方を分けている
+        Assert.Equal(RuleScope.All, RuleWords.ToScope("everything"));
+        Assert.Null(RuleWords.TryScope("everything"));
+    }
+
+    // ------------------------------------------------------------------ 知らない項目 (#421)
+
+    /// <summary>読んで、読んだ決まりのまま適用し、書いたファイルを JSON として返す。</summary>
+    private System.Text.Json.Nodes.JsonObject LoadAndApply(string text, out RuleLoad load)
+    {
+        File.WriteAllText(Rules, text);
+        load = Load();
+        Assert.Equal(RuleWriteResult.Done, RuleStore.TrySave(load.Book!, load));
+        return System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Rules))!.AsObject();
+    }
+
+    [Fact]
+    public void 知らない項目は適用で頭とその行に書き戻す()
+    {
+        // 新しいバージョンの Expzip が足した項目。古いバージョンで適用しても消さない
+        var text = """
+            { "Version": 2, "Team": { "name": "設計", "tags": [ "a", 1, true ] },
+              "Rules": [
+                { "Kind": "required_entry", "Scope": "root", "Value": "A.md", "Priority": 3, "Extra": null },
+                { "Kind": "required_entry", "Scope": "root", "Value": "B.md" } ] }
+            """;
+        var saved = LoadAndApply(text, out var load);
+
+        Assert.False(load.UnknownDiscarded);
+        Assert.Empty(Copies());
+        Assert.Equal("設計", (string?)saved["Team"]!["name"]);
+        Assert.Equal(3, saved["Team"]!["tags"]!.AsArray().Count);
+        var rows = saved["Rules"]!.AsArray();
+        Assert.Equal(3, (int?)rows[0]!["Priority"]);
+        Assert.True(rows[0]!.AsObject().ContainsKey("Extra"));
+        Assert.Null(rows[0]!["Extra"]);
+        Assert.False(rows[1]!.AsObject().ContainsKey("Priority"));
+
+        // 書き戻したものは、もう一度読んでも同じく持つ
+        Assert.Equal(3, (int?)LoadAndApply(File.ReadAllText(Rules), out _)["Rules"]!.AsArray()[0]!["Priority"]);
+    }
+
+    [Fact]
+    public void 行を消せばその行の知らない項目も消える()
+    {
+        var text = """
+            { "Version": 2, "Rules": [
+                { "Kind": "required_entry", "Value": "A.md", "Mine": "a" },
+                { "Kind": "required_entry", "Value": "B.md", "Mine": "b" } ] }
+            """;
+        File.WriteAllText(Rules, text);
+        var load = Load();
+        var kept = load.Book! with { Rules = [load.Book!.Rules[1]] };
+
+        Assert.Equal(RuleWriteResult.Done, RuleStore.TrySave(kept, load));
+        var saved = File.ReadAllText(Rules);
+        Assert.DoesNotContain("\"a\"", saved);
+        Assert.Contains("\"Mine\": \"b\"", saved);
+    }
+
+    [Fact]
+    public void 行に知っている項目と大文字小文字だけ違う名前があればその行を落とす()
+    {
+        // 項目名は区別して読むので、当てる先が無い扱いで書庫全体になり、適用で "Scope": "all" と書き直される
+        var text = $$"""{ "Version": 2, "Rules": [ {{Row}}, { "Kind": "required_entry", "scope": "files", "Value": "x" } ] }""";
+        File.WriteAllText(Rules, text);
+        var load = Load();
+
+        Assert.Single(load.Book!.Rules);
+        Assert.Equal(1, load.Dropped);
+        Assert.Equal(text, File.ReadAllText(load.DroppedKeptPath!));
+    }
+
+    [Fact]
+    public void 頭に知っている項目と大文字小文字だけ違う名前があれば捨てて知らせる()
+    {
+        var text = $$"""{ "Version": 2, "learnedFrom": "x.zip", "Team": "t", "Rules": [ {{Row}} ] }""";
+        var saved = LoadAndApply(text, out var load);
+
+        Assert.True(load.UnknownDiscarded);
+        Assert.Equal(0, load.Dropped);
+        Assert.Equal(text, File.ReadAllText(load.DroppedKeptPath!));
+        Assert.False(saved.ContainsKey("learnedFrom"));
+        Assert.Equal("t", (string?)saved["Team"]);
+    }
+
+    [Fact]
+    public void 知らない項目が多すぎれば全部捨てて知らせる()
+    {
+        // 頭と全部の行を合わせて数える
+        var head = string.Join(", ", Enumerable.Range(0, 600).Select(static i => $"\"H{i}\": {i}"));
+        var row = string.Join(", ", Enumerable.Range(0, 401).Select(static i => $"\"R{i}\": {i}"));
+        var text = $$"""{ "Version": 2, {{head}}, "Rules": [ { "Kind": "required_entry", "Value": "x", {{row}} } ] }""";
+        var saved = LoadAndApply(text, out var load);
+
+        Assert.True(load.UnknownDiscarded);
+        Assert.NotNull(load.DroppedKeptPath);
+        Assert.False(saved.ContainsKey("H0"));
+        Assert.False(saved["Rules"]!.AsArray()[0]!.AsObject().ContainsKey("R0"));
+    }
+
+    [Fact]
+    public void 知らない項目が大きすぎれば全部捨てて知らせる()
+    {
+        var value = new string('a', Expzip.Configuration.UnknownItems.MaxBytes);
+        var saved = LoadAndApply($$"""{ "Version": 2, "Big": "{{value}}", "Small": 1, "Rules": [ {{Row}} ] }""", out var load);
+
+        Assert.True(load.UnknownDiscarded);
+        Assert.False(saved.ContainsKey("Big"));
+        Assert.False(saved.ContainsKey("Small"));
+    }
+
+    [Fact]
+    public void 書き出せない知らない項目は捨てて知らせる()
+    {
+        // 対になっていないサロゲート。持っていると、適用のたびに失敗する
+        var text = $$"""{ "Version": 2, "Bad": "\uD800", "Good": 1, "Rules": [ {{Row}} ] }""";
+        var saved = LoadAndApply(text, out var load);
+
+        Assert.True(load.UnknownDiscarded);
+        Assert.False(saved.ContainsKey("Bad"));
+        Assert.Equal(1, (int?)saved["Good"]);
+    }
+
+    [Fact]
+    public void 知らない項目の名前が重なれば壊れている扱い()
+    {
+        File.WriteAllText(Rules, """{ "Version": 2, "Rules": [ { "Kind": "required_entry", "Value": "x", "X": 1, "X": 2 } ] }""");
+        Assert.Equal(RuleLoadFailure.Damaged, Load().Problem?.Failure);
+
+        File.WriteAllText(Rules, """{ "Version": 2, "X": { "a": 1, "a": 2 }, "Rules": [] }""");
+        Assert.Equal(RuleLoadFailure.Damaged, Load().Problem?.Failure);
+    }
+
+    [Fact]
+    public void 知っている項目だけで大きすぎるなら知らない項目は捨てず書かない()
+    {
+        // 詰めて書いた行を大量に並べたもの。字下げで 16 MB を超えるのは知っている項目のせいなので、知らない項目を捨てて知らせない
+        var rows = string.Join(",", Enumerable.Range(0, 250_000).Select(static i => $$"""{"Kind":"required_entry","Value":"x{{i}}"}"""));
+        var text = $$"""{"Version":2,"Team":"t","Rules":[{{rows}}]}""";
+        Assert.True(Encoding.UTF8.GetByteCount(text) < Expzip.Configuration.GuardedFile.MaxBytes);
+        File.WriteAllText(Rules, text);
+        var load = Load();
+
+        Assert.False(load.UnknownDiscarded);
+        Assert.Null(load.DroppedKeptPath);
+        Assert.NotNull(load.Book!.Unknown);
+
+        Assert.Equal(RuleWriteResult.TooLarge, RuleStore.TrySave(load.Book, load));
+        Assert.Equal(text, File.ReadAllText(Rules));
+    }
+
+    [Fact]
+    public void 当てはめでは知らない項目を持たず写しも作らない()
+    {
+        var head = string.Join(", ", Enumerable.Range(0, 1001).Select(static i => $"\"H{i}\": {i}"));
+        File.WriteAllText(Rules, $$"""{ "Version": 2, {{head}}, "Rules": [ { "Kind": "required_entry", "Value": "x", "Mine": 1 } ] }""");
+        var load = Load(keepCopy: false);
+
+        Assert.Null(load.Book!.Unknown);
+        Assert.Null(load.Book.Rules[0].Unknown);
+        Assert.False(load.UnknownDiscarded);
+        Assert.Empty(Copies());
+    }
+
+    // ------------------------------------------------------------------ 書く中身の大きさ (#421)
+
+    [Fact]
+    public void 書く中身が大きすぎれば書かず前のファイルを残す()
+    {
+        // 次に読むと大きすぎて読めなくなる。字下げで、読んだときより大きくなることもある
+        File.WriteAllText(Rules, Valid);
+        var load = Load();
+
+        var huge = new RuleBook("b.zip", DateTimeOffset.Now,
+            [new RuleEntry(ArchiveRule.TryCreate(RuleKind.RequiredEntry, RuleScope.Root, "LICENSE",
+                new string('a', Expzip.Configuration.GuardedFile.MaxBytes), "e", RuleSource.Hand, string.Empty)!, true)]);
+
+        Assert.Equal(RuleWriteResult.TooLarge, RuleStore.TrySave(huge, load));
+        Assert.Equal(Valid, File.ReadAllText(Rules));
+        Assert.Empty(Directory.GetFiles(_folder, "*.tmp"));
+
+        // 前のファイルのままなので、続けてふつうの大きさで適用できる
+        Assert.Equal(RuleWriteResult.Done, RuleStore.TrySave(NewBook(), load));
+    }
 }
