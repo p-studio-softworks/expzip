@@ -219,6 +219,10 @@ internal static class GuardedFile
                 file.CopyAccessRulesFrom(path);
                 file.Stream.Write(bytes);
 
+                // 写しを残せたと答えると、読めない行を落としたままの「適用」を許す (#421)。そのあと電源が切れても写しが空にならないように、
+                // ディスクに書き切ってから名前を付ける。新しく作るファイルの Commit は、書き切るのを待たない
+                file.Stream.Flush(flushToDisk: true);
+
                 // 書いている間に同じ名前ができていたら false が返り、置き換えずに一時ファイルを消す
                 if (file.Commit())
                 {

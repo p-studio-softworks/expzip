@@ -1403,6 +1403,28 @@ internal static partial class Strings
         "ルールのファイルを読み込めなかったため、適用しませんでした。",
         "The rules file could not be read, so the rules were not applied.");
 
+    /// <summary>
+    /// 読み込めないルールや残せない項目があり、元のファイルのコピーも残せなかったときの、「適用する」の押せない訳 (#421)。
+    /// 適用すると、それらがファイルから消えて取り戻せない。
+    /// </summary>
+    public static string RuleApplyNoCopy => Pick(
+        "元のルールのファイルのコピーを残せなかったため、適用できません。適用すると、読み込めないルールや残せない項目を取り戻せなくなります。"
+        + "ルールのファイルを直してから、このウィンドウを開き直してください",
+        "A copy of the original rules file could not be kept, so the rules cannot be applied. "
+        + "Applying would lose the rules that could not be read or the items that cannot be kept, with no way to get them back. "
+        + "Fix the rules file, then open this window again");
+
+    /// <summary>元のファイルのコピーを残せなかったため、適用しなかった (#421)。ボタンは押せないので、ふつうは出ない。</summary>
+    public static string RuleNotAppliedNoCopy => Pick(
+        "元のルールのファイルのコピーを残せなかったため、適用しませんでした。",
+        "A copy of the original rules file could not be kept, so the rules were not applied.");
+
+    /// <summary>元のファイルのコピーを残せなかったときの、「推定する」の押せない訳 (#421)。適用できないのに AI に送らない。</summary>
+    public static string RuleSendNoCopy => Pick(
+        "元のルールのファイルのコピーを残せず、適用できないため、推定できません。ルールのファイルを直してから、このウィンドウを開き直してください",
+        "A copy of the original rules file could not be kept and the rules cannot be applied, so they cannot be worked out. "
+        + "Fix the rules file, then open this window again");
+
     /// <summary>ルールのファイルを読み込めなかったときの、「推定する」の押せない訳 (#406)。適用できないのに AI に送らない。</summary>
     public static string RuleSendUnreadable => Pick(
         "ルールのファイルを読み込めなかったため、推定できません",
@@ -1414,12 +1436,19 @@ internal static partial class Strings
     /// <param name="count">読み込めなかった行の数。</param>
     /// <param name="kept">元のファイルのコピーを残した場所。残せなければ null。</param>
     public static string RuleRowsDropped(int count, string? kept) => Pick(
-        $"ルールのファイルに、読み込めないルールが {count:N0} 件ありました。適用すると、それらはファイルから消えます。"
-        + Environment.NewLine
-        + (kept is null ? "元のルールのファイルのコピーを残せませんでした。" : $"元のルールのファイルのコピーを、次の場所に残しました: {kept}"),
-        $"{count:N0} rule(s) in the rules file could not be read. Applying will remove them from the file."
-        + Environment.NewLine
-        + (kept is null ? "A copy of the original rules file could not be kept." : $"A copy of the original rules file was kept here: {kept}"));
+        $"ルールのファイルに、読み込めないルールが {count:N0} 件ありました。適用すると、それらはファイルから消えます。",
+        $"{count:N0} rule(s) in the rules file could not be read. Applying will remove them from the file.")
+        + Environment.NewLine + RuleCopyLine(kept);
+
+    /// <summary>
+    /// 元のファイルのコピーを残した場所か、残せなかったこと。残せなかったときは、ルールの推定のウィンドウでは適用できない (#421)。
+    /// 前の文の「適用すると消えます」を、適用できない訳として読めるようにする。
+    /// </summary>
+    private static string RuleCopyLine(string? kept) => kept is null
+        ? Pick("元のルールのファイルのコピーを残せなかったため、適用できません。ルールのファイルを直してから、このウィンドウを開き直してください。",
+            "A copy of the original rules file could not be kept, so the rules cannot be applied. Fix the rules file, then open this window again.")
+        : Pick($"元のルールのファイルのコピーを、次の場所に残しました: {kept}",
+            $"A copy of the original rules file was kept here: {kept}");
 
     /// <summary>
     /// ルールのファイルの、このバージョンが知らない項目のうち、書き戻せないものを捨てた (#421)。適用するとファイルから消える。
@@ -1428,14 +1457,9 @@ internal static partial class Strings
     /// <param name="kept">元のファイルの写しを残した場所。残せなければ null。</param>
     /// <param name="withCopyLine">写しの行を付けるか。読み込めないルールの知らせ (<see cref="RuleRowsDropped"/>) で出していれば付けない。</param>
     public static string RuleUnknownDiscarded(string? kept, bool withCopyLine) => Pick(
-        "ルールのファイルに、このバージョンでは残せない項目がありました。適用すると、それらはファイルから消えます。"
-        + (withCopyLine
-            ? Environment.NewLine + (kept is null ? "元のルールのファイルのコピーを残せませんでした。" : $"元のルールのファイルのコピーを、次の場所に残しました: {kept}")
-            : string.Empty),
-        "The rules file has items that this version cannot keep. Applying will remove them from the file."
-        + (withCopyLine
-            ? Environment.NewLine + (kept is null ? "A copy of the original rules file could not be kept." : $"A copy of the original rules file was kept here: {kept}")
-            : string.Empty));
+        "ルールのファイルに、このバージョンでは残せない項目がありました。適用すると、それらはファイルから消えます。",
+        "The rules file has items that this version cannot keep. Applying will remove them from the file.")
+        + (withCopyLine ? Environment.NewLine + RuleCopyLine(kept) : string.Empty);
 
     /// <summary>ルールの推定のウィンドウを開いたあとに、ルールのファイルが変わっていた (#406)。上書きしない。</summary>
     public static string RuleChangedOutside => Pick(

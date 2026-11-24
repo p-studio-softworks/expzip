@@ -630,6 +630,77 @@ public sealed class RuleStoreTests : IDisposable
         Assert.Empty(Copies());
     }
 
+    // ------------------------------------------------------------------ コピーを残せなかったとき (#421)
+
+    /// <summary>フォルダーに新しいファイルを作れなくして、<paramref name="body"/> を呼ぶ。読むことと、今あるファイルの書き換えはできる。</summary>
+    private void WithoutNewFiles(Action body)
+    {
+        var folder = new DirectoryInfo(_folder);
+        var me = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+        var rule = new System.Security.AccessControl.FileSystemAccessRule(
+            me, System.Security.AccessControl.FileSystemRights.CreateFiles, System.Security.AccessControl.AccessControlType.Deny);
+        var security = folder.GetAccessControl();
+        security.AddAccessRule(rule);
+        folder.SetAccessControl(security);
+        try
+        {
+            body();
+        }
+        finally
+        {
+            security.RemoveAccessRule(rule);
+            folder.SetAccessControl(security);
+        }
+    }
+
+    [Fact]
+    public void 読めない行があるのにコピーを残せなければ書かず消さない()
+    {
+        // 書くと、落とした行が消えて取り戻せない。全部の行が落ちていれば、ファイルごと消える
+        var text = """{ "Version": 2, "Rules": [ { "Kind": "banana", "Value": "x" } ] }""";
+        File.WriteAllText(Rules, text);
+
+        WithoutNewFiles(() =>
+        {
+            var load = Load();
+            Assert.Equal(1, load.Dropped);
+            Assert.Null(load.DroppedKeptPath);
+            Assert.True(load.CopyMissing);
+            Assert.Equal(RuleWriteResult.NoCopy, RuleStore.TrySave(NewBook(), load));
+            Assert.Equal(RuleWriteResult.NoCopy, RuleStore.TryDelete(load));
+        });
+
+        Assert.Equal(text, File.ReadAllText(Rules));
+        Assert.Empty(Copies());
+    }
+
+    [Fact]
+    public void 残せない項目があるのにコピーを残せなければ書かない()
+    {
+        var text = $$"""{ "Version": 2, "Bad": "\uD800", "Rules": [ {{Row}} ] }""";
+        File.WriteAllText(Rules, text);
+
+        WithoutNewFiles(() =>
+        {
+            var load = Load();
+            Assert.True(load.UnknownDiscarded);
+            Assert.True(load.CopyMissing);
+            Assert.Equal(RuleWriteResult.NoCopy, RuleStore.TrySave(load.Book!, load));
+        });
+
+        Assert.Equal(text, File.ReadAllText(Rules));
+    }
+
+    [Fact]
+    public void 落とすものが無ければコピーが無くても書ける()
+    {
+        File.WriteAllText(Rules, Valid);
+        var load = Load();
+
+        Assert.False(load.CopyMissing);
+        Assert.Equal(RuleWriteResult.Done, RuleStore.TrySave(NewBook(), load));
+    }
+
     // ------------------------------------------------------------------ 検査のメニューを押せるか (#421)
 
     private static bool ConfirmedMissing(string path) => Expzip.Configuration.GuardedFile.ConfirmedMissing(path);

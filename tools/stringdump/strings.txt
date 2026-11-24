@@ -2350,6 +2350,10 @@ RuleApplyFailed (folder: 見本)
   ja  ルールを適用できませんでした。⟦見本⟧ に書き込めないようです。
   en  Could not apply the rules. ⟦見本⟧ appears not to be writable.
 
+RuleApplyNoCopy
+  ja  元のルールのファイルのコピーを残せなかったため、適用できません。適用すると、読み込めないルールや残せない項目を取り戻せなくなります。ルールのファイルを直してから、このウィンドウを開き直してください
+  en  A copy of the original rules file could not be kept, so the rules cannot be applied. Applying would lose the rules that could not be read or the items that cannot be kept, with no way to get them back. Fix the rules file, then open this window again
+
 RuleApplyTooLarge
   ja  ルールのファイルが大きくなりすぎるため、適用しませんでした。ルールの数を減らしてから、もう一度「適用する」を押してください。
   en  The rules file would become too large, so the rules were not applied. Remove some rules, then press Apply again.
@@ -2500,6 +2504,13 @@ RuleConfirmClose
       | 
       | Apply them before closing?
       | Choosing No discards the changes.
+
+RuleCopyLine (kept: 見本)
+  ja  元のルールのファイルのコピーを、次の場所に残しました: ⟦見本⟧
+  en  A copy of the original rules file was kept here: ⟦見本⟧
+RuleCopyLine (kept: (なし))
+  ja  元のルールのファイルのコピーを残せなかったため、適用できません。ルールのファイルを直してから、このウィンドウを開き直してください。
+  en  A copy of the original rules file could not be kept, so the rules cannot be applied. Fix the rules file, then open this window again.
 
 RuleDelete
   ja  選択したルールを削除
@@ -2789,6 +2800,10 @@ RuleNoneSaved
   ja  ルールが保存されていません。先に「書庫のルールを推定…」で適用してください。
   en  No rules are saved yet. Set them under "Work out the rules of this archive..." first.
 
+RuleNotAppliedNoCopy
+  ja  元のルールのファイルのコピーを残せなかったため、適用しませんでした。
+  en  A copy of the original rules file could not be kept, so the rules were not applied.
+
 RuleNotAppliedUnreadable
   ja  ルールのファイルを読み込めなかったため、適用しませんでした。
   en  The rules file could not be read, so the rules were not applied.
@@ -2989,9 +3004,9 @@ RuleRowsDropped (count: 3, kept: 見本)
       | A copy of the original rules file was kept here: ⟦見本⟧
 RuleRowsDropped (count: 3, kept: (なし))
   ja  ルールのファイルに、読み込めないルールが 3 件ありました。適用すると、それらはファイルから消えます。
-      | 元のルールのファイルのコピーを残せませんでした。
+      | 元のルールのファイルのコピーを残せなかったため、適用できません。ルールのファイルを直してから、このウィンドウを開き直してください。
   en  3 rule(s) in the rules file could not be read. Applying will remove them from the file.
-      | A copy of the original rules file could not be kept.
+      | A copy of the original rules file could not be kept, so the rules cannot be applied. Fix the rules file, then open this window again.
 
 RuleScopeAll
   ja  すべての項目
@@ -3016,6 +3031,10 @@ RuleSend
 RuleSendLabel
   ja  書庫詳細
   en  Archive details
+
+RuleSendNoCopy
+  ja  元のルールのファイルのコピーを残せず、適用できないため、推定できません。ルールのファイルを直してから、このウィンドウを開き直してください
+  en  A copy of the original rules file could not be kept and the rules cannot be applied, so they cannot be worked out. Fix the rules file, then open this window again
 
 RuleSendUnreadable
   ja  ルールのファイルを読み込めなかったため、推定できません

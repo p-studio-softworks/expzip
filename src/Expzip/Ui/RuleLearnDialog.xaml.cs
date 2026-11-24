@@ -60,6 +60,15 @@ public partial class RuleLearnDialog : Window
     /// <summary>ルールのファイルを読めなかったか (#406)。このウィンドウでは適用せず、AI にも送らない。</summary>
     private bool Unreadable => _loaded.Problem is not null;
 
+    /// <summary>
+    /// 読み込めない行や残せない項目があるのに、元のファイルの写しを残せなかったか (#421)。適用するとそれらを取り戻せないので、
+    /// このウィンドウでは適用せず、AI にも送らない。
+    /// </summary>
+    private bool CopyMissing => _loaded.CopyMissing;
+
+    /// <summary>このウィンドウで適用できないか。読めなかったときと、写しを残せなかったとき。</summary>
+    private bool CannotApply => Unreadable || CopyMissing;
+
     /// <summary>適用しようとしたら、開いたあとにルールのファイルが変わっていたか (#406)。閉じるときに尋ねない。</summary>
     private bool _stale;
 
@@ -156,6 +165,15 @@ public partial class RuleLearnDialog : Window
             return;
         }
 
+        // 読み込めない行や残せない項目があるのに写しを残せなかったら、適用すると取り戻せない (#421)。
+        // 一覧と知らせは出すが、適用できないのに書庫の中の名前を AI に送らない
+        if (CopyMissing)
+        {
+            SendButton.IsEnabled = false;
+            SendButton.ToolTip = Strings.RuleSendNoCopy;
+            ApplyButton.ToolTip = Strings.RuleApplyNoCopy;
+        }
+
         var lines = new List<string>();
         if (_loaded.Book is { Rules.Count: > 0 } book)
         {
@@ -196,7 +214,7 @@ public partial class RuleLearnDialog : Window
     private async void SendButton_Click(object sender, RoutedEventArgs e)
     {
         // 適用できないのに、書庫の中の名前を送って料金をかけない (#406)
-        if (_asking is not null || Unreadable)
+        if (_asking is not null || CannotApply)
         {
             return;
         }
@@ -356,7 +374,8 @@ public partial class RuleLearnDialog : Window
 
         // 採らなかった候補しか無いなら、適用するものは無い (#80)。
         // ルールのファイルを読めなかったときは、何があっても押せない (#406)。読み取りや削除のたびにここを通るので、ここで決める
-        ApplyButton.IsEnabled = !Unreadable && (_rows.Any(static row => row.CanUse) || RuleStore.Exists);
+        // 写しを残せなかったときも押せない (#421)
+        ApplyButton.IsEnabled = !CannotApply && (_rows.Any(static row => row.CanUse) || RuleStore.Exists);
 
         // 一覧の行は Collapsed でも * のままでは場所を取り続ける。高さも入れ替える。
         // 読み取った後は一覧のほうが主役になるので、書庫詳細より広く取る (#75)
@@ -431,6 +450,7 @@ public partial class RuleLearnDialog : Window
             RuleWriteResult.Busy => Strings.RuleApplyBusy,
             RuleWriteResult.TooLarge => Strings.RuleApplyTooLarge,
             RuleWriteResult.Unreadable => Strings.RuleNotAppliedUnreadable,
+            RuleWriteResult.NoCopy => Strings.RuleNotAppliedNoCopy,
             _ => Strings.RuleApplyFailed(DataFolder.ForDisplay(DataFolder.Path)),
         };
 
@@ -455,7 +475,7 @@ public partial class RuleLearnDialog : Window
     {
         // ルールのファイルを読めなかったときと、開いたあとにほかで変わっていたときは適用できないので、尋ねない (#406)。
         // 尋ねて「はい」を選ぶと、適用できずに閉じられなくなる
-        if (!Unreadable && !_stale && !Snapshot().SetEquals(_applied))
+        if (!CannotApply && !_stale && !Snapshot().SetEquals(_applied))
         {
             var answer = MessageBox.Show(
                 this, Strings.RuleConfirmClose, "Expzip",

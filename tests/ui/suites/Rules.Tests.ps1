@@ -521,6 +521,42 @@ try {
     Stop-Expzip $app
     Get-RuleCopies | Remove-Item -Force
 
+    # 読み込めない行があるのに元のファイルのコピーを残せなかったら、適用すると取り戻せないので、適用も推定もしない (#421)。
+    # exe のフォルダーに新しいファイルを作れなくして、コピーを残せない場面を作る
+    Section 'コピーを残せなかったとき'
+    Get-RuleCopies | Remove-Item -Force
+    [System.IO.File]::WriteAllText($script:RulesPath, $partial)
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+    $deny = New-Object System.Security.AccessControl.FileSystemAccessRule($me, 'CreateFiles', 'Deny')
+    $acl = Get-Acl $script:AppDir
+    $acl.AddAccessRule($deny)
+    Set-Acl $script:AppDir $acl
+    try {
+        $app = Start-Expzip @($libs)
+        $dialog = Open-Learn
+        Check 'ウィンドウが開く' ($null -ne $dialog)
+        if ($dialog) {
+            $text = (ById $dialog 'ResultText').Current.Name
+            Check 'コピーを残せず適用できないと知らせる' ($text -match '元のルールのファイルのコピーを残せなかったため、適用できません。ルールのファイルを直してから、このウィンドウを開き直してください。') $text
+            $apply = ById $dialog 'ApplyButton'
+            Check '適用は押せない' (-not $apply.Current.IsEnabled)
+            Check '適用を押せない理由' ($apply.Current.HelpText -match '^元のルールのファイルのコピーを残せなかったため、適用できません。') $apply.Current.HelpText
+            $send = ById $dialog 'SendButton'
+            Check '推定も押せない' (-not $send.Current.IsEnabled)
+            Check '推定を押せない理由' ($send.Current.HelpText -match '^元のルールのファイルのコピーを残せず、適用できないため、推定できません。') $send.Current.HelpText
+            Push (ById $dialog 'CloseButton')
+            Check '尋ねずに閉じる' (Test-WindowGone $app '書庫のルールを推定')
+        }
+        Stop-Expzip $app
+    }
+    finally {
+        $acl = Get-Acl $script:AppDir
+        $acl.RemoveAccessRule($deny) | Out-Null
+        Set-Acl $script:AppDir $acl
+    }
+    Check 'ファイルは元のまま' ([System.IO.File]::ReadAllText($script:RulesPath) -eq $partial)
+    Check 'コピーは無い' ((Get-RuleCopies).Count -eq 0)
+
     # 検査のメニューを押せなくするのは、ルールのファイルが無いと確かめられたときだけ (#421)。
     # 確かめられないとき (ここでは同じ名前のフォルダー) は押せて、押すと読めなかったことを知らせる
     Section '検査のメニューを押せるか'

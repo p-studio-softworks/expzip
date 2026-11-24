@@ -378,6 +378,12 @@ internal static class RuleStore
             return RuleWriteResult.Unreadable;
         }
 
+        // 落とした行や捨てた知らない項目があるのに写しを残せなかったら、書くと取り戻せない (#421)
+        if (basis.CopyMissing)
+        {
+            return RuleWriteResult.NoCopy;
+        }
+
         var now = GuardedFile.Read(basis.FilePath);
         return now.Status switch
         {
@@ -473,6 +479,13 @@ internal sealed class RuleLoad
     /// </summary>
     public string? DroppedKeptPath { get; init; }
 
+    /// <summary>
+    /// 落とした行か捨てた知らない項目があるのに、元のファイルの写しを残せなかったか (#421)。付いていれば、このファイルには書かない。
+    /// 書くと、それらがファイルから消えて取り戻せない。
+    /// </summary>
+    /// <remarks>当てはめ (写しを作らない読み方) でも true になるが、当てはめは書かない。</remarks>
+    public bool CopyMissing => (Dropped > 0 || UnknownDiscarded) && DroppedKeptPath is null;
+
     /// <summary>読んだ (または最後に書いた) 中身の SHA-256。ファイルが無かったときは <see langword="null"/>。</summary>
     internal byte[]? Fingerprint { get; set; }
 }
@@ -519,6 +532,9 @@ internal enum RuleWriteResult
 
     /// <summary>書く中身が、次に読めない大きさになる (または書き出せない) ので、書かなかった (#421)。</summary>
     TooLarge,
+
+    /// <summary>落とした行や捨てた知らない項目があるのに、元のファイルの写しを残せなかったので、書かなかった (#421)。</summary>
+    NoCopy,
 }
 
 /// <summary>確かめた決まりのひとまとまり (#26)。</summary>
