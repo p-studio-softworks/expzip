@@ -90,9 +90,9 @@ internal static class ArchiveExtractor
     /// 名前の読み方 (#335)。一覧と同じ名前で項目を選び、同じ名前で書き出すため、一覧を読んだもの
     /// (<see cref="ArchiveContents.Names"/>) を渡す。名前の読み方を選び直す対象でない形式では使わない。
     /// </param>
-    /// <param name="sourceNames">
-    /// 展開するエントリの <see cref="ArchiveEntry.SourceName"/>。
-    /// <see langword="null"/> を渡すと書庫全体を展開する。
+    /// <param name="selection">
+    /// 展開する項目。ファイルとフォルダーの項目を分けて渡す (#401)。
+    /// <see langword="null"/> を渡すと書庫全体を展開する。フォルダーの項目を持たない形式では、ファイルの名前だけを見る。
     /// </param>
     /// <param name="destinationDirectory">展開先フォルダ。</param>
     /// <param name="overwrite">既存のファイルを上書きするかどうか。</param>
@@ -116,7 +116,7 @@ internal static class ArchiveExtractor
         string archivePath,
         ArchiveFormat format,
         NameReading names,
-        IReadOnlySet<string>? sourceNames,
+        EntrySelection? selection,
         string destinationDirectory,
         ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
@@ -125,7 +125,9 @@ internal static class ArchiveExtractor
         string? basePath = null,
         string? password = null,
         LinkOptions? links = null)
-        => format == ArchiveFormat.Nsis
+    {
+        var sourceNames = selection?.Files;
+        return format == ArchiveFormat.Nsis
             ? NsisExtractor.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : format == ArchiveFormat.Pe
@@ -144,25 +146,26 @@ internal static class ArchiveExtractor
             ? MsiExeReader.Extract(archivePath, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : format == ArchiveFormat.Rar
-            ? RarExtractor.Extract(archivePath, names, sourceNames, destinationDirectory,
+            ? RarExtractor.Extract(archivePath, names, selection, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath, links)
             : ArchiveFormats.IsCompressedFile(format)
             ? CompressedFile.Extract(archivePath, format, sourceNames, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath)
             : !ArchiveFormats.IsZipBased(format)
-            ? SharpArchiveExtractor.Extract(archivePath, format, names, sourceNames, destinationDirectory,
+            ? SharpArchiveExtractor.Extract(archivePath, format, names, selection, destinationDirectory,
                 overwrite, progress, cancellationToken, zoneIdentifier, basePath, links)
             : password is null
-                ? ExtractZip(archivePath, format, names, sourceNames, destinationDirectory, overwrite,
+                ? ExtractZip(archivePath, format, names, selection, destinationDirectory, overwrite,
                     progress, cancellationToken, zoneIdentifier, basePath, links)
-                : ZipEncryption.Extract(archivePath, names, password, sourceNames, destinationDirectory,
+                : ZipEncryption.Extract(archivePath, names, password, selection, destinationDirectory,
                     overwrite, progress, cancellationToken, zoneIdentifier, basePath, links);
+    }
 
     private static ExtractResult ExtractZip(
         string archivePath,
         ArchiveFormat format,
         NameReading names,
-        IReadOnlySet<string>? sourceNames,
+        EntrySelection? selection,
         string destinationDirectory,
         ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
@@ -186,12 +189,12 @@ internal static class ArchiveExtractor
             .ToList();
         var targets = all
             .Where(t => !ZipEntryKind.IsFolder(t.Name))
-            .Where(t => sourceNames is null || sourceNames.Contains(t.Name))
+            .Where(t => EntrySelection.WantsFile(selection, t.Name))
             .ToList();
 
         // 中身の無いフォルダーも作る (#397)。ファイルを全部書き出したあと、リンクの前に作る
         var folderEntries = all
-            .Where(t => ZipEntryKind.IsFolder(t.Name) && (sourceNames is null || sourceNames.Contains(t.Name)))
+            .Where(t => ZipEntryKind.IsFolder(t.Name) && EntrySelection.WantsFolder(selection, t.Name))
             .ToList();
         var nonFolders = EmptyFolders.NonFolderNames(all.Select(static t => (t.Name, ZipEntryKind.IsFolder(t.Name))));
 
@@ -578,8 +581,6 @@ internal static class ArchiveExtractor
     /// ここで見つからなかった既にあるファイル (8.3 形式の短い名前で指すものなど) は、確認に挙がらないが、
     /// 書き出しでも置き換えない (<see cref="ExtractOverwrite.Only"/>)。
     /// </para>
-    /// </remarks>
-    /// <remarks>
     /// <para>
     /// 同じ名前のフォルダーがあるファイルと、途中のフォルダーの名前にファイルがあるものも挙げる (#372)。どちらも置き換えられない
     /// (<see cref="ExtractConflict.Block"/>)。途中のフォルダーの名前にあるファイルは、その下の項目を 1 個ずつ挙げず、1 回だけ挙げる。
@@ -587,13 +588,12 @@ internal static class ArchiveExtractor
     /// <para>
     /// 書庫の中のフォルダーと展開先のフォルダー (ジャンクションを含む) は、中に足すので挙げない (#329)。
     /// </para>
-    /// </remarks>
-    /// <remarks>
     /// <para>
-    /// 中身の無いフォルダー (書庫のフォルダーの項目、#397) は <paramref name="folderNames"/> で別に渡す。7z と RAR のフォルダーの名前は末尾に <c>/</c> が無く、
+    /// 中身の無いフォルダー (書庫のフォルダーの項目、#397) は <paramref name="folderNames"/> で別に渡す。7z と RAR、末尾に <c>/</c> の無い tar のフォルダーの名前は、
     /// 名前だけではファイルと見分けられない。フォルダーは、展開先に同じ名前のファイルがあるときと、途中のフォルダーの名前にファイルがあるときだけ挙げる
     /// (どちらも置き換えられない)。同じ名前のフォルダーがあれば中に足すので挙げない。<paramref name="entryNames"/> に同じ名前のファイルがあれば、
-    /// そのフォルダーは作らないので挙げない。
+    /// そのフォルダーは作らないので挙げない。ここで見るのは渡されたファイルだけなので、選んでいない同じ名前のファイルがあるフォルダーは、
+    /// 呼ぶ側が書庫の全体で外してから渡す (<see cref="EntrySelection.NamesIn"/>、展開と同じく書庫の全体で決めるため)。
     /// </para>
     /// </remarks>
     /// <param name="folderNames">展開するフォルダーの項目の、書庫の中の名前。</param>

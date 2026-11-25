@@ -26,7 +26,7 @@ internal static class SharpArchiveExtractor
         string archivePath,
         ArchiveFormat format,
         NameReading names,
-        IReadOnlySet<string>? sourceNames,
+        EntrySelection? selection,
         string destinationDirectory,
         ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
@@ -42,11 +42,11 @@ internal static class SharpArchiveExtractor
         {
             if (format == ArchiveFormat.SevenZip)
             {
-                ExtractSevenZip(archivePath, sourceNames, state, zoneIdentifier, cancellationToken);
+                ExtractSevenZip(archivePath, selection, state, zoneIdentifier, cancellationToken);
             }
             else
             {
-                ExtractTar(archivePath, names, sourceNames, state, zoneIdentifier, cancellationToken);
+                ExtractTar(archivePath, names, selection, state, zoneIdentifier, cancellationToken);
             }
         }
         catch (Exception ex) when (CancellableCopy.IsLibraryFailure(ex))
@@ -59,7 +59,7 @@ internal static class SharpArchiveExtractor
     }
 
     private static void ExtractSevenZip(
-        string archivePath, IReadOnlySet<string>? sourceNames, ExtractState state, string? zone,
+        string archivePath, EntrySelection? selection, ExtractState state, string? zone,
         CancellationToken cancellationToken)
     {
         var fileCrcs = SharpArchiveAccess.CheckSevenZipContent(archivePath, cancellationToken);
@@ -79,7 +79,7 @@ internal static class SharpArchiveExtractor
 
         // 中身の無いフォルダーも作る (#397)。ファイルを全部書き出したあと、リンクの前に作る
         var folderIndexes = Enumerable.Range(0, entries.Count)
-            .Where(i => entries[i].IsDirectory && entries[i].Key is { } key && (sourceNames is null || sourceNames.Contains(key)))
+            .Where(i => entries[i].IsDirectory && entries[i].Key is { } key && EntrySelection.WantsFolder(selection, key))
             .ToList();
         var nonFolders = EmptyFolders.NonFolderNames(entries.Select(static e => (e.Key ?? string.Empty, e.IsDirectory)));
         var laterLink = ArchiveExtractor.LaterLinks(linkFlags);
@@ -95,7 +95,7 @@ internal static class SharpArchiveExtractor
         for (var i = 0; i < entries.Count; i++)
         {
             var e = entries[i];
-            if (e.IsDirectory || e.Key is not { } key || (sourceNames is not null && !sourceNames.Contains(key)))
+            if (e.IsDirectory || e.Key is not { } key || !EntrySelection.WantsFile(selection, key))
             {
                 continue;
             }
@@ -250,7 +250,7 @@ internal static class SharpArchiveExtractor
     }
 
     private static void ExtractTar(
-        string archivePath, NameReading names, IReadOnlySet<string>? sourceNames, ExtractState state, string? zone,
+        string archivePath, NameReading names, EntrySelection? selection, ExtractState state, string? zone,
         CancellationToken cancellationToken)
     {
         using var stream = ArchiveFile.OpenRead(archivePath);
@@ -267,7 +267,7 @@ internal static class SharpArchiveExtractor
         var readable = true;
         try
         {
-            TarLoop(reader, sourceNames, state, all, requests, folders, cancellationToken);
+            TarLoop(reader, selection, state, all, requests, folders, cancellationToken);
         }
         catch (Exception ex) when (IsReadFailure(ex))
         {
@@ -306,7 +306,7 @@ internal static class SharpArchiveExtractor
     }
 
     private static void TarLoop(
-        IReader reader, IReadOnlySet<string>? sourceNames, ExtractState state,
+        IReader reader, EntrySelection? selection, ExtractState state,
         List<LinkScopeEntry> all, List<LinkRequest> requests, List<string> folders, CancellationToken cancellationToken)
     {
         while (reader.MoveToNextEntry())
@@ -325,14 +325,19 @@ internal static class SharpArchiveExtractor
                 continue;
             }
 
-            if (sourceNames is not null && !sourceNames.Contains(key))
+            // フォルダーの項目とファイルの項目は、選んだものを分けて引く。末尾に / の無いフォルダーの項目は、同じ名前のファイルと同じ文字列になる (#401)
+            if (entry.IsDirectory)
             {
+                if (EntrySelection.WantsFolder(selection, key))
+                {
+                    folders.Add(key);
+                }
+
                 continue;
             }
 
-            if (entry.IsDirectory)
+            if (!EntrySelection.WantsFile(selection, key))
             {
-                folders.Add(key);
                 continue;
             }
 

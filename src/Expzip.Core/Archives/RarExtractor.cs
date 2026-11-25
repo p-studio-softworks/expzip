@@ -30,7 +30,7 @@ internal static class RarExtractor
     public static ExtractResult Extract(
         string archivePath,
         NameReading names,
-        IReadOnlySet<string>? sourceNames,
+        EntrySelection? selection,
         string destinationDirectory,
         ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
@@ -45,7 +45,7 @@ internal static class RarExtractor
         try
         {
             using var session = RarAccess.Open(archivePath, names, null, cancellationToken);
-            Run(session, sourceNames, state, zoneIdentifier, cancellationToken);
+            Run(session, selection, state, zoneIdentifier, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -67,12 +67,12 @@ internal static class RarExtractor
     }
 
     private static void Run(
-        RarSession session, IReadOnlySet<string>? sourceNames, ExtractState state, string? zone,
+        RarSession session, EntrySelection? selection, ExtractState state, string? zone,
         CancellationToken cancellationToken)
     {
         var entries = session.Entries;
         bool Wanted(int i) => !entries[i].IsDirectory && entries[i].Key is { } key
-                              && (sourceNames is null || sourceNames.Contains(key));
+                              && EntrySelection.WantsFile(selection, key);
 
         var files = new List<int>();
         var links = new List<int>();
@@ -96,7 +96,7 @@ internal static class RarExtractor
 
         // 中身の無いフォルダーも作る (#397)。中身を読まないので、大きさが書かれていない項目より後ろのものも作る
         var folders = Enumerable.Range(0, entries.Count)
-            .Where(i => entries[i].IsDirectory && entries[i].Key is { } key && (sourceNames is null || sourceNames.Contains(key)))
+            .Where(i => entries[i].IsDirectory && entries[i].Key is { } key && EntrySelection.WantsFolder(selection, key))
             .ToList();
 
         // まとめて圧縮した書庫では、大きさが書かれていない項目より後ろは読めない (読み飛ばすところで SharpCompress が失敗する)。

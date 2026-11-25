@@ -21,7 +21,7 @@ public sealed class LinkExtractionTests : IDisposable
     private ExtractResult Extract(
         string archive, ArchiveFormat format, IReadOnlySet<string>? names = null, ExtractOverwrite? overwrite = null,
         string? basePath = null, LinkOptions? links = null, string? password = null)
-        => ArchiveExtractor.Extract(archive, format, NameReading.Default, names, _place.Output,
+        => ArchiveExtractor.Extract(archive, format, NameReading.Default, names is null ? null : new EntrySelection(names), _place.Output,
             overwrite ?? ExtractOverwrite.Only([]), null, CancellationToken.None, basePath: basePath, password: password,
             links: links);
 

@@ -380,7 +380,7 @@ public sealed class SevenZipDeflateTests
         public ExtractResult Extract(string archive, IReadOnlySet<string>? names = null, ExtractOverwrite? overwrite = null)
         {
             var task = Task.Run(() => ArchiveExtractor.Extract(
-                archive, ArchiveFormat.SevenZip, NameReading.Default, names, Output, overwrite ?? false, null, CancellationToken.None));
+                archive, ArchiveFormat.SevenZip, NameReading.Default, names is null ? null : new EntrySelection(names), Output, overwrite ?? false, null, CancellationToken.None));
             Assert.True(task.Wait(TimeSpan.FromSeconds(60)), "取り出しが終わらない");
             return task.Result;
         }

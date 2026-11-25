@@ -79,7 +79,7 @@ public sealed class NameReadingTests
 
         // 項目を選んでも、すべて展開しても、一覧と同じ名前
         var one = ArchiveExtractor.Extract(archive, ArchiveFormat.Zip, chosen,
-            new HashSet<string>(StringComparer.Ordinal) { entry.SourceName }, destination, false, null, CancellationToken.None);
+            new EntrySelection([entry.SourceName]), destination, false, null, CancellationToken.None);
         Assert.Equal(1, one.Extracted);
         Assert.True(File.Exists(Path.Combine(destination, ChineseFolder, ChineseFile)));
 

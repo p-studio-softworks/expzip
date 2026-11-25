@@ -16,6 +16,9 @@ internal sealed class TarSample
     /// <summary>フォルダー。</summary>
     public TarSample Folder(string name) => Add(name.TrimEnd('/') + "/", '5', []);
 
+    /// <summary>名前の末尾に / の無いフォルダー。同じ名前のファイルと同じ文字列になる (#401)。</summary>
+    public TarSample BareFolder(string name) => Add(name, '5', []);
+
     /// <summary>シンボリックリンク。</summary>
     public TarSample Symlink(string name, string target) => Add(name, '2', [], target);
 

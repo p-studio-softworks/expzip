@@ -16,7 +16,7 @@ public sealed class EmptyFolderExtractionTests : IDisposable
     private static string NoPrivilege => Strings.Reason(new LinkPrivilegeException());
 
     private ExtractResult Extract(
-        string archive, ArchiveFormat format, IReadOnlySet<string>? names = null, string? password = null,
+        string archive, ArchiveFormat format, EntrySelection? names = null, string? password = null,
         string? basePath = null, CancellationToken cancellationToken = default, LinkOptions? links = null, string? output = null)
         => ArchiveExtractor.Extract(archive, format, NameReading.Default, names, output ?? _place.Output,
             ExtractOverwrite.Only([]), null, cancellationToken, basePath: basePath, password: password, links: links);
@@ -146,7 +146,7 @@ public sealed class EmptyFolderExtractionTests : IDisposable
             .Folder("other")
             .Save(_place.PathOf("partial.zip"));
 
-        var result = Extract(zip, ArchiveFormat.Zip, names: new HashSet<string>(["docs/", "docs/a.txt", "docs/empty/"]));
+        var result = Extract(zip, ArchiveFormat.Zip, names: new EntrySelection(["docs/a.txt"], ["docs/", "docs/empty/"]));
 
         AssertClean(result);
         Assert.True(IsPlainFolder("docs/empty"));
@@ -178,7 +178,7 @@ public sealed class EmptyFolderExtractionTests : IDisposable
         var empty = contents.Root.Folders.Single().Folders.Single().Folders.Single();
         Assert.NotNull(empty.SourceName);
 
-        var result = Extract(archive, format, names: new HashSet<string>([empty.SourceName!]), basePath: "top");
+        var result = Extract(archive, format, names: new EntrySelection([], [empty.SourceName!]), basePath: "top");
 
         AssertClean(result);
         Assert.True(IsPlainFolder("sub/empty"));
@@ -227,7 +227,7 @@ public sealed class EmptyFolderExtractionTests : IDisposable
             .Save(_place.PathOf("dot.tar"));
 
         var result = Extract(tar, ArchiveFormat.Tar,
-            names: partial ? new HashSet<string>(["./", "./empty/", "./f.txt"]) : null);
+            names: partial ? new EntrySelection(["./f.txt"], ["./", "./empty/"]) : null);
 
         AssertClean(result);
         Assert.True(IsPlainFolder("empty"));
@@ -361,7 +361,7 @@ public sealed class EmptyFolderExtractionTests : IDisposable
         // 書庫の全体で決める。選び方によって作られたり作られなかったりしない
         var zip = new ZipSample().File("a", "FILE").Folder("a").Save(_place.PathOf("same.zip"));
 
-        var result = Extract(zip, ArchiveFormat.Zip, names: new HashSet<string>(["a/"]));
+        var result = Extract(zip, ArchiveFormat.Zip, names: new EntrySelection([], ["a/"]));
 
         AssertClean(result);
         Assert.False(Path.Exists(_place.In("a")));
@@ -535,7 +535,7 @@ public sealed class EmptyFolderExtractionTests : IDisposable
         var scratch = Directory.CreateDirectory(_place.PathOf("scratch")).FullName;
 
         var result = ArchiveExtractor.Extract(zip, ArchiveFormat.Zip, NameReading.Default,
-            new HashSet<string>(["top/", "top/a.txt", "top/empty/"]), scratch, overwrite: false, null, CancellationToken.None,
+            new EntrySelection(["top/a.txt"], ["top/", "top/empty/"]), scratch, overwrite: false, null, CancellationToken.None,
             links: new LinkOptions { Roots = ["top"], Collect = true });
 
         AssertClean(result);

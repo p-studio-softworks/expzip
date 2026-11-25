@@ -164,7 +164,7 @@ internal static class ZipEncryption
         string archivePath,
         NameReading names,
         string password,
-        IReadOnlySet<string>? sourceNames,
+        EntrySelection? selection,
         string destinationDirectory,
         ExtractOverwrite overwrite,
         IProgress<ExtractProgress>? progress,
@@ -191,12 +191,12 @@ internal static class ZipEncryption
         var all = zip.Cast<ZipEntry>().ToList();
         var targets = all
             .Where(e => !ZipEntryKind.IsFolder(e))
-            .Where(e => sourceNames is null || sourceNames.Contains(e.Name))
+            .Where(e => EntrySelection.WantsFile(selection, e.Name))
             .ToList();
 
         // 中身の無いフォルダーも作る (#397)。ファイルを全部書き出したあと、リンクの前に作る
         var folderEntries = all
-            .Where(e => ZipEntryKind.IsFolder(e) && (sourceNames is null || sourceNames.Contains(e.Name)))
+            .Where(e => ZipEntryKind.IsFolder(e) && EntrySelection.WantsFolder(selection, e.Name))
             .ToList();
         var nonFolders = EmptyFolders.NonFolderNames(all.Select(static e => (e.Name, ZipEntryKind.IsFolder(e))));
 

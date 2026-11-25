@@ -21,7 +21,7 @@ public sealed class LinkFolderTargetTests : IDisposable
 
     private ExtractResult Extract(
         string archive, ArchiveFormat format, IReadOnlySet<string>? names = null, string? password = null)
-        => ArchiveExtractor.Extract(archive, format, NameReading.Default, names, _place.Output,
+        => ArchiveExtractor.Extract(archive, format, NameReading.Default, names is null ? null : new EntrySelection(names), _place.Output,
             ExtractOverwrite.Only([]), null, CancellationToken.None, password: password);
 
     private static (int, string, bool) JunctionTo(string target) => (3, target, true);

@@ -112,4 +112,38 @@ if ($box) { Close-MessageBox $box 'キャンセル' }
 Check '外から開いたときと同じに並ぶ' ($outside -and ((Get-RowNames $app) -join ', ') -eq $outside) ((Get-RowNames $app) -join ', ')
 Stop-Expzip $app
 
+Section '7z で、フォルダーを選んでも同じ名前のファイルは展開しない (#401)'
+# ファイル a、フォルダーの項目 a、中身の無いフォルダー e。7z のフォルダーの名前は末尾に / が無く、ファイルと同じ名前になる。
+# Windows には 7z を作る標準のツールが無いので、作っておいたものを使う (tests\ui\fixtures)
+$same = Join-Path $script:Work 'same_name.7z'
+Copy-Item (Join-Path $PSScriptRoot '..\fixtures\same_name.7z') $same
+$app = Start-Expzip @($same)
+$folderOnly = Join-Path $script:Work 'folderonly'
+New-Item -ItemType Directory -Force -Path $folderOnly | Out-Null
+# フォルダーはファイルより先に並ぶので、先に見つかる a はフォルダー
+Select-Row $app 'a' | Out-Null
+Push (ById $app.Window 'ExtractButton')
+Check '選択した項目の展開先を尋ねる' (Complete-FileDialog $app '選択した項目の展開先を選択' $folderOnly)
+$box = Find-MessageBox $app 10000
+if ($box) { Close-MessageBox $box 'OK' }
+Wait-Idle $app
+Check '同じ名前のファイルは出ない' (@(Get-ChildItem $folderOnly).Count -eq 0) ((Get-ChildItem $folderOnly | ForEach-Object { $_.Name }) -join ', ')
+
+Section 'ツリーで中身の無いフォルダーを開いて展開する (#401)'
+# ファイルが 0 個でも、書庫全体の展開にはしない
+$treeOnly = Join-Path $script:Work 'treeonly'
+New-Item -ItemType Directory -Force -Path $treeOnly | Out-Null
+Select-Row $app 'e' | Out-Null
+Send-Keys $app '{ENTER}'
+Start-Sleep -Milliseconds 500
+Push (ById $app.Window 'ExtractButton')
+Check 'そのフォルダーの展開先を尋ねる' (Complete-FileDialog $app '「e」の展開先を選択' $treeOnly)
+$box = Find-MessageBox $app 30000
+if ($box) {
+    Check '作成したフォルダーの数を言う' ($box.Text -match '作成したフォルダー: 1 個') $box.Text
+    Close-MessageBox $box 'OK'
+}
+Check 'そのフォルダーだけが出る' ((Test-Path -PathType Container (Join-Path $treeOnly 'e')) -and @(Get-ChildItem $treeOnly).Count -eq 1) ((Get-ChildItem $treeOnly | ForEach-Object { $_.Name }) -join ', ')
+Stop-Expzip $app
+
 Complete-Suite

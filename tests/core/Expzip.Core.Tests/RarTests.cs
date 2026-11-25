@@ -126,7 +126,7 @@ public sealed class RarTests
         var last = Last(contents.Root);
 
         var result = ArchiveExtractor.Extract(Sample("Rar5.solid.rar"), ArchiveFormat.Rar, NameReading.Default,
-            new HashSet<string>([last.SourceName]), place.Output, ExtractOverwrite.Only([]), null, CancellationToken.None);
+            new EntrySelection([last.SourceName]), place.Output, ExtractOverwrite.Only([]), null, CancellationToken.None);
 
         Assert.Equal(1, result.Extracted);
         Assert.Single(Directory.EnumerateFiles(place.Output, "*", SearchOption.AllDirectories));
@@ -393,7 +393,7 @@ public sealed class RarTests
             .Save(place.PathOf("hard.rar"));
 
         var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Rar, NameReading.Default,
-            new HashSet<string>(["hard.txt"]), place.Output, ExtractOverwrite.Only([]), null, CancellationToken.None);
+            new EntrySelection(["hard.txt"]), place.Output, ExtractOverwrite.Only([]), null, CancellationToken.None);
 
         Assert.Equal(Localization.Strings.LinkTargetNotExtracted, Assert.Single(result.Failed).Reason);
     }
@@ -417,7 +417,7 @@ public sealed class RarTests
         Assert.Equal(3, selected.Count);
 
         var result = ArchiveExtractor.Extract(archive, ArchiveFormat.Rar, NameReading.Default,
-            selected, place.Output, ExtractOverwrite.Only([]), null, CancellationToken.None, basePath: "top");
+            new EntrySelection(selected), place.Output, ExtractOverwrite.Only([]), null, CancellationToken.None, basePath: "top");
 
         Assert.Equal("link", Path.GetFileName(Assert.Single(result.Failed).Name));
         Assert.False(Path.Exists(Path.Combine(place.Output, "link")));
