@@ -108,6 +108,11 @@
     **SDK が使う crossgen を決めたあと、動かす前に確かめる。**build.ps1 の側で確かめると、
     dotnet publish が決め直したものとずれうるうえ、直接 dotnet publish を呼ぶと確かめが抜ける。
     比べるのは「名前 版 SHA512」の行全体で、大文字と小文字も区別する。
+
+    **指紋を取るのは、NuGet の置き場に届いたパッケージのファイル (.nupkg) だけ。**実際に動くのは、
+    同じ置き場に展開済みの tools\ の下のファイルで、こちらは比べず、NuGet の置き場を信じる。
+    nuget.org から違うパッケージが届くことは防げるが、展開したあとの置き場のファイルを
+    書き換えられても気づかない (lock ファイルで固定するほかのパッケージと同じ範囲)。
     控えは build/Update-LockFiles.ps1 が作り直す
   -->
   <Target Name="CheckCrossgenPin" AfterTargets="ResolveReadyToRunCompilers"

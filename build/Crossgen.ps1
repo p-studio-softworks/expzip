@@ -6,6 +6,8 @@
     crossgen は発行のときに、ビルドする PC の上で動くプログラム。NuGet はこれを lock ファイルに書かない
     取り方 (PackageDownload) で取ってくるので、lock ファイルでは中身を固定できない (#323)。
     そこで指紋を控えておき、発行の中で crossgen を動かす前に、Expzip.csproj の CheckCrossgenPin が比べる。
+    控えるのも比べるのも、NuGet の置き場に届いたパッケージのファイル (.nupkg) の指紋だけ。実際に動く、
+    展開済みの tools\ の下のファイルは比べず、NuGet の置き場を信じる。
 
     控えを書く前に、nuget.org のカタログが公開している指紋 (packageHash) と比べる。
     置き場にあるパッケージがすり替えられていても、そのまま控えにしないため。
