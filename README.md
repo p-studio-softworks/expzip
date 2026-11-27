@@ -11,7 +11,6 @@ It does not change the registry, and it does not load any extra DLLs or plug-ins
 It is also available [on the Microsoft Store](https://apps.microsoft.com/detail/9NQ2QS67HJ4L). Feel free to use that version.
 
 All the features listed below work, but they may change in the future.
-Expzip has no relation to Explzh. It uses none of its code, and the formats it supports are different (see below).
 
 ## Supported formats
 
