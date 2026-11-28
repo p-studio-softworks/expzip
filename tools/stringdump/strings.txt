@@ -1002,6 +1002,32 @@ DragLinksNotice (notTaken: 見本, mayNotArrive: 見本)
       | 
       | To take links out as links, use Extract.
 
+DragNotExtracted (details: 見本)
+  ja  展開できない項目があるため、選んだ項目をドラッグでは展開できません。
+      | 
+      | ⟦見本⟧
+      | 
+      | ツールバーの「展開」では、ほかの項目を展開して、展開できなかった項目を結果で確かめられます。
+  en  Some items cannot be extracted, so the selected items cannot be extracted by dragging.
+      | 
+      | ⟦見本⟧
+      | 
+      | With Extract on the toolbar, you can extract the other items and see in the result which items could not be extracted.
+
+DragSameTarget (preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
+  ja  ほかの項目と同じ名前になる項目があるため、選んだ項目をドラッグでは展開できません。次の項目が入りません。
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | ツールバーの「展開」を使用してください。入らない項目は、展開の結果に「上書きできなかった項目」として出ます。
+  en  Some items have the same name as another item, so the selected items cannot be extracted by dragging. The following items would be left out.
+      | ⟦  報告書.pdf
+      |   写真.jpg
+      |   メモ.txt⟧
+      | 
+      | Use Extract on the toolbar instead. The items left out are shown in the result as items that could not be overwritten.
+
 DragTooLarge (fileLimit: 3, megabyteLimit: 1048576, count: 3, megabytes: 1048576)
   ja  ドラッグで展開できるのは 3 個 / 1,048,576 MB までです。
       | 選択されているのは 3 個 / 1,048,576 MB です。
@@ -1602,6 +1628,16 @@ InspectionNoProblems
 InspectionTitle (archiveName: 資料.zip)
   ja  検査結果 - ⟦資料.zip⟧
   en  Inspection results - ⟦資料.zip⟧
+
+ItemWithKind (name: 報告書.pdf, kind: File)
+  ja  ⟦報告書.pdf⟧ (ファイル)
+  en  ⟦報告書.pdf⟧ (file)
+ItemWithKind (name: 報告書.pdf, kind: Folder)
+  ja  ⟦報告書.pdf⟧ (フォルダー)
+  en  ⟦報告書.pdf⟧ (folder)
+ItemWithKind (name: 報告書.pdf, kind: Link)
+  ja  ⟦報告書.pdf⟧ (リンク)
+  en  ⟦報告書.pdf⟧ (link)
 
 KeptFilesLine (count: 3)
   ja  置き換えずそのまま残したファイル: 3 個
@@ -3171,20 +3207,20 @@ Salvaging (fileName: 資料.zip)
   en  Collecting the intact files from ⟦資料.zip⟧…
 
 SameTargetNotCopied (count: 3, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
-  ja  ほかの項目と同じ名前になる項目が 3 個あり、すべてを入れられません。
+  ja  ほかの項目と同じ名前になる項目があるため、次の 3 個を入れられません。
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧
-  en  3 items have the same name as another item, so not everything can be included.
+  en  Some items have the same name as another item, so the following 3 items cannot be included.
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧
 SameTargetNotCopied (count: 1, preview:   報告書.pdf ⏎   写真.jpg ⏎   メモ.txt, more: (空))
-  ja  ほかの項目と同じ名前になる項目が 1 個あり、すべてを入れられません。
+  ja  ほかの項目と同じ名前になる項目があるため、次の 1 個を入れられません。
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧
-  en  1 item has the same name as another item, so not everything can be included.
+  en  Some items have the same name as another item, so the following 1 item cannot be included.
       | ⟦  報告書.pdf
       |   写真.jpg
       |   メモ.txt⟧

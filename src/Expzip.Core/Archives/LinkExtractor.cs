@@ -138,7 +138,7 @@ internal static class LinkExtractor
             }
             catch (Exception ex) when (ExtractOverwrite.IsNotReplaced(ex, ArchiveExtractor.TargetFor(state.Root, link.Name, state.BasePath) ?? string.Empty))
             {
-                state.NotReplace(link.Name, Strings.Reason(ex));
+                state.NotReplaceLink(link.Name, Strings.Reason(ex));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
                                            or NotSupportedException or PathTooLongException)
@@ -267,7 +267,7 @@ internal static class LinkExtractor
         // 指す先を確かめる前に「上書きできなかった」と知らせる (前に展開したフォルダーは、今回から見ると前からあるもの)
         if (toFolder && (Directory.Exists(path) || File.Exists(path)))
         {
-            state.NotReplace(link.Name, Strings.LinkNameTaken);
+            state.NotReplaceLink(link.Name, Strings.LinkNameTaken);
             return null;
         }
 
@@ -285,7 +285,7 @@ internal static class LinkExtractor
             // フォルダーを指すリンクは 1 回では置き換えられない。ファイルを指すリンクは上書きの確認に従う (#372)
             if (toFolder || decision.Action is ExtractAction.Blocked)
             {
-                state.NotReplace(link.Name, Strings.LinkNameTaken);
+                state.NotReplaceLink(link.Name, Strings.LinkNameTaken);
                 return null;
             }
 
@@ -380,7 +380,7 @@ internal static class LinkExtractor
         switch (decision.Action)
         {
             case ExtractAction.Blocked:
-                state.NotReplace(link.Name, Strings.ExtractBlocked(decision.Block!.Value));
+                state.NotReplaceLink(link.Name, Strings.ExtractBlocked(decision.Block!.Value));
                 return null;
             case ExtractAction.Skip:
                 state.Skip(link.Name);

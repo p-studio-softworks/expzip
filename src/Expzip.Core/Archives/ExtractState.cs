@@ -22,6 +22,7 @@ internal sealed class ExtractState(
     private long _doneBytes;
     private readonly List<string> _skippedNames = [];
     private readonly List<(string Name, string Reason)> _notReplaced = [];
+    private readonly List<ItemKind> _notReplacedKinds = [];
     private int _extracted;
     private readonly MarkWatch _marks = new();
     private readonly List<string> _createdLinks = [];
@@ -71,7 +72,7 @@ internal sealed class ExtractState(
             {
                 if (decision.Block is { } block)
                 {
-                    _notReplaced.Add((key, Strings.ExtractBlocked(block)));
+                    NotReplaceAs(key, Strings.ExtractBlocked(block), ItemKind.File);
                 }
                 else
                 {
@@ -131,7 +132,7 @@ internal sealed class ExtractState(
         catch (Exception ex) when (ExtractOverwrite.IsNotReplaced(ex, target))
         {
             // 既にあるファイルを、アクセス権や使用中のために置き換えられなかった (#372)
-            _notReplaced.Add((key, Strings.Reason(ex)));
+            NotReplaceAs(key, Strings.Reason(ex), ItemKind.File);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or ArgumentException or NotSupportedException
@@ -209,13 +210,13 @@ internal sealed class ExtractState(
 
             if (File.Exists(target))
             {
-                _notReplaced.Add((key, Strings.ExtractBlocked(ExtractBlock.FileInPlaceOfFolder)));
+                NotReplaceAs(key, Strings.ExtractBlocked(ExtractBlock.FileInPlaceOfFolder), ItemKind.Folder);
                 return;
             }
 
             if (ExtractOverwrite.Blocker(target) is { } block)
             {
-                _notReplaced.Add((key, Strings.ExtractBlocked(block)));
+                NotReplaceAs(key, Strings.ExtractBlocked(block), ItemKind.Folder);
                 return;
             }
 
@@ -228,7 +229,7 @@ internal sealed class ExtractState(
             // 確かめたあとに同じ名前のファイルが置かれた、アクセス権が無い、パスが長すぎるなど。この項目だけを知らせて続ける
             if (File.Exists(target))
             {
-                _notReplaced.Add((key, Strings.ExtractBlocked(ExtractBlock.FileInPlaceOfFolder)));
+                NotReplaceAs(key, Strings.ExtractBlocked(ExtractBlock.FileInPlaceOfFolder), ItemKind.Folder);
             }
             else
             {
@@ -242,8 +243,15 @@ internal sealed class ExtractState(
     /// <summary>書庫ごと読めなかったことを記録する。</summary>
     public void Fail(string name, string reason) => _failed.Add((name, reason));
 
-    /// <summary>上書きできなかったことを記録する (#372)。</summary>
-    public void NotReplace(string name, string reason) => _notReplaced.Add((name, reason));
+    /// <summary>リンクを上書きできなかったことを記録する (#372、#427)。</summary>
+    public void NotReplaceLink(string name, string reason) => NotReplaceAs(name, reason, ItemKind.Link);
+
+    /// <summary>上書きできなかったことを、項目の種類と一緒に記録する (#427)。</summary>
+    private void NotReplaceAs(string name, string reason, ItemKind kind)
+    {
+        _notReplaced.Add((name, reason));
+        _notReplacedKinds.Add(kind);
+    }
 
     /// <summary>ライブラリの中で読み進めている間に中止された (#336)。</summary>
     public void Cancel() => Cancelled = true;
@@ -295,6 +303,7 @@ internal sealed class ExtractState(
         {
             CreatedFolders = _createdFolders,
             NotReplaced = _notReplaced,
+            NotReplacedKinds = _notReplacedKinds,
             Links = _collected,
             CreatedLinks = _createdLinks,
             LinkFailures = _linkFailed,

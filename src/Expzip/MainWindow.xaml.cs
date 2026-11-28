@@ -3786,15 +3786,20 @@ public partial class MainWindow : Window
                 return null;
             }
 
-            // 欠けた書庫を黙って作らない。新しい書庫を写しだと思って元を消すと、入らなかった項目が失われる
-            if (result.SkippedNames.Count > 0)
+            // 欠けた書庫を黙って作らない。新しい書庫を写しだと思って元を消すと、入らなかった項目が失われる。
+            // 取り出し先は新しい空のフォルダーなので、飛ばした項目も上書きできなかった項目も、書庫の中のほかの項目と同じ場所になったもの
+            // (同じ名前のファイルどうし、同じ名前のファイルとフォルダー、#427)。理由は一時ファイルの置き場のことになるので出さない
+            var collided = CollidedItems(result, withSkipped: true);
+            if (collided.Count > 0)
             {
                 ShowIdleStatus();
-                var preview = string.Join(Environment.NewLine, result.SkippedNames.Take(5).Select(static n => "  " + n));
-                var more = result.SkippedNames.Count > 5 ? Strings.More(result.SkippedNames.Count - 5) : string.Empty;
+                var preview = string.Join(Environment.NewLine, collided.Take(5).Select(static n => "  " + n));
+                var more = collided.Count > 5 ? Strings.More(collided.Count - 5) : string.Empty;
                 MessageBox.Show(
                     this,
-                    failed(Path.GetFileName(archivePath), Strings.SameTargetNotCopied(result.SkippedNames.Count, preview, more)),
+                    // 数は入らない項目の数。一覧は同じ名前と種類の行をまとめるので、数とは合わないことがある (同じ名前のファイルが 3 個なら、入らないのは 2 個で 1 行)
+                    failed(Path.GetFileName(archivePath), Strings.SameTargetNotCopied(
+                        result.SkippedNames.Count + result.NotReplaced.Count, preview, more)),
                     AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
@@ -3857,8 +3862,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>取り出せなかったものの一覧。書き方は展開の結果 (<see cref="ShowExtractResult"/>) と揃える。</summary>
-    private static string DescribeNotExtracted(ExtractResult result)
+    /// <param name="result">取り出しの結果。</param>
+    /// <param name="failures">並べる失敗した項目。省くと <see cref="ExtractResult.Failed"/> のすべて。ドラッグでは取り出さなかったリンクを除く (#427)。</param>
+    private static string DescribeNotExtracted(ExtractResult result, IReadOnlyList<(string Name, string Reason)>? failures = null)
     {
+        failures ??= result.Failed;
         var message = new System.Text.StringBuilder();
 
         if (result.Rejected.Count > 0)
@@ -3871,10 +3879,10 @@ public partial class MainWindow : Window
             }
         }
 
-        if (result.Failed.Count > 0)
+        if (failures.Count > 0)
         {
-            message.AppendLine(Strings.NotWrittenFilesLine(result.Failed.Count));
-            foreach (var (name, reason) in result.Failed.Take(5))
+            message.AppendLine(Strings.NotWrittenFilesLine(failures.Count));
+            foreach (var (name, reason) in failures.Take(5))
             {
                 message.AppendLine(Strings.FailureLine(name, reason));
             }
@@ -3882,6 +3890,19 @@ public partial class MainWindow : Window
 
         return message.ToString().TrimEnd();
     }
+
+    /// <summary>
+    /// 同じ名前になって入らない項目の一覧 (#427)。種類を添え、名前と種類の組で重なりを除く。
+    /// 飛ばした項目は、同じ名前のファイルどうし (#335) なのでファイル。
+    /// </summary>
+    private static List<string> CollidedItems(ExtractResult result, bool withSkipped)
+        => (withSkipped ? result.SkippedNames : [])
+            .Select(static n => (Name: n, Kind: ItemKind.File))
+            .Concat(result.NotReplacedItems())
+            .Select(static n => (Name: ArchiveTreeBuilder.Trim(n.Name), n.Kind))
+            .Distinct()
+            .Select(static n => Strings.ItemWithKind(n.Name, n.Kind))
+            .ToList();
 
     /// <summary>
     /// 選んだものから作る書庫の名前 (#207)。決め方は落としたとき (#156) と同じで、
@@ -5631,6 +5652,8 @@ public partial class MainWindow : Window
 
         string[] paths;
         ExtractResult extracted;
+        List<string>? collided = null;
+        string? notExtracted = null;
         try
         {
             // リンクを含むドラッグは、そのたびに新しいフォルダーに取り出す (#367)。前のドラッグで残ったリンクを通って書いたり、
@@ -5639,9 +5662,11 @@ public partial class MainWindow : Window
             // 書庫ごとのフォルダーでは、既に取り出してあるものは触らない。開いたままのアプリに掴まれていて上書きできなくても、ドラッグは成り立つ
             // 書庫ごとのフォルダーに、前のドラッグで取り出したものがファイルとフォルダーを逆にして残っていれば、そこも使わない (#401)。
             // 7z などでは同じ名前のファイルとフォルダーを別々にドラッグできるので、前に作った空のフォルダーが、ファイルの代わりに黙って渡るため
-            var reused = workspace.DirectoryFor(Contents.FilePath);
-            var directory = ContainsLinks(rows) || LeftoverInTheWay(names, rows, reused)
-                ? workspace.CreateScratchDirectory(Path.GetFileNameWithoutExtension(Contents.FilePath))
+            var contents = Contents;
+            var reused = workspace.DirectoryFor(contents.FilePath);
+            var fresh = ContainsLinks(rows) || LeftoverInTheWay(names, rows, reused);
+            var directory = fresh
+                ? workspace.CreateScratchDirectory(Path.GetFileNameWithoutExtension(contents.FilePath))
                 : reused;
             Mouse.OverrideCursor = Cursors.Wait;
             StatusMessage.Text = Strings.ExtractingCount(CountFiles(rows));
@@ -5654,12 +5679,12 @@ public partial class MainWindow : Window
 
             // 落とす前に中身を用意するので、画面のまま読む。分割ファイルや隣のファイルも読むので、
             // 待ちのカーソルと表示を出してから読む (#390)
-            var zone = MarkOfTheWeb.TryReadArchive(Contents.FilePath, Contents.Format);
+            var zone = MarkOfTheWeb.TryReadArchive(contents.FilePath, contents.Format);
 
             // リンクは、ドラッグする項目の中を指すものだけを取り出す。落とした先では、項目どうしの位置が書庫の中と変わるため。
             // ジャンクションは指す先を絶対パスで持つので、エクスプローラーがコピーや移動をすると正しい場所を指さない (#367)
-            extracted = ArchiveExtractor.Extract(
-                Contents.FilePath, Contents.Format, Contents.Names, names, directory,
+            ExtractResult Take(string into) => ArchiveExtractor.Extract(
+                contents.FilePath, contents.Format, contents.Names, names, into,
                 overwrite: false, progress: null, cancellationToken: CancellationToken.None,
                 zoneIdentifier: zone, password: dragPassword,
                 links: new LinkOptions
@@ -5668,16 +5693,42 @@ public partial class MainWindow : Window
                     JunctionsNotAllowed = true,
                 });
 
-            // ドラッグの対象は選んだ項目そのもの。フォルダを選んだ場合は
-            // 配下のファイルではなくフォルダを渡す
-            paths = rows
-                .Select(static r => (IsFolder: r.Entry is null && r.Folder is not null,
-                    Relative: ArchivePath.ToSafeRelativePath(r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath)))
-                .Where(static p => p.Relative is not null)
-                .Select(p => (p.IsFolder, Path: Path.Combine(directory, p.Relative!)))
-                .Where(static p => EnsureDragPath(p.Path, p.IsFolder))
-                .Select(static p => p.Path)
-                .ToArray();
+            extracted = Take(directory);
+
+            // 使い回すフォルダーで上書きできなかった項目は、前のドラッグの残りに当たったのかもしれない (8.3 形式の短い名前で指すものなど)。
+            // 新しいフォルダーに一度だけ取り出し直して決める。新しいフォルダーで上書きできなかったなら、書庫の中のほかの項目と同じ場所になったもの (#427)
+            if (extracted.NotReplaced.Count > 0 && !fresh)
+            {
+                directory = workspace.CreateScratchDirectory(Path.GetFileNameWithoutExtension(contents.FilePath));
+                extracted = Take(directory);
+            }
+
+            // 同じ名前のファイルとフォルダーなどを一緒にドラッグすると、片方が入らない。欠けたまま渡さず、ドラッグを始めない (#427)
+            if (extracted.NotReplaced.Count > 0)
+            {
+                collided = CollidedItems(extracted, withSkipped: false);
+                paths = [];
+            }
+            else if (extracted.Rejected.Count > 0 || extracted.FailedExceptLinks().Count > 0)
+            {
+                // 壊れた項目、安全でない名前の項目、パスワードに対応していない項目などがあると、抜けたまま渡ってしまう。ドラッグを始めない (#427)。
+                // 取り出さなかったリンクだけなら止めない。ほかの項目を渡し、落としたあとにリンクの知らせを出す (#367)
+                notExtracted = DescribeNotExtracted(extracted, extracted.FailedExceptLinks());
+                paths = [];
+            }
+            else
+            {
+                // ドラッグの対象は選んだ項目そのもの。フォルダーを選んだ場合は
+                // 配下のファイルではなくフォルダーを渡す
+                paths = rows
+                    .Select(static r => (IsFolder: r.Entry is null && r.Folder is not null,
+                        Relative: ArchivePath.ToSafeRelativePath(r.Folder is not null ? r.Folder.FullPath : r.Entry!.FullPath)))
+                    .Where(static p => p.Relative is not null)
+                    .Select(p => (p.IsFolder, Path: Path.Combine(directory, p.Relative!)))
+                    .Where(static p => EntrySelection.DragPathReady(p.Path, p.IsFolder))
+                    .Select(static p => p.Path)
+                    .ToArray();
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                    or InvalidDataException or NotSupportedException
@@ -5693,6 +5744,23 @@ public partial class MainWindow : Window
         finally
         {
             Mouse.OverrideCursor = null;
+        }
+
+        if (collided is not null)
+        {
+            // ドラッグを始める前なので、ここでウィンドウを出してよい (取り出せたものが無いときのリンクの知らせと同じ)
+            StatusMessage.Text = Strings.DragCannotStart;
+            var preview = string.Join(Environment.NewLine, collided.Take(5).Select(static n => "  " + n));
+            var more = collided.Count > 5 ? Strings.More(collided.Count - 5) : string.Empty;
+            MessageBox.Show(this, Strings.DragSameTarget(preview, more), AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (notExtracted is not null)
+        {
+            StatusMessage.Text = Strings.DragCannotStart;
+            MessageBox.Show(this, Strings.DragNotExtracted(notExtracted), AppName, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
         }
 
         if (paths.Length == 0)
@@ -5829,41 +5897,6 @@ public partial class MainWindow : Window
         }
 
         return returned;
-    }
-
-    /// <summary>
-    /// ドラッグで渡すパスが実体を持っているかを確かめる。
-    /// 選んだフォルダーが取り出しで作られなかったとき (書庫に同じ名前のファイルがある、#397) は、ここで空のフォルダーとして用意する。
-    /// </summary>
-    /// <param name="path">渡すパス。</param>
-    /// <param name="isFolder">選んだ行がフォルダーか。フォルダーの行には、同じ名前のファイルを代わりに渡さない (#401)。</param>
-    private static bool EnsureDragPath(string path, bool isFolder)
-    {
-        if (!isFolder)
-        {
-            // ファイルの行。リンクはフォルダーへのシンボリックリンクとして取り出されることがあるので、どちらでもよい
-            return File.Exists(path) || Directory.Exists(path);
-        }
-
-        if (Directory.Exists(path))
-        {
-            return true;
-        }
-
-        if (File.Exists(path))
-        {
-            return false;
-        }
-
-        try
-        {
-            Directory.CreateDirectory(path);
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return false;
-        }
     }
 
     /// <summary>

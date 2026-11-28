@@ -387,11 +387,22 @@ internal static partial class Strings
         _ => Pick($"コードページ {codePage} ({windowsName})", $"Code page {codePage} ({windowsName})"),
     };
 
-    /// <summary>選んだものから新しい書庫を作るときに、書き出すと同じファイルになる項目があった (#335)。</summary>
+    /// <summary>知らせの一覧の 1 行 (#427)。同じ名前のファイルとフォルダーのどちらかが分かるよう、種類を添える。</summary>
+    public static string ItemWithKind(string name, Expzip.Archives.ItemKind kind) => kind switch
+    {
+        Expzip.Archives.ItemKind.Folder => Pick($"{name} (フォルダー)", $"{name} (folder)"),
+        Expzip.Archives.ItemKind.Link => Pick($"{name} (リンク)", $"{name} (link)"),
+        _ => Pick($"{name} (ファイル)", $"{name} (file)"),
+    };
+
+    /// <summary>
+    /// 選んだものから新しい書庫を作るときに、書き出すと同じ場所になる項目があった (#335、#427)。
+    /// 挙げるのは入らない項目。同じ名前のファイルとフォルダーでは、フォルダーの中の項目 (<c>a/x.txt</c>) のこともある。
+    /// </summary>
     public static string SameTargetNotCopied(int count, string preview, string more) => Pick(
-        $"ほかの項目と同じ名前になる項目が {count:N0} 個あり、すべてを入れられません。"
+        $"ほかの項目と同じ名前になる項目があるため、次の {count:N0} 個を入れられません。"
         + $"{Environment.NewLine}{preview}{more}",
-        $"{count:N0} {Plural(count, "item has", "items have")} the same name as another item, so not everything can be included."
+        $"Some items have the same name as another item, so the following {count:N0} {Plural(count, "item", "items")} cannot be included."
         + $"{Environment.NewLine}{preview}{more}");
 
     /// <summary>名前の読み方を選び直したタブで、書き換えようとした (#335)。</summary>
@@ -2167,6 +2178,20 @@ internal static partial class Strings
     public static string DragCannotStart => Pick(
         "展開できません",
         "Could not extract");
+
+    /// <summary>展開できない項目 (壊れた項目、安全でない名前の項目など) があり、ドラッグを始めなかった (#427)。取り出さなかったリンクでは出さない。</summary>
+    public static string DragNotExtracted(string details) => Pick(
+        $"展開できない項目があるため、選んだ項目をドラッグでは展開できません。{Environment.NewLine}{Environment.NewLine}{details}"
+        + $"{Environment.NewLine}{Environment.NewLine}ツールバーの「展開」では、ほかの項目を展開して、展開できなかった項目を結果で確かめられます。",
+        $"Some items cannot be extracted, so the selected items cannot be extracted by dragging.{Environment.NewLine}{Environment.NewLine}{details}"
+        + $"{Environment.NewLine}{Environment.NewLine}With Extract on the toolbar, you can extract the other items and see in the result which items could not be extracted.");
+
+    /// <summary>同じ名前になる項目 (同じ名前のファイルとフォルダーなど) があり、ドラッグを始めなかった (#427)。</summary>
+    public static string DragSameTarget(string preview, string more) => Pick(
+        $"ほかの項目と同じ名前になる項目があるため、選んだ項目をドラッグでは展開できません。次の項目が入りません。{Environment.NewLine}{preview}{more}"
+        + $"{Environment.NewLine}{Environment.NewLine}ツールバーの「展開」を使用してください。入らない項目は、展開の結果に「上書きできなかった項目」として出ます。",
+        $"Some items have the same name as another item, so the selected items cannot be extracted by dragging. The following items would be left out.{Environment.NewLine}{preview}{more}"
+        + $"{Environment.NewLine}{Environment.NewLine}Use Extract on the toolbar instead. The items left out are shown in the result as items that could not be overwritten.");
 
     public static string DragExtracted(int count) => Pick(
         $"{count:N0} 個の項目を展開しました",

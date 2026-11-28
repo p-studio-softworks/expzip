@@ -149,4 +149,44 @@ public sealed class EntrySelection
             return true;
         }
     }
+
+    /// <summary>
+    /// ドラッグで渡すパスが、選んだ行と同じ種類の実体を持っているかを確かめる (#401、#427)。
+    /// 選んだフォルダーが取り出しで作られなかったとき (書庫に同じ名前のファイルがある、#397) は、ここで空のフォルダーとして用意する。
+    /// </summary>
+    /// <remarks>
+    /// ファイルの行に渡すのは、ファイルか、フォルダーを指すシンボリックリンク (リンクの行がそう取り出される) だけ。
+    /// ふつうのフォルダーは渡さない。同じ名前のフォルダーの中身を取り出したときにできたものを、ファイルの代わりに渡さないため。
+    /// 行がリンクかは書庫の名前では見分けない。リンクと同じ名前のふつうのファイルがあると、取り違えるため。
+    /// </remarks>
+    /// <param name="path">渡すパス。</param>
+    /// <param name="isFolder">選んだ行がフォルダーか。フォルダーの行には、同じ名前のファイルを代わりに渡さない。</param>
+    internal static bool DragPathReady(string path, bool isFolder)
+    {
+        try
+        {
+            if (!isFolder)
+            {
+                return File.Exists(path)
+                       || (Directory.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0);
+            }
+
+            if (Directory.Exists(path))
+            {
+                return true;
+            }
+
+            if (File.Exists(path))
+            {
+                return false;
+            }
+
+            Directory.CreateDirectory(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 }

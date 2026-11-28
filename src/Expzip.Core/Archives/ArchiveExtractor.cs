@@ -39,6 +39,43 @@ internal sealed record ExtractResult(
     /// </summary>
     public IReadOnlyList<(string Name, string Reason)> NotReplaced { get; init; } = [];
 
+    /// <summary>
+    /// <see cref="NotReplaced"/> の項目の種類 (#427)。同じ数・同じ順。記録した時点で決める (名前では、同じ名前のファイルとフォルダーを見分けられないため)。
+    /// 足りない分はファイル (ファイルを書く所は種類を記録しない)。
+    /// </summary>
+    public IReadOnlyList<ItemKind> NotReplacedKinds { get; init; } = [];
+
+    /// <summary>上書きできなかった項目の名前と種類 (#427)。<see cref="NotReplaced"/> と同じ順。</summary>
+    public IReadOnlyList<(string Name, ItemKind Kind)> NotReplacedItems()
+        => NotReplaced.Select((n, i) => (n.Name, i < NotReplacedKinds.Count ? NotReplacedKinds[i] : ItemKind.File)).ToList();
+
+    /// <summary>
+    /// 失敗した項目から、取り出さなかったリンク (<see cref="LinkFailures"/>) を除いたもの (#427)。<see cref="Failed"/> と同じ順。
+    /// 同じ名前と理由の組は、<see cref="LinkFailures"/> にある数だけ除く (まとめて除くと、同じ名前と理由で失敗したふつうのファイルまで消える)。
+    /// </summary>
+    public IReadOnlyList<(string Name, string Reason)> FailedExceptLinks()
+    {
+        var links = new Dictionary<(string, string), int>();
+        foreach (var link in LinkFailures)
+        {
+            links[link] = links.GetValueOrDefault(link) + 1;
+        }
+
+        var rest = new List<(string Name, string Reason)>();
+        foreach (var failure in Failed)
+        {
+            if (links.TryGetValue(failure, out var count) && count > 0)
+            {
+                links[failure] = count - 1;
+                continue;
+            }
+
+            rest.Add(failure);
+        }
+
+        return rest;
+    }
+
     /// <summary>ディスクに作らずに返したリンク (#367、<see cref="LinkOptions.Collect"/>)。書庫の順。</summary>
     public IReadOnlyList<CollectedLink> Links { get; init; } = [];
 
@@ -61,10 +98,19 @@ internal sealed record ExtractResult(
         {
             CreatedFolders = CreatedFolders + links.CreatedFolders,
             NotReplaced = [.. NotReplaced, .. links.NotReplaced],
+            NotReplacedKinds = [.. NotReplacedItems().Select(static n => n.Kind), .. links.NotReplacedItems().Select(static n => n.Kind)],
             Links = [.. Links, .. links.Links],
             CreatedLinks = [.. CreatedLinks, .. links.CreatedLinks],
             LinkFailures = [.. LinkFailures, .. links.LinkFailures],
         };
+}
+
+/// <summary>書庫の項目の種類 (#427)。上書きできなかった項目を知らせるときに添える。</summary>
+public enum ItemKind
+{
+    File,
+    Folder,
+    Link,
 }
 
 /// <summary>展開先に同じ名前のものがある項目 (#353、#372)。上書きの確認に挙げる。</summary>
@@ -443,6 +489,11 @@ internal static class ArchiveExtractor
     /// 展開先に前からあるジャンクションなどを通る項目があるときも 1 本にする (#349)。ジャンクションを通る名前と、
     /// その先のフォルダーを通る名前は、同じファイルを指すのに別のものに見える。
     /// </para>
+    /// <para>
+    /// あるファイルの書き出す先が、別のファイルを入れるフォルダーと同じ場所のときも 1 本にする (#427。<c>a</c> と <c>a/x.txt</c>)。
+    /// 並べると、ファイルを書くのとフォルダーを作るのが取り合って「失敗した」になる。1 本なら、後のものが
+    /// 「上書きできなかった項目」になり、どの形式でも同じに扱える。
+    /// </para>
     /// </remarks>
     internal static int CountLanes(string archivePath, string destinationRoot, IReadOnlyList<string> targets)
     {
@@ -457,6 +508,11 @@ internal static class ArchiveExtractor
         }
 
         if (targets.Any(t => MayBeShortName(Path.GetRelativePath(destinationRoot, t))))
+        {
+            return 1;
+        }
+
+        if (FileInPlaceOfFolder(destinationRoot, targets))
         {
             return 1;
         }
@@ -486,6 +542,43 @@ internal static class ArchiveExtractor
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// あるファイルの書き出す先が、別のファイルの書き出す先の途中のフォルダーと同じか (#427)。大文字と小文字は区別しない。
+    /// ディスクは見ない。すべての途中のフォルダーを集めてから比べる (ファイルがフォルダーの中身より前に来ることがある)。
+    /// </summary>
+    /// <remarks>
+    /// Windows は途中のフォルダーの名前の末尾のピリオドと空白も落とす (<c>a /x.txt</c> は <c>a\x.txt</c> に書かれる)。
+    /// <see cref="Path.GetFullPath(string)"/> が落とすのは最後の名前だけなので、比べるときは名前ごとに落とす。
+    /// </remarks>
+    internal static bool FileInPlaceOfFolder(string destinationRoot, IReadOnlyList<string> targets)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationRoot));
+        var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        string? Key(string path)
+        {
+            if (path.Length <= root.Length)
+            {
+                return null;
+            }
+
+            var parts = path[(root.Length + 1)..].Split(Path.DirectorySeparatorChar)
+                .Select(static p => p.TrimEnd('.', ' '));
+            return string.Join(Path.DirectorySeparatorChar, parts);
+        }
+
+        foreach (var target in targets)
+        {
+            var folder = Path.GetDirectoryName(target);
+            while (folder is not null && folder.Length > root.Length && Key(folder) is { } key && folders.Add(key))
+            {
+                folder = Path.GetDirectoryName(folder);
+            }
+        }
+
+        return targets.Any(t => Key(t) is { } key && folders.Contains(key));
     }
 
     /// <summary>

@@ -145,4 +145,29 @@ if (Test-Path $made) {
 Check '中の書庫のタブのすぐ右に開く' ((Tab-Order $app) -eq '元.zip, 中.zip, x.zip, 別.zip') (Tab-Order $app)
 Stop-Expzip $app
 
+Section '同じ名前のファイルとフォルダーを両方選ぶと作らない (#427)'
+# フォルダー a、その下の a/x.txt、同じ名前のファイル a の順に入った 7z。7z のフォルダーの名前は末尾に / が無く、ファイルと同じ名前になる。
+# Windows には 7z を作る標準のツールが無いので、Core のテストの SevenZipSample で作っておいたものを使う
+# (new SevenZipSample().Folder("a").File("a/x.txt", "X").File("a", "FILE"))。取り出すとフォルダー a が先にできて、ファイル a が入らない
+$nested = Join-Path $script:Work 'same_name_nested.7z'
+Copy-Item (Join-Path $PSScriptRoot '..\fixtures\same_name_nested.7z') $nested
+$app = Start-Expzip @($nested)
+# 同じ名前の行は Select-Row では片方しか選べないので、全部を選ぶ
+Select-Row $app 'a' | Out-Null
+Send-Keys $app '^a'
+Check 'メニューから作る' (Open-NewArchiveFromSelection $app)
+Check '保存先を決める' (Complete-FileDialog $app $dialogTitle 'nested.zip')
+$box = Find-MessageBox $app 10000
+Check '作らずに知らせる' ($null -ne $box)
+if ($box) {
+    # 見出しの名前は元の書庫 (取り出せなかったときの知らせと同じ書き方)
+    $expected = "same_name_nested.7z を作成できませんでした。`n`nほかの項目と同じ名前になる項目があるため、次の 1 個を入れられません。`n  a (ファイル)"
+    Check '文言' (($box.Text -replace "`r", '') -eq $expected) $box.Text
+    Close-MessageBox $box 'OK'
+}
+Wait-Idle $app
+Check '書庫はできない' (-not (Test-Path (Join-Path $script:Work 'nested.zip')))
+Check 'タブは増えない' ((Get-Tabs $app).Count -eq 1) (Tab-Order $app)
+Stop-Expzip $app
+
 Complete-Suite
